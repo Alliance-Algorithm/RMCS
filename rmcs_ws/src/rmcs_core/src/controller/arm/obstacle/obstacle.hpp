@@ -9,12 +9,15 @@
 #include <geometric_shapes/shape_operations.h>
 #include <memory>
 #include <moveit/move_group_interface/move_group_interface.hpp>
+#include <rclcpp/logger.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <string>
-namespace rmcs_core::controller::arm::obstracle {
 
-enum struct CollisionObjectStatus {
+namespace rmcs_core::controller::arm::obstacle {
+
+enum class CollisionObjectOperation {
+    IDLE,
     ADD,
     APPEND,
     MOVE,
@@ -25,33 +28,36 @@ struct Pose {
     double x, y, z, roll, pitch, yaw;
 };
 
-class Obstacle
-    : public rmcs_executor::Component
-    , public rclcpp::Node {
+class Obstacle {
 public:
     explicit Obstacle(std::string frame_id, std::string id)
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+        : logger_(rclcpp::get_logger("obstacle_" + id)) {
         collision_object_.header.frame_id = std::move(frame_id);
         collision_object_.id = std::move(id);
     }
+
+    std::string id() const { return collision_object_.id; }
+
     void set_pose(Pose pose) { pose_solver(pose); }
-    void set_enable(bool enable) { enable_ = enable ? true : false; }
+
+    void set_operation(CollisionObjectOperation collision_object_operation) {
+        collision_object_operation_ = collision_object_operation;
+    }
+
     void mesh_load(const std::string& filename) {
         const auto path =
             std::filesystem::path(ament_index_cpp::get_package_share_directory("rmcs_core"))
-            / "meshs" / filename;
+            / "meshs" / (filename + ".stl");
 
         std::unique_ptr<shapes::Mesh> mesh(shapes::createMeshFromResource(path.string()));
         if (!mesh) {
-            RCLCPP_INFO(this->get_logger(), "Mesh failed to load!");
+            RCLCPP_INFO(logger_, "Mesh failed to load!");
             return;
         }
 
         shapes::ShapeMsg shape_msg;
         if (!shapes::constructMsgFromShape(mesh.get(), shape_msg)) {
-            RCLCPP_INFO(this->get_logger(), "Failed to construct msg from shape!");
+            RCLCPP_INFO(logger_, "Failed to construct msg from shape!");
             return;
         }
 
@@ -62,9 +68,34 @@ public:
 
         using CollisionObject = moveit_msgs::msg::CollisionObject;
 
+        std::string collision_object_operation_str;
+
         collision_object_.set__pose(pose_);
-        switch (collision_object_status_)
-            return collision_object_;
+
+        switch (collision_object_operation_) {
+        case CollisionObjectOperation::ADD:
+            collision_object_.operation = CollisionObject::ADD;
+            collision_object_operation_str = "ADD";
+            break;
+        case CollisionObjectOperation::APPEND:
+            collision_object_.operation = CollisionObject::APPEND;
+            collision_object_operation_str = "APPEND";
+            break;
+        case CollisionObjectOperation::MOVE:
+            collision_object_.operation = CollisionObject::MOVE;
+            collision_object_operation_str = "MOVE";
+            break;
+        case CollisionObjectOperation::REMOVE:
+        case CollisionObjectOperation::IDLE:
+        default:
+            collision_object_.operation = CollisionObject::REMOVE;
+            collision_object_operation_str = "REMOVE";
+            break;
+        }
+
+        RCLCPP_INFO(logger_, "collision operation: %s", collision_object_operation_str.c_str());
+
+        return collision_object_;
     }
 
 private:
@@ -93,11 +124,11 @@ private:
         pose_.position.set__z(z);
     }
 
-    geometry_msgs::msg::Pose pose_;
-    CollisionObjectStatus collision_object_status_;
-    moveit_msgs::msg::CollisionObject collision_object_;
+    rclcpp::Logger logger_;
 
-    bool enable_{false};
+    geometry_msgs::msg::Pose pose_;
+    CollisionObjectOperation collision_object_operation_{CollisionObjectOperation::IDLE};
+    moveit_msgs::msg::CollisionObject collision_object_;
 };
 
-} // namespace rmcs_core::controller::arm::obstracle
+} // namespace rmcs_core::controller::arm::obstacle

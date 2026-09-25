@@ -1,4 +1,5 @@
 #pragma once
+#include "../obstacle/obstacle_course.hpp"
 #include "controller/arm/arm_action/action_step.hpp"
 #include <atomic>
 #include <chrono>
@@ -70,17 +71,17 @@ public:
             spin_thread_.join();
     }
 
-    ActionMachine(const ActionMachine&)            = delete;
+    ActionMachine(const ActionMachine&) = delete;
     ActionMachine& operator=(const ActionMachine&) = delete;
-    ActionMachine(ActionMachine&&)                 = delete;
-    ActionMachine& operator=(ActionMachine&&)      = delete;
+    ActionMachine(ActionMachine&&) = delete;
+    ActionMachine& operator=(ActionMachine&&) = delete;
 
     void process(const std::vector<Action::Step>& steps_) {
 
-        auto next          = std::make_shared<PlanRequest>();
+        auto next = std::make_shared<PlanRequest>();
         const auto current = plan_request_.load(std::memory_order_acquire);
-        next->request_id   = current ? current->request_id + 1 : 1;
-        next->steps        = steps_;
+        next->request_id = current ? current->request_id + 1 : 1;
+        next->steps = steps_;
         plan_request_.store(next, std::memory_order_release);
     }
 
@@ -107,7 +108,7 @@ private:
                             {"joint_4", target.joint_4},
                             {"joint_5", target.joint_5},
                             {"joint_6", target.joint_6},
-                    });
+                        });
                 } else if constexpr (std::is_same_v<T, Action::PoseTarget>) {
                     move_group->setPoseTarget(
                         geometry_msgs::msg::Pose()
@@ -164,7 +165,7 @@ private:
         if (move_group->plan(plan) != moveit::core::MoveItErrorCode::SUCCESS)
             return false;
 
-        out_points      = plan.trajectory.joint_trajectory.points;
+        out_points = plan.trajectory.joint_trajectory.points;
         out_joint_names = plan.trajectory.joint_trajectory.joint_names;
         return true;
     }
@@ -174,8 +175,8 @@ private:
         if (!request || request->request_id == last_planned_id_)
             return;
 
-        auto result          = std::make_shared<PlannedTrajectory>();
-        result->request_id   = request->request_id;
+        auto result = std::make_shared<PlannedTrajectory>();
+        result->request_id = request->request_id;
         result->plan_success = true;
 
         auto current_state = move_group_->getCurrentState();
@@ -211,7 +212,7 @@ private:
             RCLCPP_INFO(node_->get_logger(), "segment %zu plan success", i);
 
             const size_t start_idx = (i == 0) ? 0 : 1;
-            auto& step_pos         = result->step_position_map[static_cast<int>(i)];
+            auto& step_pos = result->step_position_map[static_cast<int>(i)];
             for (size_t j = start_idx; j < segment_pts.size(); ++j) {
                 step_pos.push_back(segment_pts[j].positions);
             }
