@@ -58,7 +58,7 @@ private:
         return it == obstacles_.end() ? nullptr : it->second.get();
     }
 
-    void add_collision(const std::string id, const std::string& mesh, Pose pose = {}) {
+    void add_collision(const std::string& id, const std::string& mesh, Pose pose = {}) {
         auto [it, inserted] = obstacles_.emplace(id, std::make_unique<Obstacle>(frame_id_, id));
         if (!inserted) {
             RCLCPP_WARN(logger_, "duplicate obstacle if: %s", id.c_str());
