@@ -152,8 +152,17 @@ public:
     void command_update(bool controller_healthy, const std::string& controller_fault_reason) {
         joint_controller_healthy_ = controller_healthy;
         joint_controller_fault_reason_ = controller_fault_reason;
-        const bool ready = controller_healthy && joint_feedback_ready_() && joint_motors_enabled_();
-        const auto step = joint_enable_sequence_.update(joints_enabled_, ready);
+        const auto previous_phase = joint_enable_sequence_.phase();
+        const std::array<const device::DmMotor*, 4> joints{
+            &hip_joint_motors_[0], &knee_joint_motors_[0], &hip_joint_motors_[1],
+            &knee_joint_motors_[1]};
+        std::array<device::DmJointEnableSequence::Feedback, 4> feedback;
+        for (std::size_t i = 0; i < joints.size(); ++i)
+            feedback[i] = {
+                joints[i]->feedback_ready(), joints[i]->status_code(),
+                joints[i]->last_feedback_time()};
+        const auto step = joint_enable_sequence_.update(
+            joints_enabled_, controller_healthy, feedback, std::chrono::steady_clock::now());
         joint_control_active_ = step.control_active;
         auto builder = board_->start_transmit();
 
@@ -173,21 +182,27 @@ public:
                         .as_bytes(),
             });
 
-        // Clear an old velocity before any enable frame. Startup and all
-        // unavailable states continuously transmit zero velocity.
-        if (joints_enabled_)
-            send_joint_velocity_commands_(builder, !joint_control_active_);
+        // Clear/enable one motor per CAN bus in staggered USB transfers.
+        // System frames go first: the other motor's VEL response must not
+        // precede an FC waiting in a non-retrying board CAN TX FIFO.
         if (step.system != JointSystemCommand::kNone)
-            send_joint_system_commands_(builder, step.system);
-        // Also clear after FC for firmware that ignores VEL while disabled.
-        if (step.system == JointSystemCommand::kEnable)
-            send_joint_velocity_commands_(builder, true);
+            send_joint_system_commands_(builder, step.system, step.system_mask);
+        // Startup supplies zero for 50 ms before the first FC and immediately
+        // after FC as well. Keep transmitting zero during disarm/failure.
+        send_joint_velocity_commands_(builder, !joint_control_active_);
+        if (joint_enable_sequence_.phase() == device::DmJointEnableSequence::Phase::kActive
+            && previous_phase != device::DmJointEnableSequence::Phase::kActive) {
+            const auto& attempts = joint_enable_sequence_.enable_attempts();
+            RCLCPP_INFO(
+                logger_,
+                "[joint_enable] startup confirmed: four fresh status=1 stable for 50 ms; "
+                "FC attempts LH,LK,RH,RK=%u,%u,%u,%u",
+                attempts[0], attempts[1], attempts[2], attempts[3]);
+        }
         if (joint_control_active_)
             joint_control_ever_active_ = true;
-        if (joints_enabled_ && !ready
-            && (joint_control_ever_active_
-                || std::chrono::steady_clock::now() - joint_enable_started_
-                       > std::chrono::seconds{1}))
+        if (joints_enabled_
+            && joint_enable_sequence_.phase() == device::DmJointEnableSequence::Phase::kFailed)
             note_joint_unavailable_();
     }
 
@@ -197,11 +212,10 @@ public:
         joints_enabled_ = enabled;
         joint_control_active_ = false;
         joint_control_ever_active_ = false;
-        joint_enable_started_ = std::chrono::steady_clock::now();
         if (enabled)
             joint_fault_reason_.clear();
 
-        RCLCPP_INFO(logger_, "[joint_enable] DM joints %s", enabled ? "enabled" : "disabled");
+        RCLCPP_INFO(logger_, "[joint_enable] request=%s", enabled ? "enable" : "disable");
     }
 
 private:
@@ -211,7 +225,13 @@ private:
         if (!joint_fault_reason_.empty())
             return;
         std::ostringstream reason;
-        reason << "controller=" << joint_controller_healthy_ << " reason="
+        reason << "phase=" << joint_enable_sequence_.phase_name()
+               << " ever_active=" << joint_control_ever_active_
+               << " pending_mask=" << static_cast<unsigned>(joint_enable_sequence_.pending_mask())
+               << " FC_attempts=";
+        for (const auto attempts : joint_enable_sequence_.enable_attempts())
+            reason << attempts << ',';
+        reason << " controller=" << joint_controller_healthy_ << " reason="
                << (joint_controller_fault_reason_.empty() ? "none" : joint_controller_fault_reason_)
                << "; LH,LK,RH,RK status/age_ms/vel/command:";
         for (const auto* motor :
@@ -262,7 +282,13 @@ private:
              << (joint_controller_fault_reason_.empty() ? "none" : joint_controller_fault_reason_)
              << " first_unavailable="
              << (joint_fault_reason_.empty() ? "none" : joint_fault_reason_)
-             << " resend_cycles=" << joint_enable_sequence_.remaining() << '\n';
+             << " phase=" << joint_enable_sequence_.phase_name()
+             << " startup_remaining_ms=" << joint_enable_sequence_.remaining_ms()
+             << " pending_mask=" << static_cast<unsigned>(joint_enable_sequence_.pending_mask())
+             << " FC_attempts_LH_LK_RH_RK=";
+        for (const auto attempts : joint_enable_sequence_.enable_attempts())
+            text << attempts << ',';
+        text << '\n';
         text << "  DM joints (all zeroed via /wheel_leg/calibrate):\n";
         constexpr auto kNames =
             std::array{"left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
@@ -316,17 +342,20 @@ private:
     }
 
     template <typename Builder>
-    void send_joint_system_commands_(Builder& builder, JointSystemCommand command) {
+    void send_joint_system_commands_(
+        Builder& builder, JointSystemCommand command, std::uint8_t mask = 0xf) {
         const auto send = [&](const Spec::Can& can, device::DmMotor& motor) {
             auto payload = command == JointSystemCommand::kClearError ? motor.clear_error_command()
                          : command == JointSystemCommand::kEnable     ? motor.enable_command()
                                                                       : motor.disable_command();
             builder.can_transmit(can, {.can_id = motor.send_id(), .can_data = payload.as_bytes()});
         };
-        for (auto& motor : hip_joint_motors_)
-            send(Spec::kCans.kCan1, motor);
-        for (auto& motor : knee_joint_motors_)
-            send(Spec::kCans.kCan2, motor);
+        for (std::size_t side = 0; side < 2; ++side) {
+            if (mask & (1u << (2 * side)))
+                send(Spec::kCans.kCan1, hip_joint_motors_[side]);
+            if (mask & (1u << (2 * side + 1)))
+                send(Spec::kCans.kCan2, knee_joint_motors_[side]);
+        }
     }
 
     template <typename Builder>
@@ -463,7 +492,6 @@ private:
     std::string joint_controller_fault_reason_;
     device::DmJointEnableSequence joint_enable_sequence_;
     bool joint_control_ever_active_ = false;
-    std::chrono::steady_clock::time_point joint_enable_started_{};
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr dm_calibrate_subscription_;
 

@@ -3,7 +3,6 @@
 #include <stdexcept>
 
 #include "controller/chassis/wheel_leg_joint_pair_geometry.hpp"
-#include "hardware/device/dm_joint_enable_sequence.hpp"
 
 using namespace rmcs_core::controller::chassis;
 using Geometry = WheelLegJointPairGeometry;
@@ -94,29 +93,4 @@ int main() {
     const auto to = Geometry::target(left, 0.42, -0.13742282595254576, lo, hi, 0.04);
     const auto move = wheel_leg_pair_velocity(left, from, to, {}, config, dt);
     require(move.hip > 0 && move.knee > 0, "coordinated long knee arc");
-
-    using Sequence = rmcs_core::hardware::device::DmJointEnableSequence;
-    Sequence sequence;
-    require(sequence.update(false, true).system == Sequence::Command::kDisable, "disabled boot");
-    for (int tick = 0; tick < 100; ++tick) {
-        const auto step = sequence.update(true, true);
-        require(!step.control_active, "startup must stay at zero even with enabled feedback");
-        const auto expected = tick % 10 != 0 ? Sequence::Command::kNone
-                            : tick < 50      ? Sequence::Command::kClearError
-                                             : Sequence::Command::kEnable;
-        require(step.system == expected, "startup order and system frame rate");
-    }
-    for (int tick = 0; tick < 2000; ++tick) {
-        const auto step = sequence.update(true, true);
-        require(
-            step.control_active && step.system == Sequence::Command::kNone, "no periodic enable");
-    }
-    const auto unavailable = sequence.update(true, false);
-    require(
-        !unavailable.control_active && unavailable.system == Sequence::Command::kNone,
-        "unavailable zero without disable");
-    require(sequence.update(false, false).system == Sequence::Command::kDisable, "explicit disarm");
-    require(
-        sequence.update(true, true).system == Sequence::Command::kClearError,
-        "rearm restarts sequence");
 }

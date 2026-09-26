@@ -236,7 +236,7 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                         last_torque, target_array, requested, reset_count)
                     fault_steps += int((~healthy_flags).sum()) if requested else 0
                     faults_per_environment += ~healthy_flags if requested else 0
-                    enabled_tensor = torch.tensor(dm_bridge.status[:, :1] == 1, device=args.device)
+                    enabled_tensor = torch.tensor(dm_bridge.status == 1, device=args.device)
                 else:
                     raw = np.remainder(offsets - q_active, 2. * math.pi)
                     if previous_raw is not None:

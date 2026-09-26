@@ -204,6 +204,7 @@ int main(int argc, char** argv) {
                 *robot->source.enabled = enabled != 0;
                 *robot->source.reset_count = static_cast<std::size_t>(reset);
                 bool motors_ready = true;
+                std::array<Sequence::Feedback, 4> motor_feedback;
                 for (std::size_t i = 0; i < 4; ++i) {
                     auto& motor = *robot->motors[i];
                     if (!motor.match_then_store_status(motor.feedback_id(), feedback[i]))
@@ -211,10 +212,11 @@ int main(int argc, char** argv) {
                     motor.update_status();
                     *robot->source.targets[i] = targets[i];
                     motors_ready &= motor.feedback_ready() && motor.status_code() == 1;
+                    motor_feedback[i] = {motor.feedback_ready(), motor.status_code(), now};
                 }
                 robot->controller->update_at(now);
                 const auto step =
-                    robot->sequence.update(enabled != 0, *robot->sink.healthy && motors_ready);
+                    robot->sequence.update(enabled != 0, *robot->sink.healthy, motor_feedback, now);
                 *robot->source.active = step.control_active;
                 const auto independent = robot->independent_short_arc
                                            ? robot->independent_commands(now, step.control_active)
@@ -244,7 +246,7 @@ int main(int argc, char** argv) {
                 const std::array<std::uint8_t, 4> flags{
                     static_cast<std::uint8_t>(*robot->sink.healthy),
                     static_cast<std::uint8_t>(step.control_active),
-                    static_cast<std::uint8_t>(motors_ready), 0};
+                    static_cast<std::uint8_t>(motors_ready), step.system_mask};
                 std::array<char, 256> reason{};
                 robot->sink.reason->copy(reason.data(), reason.size() - 1);
                 write(positions);
