@@ -19,10 +19,10 @@ public:
     enum class Side { kLeft, kRight };
 
     // V5 source URDF closure, on the physical assembly branch. The user-provided
-    // 30-110 degree inner-knee range maps to these active-motor differences.
+    // 30-120 degree inner-knee range maps to these active-motor differences.
     // Left: hip - knee. Right: knee - hip. The source CAD asymmetry is <2e-5 rad.
     static constexpr double kDefaultMinDifference = -0.47375;
-    static constexpr double kDefaultMaxDifference = 1.42848;
+    static constexpr double kDefaultMaxDifference = 1.62892;
     static constexpr double kPeriod = 2.0 * std::numbers::pi;
 
     static double difference(Side side, double hip, double knee) {

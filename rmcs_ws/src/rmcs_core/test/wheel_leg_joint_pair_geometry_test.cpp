@@ -36,11 +36,11 @@ int main() {
     require(right_offset && near(*right_offset, -Geometry::kPeriod));
     require(!Geometry::feedback_knee_offset(left, 2.0, 0.0, min, max, margin));
 
-    // The recorded left-leg pose is outside the normal 110-degree range but
-    // still on a unique branch that can be steered inward at reduced torque.
+    // The recorded left-leg pose is outside the normal 120-degree range but
+    // still on a unique branch that can be steered inward.
     constexpr double recovery_range = 0.25;
-    const double logged_left_hip = -132.67 * std::numbers::pi / 180.0;
-    const double logged_left_knee = -222.84 * std::numbers::pi / 180.0;
+    const double logged_left_hip = -130.0 * std::numbers::pi / 180.0;
+    const double logged_left_knee = -228.0 * std::numbers::pi / 180.0;
     const auto logged_offset = Geometry::feedback_knee_offset(
         left, logged_left_hip, logged_left_knee, min, max, recovery_range);
     require(logged_offset && near(*logged_offset, 0.0));
