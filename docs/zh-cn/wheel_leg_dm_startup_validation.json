@@ -1,0 +1,24 @@
+{
+  "method": "Injected CAN feedback through production DmMotor, controller, enable sequence, VEL bytes; no plant motion or real CAN transport",
+  "reported_motor_angles_deg": [
+    9.28,
+    -65.81,
+    -35.84,
+    36.06
+  ],
+  "cases": [
+    "right hip missing FC",
+    "right knee missing FC",
+    "both right motors missing FC"
+  ],
+  "dropped_until_s": 0.55,
+  "first_active_s": [
+    0.632,
+    0.632,
+    0.632
+  ],
+  "nonzero_or_active_before_ready": 0,
+  "nonzero_or_active_after_running_disable": 0,
+  "first_controller_fault": null,
+  "passed": true
+}

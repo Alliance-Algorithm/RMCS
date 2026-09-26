@@ -120,6 +120,8 @@ class DmFeedbackBridge:
             decoded_velocity[env] = values[4:8]
             frames, system = values[8:10]
             healthy[env], active[env] = values[10:12]
+            system_mask = values[13]
+            addressed = [(system_mask & (1 << joint)) != 0 for joint in range(4)]
             reason = values[14].split(b"\0", 1)[0].decode()
             for joint in range(4):
                 frame = frames[joint * 8:(joint + 1) * 8]
@@ -129,14 +131,14 @@ class DmFeedbackBridge:
                 self.startup_nonzero_frames += 1
             if system[:7] == b"\xff" * 7:
                 if system[7] == 0xFC:
-                    self.status[env] = 1
+                    self.status[env, addressed] = 1
                     self.system_counts["enable"] += 1
                 elif system[7] == 0xFD:
                     self.disable_commands_while_requested += int(requested)
-                    self.status[env] = 0
+                    self.status[env, addressed] = 0
                     self.system_counts["disable"] += 1
                 elif system[7] == 0xFB:
-                    self.status[env] = 0
+                    self.status[env, addressed] = 0
                     self.system_counts["clear"] += 1
                 else:
                     raise RuntimeError("unexpected motor system command")
@@ -162,7 +164,7 @@ class DmFeedbackBridge:
             for joint in range(4):
                 index = min(self.command_delay[env, joint], len(self.command_history) - 1)
                 applied[env, joint] = self.command_history[-1 - index][env, joint]
-        applied[self.status[:, 0] == 0] = 0.
+        applied[self.status == 0] = 0.
         self.tick += 1
         return decoded, decoded_velocity, commands, applied, active, healthy
 

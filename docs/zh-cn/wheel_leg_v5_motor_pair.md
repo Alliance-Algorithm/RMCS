@@ -71,7 +71,7 @@ V5 闭链直接求解得到：
 
 四个DM保持调试助手设置的 **VEL**。速度帧仍为 `0x200+ID`、小端 float32 rad/s、后四字节0；系统帧沿用基础ID。帧格式依据[DM8009手册](https://docs.openarm.dev/assets/files/dm8009-90ee7f15d06666e15afd49e5d5417150.pdf)与[达妙SDK](https://github.com/dmBots/motor-sdk/blob/main/Python%E4%BE%8B%E7%A8%8B/u2can/DM_CAN.py)。
 
-启动流程：每周期先发零速度，前50周期清错、后50周期使能，系统命令每10周期重复一次；FC后还补发一次零速度，兼容失能时忽略VEL的固件。序列完成且控制器健康、四路反馈新鲜、四台均 `status=1` 后，才打开运动门控。正常工作由连续VEL帧维持通信，不再周期性发送FC；状态0也不会被周期使能自动拉起。
+启动流程（收到实车右侧随机未使能日志后修订）：先清错并持续零速度50 ms；同总线左右电机的系统命令错开发送。每台都必须收到FC之后的新鲜 `status=1`，四台同时稳定50 ms后才开放运动。启动期间只对尚未确认的电机重试FC，单台间隔至少100 ms，总启动时限2 s；超时锁住零速度。正常工作由连续VEL帧维持通信，不周期性发送FC；运行阶段失去就绪后锁住门控，双下复位后才重新启动。详见[使能链路排查与修复](wheel_leg_dm_startup.md)。
 
 原代码在启动序列内将 `joint_control_active` 无条件设真，角度参考会提前推进；首个运动周期又能立刻达到2π rad/s。现已修正这些确定的启动冲击来源。由于实机当次没有日志，不能断言它们就是约0.5 s后status变0的唯一原因。
 
@@ -81,6 +81,7 @@ V5 闭链直接求解得到：
 
 - `controller_reason`：当前具体异常，如第几路反馈断续或哪条腿不在V5装配分支。
 - `first_unavailable`：首次异常时 LH/LK/RH/RK 的status、反馈年龄、反馈速度、指令速度；退出使能后仍保留，下一次使能才清除。
+- `phase`、`ever_active`、`pending_mask`、`FC_attempts`：区分启动超时与运行中失能，记录哪台电机未确认及各自重试次数。
 - 每台DM的 `status/fault/feedback_age_ms`。
 
 首次异常同时打印 `[joint_enable] first unavailable`，避免之后全是零速度时丢失最初线索。
@@ -116,7 +117,7 @@ Isaac接口按[官方API](https://isaac-sim.github.io/IsaacLab/v2.3.0/source/api
 
 ROS开发容器内 `rmcs_core` 编译通过。`dm_motor_test` 六项测试及 `wheel_leg_joint_pair_geometry_test` 全部通过；后者包含594组不同初始状态/目标、左右镜像、速度限制与启动时序。YAML参数集合、标定offset、RL名义角和插件注册核对通过。
 
-尚未在实车复测，也没有当次0.5 s失能的历史日志。因此可以确认代码缺陷已修正、上述仿真通过，不能把实车失能的唯一原因判定为某个固件行为。
+上述验证完成时还没有当次0.5 s失能的实车日志。随后用户提供了右髋新鲜 `status=0`、控制器健康的日志，并确认板卡关闭CAN自动重发；追加排查及启动修复见[使能链路记录](wheel_leg_dm_startup.md)。
 
 ## 标定反馈与转动方向的闭链对照
 
@@ -195,4 +196,4 @@ OMNI_KIT_ACCEPT_EULA=YES OPENBLAS_NUM_THREADS=1 /home/noir/miniconda3/envs/isaac
 
 报告包含生产代码与模型哈希。完整反馈测试之后，测试桥接增加了独立短弧对照选项，所以两份报告的桥接哈希不同；生产驱动、控制器、配对几何及使能序列保持相同。脚本退出前使用Isaac Lab的公开 `clear_instance()` 取消等待Play的STOP回调；方向对照已验证正常退出。
 
-本轮 `rmcs_core` 编译通过，已有DM六项gtest和配对几何/使能序列测试全部通过。结论适用于上述模型与已配置轴向映射；尚不能确认实车0.5 s后失能的原因，也不能宣称已经实车复测通过。
+本轮 `rmcs_core` 编译通过，已有DM六项gtest和配对几何/使能序列测试全部通过。这些JSON是当时的验证快照；随后改动了使能序列，新的闭链回归结果与实车日志分析见[使能链路记录](wheel_leg_dm_startup.md)。尚未实车复测。
