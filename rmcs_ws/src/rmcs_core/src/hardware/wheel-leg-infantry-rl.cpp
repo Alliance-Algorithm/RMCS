@@ -24,6 +24,7 @@
 #include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
+#include "hardware/device/dm_joint_enable_sequence.hpp"
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/remote_control.hpp"
@@ -82,7 +83,6 @@ public:
                     .set_id(id)
                     .set_feedback_id(id)
                     .set_reversed()
-                    .set_feedback_wrap_period(2.0 * std::numbers::pi)
                     .set_angle_offset(
                         get_parameter_or<double>(std::string{name} + "_angle_offset", 0.0)));
 
@@ -96,7 +96,6 @@ public:
                     .set_id(id)
                     .set_feedback_id(id)
                     .set_reversed()
-                    .set_feedback_wrap_period(2.0 * std::numbers::pi)
                     .set_angle_offset(
                         get_parameter_or<double>(std::string{name} + "_angle_offset", 0.0)));
 
@@ -105,7 +104,6 @@ public:
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
             *this, get_parameter("board_serial").as_string(), options);
 
-        joint_system_resend_ = kJointSystemResendCycles;
         auto startup_builder = board_->start_transmit();
         send_joint_system_commands_(startup_builder, JointSystemCommand::kDisable);
 
@@ -151,8 +149,12 @@ public:
             hip_joint_motors_[1].control_velocity(), knee_joint_motors_[1].control_velocity());
     }
 
-    void command_update(bool controller_healthy) {
+    void command_update(bool controller_healthy, const std::string& controller_fault_reason) {
         joint_controller_healthy_ = controller_healthy;
+        joint_controller_fault_reason_ = controller_fault_reason;
+        const bool ready = controller_healthy && joint_feedback_ready_() && joint_motors_enabled_();
+        const auto step = joint_enable_sequence_.update(joints_enabled_, ready);
+        joint_control_active_ = step.control_active;
         auto builder = board_->start_transmit();
 
         builder.can_transmit(
@@ -161,47 +163,32 @@ public:
                 .can_id = 0x200,
                 .can_data =
                     device::CanPacket8{
-                        joints_enabled_ ? chassis_wheel_motors_[0].generate_command()
-                                        : chassis_wheel_motors_[0].generate_command(0.0),
-                        joints_enabled_ ? chassis_wheel_motors_[1].generate_command()
-                                        : chassis_wheel_motors_[1].generate_command(0.0),
+                        joint_control_active_ ? chassis_wheel_motors_[0].generate_command()
+                                              : chassis_wheel_motors_[0].generate_command(0.0),
+                        joint_control_active_ ? chassis_wheel_motors_[1].generate_command()
+                                              : chassis_wheel_motors_[1].generate_command(0.0),
                         device::CanPacket8::PaddingQuarter{},
                         device::CanPacket8::PaddingQuarter{},
                     }
                         .as_bytes(),
             });
 
-        const bool resending = joint_system_resend_ > 0;
-        bool heartbeat = false;
-        if (!resending && ++joint_heartbeat_ >= kJointHeartbeatCycles) {
-            joint_heartbeat_ = 0;
-            heartbeat = true;
-        }
-        const bool send_system = resending || heartbeat;
-
-        if (joints_enabled_) {
-            // 系统帧（清错/使能）与速度帧在同一周期都发，保证每个周期都有 CAN 帧。
-            if (resending
-                && joint_system_resend_ > kJointSystemResendCycles - kJointClearErrorCycles)
-                send_joint_system_commands_(builder, JointSystemCommand::kClearError);
-            else if (send_system)
-                send_joint_system_commands_(builder, JointSystemCommand::kEnable);
-
-            const bool ready = controller_healthy && joint_feedback_ready_()
-                            && joint_motors_enabled_();
-            if (!ready)
-                note_joint_unavailable_();
-            // 除双下/丢空外，任何保护都不发 disable：不健康时仍每周期发 0 速度帧。
-            joint_control_active_ = true;
-            send_joint_velocity_commands_(builder, !ready);
-        } else {
-            // 双下 / DR16 UNKNOWN / 上电保持：允许 disable，且每周期都发。
-            joint_control_active_ = false;
-            send_joint_system_commands_(builder, JointSystemCommand::kDisable);
-        }
-
-        if (joint_system_resend_ > 0)
-            --joint_system_resend_;
+        // Clear an old velocity before any enable frame. Startup and all
+        // unavailable states continuously transmit zero velocity.
+        if (joints_enabled_)
+            send_joint_velocity_commands_(builder, !joint_control_active_);
+        if (step.system != JointSystemCommand::kNone)
+            send_joint_system_commands_(builder, step.system);
+        // Also clear after FC for firmware that ignores VEL while disabled.
+        if (step.system == JointSystemCommand::kEnable)
+            send_joint_velocity_commands_(builder, true);
+        if (joint_control_active_)
+            joint_control_ever_active_ = true;
+        if (joints_enabled_ && !ready
+            && (joint_control_ever_active_
+                || std::chrono::steady_clock::now() - joint_enable_started_
+                       > std::chrono::seconds{1}))
+            note_joint_unavailable_();
     }
 
     void set_joints_enabled(bool enabled) {
@@ -209,23 +196,33 @@ public:
             return;
         joints_enabled_ = enabled;
         joint_control_active_ = false;
-        joint_system_resend_ = kJointSystemResendCycles;
-        joint_heartbeat_ = 0;
-        if (!enabled)
+        joint_control_ever_active_ = false;
+        joint_enable_started_ = std::chrono::steady_clock::now();
+        if (enabled)
             joint_fault_reason_.clear();
 
         RCLCPP_INFO(logger_, "[joint_enable] DM joints %s", enabled ? "enabled" : "disabled");
     }
 
 private:
-    enum class JointSystemCommand { kClearError, kEnable, kDisable };
+    using JointSystemCommand = device::DmJointEnableSequence::Command;
 
     void note_joint_unavailable_() {
-        joint_fault_reason_ = "joint controller or DM feedback/enable unavailable";
-        RCLCPP_WARN_THROTTLE(
-            logger_, *get_clock(), 1000,
-            "[joint_enable] joint controller or DM feedback/enable unavailable; holding zero "
-            "velocity, DM stays enabled");
+        if (!joint_fault_reason_.empty())
+            return;
+        std::ostringstream reason;
+        reason << "controller=" << joint_controller_healthy_ << " reason="
+               << (joint_controller_fault_reason_.empty() ? "none" : joint_controller_fault_reason_)
+               << "; LH,LK,RH,RK status/age_ms/vel/command:";
+        for (const auto* motor :
+             {&hip_joint_motors_[0], &knee_joint_motors_[0], &hip_joint_motors_[1],
+              &knee_joint_motors_[1]})
+            reason << " [" << motor->status_code() << '/' << motor->feedback_age_ms() << '/'
+                   << motor->velocity() << '/' << motor->control_velocity() << ']';
+        joint_fault_reason_ = reason.str();
+        RCLCPP_ERROR(
+            logger_, "[joint_enable] first unavailable: %s; sending zero velocity",
+            joint_fault_reason_.c_str());
     }
 
     void calibrate_subscription_callback_() {
@@ -261,9 +258,11 @@ private:
              << " control_active=" << joint_control_active_
              << " controller_healthy=" << joint_controller_healthy_
              << " feedback_ready=" << joint_feedback_ready_()
-             << " enabled_feedback=" << joint_motors_enabled_()
-             << " unavailable_reason=" << (joint_fault_reason_.empty() ? "none" : joint_fault_reason_)
-             << " resend_cycles=" << joint_system_resend_ << '\n';
+             << " enabled_feedback=" << joint_motors_enabled_() << " controller_reason="
+             << (joint_controller_fault_reason_.empty() ? "none" : joint_controller_fault_reason_)
+             << " first_unavailable="
+             << (joint_fault_reason_.empty() ? "none" : joint_fault_reason_)
+             << " resend_cycles=" << joint_enable_sequence_.remaining() << '\n';
         text << "  DM joints (all zeroed via /wheel_leg/calibrate):\n";
         constexpr auto kNames =
             std::array{"left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
@@ -276,7 +275,8 @@ private:
                  << " angle=" << motor.angle() << " rad vel=" << motor.velocity()
                  << " rad/s torque=" << motor.torque() << " Nm fault=0x" << std::hex
                  << motor.fault_code() << std::dec << " status=" << motor.status_code()
-                 << " feedback_ready=" << motor.feedback_ready() << '\n';
+                 << " feedback_ready=" << motor.feedback_ready()
+                 << " feedback_age_ms=" << motor.feedback_age_ms() << '\n';
         }
         text << "  Wheels (M3508):\n";
         for (std::size_t i = 0; i < 2; ++i) {
@@ -426,18 +426,23 @@ private:
             : infantry_(infantry) {
             register_input("/wheel_leg/joint_enable", joint_enable_, false);
             register_input("/wheel_leg/joint_controller/healthy", joint_controller_healthy_, false);
+            register_input(
+                "/wheel_leg/joint_controller/fault_reason", joint_controller_fault_reason_, false);
         }
 
         void update() override {
             infantry_.set_joints_enabled(joint_enable_.ready() && *joint_enable_);
             infantry_.command_update(
-                joint_controller_healthy_.ready() && *joint_controller_healthy_);
+                joint_controller_healthy_.ready() && *joint_controller_healthy_,
+                joint_controller_fault_reason_.ready() ? *joint_controller_fault_reason_
+                                                       : "not paired");
         }
 
     private:
         WheelLegInfantryRL& infantry_;
         InputInterface<bool> joint_enable_;
         InputInterface<bool> joint_controller_healthy_;
+        InputInterface<std::string> joint_controller_fault_reason_;
     };
     std::shared_ptr<InfantryCommand> infantry_command_;
 
@@ -455,12 +460,10 @@ private:
     bool joint_control_active_ = false;
     bool joint_controller_healthy_ = false;
     std::string joint_fault_reason_;
-    int joint_system_resend_ = 0;
-    int joint_heartbeat_ = 0;
-
-    static constexpr int kJointSystemResendCycles = 100;
-    static constexpr int kJointClearErrorCycles = 50;
-    static constexpr int kJointHeartbeatCycles = 100;
+    std::string joint_controller_fault_reason_;
+    device::DmJointEnableSequence joint_enable_sequence_;
+    bool joint_control_ever_active_ = false;
+    std::chrono::steady_clock::time_point joint_enable_started_{};
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr dm_calibrate_subscription_;
 

@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <numbers>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -15,7 +16,6 @@
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/device/can_packet.hpp"
-#include "hardware/device/continuous_angle_tracker.hpp"
 
 namespace rmcs_core::hardware::device {
 
@@ -58,13 +58,9 @@ public:
         }
         Config& set_reversed() { return reversed = true, *this; }
         Config& set_reversed(bool value) { return reversed = value, *this; }
-        /// angle_offset：电机角 → 策略角的偏置，策略角 = sign*(电机角 − angle_offset)（参考 XYEGA
-        /// 做法）
+        /// URDF相位 = wrap(sign*(电机角 − angle_offset))；reversed时raw=0对应offset。
         Config& set_angle_offset(double angle_offset) {
             return this->angle_offset = angle_offset, *this;
-        }
-        Config& set_feedback_wrap_period(double period) {
-            return feedback_wrap_period = period, *this;
         }
         /// 设置反馈定标范围，必须与电机内寄存器（调试助手设定）一致
         Config& set_limits(double position_max, double velocity_max, double torque_max) {
@@ -73,14 +69,13 @@ public:
         }
 
         Type motor_type;
-        std::uint8_t id = 1;               // 电机 CAN ID（速度帧 ID = 0x200 + id）
-        std::uint16_t feedback_id = 0;     // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
+        std::uint8_t id = 1;           // 电机 CAN ID（速度帧 ID = 0x200 + id）
+        std::uint16_t feedback_id = 0; // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
         bool reversed = false;
-        double angle_offset = 0.0;         // rad
-        double feedback_wrap_period = 0.0; // 0: feedback is already continuous
-        double position_max = 12.5;        // P_MAX [rad]，须与电机寄存器一致
-        double velocity_max = 45.0;        // V_MAX [rad/s]，反馈定标范围，须与电机寄存器一致
-        double torque_max = 54.0;          // T_MAX [Nm]，须与电机寄存器一致
+        double angle_offset = 0.0;     // rad
+        double position_max = 12.5;    // P_MAX [rad]，须与电机寄存器一致
+        double velocity_max = 45.0;    // V_MAX [rad/s]，反馈定标范围，须与电机寄存器一致
+        double torque_max = 54.0;      // T_MAX [Nm]，须与电机寄存器一致
     };
 
     // ---- 系统命令字节（达妙驱动控制协议；说明书 V1.0 未列出，装车前用调试助手确认）----
@@ -107,7 +102,8 @@ public:
         status_component_.register_output(name_prefix + "/status_code", status_code_output_, 0);
 
         // 速度模式：控制器闭环角度后下发关节速度 v_des [rad/s]
-        command_component_.register_input(name_prefix + "/control_velocity", control_velocity_, false);
+        command_component_.register_input(
+            name_prefix + "/control_velocity", control_velocity_, false);
     }
 
     DmMotor(
@@ -126,10 +122,9 @@ public:
 
     void configure(const Config& config) {
         if (config.id == 0 || config.id > 15 || config.feedback_id > 0x7FF
-            || !std::isfinite(config.angle_offset) || !std::isfinite(config.feedback_wrap_period)
-            || !std::isfinite(config.position_max) || !std::isfinite(config.velocity_max)
-            || !std::isfinite(config.torque_max) || config.position_max <= 0.0
-            || config.velocity_max <= 0.0 || config.torque_max <= 0.0)
+            || !std::isfinite(config.angle_offset) || !std::isfinite(config.position_max)
+            || !std::isfinite(config.velocity_max) || !std::isfinite(config.torque_max)
+            || config.position_max <= 0.0 || config.velocity_max <= 0.0 || config.torque_max <= 0.0)
             throw std::invalid_argument("Invalid DM motor CAN ID or feedback mapping range");
 
         type_ = config.motor_type;
@@ -137,14 +132,12 @@ public:
         feedback_id_ = config.feedback_id;
         reversed_ = config.reversed;
         angle_offset_ = config.angle_offset;
-        feedback_wrap_period_ = config.feedback_wrap_period;
         position_max_ = config.position_max;
         velocity_max_ = config.velocity_max;
         torque_max_ = config.torque_max;
 
         fault_code_ = 0;
         last_feedback_ns_.store(0, std::memory_order_relaxed);
-        feedback_tracking_reset_requested_.store(true, std::memory_order_relaxed);
     }
 
     // ---- 命令帧生成 ----
@@ -182,8 +175,6 @@ public:
     }
 
     void update_status() {
-        if (feedback_tracking_reset_requested_.exchange(false, std::memory_order_acq_rel))
-            feedback_angle_tracker_.reset();
         if (!feedback_fresh()) {
             *feedback_valid_output_ = false;
             return;
@@ -211,8 +202,9 @@ public:
         const double raw_velocity = uint_to_float(vel_u, -velocity_max_, velocity_max_, 12);
         const double raw_torque = uint_to_float(tff_u, -torque_max_, torque_max_, 12);
 
-        angle_ = sign
-               * (feedback_angle_tracker_.update(raw_angle, feedback_wrap_period_) - angle_offset_);
+        // A phase, not a turn counter. Motor raw=0 and raw=2*pi describe the
+        // same calibrated pose. The pair controller resolves the leg opening.
+        angle_ = std::remainder(sign * (raw_angle - angle_offset_), 2.0 * std::numbers::pi);
         velocity_ = sign * raw_velocity;
         torque_ = sign * raw_torque;
 
@@ -252,10 +244,11 @@ public:
     int fault_code() const { return fault_code_; }
     int status_code() const { return status_code_; }
     bool feedback_ready() const { return feedback_fresh() && fault_code_ == 0; }
-    void reset_feedback_tracking() {
-        last_feedback_ns_.store(0, std::memory_order_release);
-        feedback_tracking_reset_requested_.store(true, std::memory_order_release);
+    double feedback_age_ms() const {
+        const auto last = last_feedback_ns_.load(std::memory_order_acquire);
+        return last == 0 ? -1.0 : static_cast<double>(steady_now_ns_() - last) / 1e6;
     }
+    void reset_feedback_tracking() { last_feedback_ns_.store(0, std::memory_order_release); }
 
     // ---- 定标 ----
 
@@ -301,15 +294,12 @@ private:
     std::uint16_t feedback_id_ = 0;
     bool reversed_ = false;
     double angle_offset_ = 0.0;
-    double feedback_wrap_period_ = 0.0;
     double position_max_ = 12.5;
     double velocity_max_ = 45.0;
     double torque_max_ = 54.0;
 
     std::atomic<CanPacket8> can_data_{CanPacket8{0}};
     std::atomic<std::int64_t> last_feedback_ns_{0};
-    std::atomic<bool> feedback_tracking_reset_requested_{false};
-    ContinuousAngleTracker feedback_angle_tracker_;
 
     double angle_ = 0.0;
     double velocity_ = 0.0;
