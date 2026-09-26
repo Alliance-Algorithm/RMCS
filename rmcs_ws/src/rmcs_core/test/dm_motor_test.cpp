@@ -24,10 +24,8 @@ struct MotorFixture {
 
     MotorFixture() {
         motor.configure(
-            DmMotor::Config{DmMotor::Type::kDM8009}
-                .set_id(1)
-                .set_feedback_id(0)
-                .set_limits(12.5, 45.0, 18.0));
+            DmMotor::Config{DmMotor::Type::kDM8009}.set_id(1).set_feedback_id(0).set_limits(
+                12.5, 45.0, 18.0));
     }
 };
 
@@ -89,10 +87,8 @@ TEST(DmMotor, VelocityFrameClampsBothDirectionsAndRejectsNonfiniteValues) {
     MotorFixture fixture;
     auto& motor = fixture.motor;
     motor.configure(
-        DmMotor::Config{DmMotor::Type::kDM8009}
-            .set_id(2)
-            .set_reversed()
-            .set_limits(12.5, 4.0, 18.0));
+        DmMotor::Config{DmMotor::Type::kDM8009}.set_id(2).set_reversed().set_limits(
+            12.5, 4.0, 18.0));
 
     EXPECT_EQ(motor.send_id(), 2u);
     EXPECT_EQ(motor.velocity_send_id(), 0x202u);
@@ -107,15 +103,18 @@ TEST(DmMotor, VelocityFrameClampsBothDirectionsAndRejectsNonfiniteValues) {
         std::ranges::equal(motor.generate_velocity_command(100.0).as_bytes(), kNegativeLimit));
     EXPECT_TRUE(
         std::ranges::equal(motor.generate_velocity_command(-100.0).as_bytes(), kPositiveLimit));
-    EXPECT_TRUE(std::ranges::equal(
-        motor.generate_velocity_command(std::numeric_limits<double>::quiet_NaN()).as_bytes(),
-        kZero));
-    EXPECT_TRUE(std::ranges::equal(
-        motor.generate_velocity_command(std::numeric_limits<double>::infinity()).as_bytes(),
-        kZero));
-    EXPECT_TRUE(std::ranges::equal(
-        motor.generate_velocity_command(-std::numeric_limits<double>::infinity()).as_bytes(),
-        kZero));
+    EXPECT_TRUE(
+        std::ranges::equal(
+            motor.generate_velocity_command(std::numeric_limits<double>::quiet_NaN()).as_bytes(),
+            kZero));
+    EXPECT_TRUE(
+        std::ranges::equal(
+            motor.generate_velocity_command(std::numeric_limits<double>::infinity()).as_bytes(),
+            kZero));
+    EXPECT_TRUE(
+        std::ranges::equal(
+            motor.generate_velocity_command(-std::numeric_limits<double>::infinity()).as_bytes(),
+            kZero));
 }
 
 TEST(DmMotor, FeedbackStatusIsNotAlwaysFault) {
@@ -161,3 +160,39 @@ TEST(DmMotor, InvalidMappingIsRejected) {
 }
 
 } // namespace
+
+TEST(DmMotor, SingleTurnPhaseAcrossCalibrationZeroAndReconnect) {
+    MotorFixture fixture;
+    auto& motor = fixture.motor;
+    motor.configure(
+        DmMotor::Config{DmMotor::Type::kDM8009}
+            .set_id(1)
+            .set_feedback_id(0)
+            .set_reversed()
+            .set_angle_offset(-2.93));
+    const auto observe = [&](double raw) {
+        const auto encoded = static_cast<std::uint16_t>(std::round((raw + 12.5) / 25.0 * 65535.0));
+        std::array<std::byte, 8> packet{
+            std::byte{0x11}, std::byte{0}, std::byte{0}, std::byte{0x80}, std::byte{0x08}};
+        packet[1] = static_cast<std::byte>(encoded >> 8);
+        packet[2] = static_cast<std::byte>(encoded & 0xFF);
+        EXPECT_TRUE(motor.match_then_store_status(0, packet));
+        motor.update_status();
+        return motor.angle();
+    };
+    const auto phase_error = [](double a, double b) {
+        return std::remainder(a - b, 2.0 * std::numbers::pi);
+    };
+    EXPECT_NEAR(phase_error(observe(0.0), -2.93), 0.0, 0.0002);
+    const double before = observe(2.0 * std::numbers::pi - 0.01);
+    const double after = observe(0.01);
+    EXPECT_NEAR(phase_error(after, before), -0.02, 0.0004);
+    motor.reset_feedback_tracking();
+    EXPECT_FALSE(motor.feedback_ready());
+    EXPECT_NEAR(phase_error(observe(0.01), after), 0.0, 1e-9);
+    EXPECT_NEAR(phase_error(observe(-2.0 * std::numbers::pi + 0.01), after), 0.0, 0.0004);
+    // Large physical relocations while disabled never poison a turn counter.
+    observe(3.0);
+    observe(-2.0);
+    EXPECT_NEAR(phase_error(observe(0.01), after), 0.0, 1e-9);
+}
