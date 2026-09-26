@@ -44,7 +44,8 @@ public:
         kp_ = get_parameter_or<double>("joint_kp", 30.0);
         kd_ = get_parameter_or<double>("joint_kd", 1.0);
         max_torque_ = get_parameter_or<double>("max_torque", 40.0);
-        max_reference_speed_ = get_parameter_or<double>("max_reference_speed", 6.0);
+        max_reference_speed_ =
+            get_parameter_or<double>("max_reference_speed", 2.0 * std::numbers::pi);
         max_following_error_ = get_parameter_or<double>("max_following_error", 0.75);
         max_feedback_speed_ = get_parameter_or<double>("max_feedback_speed", 45.0);
         max_feedback_jump_ = get_parameter_or<double>("max_feedback_jump", 3.0);
@@ -56,9 +57,13 @@ public:
         motor_difference_recovery_range_ =
             get_parameter_or<double>("motor_difference_recovery_range", 0.25);
         max_recovery_reference_speed_ =
-            get_parameter_or<double>("max_recovery_reference_speed", 0.5);
-        max_recovery_torque_ = get_parameter_or<double>("max_recovery_torque", 5.0);
+            get_parameter_or<double>("max_recovery_reference_speed", 2.0 * std::numbers::pi);
+        max_recovery_torque_ = get_parameter_or<double>("max_recovery_torque", 40.0);
         max_recovery_duration_s_ = get_parameter_or<double>("max_recovery_duration_s", 3.0);
+        recovery_feedforward_torque_ =
+            get_parameter_or<double>("recovery_feedforward_torque", 20.0);
+        recovery_feedforward_range_ =
+            get_parameter_or<double>("recovery_feedforward_range", 0.10);
         if (!std::isfinite(kp_) || kp_ < 0.0 || !std::isfinite(kd_) || kd_ < 0.0
             || !std::isfinite(max_torque_) || max_torque_ <= 0.0 || max_torque_ > 40.0
             || !std::isfinite(max_reference_speed_) || max_reference_speed_ <= 0.0
@@ -80,7 +85,10 @@ public:
             || max_recovery_reference_speed_ > max_reference_speed_
             || !std::isfinite(max_recovery_torque_) || max_recovery_torque_ <= 0.0
             || max_recovery_torque_ > max_torque_ || !std::isfinite(max_recovery_duration_s_)
-            || max_recovery_duration_s_ <= 0.0)
+            || max_recovery_duration_s_ <= 0.0 || !std::isfinite(recovery_feedforward_torque_)
+            || recovery_feedforward_torque_ < 0.0 || recovery_feedforward_torque_ > max_recovery_torque_
+            || !std::isfinite(recovery_feedforward_range_) || recovery_feedforward_range_ <= 0.0
+            || recovery_feedforward_range_ > motor_difference_recovery_range_)
             throw std::invalid_argument("WheelLegJointTorqueController: invalid control parameter");
     }
 
@@ -142,7 +150,7 @@ public:
             recovery_active_ = recovery_needed;
             if (recovery_active_) {
                 recovery_started_ = now;
-                RCLCPP_WARN(get_logger(), "joint pair outside 30-110 degree operating range; "
+                RCLCPP_WARN(get_logger(), "joint pair outside 30-120 degree operating range; "
                                           "returning slowly to the nearest boundary");
             } else
                 RCLCPP_INFO(get_logger(), "joint pair returned to the operating range");
@@ -155,6 +163,8 @@ public:
             return;
         }
         if (!joint_mit_active_.ready() || !*joint_mit_active_) {
+            if (recovery_active_)
+                recovery_started_ = now;
             for (std::size_t i = 0; i < reference_.size(); ++i)
                 reference_[i] = measured_[i];
             last_update_ = now;
@@ -188,7 +198,8 @@ public:
             }
 
             // Lift the two targets together to one feasible multi-turn branch.
-            // Linear interpolation then keeps the motor difference within its limits.
+            // From an out-of-range feedback pose, the same interpolation moves
+            // the difference monotonically toward the nearest operating bound.
             for (std::size_t first : {std::size_t{0}, std::size_t{2}}) {
                 const auto side = first == 0 ? WheelLegJointPairGeometry::Side::kLeft
                                              : WheelLegJointPairGeometry::Side::kRight;
@@ -224,6 +235,32 @@ public:
             }
         }
 
+        std::array<double, 4> feedforward{};
+        if (recovery_active_) {
+            for (std::size_t pair = 0; pair < knee_offset_.size(); ++pair) {
+                const std::size_t first = 2 * pair;
+                const auto side = pair == 0 ? WheelLegJointPairGeometry::Side::kLeft
+                                            : WheelLegJointPairGeometry::Side::kRight;
+                const double side_sign = pair == 0 ? 1.0 : -1.0;
+                const double difference = WheelLegJointPairGeometry::difference(
+                    side, measured_[first], measured_[first + 1]);
+                double direction = 0.0;
+                double overshoot = 0.0;
+                if (difference > max_motor_difference_) {
+                    direction = -1.0;
+                    overshoot = difference - max_motor_difference_;
+                } else if (difference < min_motor_difference_) {
+                    direction = 1.0;
+                    overshoot = min_motor_difference_ - difference;
+                }
+                const double scale =
+                    std::clamp(overshoot / recovery_feedforward_range_, 0.0, 1.0);
+                const double magnitude = recovery_feedforward_torque_ * scale;
+                feedforward[first] = direction * side_sign * magnitude;
+                feedforward[first + 1] = -direction * side_sign * magnitude;
+            }
+        }
+
         for (std::size_t i = 0; i < torque_.size(); ++i) {
             const double error = reference_[i] - measured_[i];
             if (std::abs(error) > max_following_error_) {
@@ -233,7 +270,7 @@ public:
             }
             const double torque_limit = recovery_active_ ? max_recovery_torque_ : max_torque_;
             *torque_[i] = std::clamp(
-                kp_ * error - kd_ * *velocity_[i], -torque_limit, torque_limit);
+                kp_ * error - kd_ * *velocity_[i] + feedforward[i], -torque_limit, torque_limit);
         }
         *healthy_ = true;
     }
@@ -373,7 +410,7 @@ private:
     double kp_ = 30.0;
     double kd_ = 1.0;
     double max_torque_ = 40.0;
-    double max_reference_speed_ = 6.0;
+    double max_reference_speed_ = 2.0 * std::numbers::pi;
     double max_following_error_ = 0.75;
     double max_feedback_speed_ = 45.0;
     double max_feedback_jump_ = 3.0;
@@ -381,9 +418,11 @@ private:
     double max_motor_difference_ = WheelLegJointPairGeometry::kDefaultMaxDifference;
     double motor_difference_margin_ = 0.04;
     double motor_difference_recovery_range_ = 0.25;
-    double max_recovery_reference_speed_ = 0.5;
-    double max_recovery_torque_ = 5.0;
+    double max_recovery_reference_speed_ = 2.0 * std::numbers::pi;
+    double max_recovery_torque_ = 40.0;
     double max_recovery_duration_s_ = 3.0;
+    double recovery_feedforward_torque_ = 20.0;
+    double recovery_feedforward_range_ = 0.10;
 };
 
 } // namespace rmcs_core::controller::chassis
