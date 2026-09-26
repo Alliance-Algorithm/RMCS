@@ -244,6 +244,10 @@ public:
     int fault_code() const { return fault_code_; }
     int status_code() const { return status_code_; }
     bool feedback_ready() const { return feedback_fresh() && fault_code_ == 0; }
+    std::chrono::steady_clock::time_point last_feedback_time() const {
+        return std::chrono::steady_clock::time_point{
+            std::chrono::nanoseconds{last_feedback_ns_.load(std::memory_order_acquire)}};
+    }
     double feedback_age_ms() const {
         const auto last = last_feedback_ns_.load(std::memory_order_acquire);
         return last == 0 ? -1.0 : static_cast<double>(steady_now_ns_() - last) / 1e6;
