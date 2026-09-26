@@ -27,27 +27,36 @@ struct MotorFixture {
             DmMotor::Config{DmMotor::Type::kDM8009}
                 .set_id(1)
                 .set_feedback_id(0)
-                .set_limits(12.5, 45.0, 18.0)
-                .set_control_torque_max(40.0));
+                .set_limits(12.5, 45.0, 18.0));
     }
 };
 
-TEST(DmMotor, PureTorqueAndInvalidPdAreNeutral) {
+TEST(DmMotor, VelocityFrameEncodingAndLimits) {
     MotorFixture fixture;
     auto& motor = fixture.motor;
-    EXPECT_DOUBLE_EQ(motor.max_torque(), 18.0); // CAN mapping range caps the advertised limit
 
-    auto zero = motor.generate_command(0.0);
-    constexpr auto kNeutral = std::array<std::byte, 8>{
-        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x08}, std::byte{0x00}};
-    EXPECT_TRUE(std::ranges::equal(zero.as_bytes(), kNeutral));
+    constexpr auto kZero = std::array<std::byte, 8>{
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(0.0).as_bytes(), kZero));
+
+    // +1.0f = 0x3F800000, little-endian bytes
+    constexpr auto kPlusOne = std::array<std::byte, 8>{
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0x3F},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(1.0).as_bytes(), kPlusOne));
+
+    // +45.0f = 0x42340000, clamped to V_MAX
+    constexpr auto kPlusMax = std::array<std::byte, 8>{
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x34}, std::byte{0x42},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(100.0).as_bytes(), kPlusMax));
 
     const auto nan = std::numeric_limits<double>::quiet_NaN();
-    auto invalid_position = motor.generate_command_pd(nan, 0.0, 1.0, 1.0, 0.0);
-    auto invalid_gain = motor.generate_command_pd(0.0, 0.0, nan, 1.0, 0.0);
-    EXPECT_TRUE(std::ranges::equal(invalid_position.as_bytes(), kNeutral));
-    EXPECT_TRUE(std::ranges::equal(invalid_gain.as_bytes(), kNeutral));
+    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(nan).as_bytes(), kZero));
+
+    EXPECT_EQ(motor.send_id(), 1u);
+    EXPECT_EQ(motor.velocity_send_id(), 0x201u);
 
     auto enable = motor.enable_command();
     EXPECT_EQ(enable.as_bytes()[7], std::byte{0xFC});
@@ -57,6 +66,56 @@ TEST(DmMotor, PureTorqueAndInvalidPdAreNeutral) {
     EXPECT_EQ(save_zero.as_bytes()[7], std::byte{0xFE});
     auto clear = motor.clear_error_command();
     EXPECT_EQ(clear.as_bytes()[7], std::byte{0xFB});
+}
+
+TEST(DmMotor, ReversedVelocityFrame) {
+    MotorFixture fixture;
+    auto& motor = fixture.motor;
+    motor.configure(
+        DmMotor::Config{DmMotor::Type::kDM8009}
+            .set_id(1)
+            .set_feedback_id(0)
+            .set_reversed()
+            .set_limits(12.5, 45.0, 18.0));
+
+    // -1.0f = 0xBF800000
+    constexpr auto kMinusOne = std::array<std::byte, 8>{
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0xBF},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(1.0).as_bytes(), kMinusOne));
+}
+
+TEST(DmMotor, VelocityFrameClampsBothDirectionsAndRejectsNonfiniteValues) {
+    MotorFixture fixture;
+    auto& motor = fixture.motor;
+    motor.configure(
+        DmMotor::Config{DmMotor::Type::kDM8009}
+            .set_id(2)
+            .set_reversed()
+            .set_limits(12.5, 4.0, 18.0));
+
+    EXPECT_EQ(motor.send_id(), 2u);
+    EXPECT_EQ(motor.velocity_send_id(), 0x202u);
+    constexpr auto kNegativeLimit = std::array<std::byte, 8>{
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0xC0},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
+    constexpr auto kPositiveLimit = std::array<std::byte, 8>{
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0x40},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
+    constexpr auto kZero = std::array<std::byte, 8>{};
+    EXPECT_TRUE(
+        std::ranges::equal(motor.generate_velocity_command(100.0).as_bytes(), kNegativeLimit));
+    EXPECT_TRUE(
+        std::ranges::equal(motor.generate_velocity_command(-100.0).as_bytes(), kPositiveLimit));
+    EXPECT_TRUE(std::ranges::equal(
+        motor.generate_velocity_command(std::numeric_limits<double>::quiet_NaN()).as_bytes(),
+        kZero));
+    EXPECT_TRUE(std::ranges::equal(
+        motor.generate_velocity_command(std::numeric_limits<double>::infinity()).as_bytes(),
+        kZero));
+    EXPECT_TRUE(std::ranges::equal(
+        motor.generate_velocity_command(-std::numeric_limits<double>::infinity()).as_bytes(),
+        kZero));
 }
 
 TEST(DmMotor, FeedbackStatusIsNotAlwaysFault) {
@@ -90,6 +149,10 @@ TEST(DmMotor, InvalidMappingIsRejected) {
     MotorFixture fixture;
     EXPECT_THROW(
         fixture.motor.configure(DmMotor::Config{DmMotor::Type::kDM8009}.set_id(16)),
+        std::invalid_argument);
+    EXPECT_THROW(
+        fixture.motor.configure(
+            DmMotor::Config{DmMotor::Type::kDM8009}.set_limits(12.5, 0.0, 18.0)),
         std::invalid_argument);
     EXPECT_THROW(
         fixture.motor.configure(
