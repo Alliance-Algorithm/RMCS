@@ -214,6 +214,7 @@ public:
         if (!enabled) {
             joint_fault_latched_ = false;
             joint_torque_ever_active_ = false;
+            joint_fault_reason_.clear();
         }
         if (enabled && joint_fault_latched_)
             return;
@@ -236,6 +237,7 @@ private:
         if (!joint_fault_latched_)
             RCLCPP_ERROR(logger_, "[joint_enable] %s; switch to disabled to reset", reason);
         joint_fault_latched_ = true;
+        joint_fault_reason_ = reason;
         joints_enabled_ = false;
         joint_torque_active_ = false;
         joint_system_resend_ = kJointSystemResendCycles;
@@ -271,6 +273,12 @@ private:
 
         auto text = std::ostringstream{};
         text << "WheelLegInfantryRL status:\n";
+        text << "  Joint control: enabled=" << joints_enabled_
+             << " mit_active=" << joint_torque_active_
+             << " feedback_ready=" << joint_feedback_ready_()
+             << " fault_latched=" << joint_fault_latched_
+             << " fault_reason=" << (joint_fault_reason_.empty() ? "none" : joint_fault_reason_)
+             << " resend_cycles=" << joint_system_resend_ << '\n';
         text << "  DM joints (all zeroed via /wheel_leg/calibrate):\n";
         constexpr auto kNames =
             std::array{"left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
@@ -282,7 +290,8 @@ private:
             text << "    " << kNames[i] << ": can_id=" << static_cast<unsigned>(motor.send_id())
                  << " angle=" << motor.angle() << " rad vel=" << motor.velocity()
                  << " rad/s torque=" << motor.torque() << " Nm fault=0x" << std::hex
-                 << motor.fault_code() << std::dec << '\n';
+                 << motor.fault_code() << std::dec << " status=" << motor.status_code()
+                 << " feedback_ready=" << motor.feedback_ready() << '\n';
         }
         text << "  Wheels (M3508):\n";
         for (std::size_t i = 0; i < 2; ++i) {
@@ -450,6 +459,7 @@ private:
     bool joint_torque_active_ = false;
     bool joint_torque_ever_active_ = false;
     bool joint_fault_latched_ = false;
+    std::string joint_fault_reason_;
     Clock::time_point joint_enable_started_{};
     int joint_system_resend_ = 0;
     int joint_heartbeat_ = 0;
