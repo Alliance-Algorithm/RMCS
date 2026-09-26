@@ -61,7 +61,7 @@ public:
         register_output(
             "/wheel_leg/imu/angular_velocity", imu_angular_velocity_output_,
             Eigen::Vector3d::Zero());
-        register_output("/wheel_leg/joint_mit_active", joint_mit_active_output_, false);
+        register_output("/wheel_leg/joint_control_active", joint_control_active_output_, false);
 
         chassis_wheel_motors_[0].configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
@@ -138,7 +138,7 @@ public:
         update_imu();
         dr16_.update_status();
         remote_control_->update();
-        *joint_mit_active_output_ = joint_torque_active_;
+        *joint_control_active_output_ = joint_control_active_;
 
         constexpr double kRadToDeg = 180.0 / std::numbers::pi;
         RCLCPP_INFO_THROTTLE(
@@ -148,9 +148,9 @@ public:
             hip_joint_motors_[1].angle() * kRadToDeg, knee_joint_motors_[1].angle() * kRadToDeg);
         RCLCPP_INFO_THROTTLE(
             logger_, *get_clock(), 100,
-            "[wheel_leg DM torque Nm] L_hip=%.3f L_knee=%.3f R_hip=%.3f R_knee=%.3f",
-            hip_joint_motors_[0].control_torque(), knee_joint_motors_[0].control_torque(),
-            hip_joint_motors_[1].control_torque(), knee_joint_motors_[1].control_torque());
+            "[wheel_leg DM v_des rad/s] L_hip=%.3f L_knee=%.3f R_hip=%.3f R_knee=%.3f",
+            hip_joint_motors_[0].control_velocity(), knee_joint_motors_[0].control_velocity(),
+            hip_joint_motors_[1].control_velocity(), knee_joint_motors_[1].control_velocity());
     }
 
     void command_update(bool controller_healthy) {
@@ -181,7 +181,7 @@ public:
         }
         const bool send_system = resending || heartbeat;
 
-        joint_torque_active_ = false;
+        joint_control_active_ = false;
         if (joints_enabled_) {
             if (resending
                 && joint_system_resend_ > kJointSystemResendCycles - kJointClearErrorCycles)
@@ -189,24 +189,25 @@ public:
             else if (send_system)
                 send_joint_system_commands_(builder, JointSystemCommand::kEnable);
             else {
-                const bool ready = controller_healthy && joint_feedback_ready_();
+                const bool ready = controller_healthy && joint_feedback_ready_()
+                                && joint_motors_enabled_();
                 if (ready) {
-                    send_joint_mit_commands_(builder, false);
-                    joint_torque_active_ = true;
-                    joint_torque_ever_active_ = true;
+                    send_joint_velocity_commands_(builder, false);
+                    joint_control_active_ = true;
+                    joint_control_ever_active_ = true;
                 } else if (
-                    joint_torque_ever_active_
+                    joint_control_ever_active_
                     || Clock::now() - joint_enable_started_ > std::chrono::seconds{1}) {
-                    latch_joint_fault_("joint controller or DM feedback unavailable");
+                    latch_joint_fault_("joint controller or DM feedback/enable unavailable");
                     send_joint_system_commands_(builder, JointSystemCommand::kDisable);
                 } else {
-                    send_joint_mit_commands_(builder, true);
+                    send_joint_velocity_commands_(builder, true);
                 }
             }
             if (send_system && joint_system_resend_ == 0 && controller_healthy
-                && joint_feedback_ready_()) {
-                joint_torque_active_ = true;
-                joint_torque_ever_active_ = true;
+                && joint_feedback_ready_() && joint_motors_enabled_()) {
+                joint_control_active_ = true;
+                joint_control_ever_active_ = true;
             }
         } else if (send_system) {
             send_joint_system_commands_(builder, JointSystemCommand::kDisable);
@@ -219,7 +220,7 @@ public:
     void set_joints_enabled(bool enabled) {
         if (!enabled) {
             joint_fault_latched_ = false;
-            joint_torque_ever_active_ = false;
+            joint_control_ever_active_ = false;
             joint_fault_reason_.clear();
         }
         if (enabled && joint_fault_latched_)
@@ -227,7 +228,7 @@ public:
         if (enabled == joints_enabled_)
             return;
         joints_enabled_ = enabled;
-        joint_torque_active_ = false;
+        joint_control_active_ = false;
         if (enabled)
             joint_enable_started_ = Clock::now();
         joint_system_resend_ = kJointSystemResendCycles;
@@ -245,7 +246,7 @@ private:
         joint_fault_latched_ = true;
         joint_fault_reason_ = reason;
         joints_enabled_ = false;
-        joint_torque_active_ = false;
+        joint_control_active_ = false;
         joint_system_resend_ = kJointSystemResendCycles;
         joint_heartbeat_ = 0;
     }
@@ -280,9 +281,10 @@ private:
         auto text = std::ostringstream{};
         text << "WheelLegInfantryRL status:\n";
         text << "  Joint control: enabled=" << joints_enabled_
-             << " mit_active=" << joint_torque_active_
+             << " control_active=" << joint_control_active_
              << " controller_healthy=" << joint_controller_healthy_
              << " feedback_ready=" << joint_feedback_ready_()
+             << " enabled_feedback=" << joint_motors_enabled_()
              << " fault_latched=" << joint_fault_latched_
              << " fault_reason=" << (joint_fault_reason_.empty() ? "none" : joint_fault_reason_)
              << " resend_cycles=" << joint_system_resend_ << '\n';
@@ -312,8 +314,9 @@ private:
         response->message = text.str();
     }
 
-    device::CanPacket8 joint_command_(const device::DmMotor& motor, bool zero_torque) const {
-        return zero_torque ? motor.generate_command(0.0) : motor.generate_command();
+    device::CanPacket8 joint_command_(const device::DmMotor& motor, bool zero_velocity) const {
+        return zero_velocity ? motor.generate_velocity_command(0.0)
+                             : motor.generate_velocity_command(motor.control_velocity());
     }
 
     bool joint_feedback_ready_() const {
@@ -322,6 +325,16 @@ private:
                 return false;
         for (const auto& motor : knee_joint_motors_)
             if (!motor.feedback_ready())
+                return false;
+        return true;
+    }
+
+    bool joint_motors_enabled_() const {
+        for (const auto& motor : hip_joint_motors_)
+            if (motor.status_code() != 1)
+                return false;
+        for (const auto& motor : knee_joint_motors_)
+            if (motor.status_code() != 1)
                 return false;
         return true;
     }
@@ -341,31 +354,31 @@ private:
     }
 
     template <typename Builder>
-    void send_joint_mit_commands_(Builder& builder, bool zero_torque) {
+    void send_joint_velocity_commands_(Builder& builder, bool zero_velocity) {
         builder
             .can_transmit(
                 Spec::kCans.kCan1,
                 {
-                    .can_id = hip_joint_motors_[0].send_id(),
-                    .can_data = joint_command_(hip_joint_motors_[0], zero_torque).as_bytes(),
+                    .can_id = hip_joint_motors_[0].velocity_send_id(),
+                    .can_data = joint_command_(hip_joint_motors_[0], zero_velocity).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan1,
                 {
-                    .can_id = hip_joint_motors_[1].send_id(),
-                    .can_data = joint_command_(hip_joint_motors_[1], zero_torque).as_bytes(),
+                    .can_id = hip_joint_motors_[1].velocity_send_id(),
+                    .can_data = joint_command_(hip_joint_motors_[1], zero_velocity).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
-                    .can_id = knee_joint_motors_[0].send_id(),
-                    .can_data = joint_command_(knee_joint_motors_[0], zero_torque).as_bytes(),
+                    .can_id = knee_joint_motors_[0].velocity_send_id(),
+                    .can_data = joint_command_(knee_joint_motors_[0], zero_velocity).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
-                    .can_id = knee_joint_motors_[1].send_id(),
-                    .can_data = joint_command_(knee_joint_motors_[1], zero_torque).as_bytes(),
+                    .can_id = knee_joint_motors_[1].velocity_send_id(),
+                    .can_data = joint_command_(knee_joint_motors_[1], zero_velocity).as_bytes(),
                 });
     }
 
@@ -463,9 +476,9 @@ private:
     device::BoardClockLifter board_clock_lifter_;
 
     bool joints_enabled_ = false;
-    bool joint_torque_active_ = false;
+    bool joint_control_active_ = false;
     bool joint_controller_healthy_ = false;
-    bool joint_torque_ever_active_ = false;
+    bool joint_control_ever_active_ = false;
     bool joint_fault_latched_ = false;
     std::string joint_fault_reason_;
     Clock::time_point joint_enable_started_{};
@@ -482,7 +495,7 @@ private:
 
     OutputInterface<Eigen::Quaterniond> imu_quaternion_output_;
     OutputInterface<Eigen::Vector3d> imu_angular_velocity_output_;
-    OutputInterface<bool> joint_mit_active_output_;
+    OutputInterface<bool> joint_control_active_output_;
 };
 
 } // namespace rmcs_core::hardware

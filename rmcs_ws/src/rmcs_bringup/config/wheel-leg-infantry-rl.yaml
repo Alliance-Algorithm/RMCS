@@ -7,7 +7,7 @@ rmcs_executor:
       - rmcs_rl::RlBridge -> rl_bridge
       - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
       - rmcs_core::controller::chassis::WheelLegRlConsumer -> wheel_leg_rl_consumer
-      - rmcs_core::controller::chassis::WheelLegJointTorqueController -> wheel_leg_joint_torque_controller
+      - rmcs_core::controller::chassis::WheelLegJointVelocityController -> wheel_leg_joint_velocity_controller
 
       - rmcs_core::controller::pid::PidController -> left_wheel_velocity_pid
       - rmcs_core::controller::pid::PidController -> right_wheel_velocity_pid
@@ -105,13 +105,13 @@ wheel_leg_rl_consumer:
     # = 原标定系 [-0.5, -0.35, 0.5, 0.35] + q_cal，保持同一物理姿态。
     safe_leg_position: [-2.1, -3.28, 2.1, 3.28]
 
-wheel_leg_joint_torque_controller:
+wheel_leg_joint_velocity_controller:
   ros__parameters:
-    # 两个主动轴成对推进目标；RMCS 位置/速度 PD 算力矩，DM MIT 只执行 t_ff。
+    # 两个主动轴成对推进目标；DM 速度模式闭环电机内速度环，这里做 PC 侧角度环：
+    # v_des = 轨迹前馈 + angle_kp * 成对选圈后的连续角度误差 (+ 纠偏前馈)。
     # 这是电机角轨迹，机构工作域和装配分支仍需按实机几何核对。
-    joint_kp: 30.0
-    joint_kd: 1.0
-    max_torque: 40.0
+    angle_kp: 6.0
+    max_joint_velocity: 6.283185307179586
     max_reference_speed: 6.283185307179586
     max_following_error: 0.75
     max_feedback_speed: 45.0
@@ -122,15 +122,15 @@ wheel_leg_joint_torque_controller:
     min_motor_difference: -0.47375
     max_motor_difference: 1.62892
     motor_difference_margin: 0.04
-    # 若实测角差略超正常区，以最高速度、最大力矩退回最近边界；更远则停机。
+    # 若实测角差略超正常区，以最高速度退回最近边界；更远则停机。
     # 0.25 rad 是临时纠偏范围，不表示已经测得真实机械极限。
     motor_difference_recovery_range: 0.25
     max_recovery_reference_speed: 6.283185307179586
-    max_recovery_torque: 40.0
+    max_recovery_velocity: 6.283185307179586
     max_recovery_duration_s: 3.0
-    # 回收时在 PD 之上叠加前馈力矩，方向为把差值推回最近边界；
+    # 回收时在角度环之上叠加前馈速度，方向为把差值推回最近边界；
     # 越界越远前馈越大，接近边界（0.10 rad 内）线性收敛到 0，防止越过边界。
-    recovery_feedforward_torque: 20.0
+    recovery_feedforward_velocity: 2.0
     recovery_feedforward_range: 0.10
 
 policy_server:
