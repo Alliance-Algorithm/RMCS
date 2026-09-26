@@ -116,13 +116,18 @@ wheel_leg_joint_torque_controller:
     max_following_error: 0.75
     max_feedback_speed: 45.0
     max_feedback_jump: 3.0
-    # V5 闭链物理分支：大腿与小腿内角 30-110 度。
+    # V5 闭链正常工作区：大腿与小腿内角 30-110 度。
     # 左腿差值 = 髋电机角 - 膝电机角；右腿差值 = 膝电机角 - 髋电机角。
-    # CAD 闭链求解得到约 [-0.47374, 1.42847] rad，目标向内留 0.04 rad 余量。
+    # CAD 闭链求解得到约 [-0.47374, 1.42847] rad，正常目标向内留 0.04 rad 余量。
     min_motor_difference: -0.47375
     max_motor_difference: 1.42848
     motor_difference_margin: 0.04
-    motor_difference_feedback_tolerance: 0.04
+    # 若实测角差略超正常区，低速、低力矩退回最近边界；更远则停机。
+    # 0.25 rad 是临时纠偏范围，不表示已经测得真实机械极限。
+    motor_difference_recovery_range: 0.25
+    max_recovery_reference_speed: 0.5
+    max_recovery_torque: 5.0
+    max_recovery_duration_s: 3.0
 
 policy_server:
   ros__parameters:
