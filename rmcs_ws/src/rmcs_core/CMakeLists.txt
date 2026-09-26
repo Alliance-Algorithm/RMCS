@@ -46,6 +46,10 @@ if(BUILD_TESTING)
     target_include_directories(dm_motor_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     ament_target_dependencies(dm_motor_test rmcs_executor)
 
+    add_executable(wheel_leg_dm_sim_bridge test/wheel_leg_dm_sim_bridge.cpp)
+    target_include_directories(wheel_leg_dm_sim_bridge PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    ament_target_dependencies(wheel_leg_dm_sim_bridge rmcs_executor rclcpp pluginlib)
+
     add_executable(
         wheel_leg_joint_pair_geometry_test test/wheel_leg_joint_pair_geometry_test.cpp)
     target_include_directories(
