@@ -15,12 +15,9 @@ rmcs_executor:
 wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
-    # 电机内部零点对应的 URDF 角为 V5 训练名义姿态 default_joint_pos：
-    #   [L_joint1, LL_joint1, R_joint1, RR_joint1]
-    #   = [0.42, -0.13742282595254576, -0.42, 0.13741557625658019] rad。
-    # DM 驱动 angle = sign*(raw - offset)，set_reversed 后 sign=-1，即 angle = offset - raw。
-    # 取 offset = q_cal 后，raw=0（标定姿态）处 angle=q_cal，于是 /wheel_leg/*/angle 直接
-    # 等于 URDF 关节角，后续 RL/固定模式都使用 URDF 坐标系。
+    # raw=0 对应实机标定姿态（URDF5.0），不是训练名义姿态。
+    # angle = wrap(offset - raw)，四路均 reversed；无多圈累计。
+    # 闭链核对：大腿接近 +z，大小腿内角约105度，左右镜像。
     left_hip_joint_angle_offset: -1.6
     left_knee_joint_angle_offset: -2.93
     right_hip_joint_angle_offset: 1.6
@@ -99,39 +96,27 @@ wheel_leg_rl_consumer:
     policy_leg_default_position: [0.42, -0.13742282595254576, -0.42, 0.13741557625658019]
     # 左下右中：闭环到 URDF 零点（URDF 系下即为 0）。
     urdf_zero_leg_position: [0.0, 0.0, 0.0, 0.0]
-    # 左中右上：闭环到电机内部零点；其 URDF 角 = default_joint_pos（raw=0 处 offset）。
-    calibrated_zero_leg_position: [0.42, -0.13742282595254576, -0.42, 0.13741557625658019]
+    # 左中右上：闭环到电机内部零点，必须与四个硬件 offset 一致。
+    calibrated_zero_leg_position: [-1.6, -2.93, 1.6, 2.93]
     # 失效（双下/丢遥控）目标的安全姿态（URDF 系）。
     # = default_joint_pos + 原标定系相对量 [-0.5, -0.35, 0.5, 0.35]（待实机确认）。
     safe_leg_position: [-0.08, -0.48742282595254576, 0.08, 0.48741557625658019]
 
 wheel_leg_joint_velocity_controller:
   ros__parameters:
-    # 两个主动轴成对推进目标；DM 速度模式闭环电机内速度环，这里做 PC 侧角度环：
-    # v_des = 轨迹前馈 + angle_kp * 成对选圈后的连续角度误差 (+ 纠偏前馈)。
-    # 这是电机角轨迹，机构工作域和装配分支仍需按实机几何核对。
+    # 单圈反馈 -> 整腿转向(圆周) + 开合差值(有界) -> 同侧两路速度。
+    # 仅整腿转向选弧；开合误差不取短弧。无累加圈数、独立轴轨迹或越界前馈。
     angle_kp: 6.0
-    max_joint_velocity: 6.283185307179586
-    max_reference_speed: 6.283185307179586
-    max_following_error: 0.75
+    max_joint_velocity: 2.0
+    max_joint_acceleration: 4.0
     max_feedback_speed: 45.0
-    max_feedback_jump: 3.0
-    # V5 闭链正常工作区：大腿与小腿内角 30-120 度。
-    # 左腿差值 = 髋电机角 - 膝电机角；右腿差值 = 膝电机角 - 髋电机角。
-    # CAD 闭链求解得到约 [-0.47374, 1.62892] rad，正常目标向内留 0.04 rad 余量。
-    min_motor_difference: -0.47375
-    max_motor_difference: 1.62892
+    max_feedback_jump: 0.5
+    # V5六闭环直接求解的30–120度区间（120度不再使用线性外推）。
+    min_motor_difference: -0.47376
+    max_motor_difference: 1.62433
     motor_difference_margin: 0.04
-    # 若实测角差略超正常区，以最高速度退回最近边界；更远则停机。
-    # 0.25 rad 是临时纠偏范围，不表示已经测得真实机械极限。
-    motor_difference_recovery_range: 0.25
-    max_recovery_reference_speed: 6.283185307179586
-    max_recovery_velocity: 6.283185307179586
-    max_recovery_duration_s: 3.0
-    # 回收时在角度环之上叠加前馈速度，方向为把差值推回最近边界；
-    # 越界越远前馈越大，接近边界（0.10 rad 内）线性收敛到 0，防止越过边界。
-    recovery_feedforward_velocity: 2.0
-    recovery_feedforward_range: 0.10
+    # 仅容纳反馈/模型误差，超出即停止；没有自动大速度纠偏。
+    motor_difference_tolerance: 0.03
 
 policy_server:
   ros__parameters:

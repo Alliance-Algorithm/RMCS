@@ -34,8 +34,7 @@ public:
         urdf_zero_leg_position_ = parameter_array_or(
             "urdf_zero_leg_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
         calibrated_zero_leg_position_ = parameter_array_or(
-            "calibrated_zero_leg_position",
-            std::array<double, 4>{0.42, -0.13742282595254576, -0.42, 0.13741557625658019});
+            "calibrated_zero_leg_position", std::array<double, 4>{-1.6, -2.93, 1.6, 2.93});
         safe_leg_position_ = parameter_array_or(
             "safe_leg_position",
             std::array<double, 4>{-0.08, -0.48742282595254576, 0.08, 0.48741557625658019});

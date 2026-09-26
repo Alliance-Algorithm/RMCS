@@ -1,135 +1,122 @@
 #include <cmath>
-#include <numbers>
+#include <limits>
 #include <stdexcept>
 
 #include "controller/chassis/wheel_leg_joint_pair_geometry.hpp"
-#include "hardware/device/continuous_angle_tracker.hpp"
+#include "hardware/device/dm_joint_enable_sequence.hpp"
 
-using rmcs_core::controller::chassis::WheelLegJointPairGeometry;
-using rmcs_core::hardware::device::ContinuousAngleTracker;
+using namespace rmcs_core::controller::chassis;
+using Geometry = WheelLegJointPairGeometry;
 
 namespace {
-
-void require(bool condition) {
+void require(bool condition, const char* reason) {
     if (!condition)
-        throw std::runtime_error("wheel-leg joint-pair geometry test failed");
+        throw std::runtime_error(reason);
 }
-
-bool near(double actual, double expected, double tolerance = 1e-9) {
-    return std::abs(actual - expected) < tolerance;
-}
-
+bool near(double a, double b, double tolerance = 1e-9) { return std::abs(a - b) < tolerance; }
 } // namespace
 
 int main() {
-    using Geometry = WheelLegJointPairGeometry;
     constexpr auto left = Geometry::Side::kLeft;
     constexpr auto right = Geometry::Side::kRight;
-    constexpr double min = Geometry::kDefaultMinDifference;
-    constexpr double max = Geometry::kDefaultMaxDifference;
-    constexpr double margin = 0.04;
+    constexpr double lo = Geometry::kDefaultMinDifference;
+    constexpr double hi = Geometry::kDefaultMaxDifference;
+    constexpr double dt = 0.001;
+    const WheelLegPairVelocityConfig config;
 
-    // Opposite single-turn encoder readings can describe one valid leg shape.
-    const auto left_offset = Geometry::feedback_knee_offset(left, 3.1, -3.2, min, max, margin);
-    const auto right_offset = Geometry::feedback_knee_offset(right, -3.1, 3.2, min, max, margin);
-    require(left_offset && near(*left_offset, Geometry::kPeriod));
-    require(right_offset && near(*right_offset, -Geometry::kPeriod));
-    require(!Geometry::feedback_knee_offset(left, 2.0, 0.0, min, max, margin));
+    // The same physical pose must produce the same command for any encoder
+    // representation, including a reset/reconnect with no previous samples.
+    const auto calibrated = Geometry::decode(left, -1.6, -2.93);
+    require(near(calibrated.difference, 1.33), "calibrated opening");
+    require(std::abs(Geometry::inner_angle_degrees(1.33) - 105.02) < 0.02, "calibration geometry");
+    for (int h = -3; h <= 3; ++h)
+        for (int k = -3; k <= 3; ++k) {
+            const auto pose = Geometry::feedback(
+                left, -1.6 + h * Geometry::kPeriod, -2.93 + k * Geometry::kPeriod, lo, hi, 0.03);
+            require(pose.has_value(), "phase equivalence");
+            require(near(pose->difference, calibrated.difference), "no relative turn state");
+            require(
+                near(Geometry::wrap(pose->orientation - calibrated.orientation), 0.0),
+                "no common turn state");
+        }
+    require(!Geometry::feedback(left, 0.0, 2.0, lo, hi, 0.03), "reject wrong assembly");
+    require(!Geometry::feedback(left, NAN, 0.0, lo, hi, 0.03), "reject invalid feedback");
 
-    // The recorded left-leg pose is outside the normal 120-degree range but
-    // still on a unique branch that can be steered inward.
-    constexpr double recovery_range = 0.25;
-    const double logged_left_hip = -130.0 * std::numbers::pi / 180.0;
-    const double logged_left_knee = -228.0 * std::numbers::pi / 180.0;
-    const auto logged_offset = Geometry::feedback_knee_offset(
-        left, logged_left_hip, logged_left_knee, min, max, recovery_range);
-    require(logged_offset && near(*logged_offset, 0.0));
-    const auto recovery_target = Geometry::nearest_feasible_target(
-        left, logged_left_hip, logged_left_knee, logged_left_hip, logged_left_knee, min, max,
-        margin);
-    require(recovery_target && recovery_target->difference_clamped);
-    require(near(Geometry::difference(left, recovery_target->hip, recovery_target->knee),
-                 max - margin));
-    require(near((recovery_target->hip + recovery_target->knee) / 2.0,
-                 (logged_left_hip + logged_left_knee) / 2.0));
-    for (int step = 0; step <= 100; ++step) {
-        const double fraction = step / 100.0;
-        const double hip = logged_left_hip
-                         + fraction * (recovery_target->hip - logged_left_hip);
-        const double knee = logged_left_knee
-                          + fraction * (recovery_target->knee - logged_left_knee);
-        const double difference = Geometry::difference(left, hip, knee);
-        require(difference <= Geometry::difference(left, logged_left_hip, logged_left_knee));
-        require(difference >= max - margin - 1e-9);
-    }
-    require(!Geometry::feedback_knee_offset(left, 2.0, 0.0, min, max, recovery_range));
-
-    const auto right_recovery = Geometry::nearest_feasible_target(
-        right, 0.0, max + 0.15, 0.0, max + 0.15, min, max, margin);
-    require(right_recovery && right_recovery->difference_clamped);
-    require(near(Geometry::difference(right, right_recovery->hip, right_recovery->knee),
-                 max - margin));
-    require(near((right_recovery->hip + right_recovery->knee) / 2.0,
-                 (max + 0.15) / 2.0));
-
-    const auto lower_recovery = Geometry::nearest_feasible_target(
-        left, min - 0.15, 0.0, min - 0.15, 0.0, min, max, margin);
-    require(lower_recovery && lower_recovery->difference_clamped);
-    require(near(Geometry::difference(left, lower_recovery->hip, lower_recovery->knee),
-                 min + margin));
-
-    ContinuousAngleTracker hip_tracker;
-    ContinuousAngleTracker knee_tracker;
-    require(near(hip_tracker.update(3.0, Geometry::kPeriod), 3.0));
-    require(near(knee_tracker.update(2.4, Geometry::kPeriod), 2.4));
-    const double crossed_hip = hip_tracker.update(3.3 - Geometry::kPeriod, Geometry::kPeriod);
-    const double crossed_knee = knee_tracker.update(2.7, Geometry::kPeriod);
-    require(near(Geometry::difference(left, crossed_hip, crossed_knee), 0.6));
-
-    for (int hip_turns = -3; hip_turns <= 3; ++hip_turns) {
-        for (int knee_turns = -3; knee_turns <= 3; ++knee_turns) {
-            const double hip = 0.4 + hip_turns * Geometry::kPeriod;
-            const double knee = -0.2 + knee_turns * Geometry::kPeriod;
-            const auto offset = Geometry::feedback_knee_offset(left, hip, knee, min, max, margin);
-            require(offset.has_value());
-            require(near(Geometry::difference(left, hip, knee + *offset), 0.6));
+    // Random absolute startup orientation, including every encoder seam. Both
+    // legs must stay mirrored and within the physical differential at each step.
+    for (int orientation = -16; orientation <= 16; ++orientation) {
+        for (double initial_d : {lo, 0.0, 1.22989, 1.33, 1.42847, hi}) {
+            for (WheelLegJointPair goal :
+                 {WheelLegJointPair{0.0, 0.0}, WheelLegJointPair{-1.6, -2.93},
+                  WheelLegJointPair{0.42, -0.13742282595254576}}) {
+                auto pose = WheelLegPairPose{orientation * Geometry::kPeriod / 32.0, initial_d};
+                const auto target = Geometry::target(left, goal.hip, goal.knee, lo, hi, 0.04);
+                WheelLegJointPair command;
+                for (int step = 0; step < 7000; ++step) {
+                    const auto motors = Geometry::motors(left, pose);
+                    const auto sensed = Geometry::decode(left, motors.hip, motors.knee);
+                    const auto next =
+                        wheel_leg_pair_velocity(left, sensed, target, command, config, dt);
+                    const auto mirrored = wheel_leg_pair_velocity(
+                        right, {-sensed.orientation, sensed.difference},
+                        {-target.orientation, target.difference}, {-command.hip, -command.knee},
+                        config, dt);
+                    require(
+                        near(mirrored.hip, -next.hip, 1e-8)
+                            && near(mirrored.knee, -next.knee, 1e-8),
+                        "mirror velocity");
+                    require(
+                        std::max(std::abs(next.hip), std::abs(next.knee)) <= 2.0 + 1e-9,
+                        "velocity bound");
+                    if (step == 0)
+                        require(
+                            std::max(std::abs(next.hip), std::abs(next.knee)) <= 0.004 + 1e-9,
+                            "gentle start");
+                    pose.orientation =
+                        Geometry::wrap(pose.orientation + (next.hip + next.knee) * dt / 2.0);
+                    pose.difference += (next.hip - next.knee) * dt;
+                    require(
+                        pose.difference >= lo - 1e-8 && pose.difference <= hi + 1e-8,
+                        "path left assembly range");
+                    command = next;
+                }
+                require(
+                    std::abs(Geometry::wrap(pose.orientation - target.orientation)) < 0.002,
+                    "orientation convergence");
+                require(
+                    std::abs(pose.difference - target.difference) < 0.002, "opening convergence");
+            }
         }
     }
 
-    // The safe-to-nominal transition must keep both motors on the same route.
-    // Independent shortest-arc wrapping reverses the left knee at this pose.
-    const auto left_nominal = Geometry::nearest_feasible_target(
-        left, -2.1, -3.28, 0.42, -0.13742282595254576, min, max, margin);
-    const auto right_nominal = Geometry::nearest_feasible_target(
-        right, 2.1, 3.28, -0.42, 0.13741557625658019, min, max, margin);
-    require(left_nominal && right_nominal);
-    require(left_nominal->hip > -2.1 && left_nominal->knee > -3.28);
-    require(right_nominal->hip < 2.1 && right_nominal->knee < 3.28);
-    require(near(left_nominal->hip, 0.42));
-    require(near(left_nominal->knee, -0.13742282595254576));
-    require(Geometry::difference(left, 0.42, -0.13742282595254576 - Geometry::kPeriod) > max);
+    // The old independent shortest-arc knee error points the wrong way here.
+    const auto from = Geometry::decode(left, -2.1, -3.28);
+    const auto to = Geometry::target(left, 0.42, -0.13742282595254576, lo, hi, 0.04);
+    const auto move = wheel_leg_pair_velocity(left, from, to, {}, config, dt);
+    require(move.hip > 0 && move.knee > 0, "coordinated long knee arc");
 
-    // A common full turn changes neither leg shape nor the nearest target.
-    const auto lifted = Geometry::nearest_feasible_target(
-        left, 6.4, 5.8, 0.42, -0.13742282595254576, min, max, margin);
-    require(lifted && near(lifted->hip, 0.42 + Geometry::kPeriod));
-    require(near(lifted->knee, -0.13742282595254576 + Geometry::kPeriod));
-
-    // An RL target outside the mechanical differential range is projected
-    // inward while preserving the requested common rotation.
-    const auto clamped =
-        Geometry::nearest_feasible_target(left, 0.0, -0.5, 1.0, -1.0, min, max, margin);
-    require(clamped && clamped->difference_clamped);
-    require(near(Geometry::difference(left, clamped->hip, clamped->knee), max - margin));
-    require(near((clamped->hip + clamped->knee) / 2.0, 0.0));
-
-    // The controller interpolates both axes by the same fraction. Every
-    // intermediate differential must remain inside the mechanical interval.
-    for (int step = 0; step <= 100; ++step) {
-        const double fraction = step / 100.0;
-        const double hip = -2.1 + fraction * (left_nominal->hip + 2.1);
-        const double knee = -3.28 + fraction * (left_nominal->knee + 3.28);
-        const double difference = Geometry::difference(left, hip, knee);
-        require(difference >= min + margin && difference <= max - margin);
+    using Sequence = rmcs_core::hardware::device::DmJointEnableSequence;
+    Sequence sequence;
+    require(sequence.update(false, true).system == Sequence::Command::kDisable, "disabled boot");
+    for (int tick = 0; tick < 100; ++tick) {
+        const auto step = sequence.update(true, true);
+        require(!step.control_active, "startup must stay at zero even with enabled feedback");
+        const auto expected = tick % 10 != 0 ? Sequence::Command::kNone
+                            : tick < 50      ? Sequence::Command::kClearError
+                                             : Sequence::Command::kEnable;
+        require(step.system == expected, "startup order and system frame rate");
     }
+    for (int tick = 0; tick < 2000; ++tick) {
+        const auto step = sequence.update(true, true);
+        require(
+            step.control_active && step.system == Sequence::Command::kNone, "no periodic enable");
+    }
+    const auto unavailable = sequence.update(true, false);
+    require(
+        !unavailable.control_active && unavailable.system == Sequence::Command::kNone,
+        "unavailable zero without disable");
+    require(sequence.update(false, false).system == Sequence::Command::kDisable, "explicit disarm");
+    require(
+        sequence.update(true, true).system == Sequence::Command::kClearError,
+        "rearm restarts sequence");
 }

@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -19,6 +18,7 @@ class WheelLegJointVelocityController
     : public rmcs_executor::Component
     , public rclcpp::Node {
     using Clock = std::chrono::steady_clock;
+    using Geometry = WheelLegJointPairGeometry;
 
 public:
     WheelLegJointVelocityController()
@@ -29,7 +29,7 @@ public:
         register_input("/wheel_leg/joint_control_active", joint_control_active_, false);
         register_input("/chassis/reset_count", reset_count_);
         register_output("/wheel_leg/joint_controller/healthy", healthy_, false);
-
+        register_output("/wheel_leg/joint_controller/fault_reason", fault_reason_, std::string{});
         constexpr std::array<const char*, 4> kJoints{
             "left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"};
         for (std::size_t i = 0; i < kJoints.size(); ++i) {
@@ -40,356 +40,151 @@ public:
             register_input(base + "/control_angle", target_[i], false);
             register_output(base + "/control_velocity", command_[i], 0.0);
         }
-
-        angle_kp_ = get_parameter_or<double>("angle_kp", 6.0);
-        max_joint_velocity_ =
-            get_parameter_or<double>("max_joint_velocity", 2.0 * std::numbers::pi);
-        max_reference_speed_ =
-            get_parameter_or<double>("max_reference_speed", 2.0 * std::numbers::pi);
-        max_following_error_ = get_parameter_or<double>("max_following_error", 0.75);
+        config_.angle_kp = get_parameter_or<double>("angle_kp", 6.0);
+        config_.max_velocity = get_parameter_or<double>("max_joint_velocity", 2.0);
+        config_.max_acceleration = get_parameter_or<double>("max_joint_acceleration", 4.0);
+        config_.min_difference =
+            get_parameter_or<double>("min_motor_difference", Geometry::kDefaultMinDifference);
+        config_.max_difference =
+            get_parameter_or<double>("max_motor_difference", Geometry::kDefaultMaxDifference);
+        target_margin_ = get_parameter_or<double>("motor_difference_margin", 0.04);
+        feedback_tolerance_ = get_parameter_or<double>("motor_difference_tolerance", 0.03);
         max_feedback_speed_ = get_parameter_or<double>("max_feedback_speed", 45.0);
-        max_feedback_jump_ = get_parameter_or<double>("max_feedback_jump", 3.0);
-        min_motor_difference_ = get_parameter_or<double>(
-            "min_motor_difference", WheelLegJointPairGeometry::kDefaultMinDifference);
-        max_motor_difference_ = get_parameter_or<double>(
-            "max_motor_difference", WheelLegJointPairGeometry::kDefaultMaxDifference);
-        motor_difference_margin_ = get_parameter_or<double>("motor_difference_margin", 0.04);
-        motor_difference_recovery_range_ =
-            get_parameter_or<double>("motor_difference_recovery_range", 0.25);
-        max_recovery_reference_speed_ =
-            get_parameter_or<double>("max_recovery_reference_speed", 2.0 * std::numbers::pi);
-        max_recovery_velocity_ =
-            get_parameter_or<double>("max_recovery_velocity", 2.0 * std::numbers::pi);
-        max_recovery_duration_s_ = get_parameter_or<double>("max_recovery_duration_s", 3.0);
-        recovery_feedforward_velocity_ =
-            get_parameter_or<double>("recovery_feedforward_velocity", 2.0);
-        recovery_feedforward_range_ = get_parameter_or<double>("recovery_feedforward_range", 0.10);
-        if (!std::isfinite(angle_kp_) || angle_kp_ < 0.0 || !std::isfinite(max_joint_velocity_)
-            || max_joint_velocity_ <= 0.0 || !std::isfinite(max_reference_speed_)
-            || max_reference_speed_ <= 0.0 || max_reference_speed_ > max_joint_velocity_
-            || !std::isfinite(max_following_error_) || max_following_error_ <= 0.0
+        max_feedback_jump_ = get_parameter_or<double>("max_feedback_jump", 0.5);
+        if (!std::isfinite(config_.angle_kp) || config_.angle_kp <= 0.0
+            || !std::isfinite(config_.max_velocity) || config_.max_velocity <= 0.0
+            || !std::isfinite(config_.max_acceleration) || config_.max_acceleration <= 0.0
+            || !std::isfinite(config_.min_difference) || !std::isfinite(config_.max_difference)
+            || !std::isfinite(target_margin_) || target_margin_ < 0.0
+            || config_.min_difference + 2.0 * target_margin_ >= config_.max_difference
+            || !std::isfinite(feedback_tolerance_) || feedback_tolerance_ < 0.0
+            || config_.min_difference - feedback_tolerance_ <= -std::numbers::pi
+            || config_.max_difference + feedback_tolerance_ >= std::numbers::pi
             || !std::isfinite(max_feedback_speed_) || max_feedback_speed_ <= 0.0
             || !std::isfinite(max_feedback_jump_) || max_feedback_jump_ <= 0.0
-            || max_feedback_jump_ >= std::numbers::pi || !std::isfinite(min_motor_difference_)
-            || !std::isfinite(max_motor_difference_)
-            || min_motor_difference_ >= max_motor_difference_
-            || !std::isfinite(motor_difference_margin_) || motor_difference_margin_ < 0.0
-            || 2.0 * motor_difference_margin_ >= max_motor_difference_ - min_motor_difference_
-            || !std::isfinite(motor_difference_recovery_range_)
-            || motor_difference_recovery_range_ <= 0.0
-            || max_motor_difference_ - min_motor_difference_
-                       + 2.0 * motor_difference_recovery_range_
-                   >= WheelLegJointPairGeometry::kPeriod
-            || !std::isfinite(max_recovery_reference_speed_)
-            || max_recovery_reference_speed_ <= 0.0
-            || max_recovery_reference_speed_ > max_reference_speed_
-            || !std::isfinite(max_recovery_velocity_) || max_recovery_velocity_ <= 0.0
-            || max_recovery_velocity_ > max_joint_velocity_
-            || !std::isfinite(max_recovery_duration_s_) || max_recovery_duration_s_ <= 0.0
-            || !std::isfinite(recovery_feedforward_velocity_)
-            || recovery_feedforward_velocity_ < 0.0
-            || recovery_feedforward_velocity_ > max_recovery_velocity_
-            || !std::isfinite(recovery_feedforward_range_) || recovery_feedforward_range_ <= 0.0
-            || recovery_feedforward_range_ > motor_difference_recovery_range_)
-            throw std::invalid_argument(
-                "WheelLegJointVelocityController: invalid control parameter");
+            || max_feedback_jump_ >= std::numbers::pi)
+            throw std::invalid_argument("WheelLegJointVelocityController: invalid parameter");
     }
 
-    void update() override {
-        if (reset_count_.ready() && *reset_count_ != last_reset_count_) {
-            last_reset_count_ = *reset_count_;
-            reset_();
-            zero_outputs_();
-            return;
-        }
-        if (!joint_enable_.ready() || !*joint_enable_) {
-            reset_();
-            zero_outputs_();
-            return;
-        }
-        if (fault_latched_) {
-            zero_outputs_();
-            return;
-        }
+    void update() override { update_at(Clock::now()); }
 
-        for (std::size_t i = 0; i < target_.size(); ++i) {
+    // Use the same component in an offline, deterministic physics simulation.
+    // The runtime entry above always supplies the real steady clock.
+    void update_at(Clock::time_point now) {
+        const bool reset = reset_count_.ready() && *reset_count_ != last_reset_count_;
+        if (reset)
+            last_reset_count_ = *reset_count_;
+        if (reset || !joint_enable_.ready() || !*joint_enable_) {
+            reset_();
+            return;
+        }
+        if (fault_latched_)
+            return;
+        for (std::size_t i = 0; i < position_.size(); ++i) {
             if (!position_[i].ready() || !velocity_[i].ready() || !feedback_valid_[i].ready()
                 || !*feedback_valid_[i] || !target_[i].ready() || !std::isfinite(*position_[i])
                 || !std::isfinite(*velocity_[i]) || !std::isfinite(*target_[i])) {
-                if (trajectory_initialized_)
-                    latch_fault_("joint feedback or target became invalid");
-                zero_outputs_();
+                unavailable_("joint " + std::to_string(i) + " feedback or target invalid");
                 return;
             }
-        }
-
-        const auto now = Clock::now();
-        if (!update_feedback_history_(now)) {
-            zero_outputs_();
-            return;
-        }
-        if (!update_pair_feedback_()) {
-            zero_outputs_();
-            return;
-        }
-        bool recovery_needed = false;
-        for (std::size_t pair = 0; pair < knee_offset_.size(); ++pair) {
-            const std::size_t first = 2 * pair;
-            const auto side = pair == 0 ? WheelLegJointPairGeometry::Side::kLeft
-                                        : WheelLegJointPairGeometry::Side::kRight;
-            const double difference = WheelLegJointPairGeometry::difference(
-                side, measured_[first], measured_[first + 1]);
-            const double release_margin = recovery_active_ ? motor_difference_margin_ / 2.0 : 0.0;
-            recovery_needed |= difference < min_motor_difference_ + release_margin
-                            || difference > max_motor_difference_ - release_margin;
-            if (recovery_active_ && trajectory_initialized_) {
-                const double reference_difference = WheelLegJointPairGeometry::difference(
-                    side, reference_[first], reference_[first + 1]);
-                recovery_needed |= reference_difference < min_motor_difference_ + release_margin
-                                || reference_difference > max_motor_difference_ - release_margin;
-            }
-        }
-        if (recovery_needed != recovery_active_) {
-            recovery_active_ = recovery_needed;
-            if (recovery_active_) {
-                recovery_started_ = now;
-                RCLCPP_WARN(get_logger(), "joint pair outside 30-120 degree operating range; "
-                                          "returning slowly to the nearest boundary");
-            } else
-                RCLCPP_INFO(get_logger(), "joint pair returned to the operating range");
-        }
-        if (recovery_active_ && joint_control_active_.ready() && *joint_control_active_
-            && std::chrono::duration<double>{now - recovery_started_}.count()
-                   > max_recovery_duration_s_) {
-            latch_fault_("joint pair did not return to the operating range in time");
-            zero_outputs_();
-            return;
-        }
-        if (!joint_control_active_.ready() || !*joint_control_active_) {
-            if (recovery_active_)
-                recovery_started_ = now;
-            for (std::size_t i = 0; i < reference_.size(); ++i)
-                reference_[i] = measured_[i];
-            last_update_ = now;
-            trajectory_initialized_ = true;
-            for (auto& output : command_)
-                *output = 0.0;
-            *healthy_ = true;
-            return;
-        }
-
-        std::array<double, 4> reference_velocity{};
-        if (!trajectory_initialized_) {
-            for (std::size_t i = 0; i < reference_.size(); ++i)
-                reference_[i] = measured_[i];
-            last_update_ = now;
-            trajectory_initialized_ = true;
-        } else {
-            const double dt = std::chrono::duration<double>{now - last_update_}.count();
-            if (!std::isfinite(dt) || dt <= 0.0 || dt > 0.05) {
-                latch_fault_("controller update interval is invalid");
-                zero_outputs_();
+            const double delta = std::abs(Geometry::wrap(*position_[i] - last_position_[i]));
+            const double elapsed = std::chrono::duration<double>{now - last_change_[i]}.count();
+            if (std::abs(*velocity_[i]) > max_feedback_speed_
+                || (feedback_initialized_
+                    && (delta > max_feedback_jump_
+                        || delta > max_feedback_speed_ * elapsed + 0.02))) {
+                unavailable_("joint " + std::to_string(i) + " feedback discontinuity");
                 return;
             }
-            last_update_ = now;
-
-            for (std::size_t i = 0; i < reference_.size(); ++i) {
-                const double position = measured_[i];
-                if (std::abs(reference_[i] - position) > max_following_error_) {
-                    latch_fault_("joint exceeded the trajectory following limit");
-                    zero_outputs_();
-                    return;
-                }
-            }
-
-            const std::array<double, 4> previous_reference = reference_;
-            // Lift the two targets together to one feasible multi-turn branch.
-            // From an out-of-range feedback pose, the same interpolation moves
-            // the difference monotonically toward the nearest operating bound.
-            for (std::size_t first : {std::size_t{0}, std::size_t{2}}) {
-                const auto side = first == 0 ? WheelLegJointPairGeometry::Side::kLeft
-                                             : WheelLegJointPairGeometry::Side::kRight;
-                // While either leg is outside the operating range, hold the
-                // common rotation and move only the offending motor difference.
-                const double desired_hip = recovery_active_ ? measured_[first] : *target_[first];
-                const double desired_knee =
-                    recovery_active_ ? measured_[first + 1] : *target_[first + 1];
-                const auto target = WheelLegJointPairGeometry::nearest_feasible_target(
-                    side, reference_[first], reference_[first + 1], desired_hip, desired_knee,
-                    min_motor_difference_, max_motor_difference_, motor_difference_margin_);
-                if (!target) {
-                    latch_fault_("joint pair target is invalid");
-                    zero_outputs_();
-                    return;
-                }
-                if (target->difference_clamped)
-                    RCLCPP_WARN_THROTTLE(
-                        get_logger(), *get_clock(), 1000,
-                        "WheelLegJointVelocityController: projected an unreachable motor pair "
-                        "target");
-                const double hip_delta = target->hip - reference_[first];
-                const double knee_delta = target->knee - reference_[first + 1];
-                const double remaining = std::max(std::abs(hip_delta), std::abs(knee_delta));
-                if (remaining == 0.0)
-                    continue;
-                const double speed =
-                    recovery_active_ ? max_recovery_reference_speed_ : max_reference_speed_;
-                const double progress = std::min(1.0, speed * dt / remaining);
-                reference_[first] += progress * hip_delta;
-                reference_[first + 1] += progress * knee_delta;
-            }
-            for (std::size_t i = 0; i < reference_.size(); ++i)
-                reference_velocity[i] = (reference_[i] - previous_reference[i]) / dt;
+            if (!feedback_initialized_ || delta > 0.0)
+                last_change_[i] = now;
+            last_position_[i] = *position_[i];
         }
-
-        std::array<double, 4> feedforward{};
-        if (recovery_active_) {
-            for (std::size_t pair = 0; pair < knee_offset_.size(); ++pair) {
-                const std::size_t first = 2 * pair;
-                const auto side = pair == 0 ? WheelLegJointPairGeometry::Side::kLeft
-                                            : WheelLegJointPairGeometry::Side::kRight;
-                const double side_sign = pair == 0 ? 1.0 : -1.0;
-                const double difference = WheelLegJointPairGeometry::difference(
-                    side, measured_[first], measured_[first + 1]);
-                double direction = 0.0;
-                double overshoot = 0.0;
-                if (difference > max_motor_difference_) {
-                    direction = -1.0;
-                    overshoot = difference - max_motor_difference_;
-                } else if (difference < min_motor_difference_) {
-                    direction = 1.0;
-                    overshoot = min_motor_difference_ - difference;
-                }
-                const double scale =
-                    std::clamp(overshoot / recovery_feedforward_range_, 0.0, 1.0);
-                const double magnitude = recovery_feedforward_velocity_ * scale;
-                feedforward[first] = direction * side_sign * magnitude;
-                feedforward[first + 1] = -direction * side_sign * magnitude;
-            }
-        }
-
-        for (std::size_t i = 0; i < command_.size(); ++i) {
-            const double error = reference_[i] - measured_[i];
-            if (std::abs(error) > max_following_error_) {
-                latch_fault_("joint exceeded the trajectory following limit");
-                zero_outputs_();
+        std::array<WheelLegPairPose, 2> measured;
+        std::array<WheelLegPairPose, 2> desired;
+        for (std::size_t pair = 0; pair < 2; ++pair) {
+            const auto side = pair == 0 ? Geometry::Side::kLeft : Geometry::Side::kRight;
+            const auto first = 2 * pair;
+            const auto pose = Geometry::feedback(
+                side, *position_[first], *position_[first + 1], config_.min_difference,
+                config_.max_difference, feedback_tolerance_);
+            if (!pose) {
+                unavailable_(
+                    std::string{pair == 0 ? "left" : "right"}
+                    + " pair outside V5 assembly branch, d="
+                    + std::to_string(
+                        Geometry::decode(side, *position_[first], *position_[first + 1])
+                            .difference));
                 return;
             }
-            const double velocity_limit =
-                recovery_active_ ? max_recovery_velocity_ : max_joint_velocity_;
-            *command_[i] = std::clamp(
-                reference_velocity[i] + angle_kp_ * error + feedforward[i],
-                -velocity_limit, velocity_limit);
+            measured[pair] = *pose;
+            desired[pair] = Geometry::target(
+                side, *target_[first], *target_[first + 1], config_.min_difference,
+                config_.max_difference, target_margin_);
         }
+        if (!feedback_initialized_)
+            RCLCPP_INFO(
+                get_logger(),
+                "[joint pair] initial inner angle: left=%.2f right=%.2f deg; "
+                "instantaneous phase feedback, no turn accumulation",
+                Geometry::inner_angle_degrees(measured[0].difference),
+                Geometry::inner_angle_degrees(measured[1].difference));
+        feedback_initialized_ = true;
+        *fault_reason_ = "";
         *healthy_ = true;
+        if (!joint_control_active_.ready() || !*joint_control_active_ || !was_active_) {
+            zero_commands_();
+            last_update_ = now;
+            was_active_ = joint_control_active_.ready() && *joint_control_active_;
+            return;
+        }
+        const double dt = std::chrono::duration<double>{now - last_update_}.count();
+        last_update_ = now;
+        if (dt <= 0.0 || dt > 0.05) {
+            unavailable_("controller update interval invalid");
+            return;
+        }
+        control_started_ = true;
+        for (std::size_t pair = 0; pair < 2; ++pair) {
+            const auto side = pair == 0 ? Geometry::Side::kLeft : Geometry::Side::kRight;
+            previous_command_[pair] = wheel_leg_pair_velocity(
+                side, measured[pair], desired[pair], previous_command_[pair], config_, dt);
+            *command_[2 * pair] = previous_command_[pair].hip;
+            *command_[2 * pair + 1] = previous_command_[pair].knee;
+        }
     }
 
 private:
-    bool update_pair_feedback_() {
-        if (!pair_feedback_initialized_) {
-            for (std::size_t pair = 0; pair < knee_offset_.size(); ++pair) {
-                const std::size_t first = 2 * pair;
-                const auto side = pair == 0 ? WheelLegJointPairGeometry::Side::kLeft
-                                            : WheelLegJointPairGeometry::Side::kRight;
-                const auto offset = WheelLegJointPairGeometry::feedback_knee_offset(
-                    side, *position_[first], *position_[first + 1], min_motor_difference_,
-                    max_motor_difference_, motor_difference_recovery_range_);
-                if (!offset) {
-                    RCLCPP_ERROR(
-                        get_logger(),
-                        "joint pair %s has no valid relative turn: hip=%.4f knee=%.4f "
-                        "raw_diff=%.4f; recoverable [%.4f, %.4f] rad",
-                        pair == 0 ? "left" : "right", *position_[first], *position_[first + 1],
-                        WheelLegJointPairGeometry::difference(
-                            side, *position_[first], *position_[first + 1]),
-                        min_motor_difference_ - motor_difference_recovery_range_,
-                        max_motor_difference_ + motor_difference_recovery_range_);
-                    fault_latched_ = true;
-                    return false;
-                }
-                knee_offset_[pair] = *offset;
-            }
-            pair_feedback_initialized_ = true;
-            RCLCPP_INFO(
-                get_logger(), "joint pair relative turns aligned: left knee=%+.0f, right knee=%+.0f",
-                knee_offset_[0] / WheelLegJointPairGeometry::kPeriod,
-                knee_offset_[1] / WheelLegJointPairGeometry::kPeriod);
-        }
-        for (std::size_t pair = 0; pair < knee_offset_.size(); ++pair) {
-            const std::size_t first = 2 * pair;
-            const auto side = pair == 0 ? WheelLegJointPairGeometry::Side::kLeft
-                                        : WheelLegJointPairGeometry::Side::kRight;
-            measured_[first] = *position_[first];
-            measured_[first + 1] = *position_[first + 1] + knee_offset_[pair];
-            const double difference =
-                WheelLegJointPairGeometry::difference(side, measured_[first], measured_[first + 1]);
-            if (difference < min_motor_difference_ - motor_difference_recovery_range_
-                || difference > max_motor_difference_ + motor_difference_recovery_range_) {
-                RCLCPP_ERROR(
-                    get_logger(),
-                    "joint pair %s exceeded the recoverable difference range: diff=%.4f rad; "
-                    "recoverable [%.4f, %.4f] rad",
-                    pair == 0 ? "left" : "right", difference,
-                    min_motor_difference_ - motor_difference_recovery_range_,
-                    max_motor_difference_ + motor_difference_recovery_range_);
-                fault_latched_ = true;
-                return false;
-            }
-        }
-        RCLCPP_INFO_THROTTLE(
-            get_logger(), *get_clock(), 1000,
-            "joint pair motor difference rad: left=%.3f right=%.3f",
-            WheelLegJointPairGeometry::difference(
-                WheelLegJointPairGeometry::Side::kLeft, measured_[0], measured_[1]),
-            WheelLegJointPairGeometry::difference(
-                WheelLegJointPairGeometry::Side::kRight, measured_[2], measured_[3]));
-        return true;
+    void zero_commands_() {
+        previous_command_ = {};
+        for (auto& command : command_)
+            *command = 0.0;
     }
 
-    bool update_feedback_history_(Clock::time_point now) {
-        for (std::size_t i = 0; i < last_position_.size(); ++i) {
-            const double position = *position_[i];
-            const double delta = std::abs(position - last_position_[i]);
-            if (trajectory_initialized_ && delta > 0.0) {
-                const double elapsed =
-                    std::chrono::duration<double>{now - last_position_change_time_[i]}.count();
-                if (!std::isfinite(elapsed) || elapsed < 0.0 || delta > max_feedback_jump_
-                    || delta > max_feedback_speed_ * elapsed + 0.1) {
-                    latch_fault_("joint angle feedback is discontinuous");
-                    return false;
-                }
-            }
-            if (!trajectory_initialized_ || delta > 0.0)
-                last_position_change_time_[i] = now;
-            last_position_[i] = position;
-        }
-        return true;
+    void unavailable_(const std::string& reason) {
+        zero_commands_();
+        *healthy_ = false;
+        *fault_reason_ = reason;
+        was_active_ = false;
+        // Startup feedback can recover; a running fault needs explicit reset.
+        if (control_started_) {
+            fault_latched_ = true;
+            RCLCPP_ERROR(get_logger(), "[joint pair] stopped: %s", reason.c_str());
+        } else
+            feedback_initialized_ = false;
     }
 
     void reset_() {
-        trajectory_initialized_ = false;
-        fault_latched_ = false;
-        pair_feedback_initialized_ = false;
-        recovery_active_ = false;
-        reference_.fill(0.0);
-        measured_.fill(0.0);
-        knee_offset_.fill(0.0);
-        last_position_.fill(0.0);
-        last_position_change_time_.fill(Clock::time_point{});
-        last_update_ = Clock::time_point{};
-        recovery_started_ = Clock::time_point{};
-    }
-
-    void latch_fault_(const char* reason) {
-        if (!fault_latched_)
-            RCLCPP_ERROR(get_logger(), "WheelLegJointVelocityController: %s", reason);
-        fault_latched_ = true;
-    }
-
-    void zero_outputs_() {
-        for (auto& output : command_)
-            *output = 0.0;
+        zero_commands_();
         *healthy_ = false;
+        *fault_reason_ = "";
+        feedback_initialized_ = false;
+        control_started_ = false;
+        was_active_ = false;
+        fault_latched_ = false;
+        last_position_ = {};
+        last_change_ = {};
+        last_update_ = {};
     }
 
     InputInterface<bool> joint_enable_;
@@ -401,35 +196,22 @@ private:
     std::array<InputInterface<double>, 4> target_;
     std::array<OutputInterface<double>, 4> command_;
     OutputInterface<bool> healthy_;
+    OutputInterface<std::string> fault_reason_;
 
-    std::array<double, 4> reference_{};
-    std::array<double, 4> measured_{};
-    std::array<double, 2> knee_offset_{};
-    std::array<double, 4> last_position_{};
-    std::array<Clock::time_point, 4> last_position_change_time_{};
-    Clock::time_point last_update_{};
-    Clock::time_point recovery_started_{};
-    std::size_t last_reset_count_ = 0;
-    bool trajectory_initialized_ = false;
-    bool pair_feedback_initialized_ = false;
-    bool recovery_active_ = false;
-    bool fault_latched_ = false;
-
-    double angle_kp_ = 6.0;
-    double max_joint_velocity_ = 2.0 * std::numbers::pi;
-    double max_reference_speed_ = 2.0 * std::numbers::pi;
-    double max_following_error_ = 0.75;
+    WheelLegPairVelocityConfig config_;
+    double target_margin_ = 0.04;
+    double feedback_tolerance_ = 0.03;
     double max_feedback_speed_ = 45.0;
-    double max_feedback_jump_ = 3.0;
-    double min_motor_difference_ = WheelLegJointPairGeometry::kDefaultMinDifference;
-    double max_motor_difference_ = WheelLegJointPairGeometry::kDefaultMaxDifference;
-    double motor_difference_margin_ = 0.04;
-    double motor_difference_recovery_range_ = 0.25;
-    double max_recovery_reference_speed_ = 2.0 * std::numbers::pi;
-    double max_recovery_velocity_ = 2.0 * std::numbers::pi;
-    double max_recovery_duration_s_ = 3.0;
-    double recovery_feedforward_velocity_ = 2.0;
-    double recovery_feedforward_range_ = 0.10;
+    double max_feedback_jump_ = 0.5;
+    std::array<WheelLegJointPair, 2> previous_command_{};
+    std::array<double, 4> last_position_{};
+    std::array<Clock::time_point, 4> last_change_{};
+    Clock::time_point last_update_{};
+    std::size_t last_reset_count_ = 0;
+    bool feedback_initialized_ = false;
+    bool control_started_ = false;
+    bool was_active_ = false;
+    bool fault_latched_ = false;
 };
 
 } // namespace rmcs_core::controller::chassis
