@@ -1,0 +1,75 @@
+{
+  "source_urdf_sha256": "1862c3dfc8506fafb28826409ca5801faa9dcbab5730d8fb8669494ca1c167d3",
+  "model_spec_sha256": "9f6e71b1b79d1b346c0d06c57682c13cb1d40a59c1639240933e47dc21f0b53b",
+  "usd_sha256": "e9a6c7184d126fa031b4a3f19298f61cb62d830221595d44163c6b541095d174",
+  "isaaclab_version": "2.3.2.post1",
+  "isaacsim_version": "5.1.0.0",
+  "method": "closed-chain solved pose written to PhysX; one 0.001 s step per pose; 19 bodies and 6 loop constraints",
+  "temporary_model_edits": {
+    "L_joint2_inner_angle_deg": [
+      30,
+      110
+    ],
+    "R_jonit2_inner_angle_deg": [
+      30,
+      110
+    ],
+    "spring_slide_lower_limit_m": -0.012
+  },
+  "samples": [
+    {
+      "inner_deg": 30.0,
+      "common_turn_rad": 0.0,
+      "left_difference": -0.4736019968986511,
+      "right_difference": -0.4736132025718689,
+      "observed_inner_left_deg": 30.00286951427746,
+      "observed_inner_right_deg": 30.002937816169162,
+      "max_loop_gap_m": 3.667385625662462e-07
+    },
+    {
+      "inner_deg": 45.0,
+      "common_turn_rad": 0.0,
+      "left_difference": 0.0019015967845916748,
+      "right_difference": 0.0019078850746154785,
+      "observed_inner_left_deg": 45.003091912838514,
+      "observed_inner_right_deg": 45.00332072417571,
+      "max_loop_gap_m": 5.980368856778343e-07
+    },
+    {
+      "inner_deg": 70.0,
+      "common_turn_rad": 0.0,
+      "left_difference": 0.6049430966377258,
+      "right_difference": 0.6049554944038391,
+      "observed_inner_left_deg": 70.00339427521524,
+      "observed_inner_right_deg": 70.00385189788963,
+      "max_loop_gap_m": 3.881011138602844e-07
+    },
+    {
+      "inner_deg": 90.0,
+      "common_turn_rad": 0.0,
+      "left_difference": 1.0276309251785278,
+      "right_difference": 1.0276401042938232,
+      "observed_inner_left_deg": 90.00360201417077,
+      "observed_inner_right_deg": 90.00413476892602,
+      "max_loop_gap_m": 1.1400167389013227e-07
+    },
+    {
+      "inner_deg": 110.0,
+      "common_turn_rad": 0.0,
+      "left_difference": 1.4284682273864746,
+      "right_difference": 1.4284822940826416,
+      "observed_inner_left_deg": 110.0000053377586,
+      "observed_inner_right_deg": 110.0000053377586,
+      "max_loop_gap_m": 5.23919364437162e-07
+    },
+    {
+      "inner_deg": 70.0,
+      "common_turn_rad": 6.283185307179586,
+      "left_difference": -5.678252696990967,
+      "right_difference": -5.6782307624816895,
+      "observed_inner_left_deg": 70.00345574691777,
+      "observed_inner_right_deg": 70.0038792186463,
+      "max_loop_gap_m": 8.820751682088567e-07
+    }
+  ]
+}

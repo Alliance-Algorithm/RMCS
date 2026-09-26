@@ -91,6 +91,14 @@ public:
             && (switch_left != last_switch_left_ || switch_right != last_switch_right_))
             switch_activity_seen_ = true;
 
+        if (switch_left != last_switch_left_ || switch_right != last_switch_right_)
+            RCLCPP_INFO(
+                get_logger(), "[wheel_leg mode] switches left=%d right=%d state=%d enable=%d",
+                static_cast<int>(switch_left), static_cast<int>(switch_right),
+                static_cast<int>(selected_state),
+                static_cast<int>(switch_activity_seen_
+                                 && selected_state != WheelLegControlState::kDisabled));
+
         *joint_enable_ =
             switch_activity_seen_ && selected_state != WheelLegControlState::kDisabled;
 

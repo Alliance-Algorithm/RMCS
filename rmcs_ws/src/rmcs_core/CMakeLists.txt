@@ -45,6 +45,15 @@ if(BUILD_TESTING)
     ament_add_gtest(dm_motor_test test/dm_motor_test.cpp)
     target_include_directories(dm_motor_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     ament_target_dependencies(dm_motor_test rmcs_executor)
+
+    add_executable(
+        wheel_leg_joint_pair_geometry_test test/wheel_leg_joint_pair_geometry_test.cpp)
+    target_include_directories(
+        wheel_leg_joint_pair_geometry_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    ament_add_test(
+        wheel_leg_joint_pair_geometry_test
+        COMMAND $<TARGET_FILE:wheel_leg_joint_pair_geometry_test>
+        GENERATE_RESULT_FOR_RETURN_CODE_ZERO)
 endif()
 
 ament_auto_package()
