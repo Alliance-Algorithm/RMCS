@@ -35,9 +35,10 @@ public:
             "urdf_zero_leg_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
         calibrated_zero_leg_position_ = parameter_array_or(
             "calibrated_zero_leg_position",
-            std::array<double, 4>{-1.6, -2.93, 1.6, 2.93});
+            std::array<double, 4>{0.42, -0.13742282595254576, -0.42, 0.13741557625658019});
         safe_leg_position_ = parameter_array_or(
-            "safe_leg_position", std::array<double, 4>{-2.1, -3.28, 2.1, 3.28});
+            "safe_leg_position",
+            std::array<double, 4>{-0.08, -0.48742282595254576, 0.08, 0.48741557625658019});
 
         constexpr std::array<const char*, 4> kLegJoints{
             "left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"};
@@ -175,8 +176,10 @@ private:
     std::array<double, 4> policy_leg_default_position_{
         0.42, -0.13742282595254576, -0.42, 0.13741557625658019};
     std::array<double, 4> urdf_zero_leg_position_{0.0, 0.0, 0.0, 0.0};
-    std::array<double, 4> calibrated_zero_leg_position_{-1.6, -2.93, 1.6, 2.93};
-    std::array<double, 4> safe_leg_position_{-2.1, -3.28, 2.1, 3.28};
+    std::array<double, 4> calibrated_zero_leg_position_{
+        0.42, -0.13742282595254576, -0.42, 0.13741557625658019};
+    std::array<double, 4> safe_leg_position_{
+        -0.08, -0.48742282595254576, 0.08, 0.48741557625658019};
     std::array<double, 4> hold_leg_position_{};
     bool hold_target_valid_ = false;
 

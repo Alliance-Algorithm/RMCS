@@ -35,8 +35,6 @@ class WheelLegInfantryRL
     , public rclcpp::Node
     , public librmcs::board::RmcsBoardLite::Callback {
 public:
-    using Clock = std::chrono::steady_clock;
-
     WheelLegInfantryRL()
         : Node{
               get_component_name(),
@@ -181,35 +179,24 @@ public:
         }
         const bool send_system = resending || heartbeat;
 
-        joint_control_active_ = false;
         if (joints_enabled_) {
+            // 系统帧（清错/使能）与速度帧在同一周期都发，保证每个周期都有 CAN 帧。
             if (resending
                 && joint_system_resend_ > kJointSystemResendCycles - kJointClearErrorCycles)
                 send_joint_system_commands_(builder, JointSystemCommand::kClearError);
             else if (send_system)
                 send_joint_system_commands_(builder, JointSystemCommand::kEnable);
-            else {
-                const bool ready = controller_healthy && joint_feedback_ready_()
-                                && joint_motors_enabled_();
-                if (ready) {
-                    send_joint_velocity_commands_(builder, false);
-                    joint_control_active_ = true;
-                    joint_control_ever_active_ = true;
-                } else if (
-                    joint_control_ever_active_
-                    || Clock::now() - joint_enable_started_ > std::chrono::seconds{1}) {
-                    latch_joint_fault_("joint controller or DM feedback/enable unavailable");
-                    send_joint_system_commands_(builder, JointSystemCommand::kDisable);
-                } else {
-                    send_joint_velocity_commands_(builder, true);
-                }
-            }
-            if (send_system && joint_system_resend_ == 0 && controller_healthy
-                && joint_feedback_ready_() && joint_motors_enabled_()) {
-                joint_control_active_ = true;
-                joint_control_ever_active_ = true;
-            }
-        } else if (send_system) {
+
+            const bool ready = controller_healthy && joint_feedback_ready_()
+                            && joint_motors_enabled_();
+            if (!ready)
+                note_joint_unavailable_();
+            // 除双下/丢空外，任何保护都不发 disable：不健康时仍每周期发 0 速度帧。
+            joint_control_active_ = true;
+            send_joint_velocity_commands_(builder, !ready);
+        } else {
+            // 双下 / DR16 UNKNOWN / 上电保持：允许 disable，且每周期都发。
+            joint_control_active_ = false;
             send_joint_system_commands_(builder, JointSystemCommand::kDisable);
         }
 
@@ -218,21 +205,14 @@ public:
     }
 
     void set_joints_enabled(bool enabled) {
-        if (!enabled) {
-            joint_fault_latched_ = false;
-            joint_control_ever_active_ = false;
-            joint_fault_reason_.clear();
-        }
-        if (enabled && joint_fault_latched_)
-            return;
         if (enabled == joints_enabled_)
             return;
         joints_enabled_ = enabled;
         joint_control_active_ = false;
-        if (enabled)
-            joint_enable_started_ = Clock::now();
         joint_system_resend_ = kJointSystemResendCycles;
         joint_heartbeat_ = 0;
+        if (!enabled)
+            joint_fault_reason_.clear();
 
         RCLCPP_INFO(logger_, "[joint_enable] DM joints %s", enabled ? "enabled" : "disabled");
     }
@@ -240,15 +220,12 @@ public:
 private:
     enum class JointSystemCommand { kClearError, kEnable, kDisable };
 
-    void latch_joint_fault_(const char* reason) {
-        if (!joint_fault_latched_)
-            RCLCPP_ERROR(logger_, "[joint_enable] %s; switch to disabled to reset", reason);
-        joint_fault_latched_ = true;
-        joint_fault_reason_ = reason;
-        joints_enabled_ = false;
-        joint_control_active_ = false;
-        joint_system_resend_ = kJointSystemResendCycles;
-        joint_heartbeat_ = 0;
+    void note_joint_unavailable_() {
+        joint_fault_reason_ = "joint controller or DM feedback/enable unavailable";
+        RCLCPP_WARN_THROTTLE(
+            logger_, *get_clock(), 1000,
+            "[joint_enable] joint controller or DM feedback/enable unavailable; holding zero "
+            "velocity, DM stays enabled");
     }
 
     void calibrate_subscription_callback_() {
@@ -285,8 +262,7 @@ private:
              << " controller_healthy=" << joint_controller_healthy_
              << " feedback_ready=" << joint_feedback_ready_()
              << " enabled_feedback=" << joint_motors_enabled_()
-             << " fault_latched=" << joint_fault_latched_
-             << " fault_reason=" << (joint_fault_reason_.empty() ? "none" : joint_fault_reason_)
+             << " unavailable_reason=" << (joint_fault_reason_.empty() ? "none" : joint_fault_reason_)
              << " resend_cycles=" << joint_system_resend_ << '\n';
         text << "  DM joints (all zeroed via /wheel_leg/calibrate):\n";
         constexpr auto kNames =
@@ -478,16 +454,13 @@ private:
     bool joints_enabled_ = false;
     bool joint_control_active_ = false;
     bool joint_controller_healthy_ = false;
-    bool joint_control_ever_active_ = false;
-    bool joint_fault_latched_ = false;
     std::string joint_fault_reason_;
-    Clock::time_point joint_enable_started_{};
     int joint_system_resend_ = 0;
     int joint_heartbeat_ = 0;
 
     static constexpr int kJointSystemResendCycles = 100;
     static constexpr int kJointClearErrorCycles = 50;
-    static constexpr int kJointHeartbeatCycles = 500;
+    static constexpr int kJointHeartbeatCycles = 100;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr dm_calibrate_subscription_;
 
