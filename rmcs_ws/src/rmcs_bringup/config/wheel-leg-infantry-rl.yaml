@@ -7,6 +7,7 @@ rmcs_executor:
       - rmcs_rl::RlBridge -> rl_bridge
       - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
       - rmcs_core::controller::chassis::WheelLegRlConsumer -> wheel_leg_rl_consumer
+      - rmcs_core::controller::chassis::WheelLegJointTorqueController -> wheel_leg_joint_torque_controller
 
       - rmcs_core::controller::pid::PidController -> left_wheel_velocity_pid
       - rmcs_core::controller::pid::PidController -> right_wheel_velocity_pid
@@ -14,16 +15,16 @@ rmcs_executor:
 wheel_leg_infantry_rl:
   ros__parameters:
     board_serial: ""
-    joint_kp: 30.0
-    joint_kd: 1.0
-    # 四个 DM 已在下述姿态写入电机内部零位；此处不再重复扣除零位。
-    # URDF: L_joint1=-1.6, LL_joint1=-2.93,
-    #       R_joint1=+1.6, RR_joint1=+2.93 rad。
-    # 前提：set_reversed 后的四路反馈正方向与对应 URDF 关节角一致。
-    left_hip_joint_angle_offset: 0.0
-    left_knee_joint_angle_offset: 0.0
-    right_hip_joint_angle_offset: 0.0
-    right_knee_joint_angle_offset: 0.0
+    # 电机内部零位写在“各连杆指向 +z”的标定姿态；该姿态的 URDF 角为
+    #   q_cal = [L_joint1, LL_joint1, R_joint1, RR_joint1]
+    #         = [-1.6, -2.93, +1.6, +2.93] rad = -urdf_zero_leg_position。
+    # DM 驱动 angle = sign*(raw - offset)，set_reversed 后 sign=-1，即 angle = offset - raw。
+    # 取 offset = q_cal 后，raw=0（标定姿态）处 angle=q_cal，于是 /wheel_leg/*/angle 直接
+    # 等于 URDF 关节角，后续 RL/固定模式都使用 URDF 坐标系。
+    left_hip_joint_angle_offset: -1.6
+    left_knee_joint_angle_offset: -2.93
+    right_hip_joint_angle_offset: 1.6
+    right_knee_joint_angle_offset: 2.93
 
 wheel_leg_chassis_controller:
   ros__parameters:
@@ -57,13 +58,13 @@ rl_bridge:
     joint_angle_suffix: "/angle"
     joint_velocity_suffix: "/velocity"
     joint_torque_suffix: "/torque"
-    # 训练名义角减去电机内部标定姿态的 URDF 角，单位 rad。
+    # 电机 offset 已把 /angle 换算到 URDF 系，这里直接填 V5 训练名义角（URDF 系），单位 rad。
     # RMCS 的 knee_joint 对应 V5 的 LL_joint1 / RR_joint1 主动电机。
     default_joint_pos:
-      left_hip_joint: 2.02
-      left_knee_joint: 2.792577174047454
-      right_hip_joint: -2.02
-      right_knee_joint: -2.79258442374342
+      left_hip_joint: 0.42
+      left_knee_joint: -0.13742282595254576
+      right_hip_joint: -0.42
+      right_knee_joint: 0.13741557625658019
       left_wheel: 0.0
       right_wheel: 0.0
     observation_terms:
@@ -92,14 +93,29 @@ wheel_leg_rl_consumer:
     rl_base: "/wheel_leg/rl"
     action_scale: 0.25
     wheel_velocity_scale: 10.0
-    # 数组顺序: [left_hip, left_knee, right_hip, right_knee]，单位 rad
-    policy_leg_default_position: [2.02, 2.792577174047454, -2.02, -2.79258442374342]
-    # 左下右中：目标反馈角 = URDF 目标角 0 - 标定姿态的 URDF 角。
-    # 例如左髋标定在 -1.6 rad，转到 URDF 0 时目标反馈角是 +1.6 rad。
-    urdf_zero_leg_position: [1.6, 2.93, -1.6, -2.93]
-    # 左中右上：闭环到电机内部标定姿态，四个反馈角均为 0 rad。
-    # 失效目标仍使用电机内部标定后的相对角坐标，与上面的训练名义角独立。
-    safe_leg_position: [-0.5, -0.35, 0.5, 0.35]
+    # 以下目标均为 URDF 关节角（电机 offset 已把 /angle 换算到 URDF 系），单位 rad。
+    # 数组顺序: [left_hip, left_knee, right_hip, right_knee]
+    # RL 策略名义基准角（与 rl_bridge.default_joint_pos 一致），双中进入 RL 时使用。
+    policy_leg_default_position: [0.42, -0.13742282595254576, -0.42, 0.13741557625658019]
+    # 左中右下：闭环到 URDF 零点（URDF 系下即为 0）。
+    urdf_zero_leg_position: [0.0, 0.0, 0.0, 0.0]
+    # 左下右中：闭环到电机内部标定姿态，其 URDF 角 q_cal = -urdf_zero_leg_position(标定系)。
+    calibrated_zero_leg_position: [-1.6, -2.93, 1.6, 2.93]
+    # 失效（双下/丢遥控）目标的安全姿态（URDF 系）。
+    # = 原标定系 [-0.5, -0.35, 0.5, 0.35] + q_cal，保持同一物理姿态。
+    safe_leg_position: [-2.1, -3.28, 2.1, 3.28]
+
+wheel_leg_joint_torque_controller:
+  ros__parameters:
+    # 两个主动轴成对推进目标；RMCS 位置/速度 PD 算力矩，DM MIT 只执行 t_ff。
+    # 这是电机角轨迹，机构工作域和装配分支仍需按实机几何核对。
+    joint_kp: 30.0
+    joint_kd: 1.0
+    max_torque: 40.0
+    max_reference_speed: 6.0
+    max_following_error: 0.75
+    max_feedback_speed: 45.0
+    max_feedback_jump: 3.0
 
 policy_server:
   ros__parameters:

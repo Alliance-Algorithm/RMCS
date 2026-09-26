@@ -1,7 +1,9 @@
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numbers>
 #include <ranges>
 #include <sstream>
 #include <string>
@@ -33,6 +35,8 @@ class WheelLegInfantryRL
     , public rclcpp::Node
     , public librmcs::board::RmcsBoardLite::Callback {
 public:
+    using Clock = std::chrono::steady_clock;
+
     WheelLegInfantryRL()
         : Node{
               get_component_name(),
@@ -57,6 +61,7 @@ public:
         register_output(
             "/wheel_leg/imu/angular_velocity", imu_angular_velocity_output_,
             Eigen::Vector3d::Zero());
+        register_output("/wheel_leg/joint_mit_active", joint_mit_active_output_, false);
 
         chassis_wheel_motors_[0].configure(
             device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}
@@ -79,6 +84,7 @@ public:
                     .set_id(id)
                     .set_feedback_id(id)
                     .set_reversed()
+                    .set_feedback_wrap_period(2.0 * std::numbers::pi)
                     .set_angle_offset(
                         get_parameter_or<double>(std::string{name} + "_angle_offset", 0.0)));
 
@@ -92,6 +98,7 @@ public:
                     .set_id(id)
                     .set_feedback_id(id)
                     .set_reversed()
+                    .set_feedback_wrap_period(2.0 * std::numbers::pi)
                     .set_angle_offset(
                         get_parameter_or<double>(std::string{name} + "_angle_offset", 0.0)));
 
@@ -100,8 +107,6 @@ public:
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
             *this, get_parameter("board_serial").as_string(), options);
 
-        joint_kp_ = get_parameter_or<double>("joint_kp", 30.0);
-        joint_kd_ = get_parameter_or<double>("joint_kd", 1.0);
         joint_system_resend_ = kJointSystemResendCycles;
         auto startup_builder = board_->start_transmit();
         send_joint_system_commands_(startup_builder, JointSystemCommand::kDisable);
@@ -133,9 +138,17 @@ public:
         update_imu();
         dr16_.update_status();
         remote_control_->update();
+        *joint_mit_active_output_ = joint_torque_active_;
+
+        constexpr double kRadToDeg = 180.0 / std::numbers::pi;
+        RCLCPP_INFO_THROTTLE(
+            logger_, *get_clock(), 100,
+            "[wheel_leg angle deg] L_hip=%.2f L_knee=%.2f R_hip=%.2f R_knee=%.2f",
+            hip_joint_motors_[0].angle() * kRadToDeg, knee_joint_motors_[0].angle() * kRadToDeg,
+            hip_joint_motors_[1].angle() * kRadToDeg, knee_joint_motors_[1].angle() * kRadToDeg);
     }
 
-    void command_update() {
+    void command_update(bool controller_healthy) {
         auto builder = board_->start_transmit();
 
         builder.can_transmit(
@@ -162,14 +175,33 @@ public:
         }
         const bool send_system = resending || heartbeat;
 
+        joint_torque_active_ = false;
         if (joints_enabled_) {
             if (resending
                 && joint_system_resend_ > kJointSystemResendCycles - kJointClearErrorCycles)
                 send_joint_system_commands_(builder, JointSystemCommand::kClearError);
             else if (send_system)
                 send_joint_system_commands_(builder, JointSystemCommand::kEnable);
-            else
-                send_joint_mit_commands_(builder);
+            else {
+                const bool ready = controller_healthy && joint_feedback_ready_();
+                if (ready) {
+                    send_joint_mit_commands_(builder, false);
+                    joint_torque_active_ = true;
+                    joint_torque_ever_active_ = true;
+                } else if (
+                    joint_torque_ever_active_
+                    || Clock::now() - joint_enable_started_ > std::chrono::seconds{1}) {
+                    latch_joint_fault_("joint controller or DM feedback unavailable");
+                    send_joint_system_commands_(builder, JointSystemCommand::kDisable);
+                } else {
+                    send_joint_mit_commands_(builder, true);
+                }
+            }
+            if (send_system && joint_system_resend_ == 0 && controller_healthy
+                && joint_feedback_ready_()) {
+                joint_torque_active_ = true;
+                joint_torque_ever_active_ = true;
+            }
         } else if (send_system) {
             send_joint_system_commands_(builder, JointSystemCommand::kDisable);
         }
@@ -179,9 +211,18 @@ public:
     }
 
     void set_joints_enabled(bool enabled) {
+        if (!enabled) {
+            joint_fault_latched_ = false;
+            joint_torque_ever_active_ = false;
+        }
+        if (enabled && joint_fault_latched_)
+            return;
         if (enabled == joints_enabled_)
             return;
         joints_enabled_ = enabled;
+        joint_torque_active_ = false;
+        if (enabled)
+            joint_enable_started_ = Clock::now();
         joint_system_resend_ = kJointSystemResendCycles;
         joint_heartbeat_ = 0;
 
@@ -191,12 +232,27 @@ public:
 private:
     enum class JointSystemCommand { kClearError, kEnable, kDisable };
 
+    void latch_joint_fault_(const char* reason) {
+        if (!joint_fault_latched_)
+            RCLCPP_ERROR(logger_, "[joint_enable] %s; switch to disabled to reset", reason);
+        joint_fault_latched_ = true;
+        joints_enabled_ = false;
+        joint_torque_active_ = false;
+        joint_system_resend_ = kJointSystemResendCycles;
+        joint_heartbeat_ = 0;
+    }
+
     void calibrate_subscription_callback_() {
+        if (joints_enabled_) {
+            RCLCPP_ERROR(logger_, "[joint calibration] disable DM joints before setting zero");
+            return;
+        }
         const auto set_zero =
             [this](auto& builder, const Spec::Can& can, device::DmMotor& motor, const char* name) {
                 builder.can_transmit(
                     can,
                     {.can_id = motor.send_id(), .can_data = motor.set_zero_command().as_bytes()});
+                motor.reset_feedback_tracking();
                 RCLCPP_INFO(
                     logger_, "[joint calibration] set zero for %s (can_id %u)", name,
                     static_cast<unsigned>(motor.send_id()));
@@ -240,8 +296,18 @@ private:
         response->message = text.str();
     }
 
-    device::CanPacket8 joint_command_(const device::DmMotor& motor) const {
-        return motor.generate_command_pd(motor.control_angle(), 0.0, joint_kp_, joint_kd_, 0.0);
+    device::CanPacket8 joint_command_(const device::DmMotor& motor, bool zero_torque) const {
+        return zero_torque ? motor.generate_command(0.0) : motor.generate_command();
+    }
+
+    bool joint_feedback_ready_() const {
+        for (const auto& motor : hip_joint_motors_)
+            if (!motor.feedback_ready())
+                return false;
+        for (const auto& motor : knee_joint_motors_)
+            if (!motor.feedback_ready())
+                return false;
+        return true;
     }
 
     template <typename Builder>
@@ -259,31 +325,31 @@ private:
     }
 
     template <typename Builder>
-    void send_joint_mit_commands_(Builder& builder) {
+    void send_joint_mit_commands_(Builder& builder, bool zero_torque) {
         builder
             .can_transmit(
                 Spec::kCans.kCan1,
                 {
                     .can_id = hip_joint_motors_[0].send_id(),
-                    .can_data = joint_command_(hip_joint_motors_[0]).as_bytes(),
+                    .can_data = joint_command_(hip_joint_motors_[0], zero_torque).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan1,
                 {
                     .can_id = hip_joint_motors_[1].send_id(),
-                    .can_data = joint_command_(hip_joint_motors_[1]).as_bytes(),
+                    .can_data = joint_command_(hip_joint_motors_[1], zero_torque).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
                     .can_id = knee_joint_motors_[0].send_id(),
-                    .can_data = joint_command_(knee_joint_motors_[0]).as_bytes(),
+                    .can_data = joint_command_(knee_joint_motors_[0], zero_torque).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
                     .can_id = knee_joint_motors_[1].send_id(),
-                    .can_data = joint_command_(knee_joint_motors_[1]).as_bytes(),
+                    .can_data = joint_command_(knee_joint_motors_[1], zero_torque).as_bytes(),
                 });
     }
 
@@ -354,16 +420,19 @@ private:
         explicit InfantryCommand(WheelLegInfantryRL& infantry)
             : infantry_(infantry) {
             register_input("/wheel_leg/joint_enable", joint_enable_, false);
+            register_input("/wheel_leg/joint_controller/healthy", joint_controller_healthy_, false);
         }
 
         void update() override {
             infantry_.set_joints_enabled(joint_enable_.ready() && *joint_enable_);
-            infantry_.command_update();
+            infantry_.command_update(
+                joint_controller_healthy_.ready() && *joint_controller_healthy_);
         }
 
     private:
         WheelLegInfantryRL& infantry_;
         InputInterface<bool> joint_enable_;
+        InputInterface<bool> joint_controller_healthy_;
     };
     std::shared_ptr<InfantryCommand> infantry_command_;
 
@@ -378,10 +447,12 @@ private:
     device::BoardClockLifter board_clock_lifter_;
 
     bool joints_enabled_ = false;
+    bool joint_torque_active_ = false;
+    bool joint_torque_ever_active_ = false;
+    bool joint_fault_latched_ = false;
+    Clock::time_point joint_enable_started_{};
     int joint_system_resend_ = 0;
     int joint_heartbeat_ = 0;
-    double joint_kp_ = 30.0;
-    double joint_kd_ = 1.0;
 
     static constexpr int kJointSystemResendCycles = 100;
     static constexpr int kJointClearErrorCycles = 50;
@@ -393,6 +464,7 @@ private:
 
     OutputInterface<Eigen::Quaterniond> imu_quaternion_output_;
     OutputInterface<Eigen::Vector3d> imu_angular_velocity_output_;
+    OutputInterface<bool> joint_mit_active_output_;
 };
 
 } // namespace rmcs_core::hardware

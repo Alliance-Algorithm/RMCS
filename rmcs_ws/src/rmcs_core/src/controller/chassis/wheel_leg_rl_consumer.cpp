@@ -29,12 +29,15 @@ public:
         register_input("/chassis/reset_count", reset_count_);
 
         policy_leg_default_position_ = parameter_array_or(
-            "policy_leg_default_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
+            "policy_leg_default_position",
+            std::array<double, 4>{0.42, -0.13742282595254576, -0.42, 0.13741557625658019});
         urdf_zero_leg_position_ = parameter_array_or(
-            "urdf_zero_leg_position",
-            std::array<double, 4>{1.6, 2.93, -1.6, -2.93});
+            "urdf_zero_leg_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
+        calibrated_zero_leg_position_ = parameter_array_or(
+            "calibrated_zero_leg_position",
+            std::array<double, 4>{-1.6, -2.93, 1.6, 2.93});
         safe_leg_position_ = parameter_array_or(
-            "safe_leg_position", std::array<double, 4>{-0.5, -0.35, 0.5, 0.35});
+            "safe_leg_position", std::array<double, 4>{-2.1, -3.28, 2.1, 3.28});
 
         constexpr std::array<const char*, 4> kLegJoints{
             "left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"};
@@ -80,14 +83,9 @@ public:
             publish_fixed_targets_(urdf_zero_leg_position_);
             return;
         }
-        if (state == WheelLegControlState::kNominal) {
-            hold_target_valid_ = false;
-            publish_fixed_targets_(policy_leg_default_position_);
-            return;
-        }
         if (state == WheelLegControlState::kCalibratedZero) {
             hold_target_valid_ = false;
-            publish_fixed_targets_(std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
+            publish_fixed_targets_(calibrated_zero_leg_position_);
             return;
         }
         const bool policy_valid = state == WheelLegControlState::kRl && actions_ready
@@ -106,9 +104,7 @@ public:
             }
             const double desired = policy_leg_default_position_[i]
                                  + action_scale_ * std::clamp(value, -3.0, 3.0);
-            const double delta = desired - *leg_position_[i];
-            *leg_target_[i] =
-                *leg_position_[i] + std::atan2(std::sin(delta), std::cos(delta));
+            *leg_target_[i] = desired;
         }
         for (std::size_t i = 0; i < wheel_target_.size(); ++i) {
             const double value = *action_[i == 0 ? 4 : 5];
@@ -176,9 +172,11 @@ private:
     InputInterface<std::size_t> reset_count_;
     std::array<OutputInterface<double>, 4> leg_target_;
     std::array<OutputInterface<double>, 2> wheel_target_;
-    std::array<double, 4> policy_leg_default_position_{0.0, 0.0, 0.0, 0.0};
-    std::array<double, 4> urdf_zero_leg_position_{1.6, 2.93, -1.6, -2.93};
-    std::array<double, 4> safe_leg_position_{-0.5, -0.35, 0.5, 0.35};
+    std::array<double, 4> policy_leg_default_position_{
+        0.42, -0.13742282595254576, -0.42, 0.13741557625658019};
+    std::array<double, 4> urdf_zero_leg_position_{0.0, 0.0, 0.0, 0.0};
+    std::array<double, 4> calibrated_zero_leg_position_{-1.6, -2.93, 1.6, 2.93};
+    std::array<double, 4> safe_leg_position_{-2.1, -3.28, 2.1, 3.28};
     std::array<double, 4> hold_leg_position_{};
     bool hold_target_valid_ = false;
 
