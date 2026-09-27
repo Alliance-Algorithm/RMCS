@@ -60,3 +60,44 @@ colcon test --merge-install --packages-select rmcs_core --ctest-args -R wheel_le
 模型契约使用 `rmcs_ws/src/rmcs_rl/tool/check_policy_contract.py` 分别对照两份 YAML 检查，并验证图与权重未发生变化。上述检查验证软件坐标链路，不代表已在实车上验证 RL 闭环效果。
 
 本次验证结果：三个包构建完成；`wheel_leg_rl_imu_test` 的四项测试通过；两份配置的契约检查和 ONNX 有限值推理通过。ONNX 计算图（含权重）的序列化 SHA-256 为 `87a22cd557f2cf59dbdfae9b829f9affc589f900edcea7e4977f455a5b525d5a`，修改前后一致，仅布局描述和布局哈希两项元数据变化。
+
+## Isaac 已知姿态对照（补充验证）
+
+此前四项测试只覆盖 RMCS 数学和 EKF 链路。此次新增对照直接运行本机 Isaac Lab `2.3.2.post1` / Isaac Sim `5.1.0.0`，加载训练使用的 `Wheel_leg_V1.usd`（根刚体为 `base_link`）。给定实车坐标下的横滚、俯仰、航向，按照已确认的安装轴关系设置训练根刚体姿态，在 PhysX 步进后读回根位姿，并读取实际的 `robot.data.projected_gravity_b` 与 `robot.data.root_ang_vel_b`。
+
+12 个姿态覆盖水平、横滚/俯仰 ±30°、带航向的倾斜、两组非交换组合旋转、侧立、倒置及航向接近 180°。PhysX 读回姿态与给定姿态最大差为 `1.71e-7 rad`。
+
+| 已知实车姿态 | Isaac 的 RL 系重力 | RMCS 的 RL 系重力 |
+| --- | --- | --- |
+| 水平 | `[0,0,-1]` | `[0,0,-1]` |
+| 车身绕 +x 横滚 +30° | `[-0.5,0,-0.866025]` | `[-0.5,0,-0.866025]` |
+| 车身绕 +y 俯仰 +30° | `[0,-0.5,-0.866025]` | `[0,-0.5,-0.866025]` |
+
+对照使用生产 `WheelLegRlImu` C++ 组件，分别测试已知 `q_WB` 直接输入，以及已知姿态的静态加速度通过生产 `ImuEkf` 后输入。全部通过，重力最大分量误差 `2.38419e-7`，角速度最大分量误差 `1.35899e-6 rad/s`。新增回归后，IMU 测试共五项通过。
+
+### 四元数方向与桥接方式
+
+令 `q_BR` 把 **RL 坐标的向量转到车身坐标**，则它是绕 +z 旋转 +90°，`wxyz=[sqrt(0.5),0,0,sqrt(0.5)]`。世界到 RL 的重力投影应为：
+
+```text
+q_WR = q_WB ⊗ q_BR
+g_RL = inverse(q_WR) * [0,0,-1]
+```
+
+与当前实现 `R_RB * inverse(q_WB) * [0,0,-1]` 等价。改变四元数的整体符号不会改变旋转，不能用整体取负代替共轭/求逆。
+
+通用 `RlBridge` 的 `transform=projected_gravity` 仍按其输入四元数直接乘重力，但本车的两个 YAML 已让第 7–9 项读取 `/wheel_leg/rl/imu/projected_gravity take=vec3`。本车直接传入上述重力向量，因此不会再进入旧的 `q*g` 分支。
+
+### 重现与记录
+
+```sh
+OMNI_KIT_ACCEPT_EULA=YES /home/noir/miniconda3/envs/isaaclab/bin/python \
+  rmcs_ws/src/rmcs_core/tool/validate_wheel_leg_rl_imu.py \
+  --usd /home/noir/Documents/workspace/example/wheeled-legged_RL/source/agent_world/agent_world/assets/usd_files/Wheel_leg_V1/Wheel_leg_V1.usd \
+  --output docs/zh-cn/wheel_leg_rl_imu_isaac_validation.json \
+  --reference-csv rmcs_ws/src/rmcs_core/test/data/wheel_leg_rl_imu_isaac.csv --device cpu
+```
+
+生成 CSV 后运行上面的 `colcon build/test` 命令。JSON 记录各姿态、PhysX 读回结果、Isaac 输出和实际安装版本/源码指纹；CSV 是 C++ 回归测试读取的 Isaac 参考值。
+
+Isaac 的原始定义可核对[官方 ArticulationData 源码](https://isaac-sim.github.io/IsaacLab/main/_modules/isaaclab/assets/articulation/articulation_data.html)：`projected_gravity_b` 对世界重力使用 `quat_apply_inverse`。本次结果验证软件坐标转换，实车安装轴关系采用用户确认的 `[y,-x,z]`。

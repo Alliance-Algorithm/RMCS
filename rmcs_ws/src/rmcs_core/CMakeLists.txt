@@ -52,6 +52,8 @@ if(BUILD_TESTING)
     ament_add_gtest(wheel_leg_rl_imu_test test/wheel_leg_rl_imu_test.cpp)
     target_include_directories(wheel_leg_rl_imu_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     ament_target_dependencies(wheel_leg_rl_imu_test rmcs_executor pluginlib)
+    target_compile_definitions(wheel_leg_rl_imu_test PRIVATE
+        RMCS_WHEEL_LEG_IMU_REFERENCE_PATH="${PROJECT_SOURCE_DIR}/test/data/wheel_leg_rl_imu_isaac.csv")
 
     add_executable(wheel_leg_dm_sim_bridge test/wheel_leg_dm_sim_bridge.cpp)
     target_include_directories(wheel_leg_dm_sim_bridge PRIVATE ${PROJECT_SOURCE_DIR}/src)

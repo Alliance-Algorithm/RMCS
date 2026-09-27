@@ -56,6 +56,7 @@
 
   <class type="rmcs_core::broadcaster::TfBroadcaster" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::broadcaster::WheelLegStateBroadcaster" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::debug::ValueCollector" base_class_type="rmcs_executor::Component" />
 

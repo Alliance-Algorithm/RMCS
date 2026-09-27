@@ -1,0 +1,6 @@
+mujoco>=3.5,<4
+numpy>=1.26
+scipy>=1.11
+websockets>=12,<16
+rosbags>=0.10,<0.12
+Pillow>=10

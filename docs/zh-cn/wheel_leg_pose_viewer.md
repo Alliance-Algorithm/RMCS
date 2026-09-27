@@ -1,0 +1,155 @@
+# 实车遥测 → MuJoCo 姿态对照
+
+查看器用实车反馈摆出 V5 闭链机构，便于检查关节零点、方向和 RL 的 IMU 坐标系。数据路径为：
+
+```text
+实车 RMCS 反馈接口
+  → WheelLegStateBroadcaster（50 Hz，同一采样时间戳）
+  → ROS 2 话题 → Foxglove bridge → SSH 本地端口转发
+  → 本机 MuJoCo：六个主动关节 + 闭链求解 + 车身姿态
+```
+
+查看器只订阅数据；不发送电机命令、调用控制服务或运行策略。MuJoCo 只更新运动学，不推进动力学。因此开查看器不会使电机使能。采样组件在 RMCS 的失能模式下也工作。
+
+## 显示的量
+
+| 实车 RMCS 反馈 | MuJoCo 主动关节 | 窗口标记 |
+| --- | --- | --- |
+| `/wheel_leg/left_hip_joint/angle` | `L_joint1` | LH |
+| `/wheel_leg/left_knee_joint/angle` | `LL_joint1` | LK |
+| `/wheel_leg/right_hip_joint/angle` | `R_joint1` | RH |
+| `/wheel_leg/right_knee_joint/angle` | `RR_joint1` | RK |
+| `/wheel_leg/left_wheel/angle` | `L_joint3` | LW |
+| `/wheel_leg/right_wheel/angle` | `R_joint3` | RW |
+
+这些角度已经是 RMCS 完成 `reversed` 和 `offset` 处理后的 URDF 坐标，查看器不再添加 offset 或改符号。`L_joint2/R_joint2` 是被动关节，不能直接填入膝电机角度。
+
+查看器保留髋、膝的配对分支，处理 ±π 过零；12 个被动关节通过模型中的六处闭链连接求解。从模型标称装配姿态连续求解以保留装配分支；它们不是实测量。若连接误差超过 `2e-6 m`，保留上一有效姿态并显示 `POSE REJECTED`，不会偷偷修改主动电机反馈以闭合连杆。连接误差指各连接点位置差的最大绝对分量。
+
+机身姿态使用物理 IMU 的 `q_WB`（body → world）：
+
+```text
+RL 向量 = [body_y, -body_x, body_z]
+q_BR = 绕 z 轴 +90°（RL → body）
+q_W_model = q_WB ⊗ q_BR
+模型预期重力 = inverse(q_W_model) * [0, 0, -1]
+```
+
+同时订阅当前 RL 使用的 `/wheel_leg/rl/imu/projected_gravity` 和角速度，比较它们与物理 IMU 推算结果的差异。窗口显示：
+
+- 六个主动电机角度、Body 与 RL 的 roll/pitch/yaw。
+- Body、RL 两组坐标轴，红/绿/蓝分别为 x/y/z。
+- 青色 RL 重力、灰色世界向下方向。
+- 重力夹角误差、角速度向量误差、闭链连接误差。
+- 接收状态；超过 0.5 秒没有完整快照显示 `STALE`。
+
+**范围说明：**机身世界位置固定为 `[0,0,0.65] m`，高度只用于摆图；不从 IMU 积分位移，不代表离地高度。yaw 沿用 EKF 的参考，不能据此认定绝对航向已标定。采样时间戳是 executor 读取接口的时刻，不是各 CAN/IMU 的硬件采样时间；`RECEIVING` 仅证明遥测链路在更新，不能替代实车 `robot_status` 的反馈新鲜度检查。重力误差为零只证明两条软件坐标转换一致，仍需用实物姿态确认安装轴和 EKF 输入方向。
+
+## 实车端准备
+
+新增组件已接入 `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml`。部署时须包含本次 `rmcs_core` 和 bringup 配置；仅运行旧版 RMCS 的 `value_broadcaster` 不会产生以下话题。原 `value_broadcaster` 保持用于标量，新增组件负责标准 ROS 消息。
+
+在实车的 ROS 环境、RMCS 工作空间中编译，沿用该工作空间原有的安装布局；本开发容器使用：
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd /workspaces/RMCS/rmcs_ws
+source install/setup.bash
+colcon build --merge-install --packages-select rmcs_core rmcs_bringup
+source install/setup.bash
+```
+
+路径应替换为实车实际路径。通过实车原有流程加载更新后的 `wheel-leg-infantry-rl` 配置；不要另起第二个硬件 executor。RMCS 更新需要在电机失能时安排重启，查看器不会替你重启。
+
+| 话题 | ROS 类型 | `frame_id` |
+| --- | --- | --- |
+| `/wheel_leg/telemetry/joint_states` | `sensor_msgs/msg/JointState` | `rl_base` |
+| `/wheel_leg/telemetry/imu_body` | `sensor_msgs/msg/Imu` | `chassis_body` |
+| `/wheel_leg/telemetry/rl_projected_gravity` | `geometry_msgs/msg/Vector3Stamped` | `rl_base` |
+| `/wheel_leg/telemetry/rl_angular_velocity` | `geometry_msgs/msg/Vector3Stamped` | `rl_base` |
+
+四条消息共享一个 header 时间戳。查看器按时间戳配对，按 JointState 的名字映射电机，不依赖数组发送顺序。`imu_body` 提供四元数和角速度，未提供线加速度，其 covariance[0] 为 −1。
+
+如果已有 Foxglove bridge，复用它并确保话题白名单包含上述四个话题。否则在与 RMCS 相同的 ROS domain/容器网络环境启动：
+
+```bash
+ros2 launch foxglove_bridge foxglove_bridge_launch.xml \
+  address:=127.0.0.1 port:=8765
+```
+
+SSH 登录目标必须能访问这个 `127.0.0.1:8765`。若桥在 Docker 中，需要 host 网络或对应的 localhost 端口映射。此命令的参数已与本地 Jazzy Foxglove bridge 3.2.6 的 launch 文件核对；另见 [Foxglove 官方文档](https://docs.foxglove.dev/docs/fleet/bridge)。
+
+## 本机运行
+
+本机已创建 `rmcs_ws/build/wheel_leg_viewer_venv`。换一台电脑时可以用 Python 3.11+ 单独安装：
+
+```bash
+cd /path/to/RMCS
+python3 -m venv rmcs_ws/build/wheel_leg_viewer_venv
+rmcs_ws/build/wheel_leg_viewer_venv/bin/python -m pip install \
+  -r rmcs_ws/src/rmcs_core/tool/wheel_leg_pose_viewer_requirements.txt
+```
+
+模型目录须包含 `robot.xml`、`manifest.json`、`meshes/` 和 `collisions/`。本机使用训练工程已有的完整 V5 模型包，工具不会修改它。
+
+先确认普通 `ssh 用户名@实车IP` 可以通过密钥或 agent 登录，并已确认主机指纹。随后在本机仓库根目录运行，将占位地址替换为实车地址：
+
+```bash
+rmcs_ws/build/wheel_leg_viewer_venv/bin/python \
+  rmcs_ws/src/rmcs_core/tool/wheel_leg_pose_viewer.py \
+  --bundle '/home/noir/Documents/workspace/example/wheeled-legged_RL/参考例程/model/纯底盘_v5/urdf' \
+  --ssh '用户名@实车IP' \
+  --record /tmp/wheel_leg_real_take01.jsonl
+```
+
+`--ssh` 只建立端口转发，退出时清理自己创建的隧道。非标准端口加 `--ssh-port 端口`；桥端口可用 `--remote-port 端口` 指定。录制文件必须是新文件，防止覆盖已有测量。如果已经建立隧道，用 `--url ws://127.0.0.1:本地端口` 替换 `--ssh`。
+
+窗口鼠标操作沿用 [MuJoCo passive viewer](https://mujoco.readthedocs.io/en/3.5.0/python.html)：可旋转、平移和缩放视角。先在电机失能、机械支撑可靠的条件下，对比已知摆放姿态，再决定是否进行主动闭环试验。查看器不会检查或改变实车的使能状态。
+
+回放同一次实车录制：
+
+```bash
+rmcs_ws/build/wheel_leg_viewer_venv/bin/python \
+  rmcs_ws/src/rmcs_core/tool/wheel_leg_pose_viewer.py \
+  --bundle '/home/noir/Documents/workspace/example/wheeled-legged_RL/参考例程/model/纯底盘_v5/urdf' \
+  --replay /tmp/wheel_leg_real_take01.jsonl
+```
+
+离线检查安装时使用 `--demo` 替换数据源。它会明确显示 `DEMO (synthetic)`；新录制保存来源标记，回放合成数据仍标明 `SYNTHETIC DEMO`。`--headless --duration 10 --report /tmp/pose_report.json` 可仅收数和输出指标；另加 `--screenshot /tmp/pose.png` 保存最终有效姿态。本机无窗口渲染使用 `MUJOCO_GL=egl`。
+
+## 怎么判读
+
+| 现象 | 先核对 |
+| --- | --- |
+| `missing topics` | 实车是否部署采样组件；ROS domain、桥白名单是否一致 |
+| `STALE` / `disconnected` | SSH 隧道、桥连接和采样进程；冻结画面是上一帧 |
+| `rejected sample` | 消息 frame、四元数有效性、四个时间戳是否一致 |
+| 关节数值与日志一致，但腿形不一致 | 机械零点、offset、主动关节对应关系和被动装配分支 |
+| 整车倾斜方向错误，但腿形正确 | 物理 IMU 安装轴、EKF 方向、模型基座轴 |
+| RL gravity error 明显不为零 | 实际 RL 重力接口与物理 IMU 推算不一致；不要用单独调画面符号掩盖 |
+| `POSE REJECTED` | 反馈无法在当前装配分支闭合；检查角度映射与模型版本 |
+
+客户端支持旧桥 `foxglove.websocket.v1` 和新桥 `foxglove.sdk.v1`。3.2.6 本地实测要求后一种，仅请求旧协议会收到 HTTP 400。子协议依据 [Foxglove SDK 握手实现](https://github.com/foxglove/foxglove-sdk/blob/main/rust/foxglove/src/websocket/handshake.rs) 核对；客户端只发送订阅操作。
+
+## 已完成的本地验证
+
+- 开发容器中 `rmcs_core`、`rmcs_bringup` 完整构建通过。
+- 五项离线测试通过：时间戳配对/关节名映射、无效四元数、错误坐标帧、实际 CDR 与 WebSocket 订阅、V5 闭链和坐标变换。
+- 之前实车日志中的 `[-99.421532, 179.194987, 89.957478, 168.761840]°` 及等价 ±2π 输入可重建闭链；该测试的 IMU 是人为设置的参考姿态。
+- 本机真实 Foxglove bridge 3.2.6 + 隔离 ROS 域合成发布源 → 查看器，收到 244 组完整数据，0 次姿态拒绝，最大连接误差约 `1.2e-14 m`。
+- 该链路使用车身横滚 +20°，显示 RL 俯仰 −20°；重力和角速度与合成参考一致。
+- MuJoCo GUI、无窗口渲染、JSONL 录制和回放已运行通过。当前 Wayland 环境出现窗口位置/libdecor 的非致命提示。
+
+以上不代表已连接实车或已证实实际机械零位正确。仍需实车 SSH 地址，并确认实车运行含上述组件的版本后完成现场对照。
+
+离线测试命令：
+
+```bash
+WHEEL_LEG_MODEL_BUNDLE='/home/noir/Documents/workspace/example/wheeled-legged_RL/参考例程/model/纯底盘_v5/urdf' \
+  rmcs_ws/build/wheel_leg_viewer_venv/bin/python \
+  rmcs_ws/src/rmcs_core/test/test_wheel_leg_pose_viewer.py -v
+```
+
+以下预览使用合成姿态，不是实车截图：
+
+![合成姿态预览](wheel_leg_pose_viewer_demo.png)
