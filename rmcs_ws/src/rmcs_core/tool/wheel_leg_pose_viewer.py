@@ -104,15 +104,16 @@ def save_image(pose, destination, text):
     pose.model.vis.global_.offwidth = 1280
     pose.model.vis.global_.offheight = 900
     camera = mujoco.MjvCamera()
-    camera.lookat[:] = [0., 0., pose.root_height]
+    camera.lookat[:] = [0., 0., pose.root_height + .1]
     camera.distance, camera.azimuth, camera.elevation = 1.65, 135., -20.
     with mujoco.Renderer(pose.model, height=900, width=1280) as renderer:
         renderer.update_scene(pose.data, camera=camera)
         pose.draw_axes(renderer.scene)
         result = Image.fromarray(renderer.render().copy())
     drawing = ImageDraw.Draw(result)
-    drawing.rectangle((0, 0, 1280, 180), fill=(24, 28, 33))
     font = ImageFont.truetype("DejaVuSans.ttf", 16)
+    text_bottom = drawing.multiline_textbbox((15, 10), text, font=font, spacing=3)[3]
+    drawing.rectangle((0, 0, 1280, text_bottom + 10), fill=(24, 28, 33))
     drawing.multiline_text((15, 10), text, fill="white", spacing=3, font=font)
     Path(destination).parent.mkdir(parents=True, exist_ok=True)
     result.save(destination)
@@ -135,7 +136,7 @@ def run(args, url=None):
     try:
         with viewer_context as viewer:
             if viewer:
-                viewer.cam.lookat[:] = [0., 0., args.root_height]
+                viewer.cam.lookat[:] = [0., 0., args.root_height + .1]
                 viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.65, 135., -20.
                 viewer.opt.geomgroup[3] = 0
             while (viewer is None or viewer.is_running()) and (

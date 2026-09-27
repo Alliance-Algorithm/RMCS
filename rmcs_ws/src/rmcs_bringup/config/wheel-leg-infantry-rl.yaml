@@ -21,6 +21,7 @@ rmcs_executor:
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::broadcaster::WheelLegStateBroadcaster -> wheel_leg_state_broadcaster
+      - rmcs_core::debug::ValueCollector -> value_collector
 
 wheel_leg_state_broadcaster:
   ros__parameters:
@@ -56,6 +57,31 @@ value_broadcaster:
       - /wheel_leg/right_wheel/velocity
       - /wheel_leg/right_wheel/control_velocity
       - /wheel_leg/right_wheel/control_torque
+
+value_collector:
+  ros__parameters:
+    # executor 内组件，按 write_interval 把下列 double 输出写进 CSV（无时间戳列，只有 index）。
+    # 必须启动时存在，改完要重启 executor。
+    csv_path: "/tmp/wheel_leg_joints_<timestamp>.csv"
+    signals:
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/control_angle
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/control_angle
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/control_angle
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/control_angle
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/right_knee_joint/velocity
+    write_interval: 1     # 1 kHz/1 = 1000 Hz；要 200 Hz 就填 5
+    flush_interval: 1000
 
 wheel_leg_infantry_rl:
   ros__parameters:

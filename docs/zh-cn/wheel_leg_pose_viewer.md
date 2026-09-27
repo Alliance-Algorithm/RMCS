@@ -26,13 +26,14 @@
 
 查看器保留髋、膝的配对分支，处理 ±π 过零；12 个被动关节通过模型中的六处闭链连接求解。从模型标称装配姿态连续求解以保留装配分支；它们不是实测量。若连接误差超过 `2e-6 m`，保留上一有效姿态并显示 `POSE REJECTED`，不会偷偷修改主动电机反馈以闭合连杆。连接误差指各连接点位置差的最大绝对分量。
 
-机身姿态使用物理 IMU 的 `q_WB`（body → world）：
+当前加载的 V5 导出模型已经是 `Xforward_Yleft_Zup`，其 `base_link` 跟随物理车身 Body。它与 RL 观测坐标分别计算：
 
 ```text
 RL 向量 = [body_y, -body_x, body_z]
 q_BR = 绕 z 轴 +90°（RL → body）
-q_W_model = q_WB ⊗ q_BR
-模型预期重力 = inverse(q_W_model) * [0, 0, -1]
+q_W_model = q_WB
+q_W_RL = q_WB ⊗ q_BR
+RL 预期重力 = inverse(q_W_RL) * [0, 0, -1]
 ```
 
 同时订阅当前 RL 使用的 `/wheel_leg/rl/imu/projected_gravity` 和角速度，比较它们与物理 IMU 推算结果的差异。窗口显示：
@@ -42,6 +43,37 @@ q_W_model = q_WB ⊗ q_BR
 - 青色 RL 重力、灰色世界向下方向。
 - 重力夹角误差、角速度向量误差、闭链连接误差。
 - 接收状态；超过 0.5 秒没有完整快照显示 `STALE`。
+
+### 坐标轴方向与图示
+
+这里说的轴方向是实际空间方向，RL 三根轴在 Body 中分别是：
+
+| RL 正轴 | Body 中的方向 |
+| --- | --- |
+| RL x | `[0,+1,0]`，与 Body y 同向 |
+| RL y | `[-1,0,0]`，与 Body x 反向 |
+| RL z | `[0,0,+1]`，与 Body z 同向 |
+
+RL 基向量相对 Body 绕 +z 转 +90°；同一向量从 Body 分量换算成 RL 分量使用逆旋转，因此为 `[y,-x,z]`。
+
+旧预览的箭头与文字端点错位：MuJoCo 3.5 的 OpenGL 箭头实际尖端在 `size[2]/2`，标签却放在完整长度的端点，导致 `RL y` 标签挤到 Body 一组附近。现在已让箭头尖端与标签锚点重合，分开两组坐标轴并标明各自 origin，顶部固定列出轴对应关系。依据已核对的 [MuJoCo 3.5 箭头绘制源码](https://github.com/google-deepmind/mujoco/blob/3.5.0/src/render/render_gl3.c) 修正显示长度；IMU 坐标换算仍遵循上表。
+
+绘图回归检查 MuJoCo 场景几何，覆盖水平与组合倾斜姿态：`dot(RL y, Body x) = -1`，`RL x = Body y`，`RL z = Body z`，同时检查箭头尖端和标签位置重合。
+
+### V5 模型本身的车头方向
+
+修正箭头标注后，原查看器仍把 `q_W_RL` 写入了导出模型的根节点，造成整车额外转了 +90°。这层模型映射已修正为 `q_W_model = q_WB`，车头对应 Body x；顶部两组坐标轴仍按前述关系显示。
+
+依据以下文件核对过模型的坐标转换：
+
+- 导出包中的 `source_urdf_v5.0.urdf`：原始 CAD 的左、右髋位置分别为 `[0.1838,0,-0.00083697]`、`[-0.1828,0,0.00083241]`，左右分布沿原始 x 轴。
+- `参考例程/tools/build_v5_closedchain.py`：导出时用 `S=[[0,-1,0],[1,0,0],[0,0,1]]` 处理根关节原点以及基座网格、碰撞和惯量。
+- 当前加载的 `robot.xml`：左右髋已经位于 `[0,0.1838,-0.00083697]`、`[0,-0.1828,0.00083241]`；`manifest.json` 标记 `control_frame: Xforward_Yleft_Zup`。
+- 另核对了 `Wheel_leg_V2/urdf/urdf_v5.0.urdf`，该文件的左右髋也已经分布在 ±y。不能仅凭同名 `base_link` 假定它与原始 CAD 坐标一致。
+
+因此，导出模型的 +x 是车头方向，+y 是左侧方向。模型根姿态直接使用物理 IMU 的 Body → world 四元数。对同一输入，整车相对上一版绕 Body z 转 −90°，四个主动电机角度和闭链装配关系保持一致。
+
+回归检查还从原始 URDF 读取左右髋位置，验证导出变换，再通过实际 MuJoCo 左右髋连接点连线和车身向上方向推算车头，要求它与 Body x 同向。该检查独立于 RL 箭头构造。三项几何测试覆盖模型朝向、坐标轴绘图与原有闭链重建。
 
 **范围说明：**机身世界位置固定为 `[0,0,0.65] m`，高度只用于摆图；不从 IMU 积分位移，不代表离地高度。yaw 沿用 EKF 的参考，不能据此认定绝对航向已标定。采样时间戳是 executor 读取接口的时刻，不是各 CAN/IMU 的硬件采样时间；`RECEIVING` 仅证明遥测链路在更新，不能替代实车 `robot_status` 的反馈新鲜度检查。重力误差为零只证明两条软件坐标转换一致，仍需用实物姿态确认安装轴和 EKF 输入方向。
 
@@ -150,6 +182,6 @@ WHEEL_LEG_MODEL_BUNDLE='/home/noir/Documents/workspace/example/wheeled-legged_RL
   rmcs_ws/src/rmcs_core/test/test_wheel_leg_pose_viewer.py -v
 ```
 
-以下预览使用合成姿态，不是实车截图：
+以下预览使用车身四元数 `[1,0,0,0]` 的水平合成姿态：车头沿 Body x，RL y 与车头反向，RL x 沿车身左侧。它不是实车截图：
 
 ![合成姿态预览](wheel_leg_pose_viewer_demo.png)
