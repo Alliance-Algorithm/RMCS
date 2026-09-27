@@ -10,9 +10,6 @@ from scipy.optimize import least_squares
 from scipy.spatial.transform import Rotation
 
 MOTOR_JOINTS = ("L_joint1", "LL_joint1", "R_joint1", "RR_joint1", "L_joint3", "R_joint3")
-# Columns are the RL basis vectors expressed in Body: +y, -x, +z.
-# Mapping vector components Body -> RL uses the inverse of this rotation.
-BODY_FROM_RL = Rotation.from_euler("z", 90., degrees=True)
 
 
 def wrap(value):
@@ -91,19 +88,18 @@ class PoseModel:
                 self.solve_count += 1
             q = np.asarray(snapshot.quaternion_wxyz)
             world_from_body = Rotation.from_quat(q[[1, 2, 3, 0]])
-            world_from_rl = world_from_body * BODY_FROM_RL
             self.data.qpos[self.root_address:self.root_address + 3] = [0., 0., self.root_height]
             # The V5 exporter already rotates the source CAD base, root joint
             # origins and meshes into x-forward/y-left/z-up (physical Body).
-            # Its base_link follows Body, separately from the policy frame.
+            # Its base_link and training IMU observations both follow Body.
             self.data.qpos[self.root_address + 3:self.root_address + 7] = world_from_body.as_quat()[[3, 0, 1, 2]]
             self.data.qvel[:] = 0.
             self.data.ctrl[:] = 0.
             # This updates geometry only. The viewer never advances motor dynamics.
             mujoco.mj_forward(self.model, self.data)
-            gravity_expected = world_from_rl.inv().apply([0., 0., -1.])
+            gravity_expected = world_from_body.inv().apply([0., 0., -1.])
             cosine = np.dot(gravity_expected, snapshot.gravity_rl) / np.linalg.norm(snapshot.gravity_rl)
-            gyro_expected = BODY_FROM_RL.inv().apply(snapshot.gyro_body)
+            gyro_expected = np.asarray(snapshot.gyro_body)
             self.metrics = {
                 "loop_gap_m": float(np.max(np.abs(self.loop_residual()))),
                 "motor_phase_error_rad": float(np.max(np.abs(wrap(target - snapshot.positions)))),
@@ -111,7 +107,7 @@ class PoseModel:
                 "gravity_component_error": float(np.max(np.abs(gravity_expected - snapshot.gravity_rl))),
                 "gyro_error_rad_s": float(np.linalg.norm(gyro_expected - snapshot.gyro_rl)),
                 "body_rpy_deg": world_from_body.as_euler("xyz", degrees=True).tolist(),
-                "rl_rpy_deg": world_from_rl.as_euler("xyz", degrees=True).tolist(),
+                "rl_rpy_deg": world_from_body.as_euler("xyz", degrees=True).tolist(),
                 "motor_deg": np.degrees(snapshot.positions).tolist(),
             }
             self.last_positions, self.last_snapshot = target, snapshot
@@ -127,7 +123,6 @@ class PoseModel:
         origin = self.data.xpos[self.base_id] + [0., 0., .20]
         q = np.asarray(self.last_snapshot.quaternion_wxyz)
         world_from_body = Rotation.from_quat(q[[1, 2, 3, 0]])
-        world_from_rl = world_from_body * BODY_FROM_RL
 
         def arrow(start, end, rgba, label):
             if scene.ngeom + 2 > scene.maxgeom:
@@ -147,7 +142,7 @@ class PoseModel:
             geom.label = label
             scene.ngeom += 1
 
-        for rotation, start, prefix in ((world_from_rl, origin, "RL"),
+        for rotation, start, prefix in ((world_from_body, origin, "RL IMU"),
                                          (world_from_body, origin + [-.60, 0., 0.], "Body")):
             for i, color in enumerate(((1., .15, .15, 1.), (.15, 1., .15, 1.), (.15, .4, 1., 1.))):
                 arrow(start, start + .18 * rotation.as_matrix()[:, i], color, f"{prefix} {'xyz'[i]}")
@@ -158,7 +153,7 @@ class PoseModel:
                 geom.label = f"{prefix} origin"
                 scene.ngeom += 1
         start = origin + [.45, 0., 0.]
-        arrow(start, start + .25 * world_from_rl.apply(self.last_snapshot.gravity_rl),
+        arrow(start, start + .25 * world_from_body.apply(self.last_snapshot.gravity_rl),
               (0., 1., 1., 1.), "RL gravity")
         arrow(start + [.1, 0., 0.], start + [.1, 0., -.25], (.8, .8, .8, 1.), "World down")
 
@@ -167,7 +162,7 @@ class PoseModel:
         state = "STALE" if age > .5 else "RECEIVING"
         lines = [f"{prefix} | {state} | receive age {age:.2f}s", transport,
                  "Root position fixed for display; passive joints inferred", "RGB axes: x / y / z",
-                 "RL x = Body y | RL y = -Body x | RL z = Body z"]
+                 "RL IMU xyz = Body xyz (no axis remap)"]
         if error:
             lines.append("POSE REJECTED: " + error)
         if self.metrics:
@@ -175,7 +170,7 @@ class PoseModel:
             lines.extend([
                 "LH LK RH RK LW RW deg: " + " ".join(f"{v:7.2f}" for v in m["motor_deg"]),
                 "Body roll/pitch/yaw: " + " ".join(f"{v:.2f}" for v in m["body_rpy_deg"]),
-                "RL   roll/pitch/yaw: " + " ".join(f"{v:.2f}" for v in m["rl_rpy_deg"]),
+                "RL IMU roll/pitch/yaw: " + " ".join(f"{v:.2f}" for v in m["rl_rpy_deg"]),
                 f"RL gravity error {m['gravity_error_deg']:.4f} deg | gyro error {m['gyro_error_rad_s']:.5f} rad/s",
                 f"Closed-loop gap {m['loop_gap_m']:.3g} m | no dynamics/commands",
             ])

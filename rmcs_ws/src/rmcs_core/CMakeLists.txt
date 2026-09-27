@@ -51,7 +51,8 @@ if(BUILD_TESTING)
 
     ament_add_gtest(wheel_leg_rl_imu_test test/wheel_leg_rl_imu_test.cpp)
     target_include_directories(wheel_leg_rl_imu_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_target_dependencies(wheel_leg_rl_imu_test rmcs_executor pluginlib)
+    ament_target_dependencies(
+        wheel_leg_rl_imu_test rmcs_executor rmcs_msgs rmcs_description rclcpp pluginlib)
     target_compile_definitions(wheel_leg_rl_imu_test PRIVATE
         RMCS_WHEEL_LEG_IMU_REFERENCE_PATH="${PROJECT_SOURCE_DIR}/test/data/wheel_leg_rl_imu_isaac.csv")
 
