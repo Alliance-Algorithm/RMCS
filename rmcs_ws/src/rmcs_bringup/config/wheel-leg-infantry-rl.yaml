@@ -228,7 +228,7 @@ right_wheel_velocity_pid:
     output_min: -4.5
     output_max: 4.5
 # DM 关节速度环（MIT 力矩模式，τ = PID(v_des − v)，输出即 t_ff）。
-# 2026-09-28 按 wheel_leg_joints_2026-09-27_15-52-25.csv 反演整定：kp=10 时 P 项仅
+# 2026-09-28 按实机录制的关节数据反演整定：kp=10 时 P 项仅
 #   3~6 Nm RMS 而积分项 11~25 Nm RMS（积分主导），故 kp 提到 20；实测静止保持力矩
 #   hip ≤17 / knee ≤13 Nm，故积分限收到 ±400（±20 Nm）给 P 项留 ≥20 Nm 余量。
 #   注意：validate_wheel_leg_pair.py --dm-feedback 对本组增益判 fail（最大终点误差
