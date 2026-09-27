@@ -4,6 +4,7 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::WheelLegInfantryRL -> wheel_leg_infantry_rl
       - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
+      - rmcs_core::controller::chassis::WheelLegRlImu -> wheel_leg_rl_imu
       - rmcs_rl::RlBridge -> rl_bridge
       - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
       - rmcs_core::controller::chassis::WheelLegRlConsumer -> wheel_leg_rl_consumer
@@ -17,6 +18,38 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> left_knee_joint_velocity_pid
       - rmcs_core::controller::pid::PidController -> right_hip_joint_velocity_pid
       - rmcs_core::controller::pid::PidController -> right_knee_joint_velocity_pid
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      # 四个关节电机（DM）：反馈角度 / 目标角度 / 输出力矩 / 反馈速度
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/control_angle
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/control_angle
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/control_angle
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/control_angle
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/right_knee_joint/velocity
+      # 两个轮电机（M3508）：反馈角度 / 反馈速度 / 目标速度 / 输出力矩
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/control_velocity
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/control_velocity
+      - /wheel_leg/right_wheel/control_torque
 
 wheel_leg_infantry_rl:
   ros__parameters:
@@ -55,7 +88,7 @@ rl_bridge:
     enable_default: false
     invalid_value: "nan"
     reset_interface: "/chassis/reset_count"
-    expected_model_id: "0x198248e43e64d643"
+    expected_model_id: "0xd4612f6cd48a6e9c"
     joint_names: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint, left_wheel, right_wheel]
     joint_base_path: "/wheel_leg"
     joint_angle_suffix: "/angle"
@@ -75,8 +108,9 @@ rl_bridge:
       - index=1 path=/chassis/control_velocity take=y
       - index=2 path=/chassis/control_velocity take=z
       - index=3 path=/chassis/control_height scale=5.0
-      - index=4 path=/wheel_leg/imu/angular_velocity take=vec3 scale=0.5
-      - index=7 path=/wheel_leg/imu/quaternion transform=projected_gravity
+      # RL 坐标 [x,y,z]=[车身 y,-车身 x,车身 z]；原始 /wheel_leg/imu 仍为车身系。
+      - index=4 path=/wheel_leg/rl/imu/angular_velocity take=vec3 scale=0.5
+      - index=7 path=/wheel_leg/rl/imu/projected_gravity take=vec3
       - index=10 type=joint_pos joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint relative=true
       - index=14 type=joint_pos joints=left_wheel,right_wheel zero=true
       - index=16 type=joint_vel joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint scale=0.1

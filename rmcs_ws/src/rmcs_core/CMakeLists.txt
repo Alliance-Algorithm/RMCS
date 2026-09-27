@@ -49,6 +49,10 @@ if(BUILD_TESTING)
     ament_add_gtest(dm_joint_enable_sequence_test test/dm_joint_enable_sequence_test.cpp)
     target_include_directories(dm_joint_enable_sequence_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
+    ament_add_gtest(wheel_leg_rl_imu_test test/wheel_leg_rl_imu_test.cpp)
+    target_include_directories(wheel_leg_rl_imu_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    ament_target_dependencies(wheel_leg_rl_imu_test rmcs_executor pluginlib)
+
     add_executable(wheel_leg_dm_sim_bridge test/wheel_leg_dm_sim_bridge.cpp)
     target_include_directories(wheel_leg_dm_sim_bridge PRIVATE ${PROJECT_SOURCE_DIR}/src)
     ament_target_dependencies(wheel_leg_dm_sim_bridge rmcs_executor rclcpp pluginlib)
