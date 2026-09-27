@@ -37,14 +37,10 @@ public:
         return {wrap(hip - sign(side) * d / 2.0), d};
     }
 
-    static std::optional<WheelLegPairPose> feedback(
-        Side side, double hip, double knee, double min, double max, double tolerance) {
+    static std::optional<WheelLegPairPose> feedback(Side side, double hip, double knee) {
         if (!std::isfinite(hip) || !std::isfinite(knee))
             return std::nullopt;
-        const auto pose = decode(side, hip, knee);
-        if (pose.difference < min - tolerance || pose.difference > max + tolerance)
-            return std::nullopt;
-        return pose;
+        return decode(side, hip, knee);
     }
 
     static WheelLegPairPose target(

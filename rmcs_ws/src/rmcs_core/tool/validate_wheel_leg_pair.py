@@ -40,7 +40,7 @@ config = yaml.safe_load((core.parent / "rmcs_bringup/config/wheel-leg-infantry-r
 p = config["wheel_leg_joint_velocity_controller"]["ros__parameters"]
 parameters = np.array([p[n] for n in ("angle_kp", "max_joint_velocity", "max_joint_acceleration",
                                      "min_motor_difference", "max_motor_difference",
-                                     "motor_difference_margin", "motor_difference_tolerance")], dtype=np.float64)
+                                     "motor_difference_margin")], dtype=np.float64)
 hardware = config["wheel_leg_infantry_rl"]["ros__parameters"]
 joint_keys = ["left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"]
 offsets = np.array([hardware[n + "_angle_offset"] for n in joint_keys])
