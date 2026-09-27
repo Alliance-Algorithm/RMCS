@@ -2,8 +2,9 @@
 """Run the production pair servo through the V5 PhysX closed chain, offline.
 
 Use the Python in the installed Isaac Lab environment. Only reset writes passive
-positions; every later state is integrated by PhysX from motor efforts. The DM
-velocity PI below is an explicit test assumption, not an identified motor model.
+positions; every later state is integrated by PhysX from motor efforts. The
+non-bridge path mirrors the production RMCS velocity PID; the bridge path runs
+the real C++ PID and drives PhysX from decoded MIT torque frames.
 """
 import argparse
 import ctypes
@@ -45,6 +46,42 @@ hardware = config["wheel_leg_infantry_rl"]["ros__parameters"]
 joint_keys = ["left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"]
 offsets = np.array([hardware[n + "_angle_offset"] for n in joint_keys])
 consumer = config["wheel_leg_rl_consumer"]["ros__parameters"]
+joint_pid_names = ["left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"]
+joint_pids = [config[name + "_velocity_pid"]["ros__parameters"] for name in joint_pid_names]
+for extra in joint_pids[1:]:
+    assert extra == joint_pids[0], "joint velocity PID gains must be identical"
+pid_params = joint_pids[0]
+pid_gains = (pid_params["kp"], pid_params["ki"], pid_params.get("kd", 0.0),
+             pid_params.get("integral_min", -math.inf), pid_params.get("integral_max", math.inf),
+             pid_params["output_max"])
+
+
+class PidMirror:
+    """Vectorized mirror of rmcs_core PidCalculator at the 1 kHz update rate."""
+
+    def __init__(self, shape, gains):
+        kp, ki, kd, integral_min, integral_max, output_max = gains
+        self.kp, self.ki, self.kd = kp, ki, kd
+        self.integral_min, self.integral_max = integral_min, integral_max
+        self.output_min, self.output_max = -output_max, output_max
+        self.integral = np.zeros(shape)
+        self.last_err = np.full(shape, np.nan)
+        self.last_reset = None
+
+    def update(self, err, reset_count):
+        if reset_count != self.last_reset:
+            self.last_reset = reset_count
+            self.integral[...] = 0.
+            self.last_err[...] = np.nan
+            return np.zeros_like(err)
+        control = self.kp * err + self.ki * self.integral
+        self.integral = np.clip(self.integral + err, self.integral_min, self.integral_max)
+        control = np.where(np.isnan(self.last_err), control,
+                           control + self.kd * (err - self.last_err))
+        self.last_err = err
+        return np.clip(control, self.output_min, self.output_max)
+
+
 spec = json.loads((args.bundle / "model_spec.json").read_text())
 manifest = json.loads((args.bundle / "manifest.json").read_text())
 sys.path.insert(0, str(args.bundle / "tools"))
@@ -108,7 +145,7 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
     if args.dm_feedback:
         from wheel_leg_dm_feedback import DmFeedbackBridge
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        dm_bridge = DmFeedbackBridge(args.envs, offsets, args.container, args.output.with_suffix(".bridge.log"), args.direction_comparison)
+        dm_bridge = DmFeedbackBridge(args.envs, offsets, pid_gains, args.container, args.output.with_suffix(".bridge.log"), args.direction_comparison)
 
     from isaaclab.app import AppLauncher
     launcher = AppLauncher({"headless": True, "device": args.device, "enable_cameras": False})
@@ -166,17 +203,12 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
         robot.reset()
         robot.update(dt)
         effort = torch.zeros_like(initial_q)
-        integral = torch.zeros((args.envs, 4), device=args.device)
+        pid_mirror = PidMirror((args.envs, 4), pid_gains)
         commands = np.zeros((args.envs, 4), dtype=np.float64)
-        s0 = torch.tensor([spec["spring_binding"][n]["compression_at_q_zero_m"] for n in springs], device=args.device)
+        s0 = torch.tensor([spec["spring_binding"][n]["compression_at_q_zero_m"] for n in springs], device=args.device, dtype=torch.float32)
         gas_enabled = torch.tensor([[float((i // 2) % 2 if args.dm_feedback else i % 2)] for i in range(args.envs)], device=args.device)
         if args.direction_comparison:
             gas_enabled.zero_()
-        gain_scale = np.ones((args.envs, 4))
-        if dm_bridge is not None:
-            gain_scale[dm_bridge.stressed] = [1.0, .6, 1.2, .7]
-        kp_velocity = torch.tensor(10. * gain_scale, device=args.device, dtype=torch.float32)
-        ki_velocity = torch.tensor(50. * gain_scale, device=args.device, dtype=torch.float32)
         last_torque = np.zeros((args.envs, 4), dtype=np.float64)
         simulation_time = 1.
         fault_steps = 0
@@ -231,12 +263,12 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                 q_active = q[:, active_ids].cpu().numpy().astype(np.float64)
                 old_commands = commands.copy()
                 if dm_bridge is not None:
-                    measured, measured_velocity, commands, applied, active_flags, healthy_flags = dm_bridge.step(
+                    measured, measured_velocity, setpoints, applied, active_flags, healthy_flags = dm_bridge.step(
                         simulation_time, q_active, dq[:, active_ids].cpu().numpy().astype(np.float64),
                         last_torque, target_array, requested, reset_count)
                     fault_steps += int((~healthy_flags).sum()) if requested else 0
                     faults_per_environment += ~healthy_flags if requested else 0
-                    enabled_tensor = torch.tensor(dm_bridge.status == 1, device=args.device)
+                    commands = setpoints
                 else:
                     raw = np.remainder(offsets - q_active, 2. * math.pi)
                     if previous_raw is not None:
@@ -246,18 +278,13 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                     measured = np.ascontiguousarray((offsets - quantized + math.pi) % (2. * math.pi) - math.pi)
                     invalid_feedback_steps += library.wheel_leg_pair_step(
                         measured, target_array, commands, parameters, 2 * args.envs, dt)
-                    applied = commands
-                    enabled_tensor = torch.ones((args.envs, 1), device=args.device, dtype=torch.bool)
+                    applied = pid_mirror.update(
+                        commands - dq[:, active_ids].cpu().numpy(), reset_count)
                     active_flags = np.ones(args.envs, dtype=bool)
                 max_command = max(max_command, float(np.max(np.abs(commands))))
                 max_command_step = max(max_command_step, float(np.max(np.abs(commands - old_commands))))
-                velocity_error = torch.tensor(applied, device=args.device, dtype=torch.float32) - dq[:, active_ids]
-                proposed_integral = (integral + dt * velocity_error).clamp(-.8, .8)
-                proposed_torque = kp_velocity * velocity_error + ki_velocity * proposed_integral
-                integral = torch.where((proposed_torque.abs() <= 40.) | (proposed_torque * velocity_error < 0.), proposed_integral, integral)
-                integral *= enabled_tensor
-                torque = (kp_velocity * velocity_error + ki_velocity * integral).clamp(-40., 40.) * enabled_tensor
-                last_torque = torque.cpu().numpy().astype(np.float64)
+                torque = torch.tensor(applied, device=args.device, dtype=torch.float32)
+                last_torque = applied.astype(np.float64)
                 phase_saturation += int((np.abs(last_torque) >= 39.99).sum())
                 phase_error = (target_array - q_active + np.pi) % (2. * np.pi) - np.pi
                 pair_error = np.abs(phase_error).reshape(args.envs, 2, 2).max(axis=2)
@@ -306,7 +333,7 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                            "max_final_motor_torque_nm": float(np.abs(last_torque).max()),
                            "max_final_command_rad_s": float(np.abs(commands).max())})
             print("V5_PAIR_PHASE", json.dumps(phases[-1]), flush=True)
-        report = {"method": "production C++ phase-pair velocity servo, quantized DM feedback, PhysX dynamics",
+        report = {"method": "production C++ phase-pair velocity servo, mirrored RMCS velocity PID, quantized DM feedback, PhysX dynamics",
                   "device": args.device,
                   "isaaclab_version": importlib.metadata.version("isaaclab"),
                   "isaacsim_version": importlib.metadata.version("isaacsim"),
@@ -318,7 +345,10 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                   "parameters": p, "dt": dt, "seconds_per_target": args.seconds_per_target,
                   "physx_external_forces_every_iteration": True,
                   "fixture": "fixed base, 19 bodies and 6 loop constraints per robot, gravity enabled, alternating gas springs on/off",
-                  "motor_model_assumptions": {"velocity_kp": 10., "velocity_ki": 50., "torque_limit_nm": 40., "armature_kg_m2": .02},
+                  "motor_model_assumptions": {"velocity_pid_source": "rmcs yaml mirror (same gains as the C++ bridge PID)",
+                                              "velocity_kp": pid_params["kp"], "velocity_ki": pid_params["ki"],
+                                              "integral_limit": pid_params.get("integral_max"),
+                                              "torque_limit_nm": pid_params["output_max"], "armature_kg_m2": .02},
                   "temporary_model_edits": {"inner_limits_deg": [30, 120], "spring_lower_limit_m": -.012},
                   "passive_pose_writes_after_reset": 0, "kinematic_solver_calls_during_physics": 0,
                   "invalid_feedback_steps": invalid_feedback_steps, "max_loop_gap_m": max_gap,
@@ -331,7 +361,8 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                             and all(v["max_motor_error_rad"] < .04 for v in phases if v["requested_enabled"])
                             and (dm_bridge is not None or bool((seam_crossings > 0).all())))
         if dm_bridge is not None:
-            report["method"] = "PhysX -> simulated DM encoder/CAN feedback -> production DmMotor -> actual WheelLegJointVelocityController component -> DmJointEnableSequence -> production VEL bytes -> simulated velocity PI -> PhysX"
+            report["method"] = "PhysX -> simulated DM encoder/CAN feedback -> production DmMotor -> actual WheelLegJointVelocityController component -> DmJointEnableSequence -> production velocity PID stage -> production MIT torque bytes -> PhysX"
+            report["motor_model_assumptions"]["velocity_pid_source"] = "rmcs PidController stage (production C++)"
             report["calibration_zero_crossings"] = dm_bridge.wrap_crossings[~dm_bridge.wrap_signed].sum(axis=0).tolist()
             report["invalid_feedback_steps"] = fault_steps
             report["calibrated_feedback"] = {
@@ -340,12 +371,11 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                 "feedback_limits": {"P_MAX": 12.5, "V_MAX": 45., "T_MAX": 54.},
                 "signed_wrap_per_environment": dm_bridge.wrap_signed.tolist(),
                 "feedback_delay_ms": dm_bridge.feedback_delay.tolist(),
-                "velocity_command_delay_ms": dm_bridge.command_delay.tolist(),
-                "velocity_gain_scale": gain_scale.tolist(),
+                "command_delay_ms": dm_bridge.command_delay.tolist(),
                 "independent_short_arc_per_environment": dm_bridge.independent_short_arc.tolist(),
                 "max_decode_phase_error_rad": dm_bridge.max_phase_error,
                 "initial_and_zero_samples": dm_bridge.encoder_samples,
-                "velocity_command_samples": dm_bridge.command_samples,
+                "torque_command_samples": dm_bridge.command_samples,
                 "wrap_crossings_per_environment": dm_bridge.wrap_crossings.tolist(),
                 "startup_nonzero_frames": dm_bridge.startup_nonzero_frames,
                 "disable_commands_while_requested": dm_bridge.disable_commands_while_requested,
@@ -358,6 +388,7 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
             }
             report["implementation_hashes"] = {str(path.relative_to(core)): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in [core / "src/hardware/device/dm_motor.hpp", core / "src/controller/chassis/wheel_leg_joint_velocity_controller.cpp",
+                             core / "src/controller/pid/pid_calculator.hpp",
                              core / "src/hardware/device/dm_joint_enable_sequence.hpp", core / "test/wheel_leg_dm_sim_bridge.cpp"]}
             report["passed"] &= (fault_steps == 0 and dm_bridge.startup_nonzero_frames == 0
                                  and dm_bridge.disable_commands_while_requested == 0
