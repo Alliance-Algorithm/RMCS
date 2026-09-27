@@ -140,7 +140,7 @@ rl_bridge:
       - index=1 path=/chassis/control_velocity take=y
       - index=2 path=/chassis/control_velocity take=z
       - index=3 path=/chassis/control_height scale=5.0
-      # RL 坐标 [x,y,z]=[车身 y,-车身 x,车身 z]；原始 /wheel_leg/imu 仍为车身系。
+      # 训练 IMU 观测直接使用车身 Body xyz；URDF 轴向差异不对 IMU 做 90° 换轴。
       - index=4 path=/wheel_leg/rl/imu/angular_velocity take=vec3 scale=0.5
       - index=7 path=/wheel_leg/rl/imu/projected_gravity take=vec3
       - index=10 type=joint_pos joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint relative=true
@@ -229,6 +229,9 @@ right_wheel_velocity_pid:
     output_max: 4.5
 # DM 关节速度环（MIT 力矩模式，τ = PID(v_des − v)，输出即 t_ff）。
 # 增益与此前 Isaac 验证的电机内环假设动力学等效；实机架空整定。
+# enable_interface：2026-09-28 反演 wheel_leg_joints_2026-09-27_15-52-25.csv 发现，
+#   断使能期间电机收零力矩而 PID 仍对零设定积分，重新使能注入实测 29~37 Nm 冲击，
+#   故随 /wheel_leg/joint_control_active 清积分并置零输出。
 # 限幅 ±40 Nm 与 Isaac 验证一致（额定 20 / 峰值 40 Nm），驱动侧另有 T_MAX 兜底。
 left_hip_joint_velocity_pid:
   ros__parameters:
@@ -236,6 +239,7 @@ left_hip_joint_velocity_pid:
     setpoint: /wheel_leg/left_hip_joint/control_velocity
     control: /wheel_leg/left_hip_joint/control_torque
     reset_interface: /chassis/reset_count
+    enable_interface: /wheel_leg/joint_control_active
     kp: 10.0
     ki: 0.05
     kd: 0.0
@@ -251,6 +255,7 @@ left_knee_joint_velocity_pid:
     setpoint: /wheel_leg/left_knee_joint/control_velocity
     control: /wheel_leg/left_knee_joint/control_torque
     reset_interface: /chassis/reset_count
+    enable_interface: /wheel_leg/joint_control_active
     kp: 10.0
     ki: 0.05
     kd: 0.0
@@ -266,6 +271,7 @@ right_hip_joint_velocity_pid:
     setpoint: /wheel_leg/right_hip_joint/control_velocity
     control: /wheel_leg/right_hip_joint/control_torque
     reset_interface: /chassis/reset_count
+    enable_interface: /wheel_leg/joint_control_active
     kp: 10.0
     ki: 0.05
     kd: 0.0
@@ -281,6 +287,7 @@ right_knee_joint_velocity_pid:
     setpoint: /wheel_leg/right_knee_joint/control_velocity
     control: /wheel_leg/right_knee_joint/control_torque
     reset_interface: /chassis/reset_count
+    enable_interface: /wheel_leg/joint_control_active
     kp: 10.0
     ki: 0.05
     kd: 0.0

@@ -50,9 +50,8 @@ try:
         actuators={"all": IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=0., damping=0.)}))
     sim.reset()
 
-    # Columns are the training frame axes expressed in the real chassis frame.
-    # This defines the simulation pose independently of the RMCS converter.
-    body_from_rl = np.array([[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]])
+    # The confirmed training IMU frame is Body, independent of CAD/URDF visual
+    # axes. Assign this observer frame the physical Body pose, with no yaw offset.
     poses = [
         ("level", 0., 0., 0.),
         ("body_roll_pos30", 30., 0., 0.),
@@ -74,10 +73,8 @@ try:
     for name, roll, pitch, yaw in poses:
         # scipy lowercase xyz = extrinsic XYZ = Rz(yaw) Ry(pitch) Rx(roll).
         rotation_wb = Rotation.from_euler("xyz", [roll, pitch, yaw], degrees=True)
-        rotation_wr = Rotation.from_matrix(rotation_wb.as_matrix() @ body_from_rl)
         q_wb = rotation_wb.as_quat()[[3, 0, 1, 2]]
-        q_wr = rotation_wr.as_quat()[[3, 0, 1, 2]]
-        pose = torch.tensor([[0., 0., 10., *q_wr]], device=args.device, dtype=torch.float32)
+        pose = torch.tensor([[0., 0., 10., *q_wb]], device=args.device, dtype=torch.float32)
         robot.write_root_pose_to_sim(pose)
         robot.write_root_velocity_to_sim(zero_vel)
         robot.write_joint_state_to_sim(robot.data.default_joint_pos,
@@ -89,7 +86,7 @@ try:
         # Read the pose back directly from PhysX, not from the write-side cache.
         physx_pose = robot.root_physx_view.get_root_transforms()[0].cpu().numpy()
         rotation_read = Rotation.from_quat(physx_pose[3:7])
-        pose_error_rad = float((rotation_wr.inv() * rotation_read).magnitude())
+        pose_error_rad = float((rotation_wb.inv() * rotation_read).magnitude())
         assert pose_error_rad < 2e-6, (name, "pose readback", pose_error_rad)
         gravity_rl = robot.data.projected_gravity_b[0].cpu().numpy().astype(float)
 
@@ -106,14 +103,13 @@ try:
         records.append({
             "name": name, "physical_body_rpy_deg": [roll, pitch, yaw],
             "q_world_from_body_wxyz": q_wb.tolist(),
-            "q_world_from_rl_wxyz": q_wr.tolist(),
+            "q_world_from_rl_wxyz": q_wb.tolist(),
             "physx_root_quat_xyzw": physx_pose[3:7].tolist(),
             "physx_pose_error_rad": pose_error_rad,
             "body_static_accel_g": accel_body.tolist(), "body_gyro_rad_s": omega_body.tolist(),
             "isaac_projected_gravity_b": gravity_rl.tolist(),
             "isaac_root_ang_vel_b": omega_rl.tolist(),
             "old_bridge_q_body_times_world_down": rotation_wb.apply([0., 0., -1.]).tolist(),
-            "wrong_forward_q_body_times_q_mount": rotation_wr.apply([0., 0., -1.]).tolist(),
         })
 
     source_path = Path(inspect.getfile(ArticulationData))
@@ -125,7 +121,8 @@ try:
         "data_source": str(source_path), "data_source_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
         "projected_gravity_source": inspect.getsource(ArticulationData.projected_gravity_b.fget),
         "world_gravity_direction": robot.data.GRAVITY_VEC_W[0].cpu().tolist(),
-        "body_from_rl_matrix": body_from_rl.tolist(),
+        "observation_frame": "physical Body; no URDF axis remap",
+        "body_from_rl_matrix": np.eye(3).tolist(),
         "pose_count": len(records),
         "max_physx_pose_error_rad": max(x["physx_pose_error_rad"] for x in records),
         "cases": records,

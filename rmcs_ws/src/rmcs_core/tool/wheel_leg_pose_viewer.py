@@ -14,7 +14,7 @@ import time
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from wheel_leg_mujoco_pose import BODY_FROM_RL, PoseModel
+from wheel_leg_mujoco_pose import PoseModel
 from wheel_leg_telemetry import FoxgloveReader, LatestSnapshot, Snapshot
 
 
@@ -52,8 +52,7 @@ class LocalReader(threading.Thread):
                 positions = (.42 + angle, -.13742282595254576 + angle,
                              -.42 - angle, .13741557625658019 - angle, t, -t)
                 self.latest.put(Snapshot(time.time_ns(), positions, tuple(body.as_quat()[[3, 0, 1, 2]]),
-                                         tuple(gyro), tuple((body * BODY_FROM_RL).inv().apply([0., 0., -1.])),
-                                         tuple(BODY_FROM_RL.inv().apply(gyro))))
+                                         tuple(gyro), tuple(body.inv().apply([0., 0., -1.])), tuple(gyro)))
                 self.stopped.wait(.02)
         except Exception as error:
             self.latest.set_status(f"source failed: {error}")

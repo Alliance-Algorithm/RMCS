@@ -16,7 +16,7 @@ import websockets
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tool"))
 from wheel_leg_telemetry import FoxgloveReader, LatestSnapshot, MOTOR_NAMES, Snapshot, SnapshotAssembler, TOPICS
-from wheel_leg_mujoco_pose import BODY_FROM_RL, PoseModel
+from wheel_leg_mujoco_pose import PoseModel
 
 TYPES = get_typestore(Stores.ROS2_JAZZY)
 
@@ -25,7 +25,7 @@ def reference_snapshot(stamp=1_000_000_123):
     body = Rotation.from_euler("xyz", [25., -20., 70.], degrees=True)
     return Snapshot(stamp, (-1.6, -2.93, 1.6, 2.93, .2, -.3),
                     tuple(body.as_quat()[[3, 0, 1, 2]]), (.7, -1.2, 2.3),
-                    tuple((body * BODY_FROM_RL).inv().apply([0., 0., -1.])), (-1.2, -.7, 2.3))
+                    tuple(body.inv().apply([0., 0., -1.])), (.7, -1.2, 2.3))
 
 
 def messages(snapshot):
@@ -119,7 +119,7 @@ class FoxgloveTest(unittest.IsolatedAsyncioTestCase):
 
 @unittest.skipUnless(os.environ.get("WHEEL_LEG_MODEL_BUNDLE"), "set WHEEL_LEG_MODEL_BUNDLE for the V5 geometry test")
 class GeometryTest(unittest.TestCase):
-    def test_displayed_rl_axes_follow_body_basis_and_labels_touch_tips(self):
+    def test_displayed_rl_imu_axes_equal_body_and_labels_touch_tips(self):
         model = PoseModel(os.environ["WHEEL_LEG_MODEL_BUNDLE"])
         for rpy in ((0., 0., 0.), (25., -20., 70.)):
             body = Rotation.from_euler("xyz", rpy, degrees=True)
@@ -127,7 +127,7 @@ class GeometryTest(unittest.TestCase):
             gravity_body = body.inv().apply([0., 0., -1.])
             sample = Snapshot.from_dict(reference_snapshot().__dict__ | {
                 "quaternion_wxyz": tuple(body.as_quat()[[3, 0, 1, 2]]),
-                "gravity_rl": (gravity_body[1], -gravity_body[0], gravity_body[2]),
+                "gravity_rl": tuple(gravity_body),
             })
             model.set_snapshot(sample)
             scene = mujoco.MjvScene(model.model, maxgeom=32)
@@ -143,12 +143,10 @@ class GeometryTest(unittest.TestCase):
                 # just the quaternion constant used to construct them.
                 np.testing.assert_allclose(geom.pos + .5 * geom.size[2] * direction, tip.pos, atol=2e-7)
                 directions[tip.label] = direction
-            np.testing.assert_allclose(directions["RL x"], body_basis[:, 1], atol=1e-7)
-            np.testing.assert_allclose(directions["RL y"], -body_basis[:, 0], atol=1e-7)
-            np.testing.assert_allclose(directions["RL z"], body_basis[:, 2], atol=1e-7)
-            self.assertAlmostEqual(float(np.dot(directions["RL y"], directions["Body x"])), -1., places=6)
-            # The normalized model base follows Body. RL is a separate
-            # observation frame, not the exported MJCF base_link frame.
+            for i, axis in enumerate("xyz"):
+                np.testing.assert_allclose(directions[f"RL IMU {axis}"], body_basis[:, i], atol=1e-7)
+                np.testing.assert_allclose(directions[f"RL IMU {axis}"], directions[f"Body {axis}"], atol=1e-7)
+            # The normalized model base and policy IMU both follow Body.
             np.testing.assert_allclose(model.data.xmat[model.base_id].reshape(3, 3), body_basis, atol=1e-12)
 
     def test_exported_v5_body_front_and_hip_span(self):
@@ -169,7 +167,7 @@ class GeometryTest(unittest.TestCase):
             g = body.inv().apply([0., 0., -1.])
             sample = Snapshot.from_dict(reference_snapshot().__dict__ | {
                 "quaternion_wxyz": tuple(body.as_quat()[[3, 0, 1, 2]]),
-                "gravity_rl": (g[1], -g[0], g[2]),
+                "gravity_rl": tuple(g),
             })
             model.set_snapshot(sample)
             span = model.data.xpos[model.model.body("L_link1").id] - model.data.xpos[model.model.body("R_link1").id]
@@ -199,6 +197,15 @@ class GeometryTest(unittest.TestCase):
         # A flipped gravity convention remains visible as a mismatch.
         bad = Snapshot.from_dict(snapshot.__dict__ | {"gravity_rl": tuple(-np.array(snapshot.gravity_rl))})
         self.assertAlmostEqual(model.set_snapshot(bad)["gravity_error_deg"], 180., places=5)
+        # Old quarter-turn telemetry must show a mismatch, not be accepted as
+        # the expected policy convention just because the URDF axes differ.
+        g, w = snapshot.gravity_rl, snapshot.gyro_rl
+        rotated = Snapshot.from_dict(snapshot.__dict__ | {
+            "gravity_rl": (g[1], -g[0], g[2]), "gyro_rl": (w[1], -w[0], w[2]),
+        })
+        metric = model.set_snapshot(rotated)
+        self.assertGreater(metric["gravity_error_deg"], 10.)
+        self.assertGreater(metric["gyro_error_rad_s"], 1.)
 
 
 if __name__ == "__main__":

@@ -6,8 +6,8 @@
 
 namespace rmcs_core::controller::chassis {
 
-// The board axes match the real chassis. Only the policy uses the training
-// frame: x_RL = y_body, y_RL = -x_body, z_RL = z_body.
+// Training IMU observations use the physical Body axes, just like the board
+// and chassis controllers. The URDF display axes do not remap observations.
 class WheelLegRlImu : public rmcs_executor::Component {
 public:
     WheelLegRlImu() {
@@ -32,19 +32,14 @@ public:
             return;
         }
 
-        *rl_angular_velocity_ = body_to_rl(*angular_velocity_);
+        *rl_angular_velocity_ = *angular_velocity_;
         // Bmi088Ekf publishes q_WB (body -> world). Training expects the
-        // unit world-down vector expressed in its local base/IMU frame.
-        const Eigen::Vector3d gravity_body =
+        // unit world-down vector expressed in the same physical Body frame.
+        *rl_projected_gravity_ =
             orientation_->normalized().conjugate() * Eigen::Vector3d{0.0, 0.0, -1.0};
-        *rl_projected_gravity_ = body_to_rl(gravity_body);
     }
 
 private:
-    static Eigen::Vector3d body_to_rl(const Eigen::Vector3d& value) {
-        return {value.y(), -value.x(), value.z()};
-    }
-
     InputInterface<Eigen::Quaterniond> orientation_;
     InputInterface<Eigen::Vector3d> angular_velocity_;
     OutputInterface<Eigen::Vector3d> rl_angular_velocity_;
