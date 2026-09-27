@@ -32,7 +32,7 @@ def messages(snapshot):
     types = TYPES.types
     stamp = types["builtin_interfaces/msg/Time"](snapshot.stamp_ns // 1_000_000_000,
                                                 snapshot.stamp_ns % 1_000_000_000)
-    header = types["std_msgs/msg/Header"](stamp, "rl_base")
+    header = types["std_msgs/msg/Header"](stamp, "chassis_body")
     body_header = types["std_msgs/msg/Header"](stamp, "chassis_body")
     vec = types["geometry_msgs/msg/Vector3"]
     q = snapshot.quaternion_wxyz
@@ -69,7 +69,7 @@ class AssemblyTest(unittest.TestCase):
     def test_reject_wrong_imu_coordinate_frame(self):
         assembler = SnapshotAssembler()
         msg = messages(reference_snapshot())["/wheel_leg/telemetry/imu_body"]
-        msg.header.frame_id = "rl_base"
+        msg.header.frame_id = "odom"
         with self.assertRaises(ValueError):
             assembler.accept("/wheel_leg/telemetry/imu_body", msg)
 

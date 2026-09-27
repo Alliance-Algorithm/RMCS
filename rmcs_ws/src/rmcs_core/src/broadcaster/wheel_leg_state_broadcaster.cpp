@@ -12,7 +12,6 @@
 #include <rmcs_executor/component.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
-#include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
 
 namespace rmcs_core::broadcaster {
@@ -51,19 +50,9 @@ public:
         gyro_publisher_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
             "/wheel_leg/telemetry/rl_angular_velocity", qos);
 
-        // TF for Foxglove 3D: odom -> chassis_body (q_WB) is dynamic below;
-        // Training IMU observations use Body xyz, so chassis_body -> rl_base
-        // is identity. The URDF display frame must not rotate IMU telemetry.
+        // TF for Foxglove 3D: a single Body-frame IMU frame. RL observations
+        // use the same physical Body axes, so there is no separate RL frame.
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-        static_tf_broadcaster_ = std::make_unique<tf2_ros::StaticTransformBroadcaster>(*this);
-        {
-            geometry_msgs::msg::TransformStamped tf;
-            tf.header.stamp = now();
-            tf.header.frame_id = "chassis_body";
-            tf.child_frame_id = "rl_base";
-            tf.transform.rotation.w = 1.0;
-            static_tf_broadcaster_->sendTransform(tf);
-        }
     }
 
     void update() override {
@@ -76,7 +65,7 @@ public:
         sensor_msgs::msg::Imu imu;
         geometry_msgs::msg::Vector3Stamped gravity, gyro;
         joints.header.stamp = imu.header.stamp = gravity.header.stamp = gyro.header.stamp = now();
-        joints.header.frame_id = gravity.header.frame_id = gyro.header.frame_id = "rl_base";
+        joints.header.frame_id = gravity.header.frame_id = gyro.header.frame_id = "chassis_body";
         imu.header.frame_id = "chassis_body";
         for (std::size_t i = 0; i < kNames.size(); ++i) {
             joints.name.emplace_back(kNames[i]);
@@ -135,7 +124,6 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr gravity_publisher_, gyro_publisher_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
-    std::unique_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
     Clock::duration period_{};
     Clock::time_point last_publish_{};
 };
