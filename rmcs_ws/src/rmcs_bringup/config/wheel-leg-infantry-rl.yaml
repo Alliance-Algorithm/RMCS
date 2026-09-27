@@ -11,6 +11,12 @@ rmcs_executor:
 
       - rmcs_core::controller::pid::PidController -> left_wheel_velocity_pid
       - rmcs_core::controller::pid::PidController -> right_wheel_velocity_pid
+      # DM 关节 MIT 力矩模式：角度环(wheel_leg_joint_velocity_controller) ->
+      # 速度环(以下四个 PID) -> /control_torque -> MIT 帧 t_ff。
+      - rmcs_core::controller::pid::PidController -> left_hip_joint_velocity_pid
+      - rmcs_core::controller::pid::PidController -> left_knee_joint_velocity_pid
+      - rmcs_core::controller::pid::PidController -> right_hip_joint_velocity_pid
+      - rmcs_core::controller::pid::PidController -> right_knee_joint_velocity_pid
 
 wheel_leg_infantry_rl:
   ros__parameters:
@@ -123,7 +129,7 @@ policy_server:
     input_name: "obs"
     output_name: "actions"
     normalization_from_metadata: true
-    publish_status: false
+    publish_status: true
 
 policy_server_launcher:
   ros__parameters:
@@ -155,3 +161,66 @@ right_wheel_velocity_pid:
     kd: 0.0
     output_min: -4.5
     output_max: 4.5
+# DM 关节速度环（MIT 力矩模式，τ = PID(v_des − v)，输出即 t_ff）。
+# 增益与此前 Isaac 验证的电机内环假设动力学等效；实机架空整定。
+# 限幅 ±40 Nm 与 Isaac 验证一致（额定 20 / 峰值 40 Nm），驱动侧另有 T_MAX 兜底。
+left_hip_joint_velocity_pid:
+  ros__parameters:
+    measurement: /wheel_leg/left_hip_joint/velocity
+    setpoint: /wheel_leg/left_hip_joint/control_velocity
+    control: /wheel_leg/left_hip_joint/control_torque
+    reset_interface: /chassis/reset_count
+    kp: 10.0
+    ki: 0.05
+    kd: 0.0
+    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50，
+    # 积分限 ±800 等效 ±40 Nm，与此前验证的电机内环假设一致。
+    integral_min: -800.0
+    integral_max: 800.0
+    output_min: -40.0
+    output_max: 40.0
+left_knee_joint_velocity_pid:
+  ros__parameters:
+    measurement: /wheel_leg/left_knee_joint/velocity
+    setpoint: /wheel_leg/left_knee_joint/control_velocity
+    control: /wheel_leg/left_knee_joint/control_torque
+    reset_interface: /chassis/reset_count
+    kp: 10.0
+    ki: 0.05
+    kd: 0.0
+    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50，
+    # 积分限 ±800 等效 ±40 Nm，与此前验证的电机内环假设一致。
+    integral_min: -800.0
+    integral_max: 800.0
+    output_min: -40.0
+    output_max: 40.0
+right_hip_joint_velocity_pid:
+  ros__parameters:
+    measurement: /wheel_leg/right_hip_joint/velocity
+    setpoint: /wheel_leg/right_hip_joint/control_velocity
+    control: /wheel_leg/right_hip_joint/control_torque
+    reset_interface: /chassis/reset_count
+    kp: 10.0
+    ki: 0.05
+    kd: 0.0
+    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50，
+    # 积分限 ±800 等效 ±40 Nm，与此前验证的电机内环假设一致。
+    integral_min: -800.0
+    integral_max: 800.0
+    output_min: -40.0
+    output_max: 40.0
+right_knee_joint_velocity_pid:
+  ros__parameters:
+    measurement: /wheel_leg/right_knee_joint/velocity
+    setpoint: /wheel_leg/right_knee_joint/control_velocity
+    control: /wheel_leg/right_knee_joint/control_torque
+    reset_interface: /chassis/reset_count
+    kp: 10.0
+    ki: 0.05
+    kd: 0.0
+    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50，
+    # 积分限 ±800 等效 ±40 Nm，与此前验证的电机内环假设一致。
+    integral_min: -800.0
+    integral_max: 800.0
+    output_min: -40.0
+    output_max: 40.0

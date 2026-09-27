@@ -8,15 +8,22 @@ import numpy as np
 
 
 class DmFeedbackBridge:
-    RESPONSE = struct.Struct("<4d4d32s8s4B256s")
+    RESPONSE = struct.Struct("<4d4d4d32s8s4B256s")
+    # MIT torque frame with p_des=v_des=Kp=Kd=0; only t_ff (D6[3:0], D7) varies.
+    MIT_PREFIX = b"\x80\x00\x80\x00\x00\x00"
+    T_MAX = 54.
+    # t_ff=0 encodes to 2048 (midpoint is 2047.5), so a zero-torque frame
+    # decodes to +T_MAX/4095 Nm. Anything below that residual is zero.
+    ZERO_TORQUE_EPS_NM = 0.02
 
-    def __init__(self, count, offsets, container, log_path, direction_comparison=False):
+    def __init__(self, count, offsets, gains, container, log_path, direction_comparison=False):
         self.count = count
         self.offsets = np.asarray(offsets, dtype=np.float64)
+        self.gains = np.asarray(gains, dtype=np.float64)
         self.status = np.zeros((count, 4), dtype=np.uint8)
         self.wrap_signed = (np.arange(count) % 2).astype(bool)
         self.feedback_delay = np.zeros((count, 4), dtype=int)
-        # Half of the cases also test unequal sensor and velocity-loop latency.
+        # Half of the cases also test unequal sensor and command latency.
         self.stressed = ((np.arange(count) // 2) % 2).astype(bool)
         self.feedback_delay[self.stressed] = [1, 3, 2, 4]
         self.command_delay = np.zeros_like(self.feedback_delay)
@@ -54,7 +61,9 @@ class DmFeedbackBridge:
             ["docker", "exec", "-i", container, "bash", "-lc", command],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,
         )
-        self.process.stdin.write(struct.pack("<I4d", count, *self.offsets) + self.independent_short_arc.astype(np.uint8).tobytes())
+        self.process.stdin.write(
+            struct.pack("<I4d6d", count, *self.offsets, *self.gains)
+            + self.independent_short_arc.astype(np.uint8).tobytes())
         self.process.stdin.flush()
         if self._read(4) != struct.pack("<I", 0x444D5635):
             raise RuntimeError("DM feedback bridge initialization failed")
@@ -111,23 +120,28 @@ class DmFeedbackBridge:
         response = self._read(self.RESPONSE.size * self.count)
         decoded = np.zeros_like(positions)
         decoded_velocity = np.zeros_like(velocities)
-        wire_commands = np.zeros_like(positions)
+        setpoints = np.zeros_like(positions)
+        commands = np.zeros_like(positions)
         active = np.zeros(self.count, dtype=bool)
         healthy = np.zeros(self.count, dtype=bool)
         for env in range(self.count):
             values = self.RESPONSE.unpack_from(response, self.RESPONSE.size * env)
             decoded[env] = values[:4]
             decoded_velocity[env] = values[4:8]
-            frames, system = values[8:10]
-            healthy[env], active[env] = values[10:12]
-            system_mask = values[13]
+            setpoints[env] = values[8:12]
+            frames, system = values[12:14]
+            healthy[env], active[env] = values[14:16]
+            system_mask = values[17]
             addressed = [(system_mask & (1 << joint)) != 0 for joint in range(4)]
-            reason = values[14].split(b"\0", 1)[0].decode()
+            reason = values[18].split(b"\0", 1)[0].decode()
             for joint in range(4):
                 frame = frames[joint * 8:(joint + 1) * 8]
-                assert frame[4:] == b"\0" * 4, "invalid VEL reserved bytes"
-                wire_commands[env, joint] = struct.unpack_from("<f", frame)[0]
-            if not active[env] and np.any(wire_commands[env] != 0.):
+                assert frame[:6] == self.MIT_PREFIX and not (frame[6] & 0xF0), \
+                    "expected MIT torque frame with zero p/v/Kp/Kd"
+                t_ff = ((frame[6] & 0x0F) << 8) | frame[7]
+                # Motor-axis Nm; all four axes are reversed in the URDF frame.
+                commands[env, joint] = -(t_ff / 4095. * 2. - 1.) * self.T_MAX
+            if not active[env] and np.any(np.abs(commands[env]) > self.ZERO_TORQUE_EPS_NM):
                 self.startup_nonzero_frames += 1
             if system[:7] == b"\xff" * 7:
                 if system[7] == 0xFC:
@@ -153,11 +167,10 @@ class DmFeedbackBridge:
             self.encoder_samples.append({"time_s": time, "urdf_angles": positions[env].tolist(),
                 "raw_motor_angles": raw[env].tolist(), "can_feedback_hex": [v.tobytes().hex() for v in packet[env]],
                 "rmcs_decoded_angles": decoded[env].tolist()})
-        if np.any(np.abs(wire_commands) > .05) and len(self.command_samples) < 2:
-            self.command_samples.append({"time_s": time, "wire_motor_velocity_rad_s": wire_commands[0].tolist(),
-                                         "urdf_velocity_rad_s": (-wire_commands[0]).tolist()})
-        # VEL wire values are motor-axis speeds; all four axes are reversed.
-        commands = -wire_commands
+        if np.any(np.abs(commands) > .05) and len(self.command_samples) < 2:
+            self.command_samples.append({"time_s": time, "wire_motor_torque_nm": (-commands[0]).tolist(),
+                                         "urdf_torque_nm": commands[0].tolist()})
+        # commands/applied are URDF-frame torques (motor axes are reversed).
         self.command_history.append(commands.copy())
         applied = commands.copy()
         for env in range(self.count):
@@ -166,7 +179,7 @@ class DmFeedbackBridge:
                 applied[env, joint] = self.command_history[-1 - index][env, joint]
         applied[self.status == 0] = 0.
         self.tick += 1
-        return decoded, decoded_velocity, commands, applied, active, healthy
+        return decoded, decoded_velocity, setpoints, applied, active, healthy
 
     def close(self):
         if self.process.poll() is None:
