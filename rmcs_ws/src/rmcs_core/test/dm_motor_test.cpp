@@ -29,32 +29,39 @@ struct MotorFixture {
     }
 };
 
-TEST(DmMotor, VelocityFrameEncodingAndLimits) {
+TEST(DmMotor, TorqueFrameEncodingAndLimits) {
     MotorFixture fixture;
     auto& motor = fixture.motor;
 
+    // MIT zero-torque frame: p_des/v_des/t_ff quantize to their midpoints,
+    // Kp=Kd=0. Byte 0 = 0x80 can never satisfy the 0xFF system prefix.
     constexpr auto kZero = std::array<std::byte, 8>{
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
-    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(0.0).as_bytes(), kZero));
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x08}, std::byte{0x00}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_torque_command(0.0).as_bytes(), kZero));
 
-    // +1.0f = 0x3F800000, little-endian bytes
+    // +1.0 Nm, T_MAX=18: t_ff = round((1+18)/36 * 4095) = 2161 = 0x871
     constexpr auto kPlusOne = std::array<std::byte, 8>{
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0x3F},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
-    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(1.0).as_bytes(), kPlusOne));
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x08}, std::byte{0x71}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_torque_command(1.0).as_bytes(), kPlusOne));
 
-    // +45.0f = 0x42340000, clamped to V_MAX
+    // +9.0 Nm = T_MAX/2: t_ff = 3071 = 0xBFF
+    constexpr auto kHalfMax = std::array<std::byte, 8>{
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x0B}, std::byte{0xFF}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_torque_command(9.0).as_bytes(), kHalfMax));
+
+    // +100.0 Nm clamped to T_MAX: t_ff = 4095 = 0xFFF
     constexpr auto kPlusMax = std::array<std::byte, 8>{
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x34}, std::byte{0x42},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
-    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(100.0).as_bytes(), kPlusMax));
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x0F}, std::byte{0xFF}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_torque_command(100.0).as_bytes(), kPlusMax));
 
     const auto nan = std::numeric_limits<double>::quiet_NaN();
-    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(nan).as_bytes(), kZero));
+    EXPECT_TRUE(std::ranges::equal(motor.generate_torque_command(nan).as_bytes(), kZero));
 
     EXPECT_EQ(motor.send_id(), 1u);
-    EXPECT_EQ(motor.velocity_send_id(), 0x201u);
 
     auto enable = motor.enable_command();
     EXPECT_EQ(enable.as_bytes()[7], std::byte{0xFC});
@@ -66,7 +73,7 @@ TEST(DmMotor, VelocityFrameEncodingAndLimits) {
     EXPECT_EQ(clear.as_bytes()[7], std::byte{0xFB});
 }
 
-TEST(DmMotor, ReversedVelocityFrame) {
+TEST(DmMotor, ReversedTorqueFrame) {
     MotorFixture fixture;
     auto& motor = fixture.motor;
     motor.configure(
@@ -76,14 +83,15 @@ TEST(DmMotor, ReversedVelocityFrame) {
             .set_reversed()
             .set_limits(12.5, 45.0, 18.0));
 
-    // -1.0f = 0xBF800000
+    // Commanded +1.0 Nm becomes -1.0 Nm on the motor axis:
+    // t_ff = round((-1+18)/36 * 4095) = 1934 = 0x78E
     constexpr auto kMinusOne = std::array<std::byte, 8>{
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0xBF},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
-    EXPECT_TRUE(std::ranges::equal(motor.generate_velocity_command(1.0).as_bytes(), kMinusOne));
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x07}, std::byte{0x8E}};
+    EXPECT_TRUE(std::ranges::equal(motor.generate_torque_command(1.0).as_bytes(), kMinusOne));
 }
 
-TEST(DmMotor, VelocityFrameClampsBothDirectionsAndRejectsNonfiniteValues) {
+TEST(DmMotor, TorqueFrameClampsBothDirectionsAndRejectsNonfiniteValues) {
     MotorFixture fixture;
     auto& motor = fixture.motor;
     motor.configure(
@@ -91,29 +99,31 @@ TEST(DmMotor, VelocityFrameClampsBothDirectionsAndRejectsNonfiniteValues) {
             12.5, 4.0, 18.0));
 
     EXPECT_EQ(motor.send_id(), 2u);
-    EXPECT_EQ(motor.velocity_send_id(), 0x202u);
+    // Reversed: +cmd clamps to motor -T_MAX (t_ff = 0), -cmd to +T_MAX (t_ff = 4095).
     constexpr auto kNegativeLimit = std::array<std::byte, 8>{
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0xC0},
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
     constexpr auto kPositiveLimit = std::array<std::byte, 8>{
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0x40},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}};
-    constexpr auto kZero = std::array<std::byte, 8>{};
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x0F}, std::byte{0xFF}};
+    constexpr auto kZero = std::array<std::byte, 8>{
+        std::byte{0x80}, std::byte{0x00}, std::byte{0x80}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x08}, std::byte{0x00}};
     EXPECT_TRUE(
-        std::ranges::equal(motor.generate_velocity_command(100.0).as_bytes(), kNegativeLimit));
+        std::ranges::equal(motor.generate_torque_command(100.0).as_bytes(), kNegativeLimit));
     EXPECT_TRUE(
-        std::ranges::equal(motor.generate_velocity_command(-100.0).as_bytes(), kPositiveLimit));
+        std::ranges::equal(motor.generate_torque_command(-100.0).as_bytes(), kPositiveLimit));
     EXPECT_TRUE(
         std::ranges::equal(
-            motor.generate_velocity_command(std::numeric_limits<double>::quiet_NaN()).as_bytes(),
+            motor.generate_torque_command(std::numeric_limits<double>::quiet_NaN()).as_bytes(),
             kZero));
     EXPECT_TRUE(
         std::ranges::equal(
-            motor.generate_velocity_command(std::numeric_limits<double>::infinity()).as_bytes(),
+            motor.generate_torque_command(std::numeric_limits<double>::infinity()).as_bytes(),
             kZero));
     EXPECT_TRUE(
         std::ranges::equal(
-            motor.generate_velocity_command(-std::numeric_limits<double>::infinity()).as_bytes(),
+            motor.generate_torque_command(-std::numeric_limits<double>::infinity()).as_bytes(),
             kZero));
 }
 

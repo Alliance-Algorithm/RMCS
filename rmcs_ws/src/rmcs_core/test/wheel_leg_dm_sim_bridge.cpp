@@ -18,6 +18,7 @@
 #include <rmcs_executor/component.hpp>
 
 #include "controller/chassis/wheel_leg_joint_velocity_controller.cpp"
+#include "controller/pid/pid_calculator.hpp"
 #include "hardware/device/dm_joint_enable_sequence.hpp"
 #include "hardware/device/dm_motor.hpp"
 
@@ -81,17 +82,83 @@ public:
     InputInterface<std::string> reason;
 };
 
+// Handshake payload: the YAML velocity-loop gains of the four joint PIDs.
+struct VelocityPidGains {
+    double kp = 0.0;
+    double ki = 0.0;
+    double kd = 0.0;
+    double integral_min = 0.0;
+    double integral_max = 0.0;
+    double output_max = 0.0;
+};
+
+inline rmcs_core::controller::pid::PidCalculator make_pid(const VelocityPidGains& gains) {
+    auto pid = rmcs_core::controller::pid::PidCalculator{gains.kp, gains.ki, gains.kd};
+    pid.integral_min = gains.integral_min;
+    pid.integral_max = gains.integral_max;
+    pid.output_min = -gains.output_max;
+    pid.output_max = gains.output_max;
+    return pid;
+}
+
+// Production velocity loop. The YAML PidController cannot be constructed
+// offline (its constructor requires declared ROS parameters), so this stage
+// mirrors it with the production PidCalculator and gains from the handshake.
+class TorqueStage : public Component {
+public:
+    TorqueStage() {
+        for (std::size_t i = 0; i < 4; ++i) {
+            const auto base = std::string{"/wheel_leg/"} + kNames[i];
+            register_input(base + "/control_velocity", setpoints_[i], false);
+            register_input(base + "/velocity", measurements_[i], false);
+            register_output(base + "/control_torque", torques_[i], 0.0);
+        }
+        register_input("/chassis/reset_count", reset_count_, std::size_t{0});
+    }
+
+    void configure(const VelocityPidGains& gains) {
+        for (auto& pid : pids_)
+            pid = make_pid(gains);
+    }
+
+    void update() override {
+        if (reset_count_.ready() && *reset_count_ != last_reset_count_) {
+            last_reset_count_ = *reset_count_;
+            for (auto& pid : pids_)
+                pid.reset();
+            for (auto& torque : torques_)
+                *torque = 0.0;
+            return;
+        }
+        for (std::size_t i = 0; i < 4; ++i)
+            *torques_[i] = pids_[i].update(*setpoints_[i] - *measurements_[i]);
+    }
+
+    double setpoint(std::size_t i) const { return *setpoints_[i]; }
+
+private:
+    std::array<rmcs_core::controller::pid::PidCalculator, 4> pids_{};
+    std::array<InputInterface<double>, 4> setpoints_;
+    std::array<InputInterface<double>, 4> measurements_;
+    std::array<OutputInterface<double>, 4> torques_;
+    InputInterface<std::size_t> reset_count_;
+    std::size_t last_reset_count_{};
+};
+
 struct Robot {
     Source source;
     Sink sink;
+    TorqueStage stage;
     std::array<std::unique_ptr<Motor>, 4> motors;
     std::unique_ptr<Controller> controller;
+    std::array<rmcs_core::controller::pid::PidCalculator, 4> independent_pids{};
     Sequence sequence;
     bool independent_short_arc;
     std::array<rmcs_core::controller::chassis::WheelLegJointPair, 2> previous{};
     Clock::time_point last_update{};
 
-    explicit Robot(const std::array<double, 4>& offsets, bool independent)
+    explicit Robot(
+        const std::array<double, 4>& offsets, bool independent, const VelocityPidGains& gains)
         : independent_short_arc(independent) {
         for (std::size_t i = 0; i < 4; ++i) {
             const auto id = static_cast<std::uint8_t>(i / 2 + 1);
@@ -105,7 +172,10 @@ struct Robot {
         }
         Component::initializing_component_name = "wheel_leg_joint_velocity_controller";
         controller = std::make_unique<Controller>();
-        std::array<Component*, 3> components{&source, controller.get(), &sink};
+        stage.configure(gains);
+        for (auto& pid : independent_pids)
+            pid = make_pid(gains);
+        std::array<Component*, 4> components{&source, controller.get(), &stage, &sink};
         rmcs_executor::Executor::pair(components);
     }
 
@@ -169,15 +239,17 @@ int main(int argc, char** argv) {
     try {
         std::uint32_t count;
         std::array<double, 4> offsets;
+        VelocityPidGains gains;
         read(count);
         read(offsets);
+        read(gains);
         if (count == 0 || count > 128)
             throw std::runtime_error("invalid robot count");
         std::vector<std::unique_ptr<Robot>> robots;
         for (std::uint32_t i = 0; i < count; ++i) {
             std::uint8_t independent;
             read(independent);
-            robots.emplace_back(std::make_unique<Robot>(offsets, independent != 0));
+            robots.emplace_back(std::make_unique<Robot>(offsets, independent != 0, gains));
         }
         write(std::uint32_t{0x444D5635});
         std::cout.flush();
@@ -215,14 +287,15 @@ int main(int argc, char** argv) {
                     motor_feedback[i] = {motor.feedback_ready(), motor.status_code(), now};
                 }
                 robot->controller->update_at(now);
+                robot->stage.update();
                 const auto step =
                     robot->sequence.update(enabled != 0, *robot->sink.healthy, motor_feedback, now);
                 *robot->source.active = step.control_active;
                 const auto independent = robot->independent_short_arc
                                            ? robot->independent_commands(now, step.control_active)
                                            : std::array<double, 4>{};
-                std::array<double, 4> positions, velocities;
-                std::array<std::array<std::byte, 8>, 4> velocity_frames;
+                std::array<double, 4> positions, velocities, setpoints;
+                std::array<std::array<std::byte, 8>, 4> torque_frames;
                 std::array<std::byte, 8> system{};
                 if (step.system != Sequence::Command::kNone) {
                     auto packet = step.system == Sequence::Command::kEnable
@@ -236,12 +309,17 @@ int main(int argc, char** argv) {
                     auto& motor = *robot->motors[i];
                     positions[i] = motor.angle();
                     velocities[i] = motor.velocity();
-                    auto packet = motor.generate_velocity_command(
-                        step.control_active
-                            ? (robot->independent_short_arc ? independent[i]
-                                                            : motor.control_velocity())
-                            : 0.0);
-                    std::ranges::copy(packet.as_bytes(), velocity_frames[i].begin());
+                    // Hardware gates inactive joints to zero torque; the PID
+                    // output is ignored exactly like production.
+                    setpoints[i] =
+                        robot->independent_short_arc ? independent[i] : robot->stage.setpoint(i);
+                    const double torque =
+                        !step.control_active ? 0.0
+                        : robot->independent_short_arc
+                            ? robot->independent_pids[i].update(independent[i] - motor.velocity())
+                            : motor.control_torque();
+                    auto packet = motor.generate_torque_command(torque);
+                    std::ranges::copy(packet.as_bytes(), torque_frames[i].begin());
                 }
                 const std::array<std::uint8_t, 4> flags{
                     static_cast<std::uint8_t>(*robot->sink.healthy),
@@ -251,7 +329,8 @@ int main(int argc, char** argv) {
                 robot->sink.reason->copy(reason.data(), reason.size() - 1);
                 write(positions);
                 write(velocities);
-                write(velocity_frames);
+                write(setpoints);
+                write(torque_frames);
                 write(system);
                 write(flags);
                 write(reason);

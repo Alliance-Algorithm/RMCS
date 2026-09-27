@@ -70,7 +70,7 @@ for ax in axes.flat:
     ax.set_xlabel("切换至 [0, 0, 0, 0] 后的时间 (s)")
     ax.grid(alpha=.2)
 fig.suptitle("Isaac Sim V5 闭链方向对照：相同电机参数，只改变角度选弧\n"
-             "初始左髋/左膝 −2.100 / −3.430 rad；保留实机 offset，经过实际 DM 驱动与 VEL 帧", fontsize=14)
+             "初始左髋/左膝 −2.100 / −3.430 rad；保留实机 offset，经过实际 DM 驱动与控制帧", fontsize=14)
 args.output.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(args.output, dpi=160)
 plt.close(fig)

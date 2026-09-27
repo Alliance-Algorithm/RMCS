@@ -144,9 +144,9 @@ public:
             hip_joint_motors_[1].angle() * kRadToDeg, knee_joint_motors_[1].angle() * kRadToDeg);
         RCLCPP_INFO_THROTTLE(
             logger_, *get_clock(), 100,
-            "[wheel_leg DM v_des rad/s] L_hip=%.3f L_knee=%.3f R_hip=%.3f R_knee=%.3f",
-            hip_joint_motors_[0].control_velocity(), knee_joint_motors_[0].control_velocity(),
-            hip_joint_motors_[1].control_velocity(), knee_joint_motors_[1].control_velocity());
+            "[wheel_leg DM torque Nm] L_hip=%.3f L_knee=%.3f R_hip=%.3f R_knee=%.3f",
+            hip_joint_motors_[0].control_torque(), knee_joint_motors_[0].control_torque(),
+            hip_joint_motors_[1].control_torque(), knee_joint_motors_[1].control_torque());
     }
 
     void command_update(bool controller_healthy, const std::string& controller_fault_reason) {
@@ -183,13 +183,13 @@ public:
             });
 
         // Clear/enable one motor per CAN bus in staggered USB transfers.
-        // System frames go first: the other motor's VEL response must not
+        // System frames go first: the other motor's MIT response must not
         // precede an FC waiting in a non-retrying board CAN TX FIFO.
         if (step.system != JointSystemCommand::kNone)
             send_joint_system_commands_(builder, step.system, step.system_mask);
-        // Startup supplies zero for 50 ms before the first FC and immediately
-        // after FC as well. Keep transmitting zero during disarm/failure.
-        send_joint_velocity_commands_(builder, !joint_control_active_);
+        // MIT zero torque throughout startup, disarm and failure: non-active
+        // legs are intentionally free (no spring hold), per vehicle policy.
+        send_joint_torque_commands_(builder, !joint_control_active_);
         if (joint_enable_sequence_.phase() == device::DmJointEnableSequence::Phase::kActive
             && previous_phase != device::DmJointEnableSequence::Phase::kActive) {
             const auto& attempts = joint_enable_sequence_.enable_attempts();
@@ -238,10 +238,10 @@ private:
              {&hip_joint_motors_[0], &knee_joint_motors_[0], &hip_joint_motors_[1],
               &knee_joint_motors_[1]})
             reason << " [" << motor->status_code() << '/' << motor->feedback_age_ms() << '/'
-                   << motor->velocity() << '/' << motor->control_velocity() << ']';
+                   << motor->velocity() << '/' << motor->control_torque() << ']';
         joint_fault_reason_ = reason.str();
         RCLCPP_ERROR(
-            logger_, "[joint_enable] first unavailable: %s; sending zero velocity",
+            logger_, "[joint_enable] first unavailable: %s; sending zero torque",
             joint_fault_reason_.c_str());
     }
 
@@ -316,9 +316,9 @@ private:
         response->message = text.str();
     }
 
-    device::CanPacket8 joint_command_(const device::DmMotor& motor, bool zero_velocity) const {
-        return zero_velocity ? motor.generate_velocity_command(0.0)
-                             : motor.generate_velocity_command(motor.control_velocity());
+    device::CanPacket8 joint_command_(const device::DmMotor& motor, bool zero_torque) const {
+        return zero_torque ? motor.generate_torque_command(0.0)
+                           : motor.generate_torque_command(motor.control_torque());
     }
 
     bool joint_feedback_ready_() const {
@@ -359,31 +359,31 @@ private:
     }
 
     template <typename Builder>
-    void send_joint_velocity_commands_(Builder& builder, bool zero_velocity) {
+    void send_joint_torque_commands_(Builder& builder, bool zero_torque) {
         builder
             .can_transmit(
                 Spec::kCans.kCan1,
                 {
-                    .can_id = hip_joint_motors_[0].velocity_send_id(),
-                    .can_data = joint_command_(hip_joint_motors_[0], zero_velocity).as_bytes(),
+                    .can_id = hip_joint_motors_[0].send_id(),
+                    .can_data = joint_command_(hip_joint_motors_[0], zero_torque).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan1,
                 {
-                    .can_id = hip_joint_motors_[1].velocity_send_id(),
-                    .can_data = joint_command_(hip_joint_motors_[1], zero_velocity).as_bytes(),
+                    .can_id = hip_joint_motors_[1].send_id(),
+                    .can_data = joint_command_(hip_joint_motors_[1], zero_torque).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
-                    .can_id = knee_joint_motors_[0].velocity_send_id(),
-                    .can_data = joint_command_(knee_joint_motors_[0], zero_velocity).as_bytes(),
+                    .can_id = knee_joint_motors_[0].send_id(),
+                    .can_data = joint_command_(knee_joint_motors_[0], zero_torque).as_bytes(),
                 })
             .can_transmit(
                 Spec::kCans.kCan2,
                 {
-                    .can_id = knee_joint_motors_[1].velocity_send_id(),
-                    .can_data = joint_command_(knee_joint_motors_[1], zero_velocity).as_bytes(),
+                    .can_id = knee_joint_motors_[1].send_id(),
+                    .can_data = joint_command_(knee_joint_motors_[1], zero_torque).as_bytes(),
                 });
     }
 
