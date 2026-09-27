@@ -6,8 +6,10 @@ from pathlib import Path
 import struct
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 
 import numpy as np
+import mujoco
 from rosbags.typesys import Stores, get_typestore
 from scipy.spatial.transform import Rotation
 import websockets
@@ -117,6 +119,71 @@ class FoxgloveTest(unittest.IsolatedAsyncioTestCase):
 
 @unittest.skipUnless(os.environ.get("WHEEL_LEG_MODEL_BUNDLE"), "set WHEEL_LEG_MODEL_BUNDLE for the V5 geometry test")
 class GeometryTest(unittest.TestCase):
+    def test_displayed_rl_axes_follow_body_basis_and_labels_touch_tips(self):
+        model = PoseModel(os.environ["WHEEL_LEG_MODEL_BUNDLE"])
+        for rpy in ((0., 0., 0.), (25., -20., 70.)):
+            body = Rotation.from_euler("xyz", rpy, degrees=True)
+            body_basis = body.as_matrix()
+            gravity_body = body.inv().apply([0., 0., -1.])
+            sample = Snapshot.from_dict(reference_snapshot().__dict__ | {
+                "quaternion_wxyz": tuple(body.as_quat()[[3, 0, 1, 2]]),
+                "gravity_rl": (gravity_body[1], -gravity_body[0], gravity_body[2]),
+            })
+            model.set_snapshot(sample)
+            scene = mujoco.MjvScene(model.model, maxgeom=32)
+            model.draw_axes(scene)
+            directions = {}
+            for i in range(scene.ngeom):
+                geom = scene.geoms[i]
+                if geom.type != mujoco.mjtGeom.mjGEOM_ARROW:
+                    continue
+                tip = scene.geoms[i + 1]
+                direction = geom.mat.reshape(3, 3)[:, 2]
+                # Exercise the scene's actual arrow and label geometry, not
+                # just the quaternion constant used to construct them.
+                np.testing.assert_allclose(geom.pos + .5 * geom.size[2] * direction, tip.pos, atol=2e-7)
+                directions[tip.label] = direction
+            np.testing.assert_allclose(directions["RL x"], body_basis[:, 1], atol=1e-7)
+            np.testing.assert_allclose(directions["RL y"], -body_basis[:, 0], atol=1e-7)
+            np.testing.assert_allclose(directions["RL z"], body_basis[:, 2], atol=1e-7)
+            self.assertAlmostEqual(float(np.dot(directions["RL y"], directions["Body x"])), -1., places=6)
+            # The normalized model base follows Body. RL is a separate
+            # observation frame, not the exported MJCF base_link frame.
+            np.testing.assert_allclose(model.data.xmat[model.base_id].reshape(3, 3), body_basis, atol=1e-12)
+
+    def test_exported_v5_body_front_and_hip_span(self):
+        model = PoseModel(os.environ["WHEEL_LEG_MODEL_BUNDLE"])
+        source = ET.parse(model.bundle / "source_urdf_v5.0.urdf").getroot()
+        # Independent evidence from the URDF: source +x is the left side.
+        raw_left = np.fromstring(source.find("joint[@name='L_joint1']/origin").get("xyz"), sep=" ")
+        raw_right = np.fromstring(source.find("joint[@name='R_joint1']/origin").get("xyz"), sep=" ")
+        self.assertGreater(raw_left[0], 0.)
+        self.assertLess(raw_right[0], 0.)
+        # The exporter maps source coordinates into x-forward/y-left/z-up.
+        source_to_model = np.array([[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]])
+        for name, raw in (("L_link1", raw_left), ("R_link1", raw_right)):
+            np.testing.assert_allclose(model.model.body(name).pos, source_to_model @ raw, atol=1e-12)
+
+        for rpy in ((0., 0., 0.), (25., -20., 70.)):
+            body = Rotation.from_euler("xyz", rpy, degrees=True)
+            g = body.inv().apply([0., 0., -1.])
+            sample = Snapshot.from_dict(reference_snapshot().__dict__ | {
+                "quaternion_wxyz": tuple(body.as_quat()[[3, 0, 1, 2]]),
+                "gravity_rl": (g[1], -g[0], g[2]),
+            })
+            model.set_snapshot(sample)
+            span = model.data.xpos[model.model.body("L_link1").id] - model.data.xpos[model.model.body("R_link1").id]
+            span_body = body.inv().apply(span)
+            np.testing.assert_allclose(span_body, source_to_model @ (raw_left - raw_right), atol=1e-12)
+            # Chassis front inferred from the left/right hip layout and up,
+            # rather than from the same quaternion used to draw RL arrows.
+            up_world = body.apply([0., 0., 1.])
+            front_world = np.cross(span, up_world)
+            front_world /= np.linalg.norm(front_world)
+            np.testing.assert_allclose(front_world, body.apply([1., 0., 0.]), atol=1e-12)
+            self.assertLess(model.metrics["loop_gap_m"], 2e-6)
+            self.assertLess(model.metrics["gravity_component_error"], 1e-12)
+
     def test_real_logged_phases_and_frame_conversion(self):
         model = PoseModel(os.environ["WHEEL_LEG_MODEL_BUNDLE"])
         captured = np.radians([-99.421532, 179.194987, 89.957478, 168.761840, 0., 0.])
