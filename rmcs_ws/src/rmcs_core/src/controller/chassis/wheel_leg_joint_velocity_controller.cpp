@@ -48,7 +48,6 @@ public:
         config_.max_difference =
             get_parameter_or<double>("max_motor_difference", Geometry::kDefaultMaxDifference);
         target_margin_ = get_parameter_or<double>("motor_difference_margin", 0.04);
-        feedback_tolerance_ = get_parameter_or<double>("motor_difference_tolerance", 0.03);
         max_feedback_speed_ = get_parameter_or<double>("max_feedback_speed", 45.0);
         max_feedback_jump_ = get_parameter_or<double>("max_feedback_jump", 0.5);
         if (!std::isfinite(config_.angle_kp) || config_.angle_kp <= 0.0
@@ -57,9 +56,6 @@ public:
             || !std::isfinite(config_.min_difference) || !std::isfinite(config_.max_difference)
             || !std::isfinite(target_margin_) || target_margin_ < 0.0
             || config_.min_difference + 2.0 * target_margin_ >= config_.max_difference
-            || !std::isfinite(feedback_tolerance_) || feedback_tolerance_ < 0.0
-            || config_.min_difference - feedback_tolerance_ <= -std::numbers::pi
-            || config_.max_difference + feedback_tolerance_ >= std::numbers::pi
             || !std::isfinite(max_feedback_speed_) || max_feedback_speed_ <= 0.0
             || !std::isfinite(max_feedback_jump_) || max_feedback_jump_ <= 0.0
             || max_feedback_jump_ >= std::numbers::pi)
@@ -105,16 +101,11 @@ public:
         for (std::size_t pair = 0; pair < 2; ++pair) {
             const auto side = pair == 0 ? Geometry::Side::kLeft : Geometry::Side::kRight;
             const auto first = 2 * pair;
-            const auto pose = Geometry::feedback(
-                side, *position_[first], *position_[first + 1], config_.min_difference,
-                config_.max_difference, feedback_tolerance_);
+            const auto pose =
+                Geometry::feedback(side, *position_[first], *position_[first + 1]);
             if (!pose) {
                 unavailable_(
-                    std::string{pair == 0 ? "left" : "right"}
-                    + " pair outside V5 assembly branch, d="
-                    + std::to_string(
-                        Geometry::decode(side, *position_[first], *position_[first + 1])
-                            .difference));
+                    std::string{pair == 0 ? "left" : "right"} + " pair feedback non-finite");
                 return;
             }
             measured[pair] = *pose;
@@ -200,7 +191,6 @@ private:
 
     WheelLegPairVelocityConfig config_;
     double target_margin_ = 0.04;
-    double feedback_tolerance_ = 0.03;
     double max_feedback_speed_ = 45.0;
     double max_feedback_jump_ = 0.5;
     std::array<WheelLegJointPair, 2> previous_command_{};
