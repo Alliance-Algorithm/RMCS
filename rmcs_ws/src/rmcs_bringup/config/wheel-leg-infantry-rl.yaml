@@ -20,6 +20,12 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> right_knee_joint_velocity_pid
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::WheelLegStateBroadcaster -> wheel_leg_state_broadcaster
+
+wheel_leg_state_broadcaster:
+  ros__parameters:
+    # 同时间戳的电机/车身IMU/RL IMU快照，供 Foxglove -> MuJoCo 姿态查看。
+    publish_rate: 50.0
 
 value_broadcaster:
   ros__parameters:
@@ -136,7 +142,7 @@ wheel_leg_rl_consumer:
     policy_leg_default_position: [0.42, -0.13742282595254576, -0.42, 0.13741557625658019]
     # 左下右中：闭环到 URDF 零点（URDF 系下即为 0）。
     urdf_zero_leg_position: [0.0, 0.0, 0.0, 0.0]
-    # 左中右上：闭环到电机内部零点，必须与四个硬件 offset 一致。
+    # 左中右下：闭环到电机内部零点，必须与四个硬件 offset 一致。
     calibrated_zero_leg_position: [-1.6, -2.93, 1.6, 2.93]
     # 失效（双下/丢遥控）目标的安全姿态（URDF 系）。
     # = default_joint_pos + 原标定系相对量 [-0.5, -0.35, 0.5, 0.35]（待实机确认）。
