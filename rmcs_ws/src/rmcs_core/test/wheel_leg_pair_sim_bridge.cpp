@@ -11,9 +11,8 @@ extern "C" int wheel_leg_pair_step(
     int invalid = 0;
     for (int i = 0; i < count; ++i) {
         const auto side = i % 2 == 0 ? Geometry::Side::kLeft : Geometry::Side::kRight;
-        const auto measured = Geometry::feedback(
-            side, phases[2 * i], phases[2 * i + 1], config.min_difference, config.max_difference,
-            parameters[6]);
+        const auto measured =
+            Geometry::feedback(side, phases[2 * i], phases[2 * i + 1]);
         if (!measured) {
             commands[2 * i] = commands[2 * i + 1] = 0.0;
             ++invalid;

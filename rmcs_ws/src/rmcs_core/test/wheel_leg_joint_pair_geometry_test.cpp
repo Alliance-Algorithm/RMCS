@@ -31,15 +31,15 @@ int main() {
     for (int h = -3; h <= 3; ++h)
         for (int k = -3; k <= 3; ++k) {
             const auto pose = Geometry::feedback(
-                left, -1.6 + h * Geometry::kPeriod, -2.93 + k * Geometry::kPeriod, lo, hi, 0.03);
+                left, -1.6 + h * Geometry::kPeriod, -2.93 + k * Geometry::kPeriod);
             require(pose.has_value(), "phase equivalence");
             require(near(pose->difference, calibrated.difference), "no relative turn state");
             require(
                 near(Geometry::wrap(pose->orientation - calibrated.orientation), 0.0),
                 "no common turn state");
         }
-    require(!Geometry::feedback(left, 0.0, 2.0, lo, hi, 0.03), "reject wrong assembly");
-    require(!Geometry::feedback(left, NAN, 0.0, lo, hi, 0.03), "reject invalid feedback");
+    require(Geometry::feedback(left, 0.0, 2.0).has_value(), "accept finite feedback");
+    require(!Geometry::feedback(left, NAN, 0.0), "reject invalid feedback");
 
     // Random absolute startup orientation, including every encoder seam. Both
     // legs must stay mirrored and within the physical differential at each step.

@@ -115,8 +115,6 @@ wheel_leg_joint_velocity_controller:
     min_motor_difference: -0.47376
     max_motor_difference: 1.62433
     motor_difference_margin: 0.04
-    # 仅容纳反馈/模型误差，超出即停止；没有自动大速度纠偏。
-    motor_difference_tolerance: 0.03
 
 policy_server:
   ros__parameters:
