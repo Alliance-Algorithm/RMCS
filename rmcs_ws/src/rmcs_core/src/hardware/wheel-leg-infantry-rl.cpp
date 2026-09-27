@@ -400,6 +400,8 @@ private:
         const auto snapshot = bmi088_.snapshot();
         if (!snapshot)
             return;
+        // Physical chassis frame: q_WB (body -> world) and body-axis gyro.
+        // WheelLegRlImu converts a separate copy for the policy.
         *imu_quaternion_output_ = snapshot->orientation.normalized();
         *imu_angular_velocity_output_ = snapshot->gyro_body;
     }
