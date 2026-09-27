@@ -11,10 +11,10 @@ import time
 MOTOR_NAMES = ("left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint",
                "left_wheel", "right_wheel")
 TOPICS = {
-    "/wheel_leg/telemetry/joint_states": ("joints", "sensor_msgs/msg/JointState", "rl_base"),
+    "/wheel_leg/telemetry/joint_states": ("joints", "sensor_msgs/msg/JointState", "chassis_body"),
     "/wheel_leg/telemetry/imu_body": ("imu", "sensor_msgs/msg/Imu", "chassis_body"),
-    "/wheel_leg/telemetry/rl_projected_gravity": ("gravity", "geometry_msgs/msg/Vector3Stamped", "rl_base"),
-    "/wheel_leg/telemetry/rl_angular_velocity": ("gyro", "geometry_msgs/msg/Vector3Stamped", "rl_base"),
+    "/wheel_leg/telemetry/rl_projected_gravity": ("gravity", "geometry_msgs/msg/Vector3Stamped", "chassis_body"),
+    "/wheel_leg/telemetry/rl_angular_velocity": ("gyro", "geometry_msgs/msg/Vector3Stamped", "chassis_body"),
 }
 SUBPROTOCOLS = ("foxglove.sdk.v1", "foxglove.websocket.v1")
 
