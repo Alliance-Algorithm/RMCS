@@ -65,6 +65,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
             moveit_group_node_config.to_dict(),
+            {"robot_description_planning.default_robot_padding": 0.02},
              
         ],
         arguments=["--ros-args", "--log-level", "info"],

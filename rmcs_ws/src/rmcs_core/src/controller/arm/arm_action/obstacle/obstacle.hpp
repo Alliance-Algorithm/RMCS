@@ -38,28 +38,41 @@ public:
 
     std::string id() const { return collision_object_.id; }
 
-    void set_pose(Pose pose) { pose_solver(pose); }
+    void set_pose(Pose pose) {
+        pose.x += pose_compensation_.x;
+        pose.y += pose_compensation_.y;
+        pose.z += pose_compensation_.z;
+        pose_solver(pose);
+    }
+
+    void set_pose_compensation(Pose pose_compensation) { pose_compensation_ = pose_compensation; }
 
     void set_operation(CollisionObjectOperation collision_object_operation) {
         collision_object_operation_ = collision_object_operation;
     }
 
-    void mesh_load(const std::string& filename) {
+    void mesh_load(const std::string& filename, const Eigen::Vector3d& scale) {
         const auto path =
             std::filesystem::path(ament_index_cpp::get_package_share_directory("rmcs_core"))
             / "meshes" / (filename + ".stl");
 
-        std::unique_ptr<shapes::Mesh> mesh(shapes::createMeshFromResource(path.string()));
+        const std::string uri = "file://" + path.string();
+
+        std::unique_ptr<shapes::Mesh> mesh(shapes::createMeshFromResource(uri, scale));
         if (!mesh) {
-            RCLCPP_INFO(logger_, "Mesh failed to load!");
+            RCLCPP_WARN(logger_, "Failed to load mesh!");
             return;
         }
 
+        RCLCPP_INFO(logger_, "Mesh loading successful!");
+
         shapes::ShapeMsg shape_msg;
         if (!shapes::constructMsgFromShape(mesh.get(), shape_msg)) {
-            RCLCPP_INFO(logger_, "Failed to construct msg from shape!");
+            RCLCPP_WARN(logger_, "Failed to construct msg from shape!");
             return;
         }
+
+        RCLCPP_INFO(logger_, "Construct msg successful!");
 
         collision_object_.meshes.push_back(boost::get<shape_msgs::msg::Mesh>(shape_msg));
     }
@@ -125,6 +138,8 @@ private:
     }
 
     rclcpp::Logger logger_;
+
+    Pose pose_compensation_{0, 0, 0, 0, 0, 0};
 
     geometry_msgs::msg::Pose pose_;
     CollisionObjectOperation collision_object_operation_{CollisionObjectOperation::IDLE};

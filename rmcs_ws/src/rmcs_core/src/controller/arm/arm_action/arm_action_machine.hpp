@@ -1,6 +1,5 @@
 #pragma once
 #include "controller/arm/arm_action/action_step.hpp"
-#include "obstacle/obstacle_course.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -88,6 +87,10 @@ public:
     std::shared_ptr<const PlannedTrajectory> get_trajectory() const {
         return planned_trajectory_.load(std::memory_order_acquire);
     }
+
+    auto& moveit_group_getter() { return move_group_; }
+
+    const rclcpp::Node::SharedPtr& node() const { return node_; }
 
 private:
     bool planSingleStep(

@@ -3,13 +3,15 @@ rmcs_executor:
     update_rate: 1000.0
     components:
 
-      - rmcs_core::hardware::TEST ->test
+      # - rmcs_core::hardware::TEST ->test
 
       # - rmcs::AutoAimPlayerComponent -> auto_aim_player
       # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs_core::controller::arm::ArmVisual -> arm_visual
+
+      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
 test:
   ros__parameters:

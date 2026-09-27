@@ -14,6 +14,8 @@ Panels:
       - /Current View1
     Name: Views
     Splitter Ratio: 0.5
+  - Class: rviz_visual_tools/RvizVisualToolsGui
+    Name: RvizVisualToolsGui
 Visualization Manager:
   Class: ""
   Displays:
@@ -101,7 +103,7 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
             Value: true
-        Loop Animation: true
+        Loop Animation: false
         Robot Alpha: 0.5
         Robot Color: 150; 50; 150
         Show Robot Collision: false
@@ -187,6 +189,19 @@ Visualization Manager:
         Show Robot Visual: true
       Value: true
       Velocity_Scaling_Factor: 0.6
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Markers
+      Namespaces:
+        {}
+      Queue Size: 100
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /rviz_visual_tools
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

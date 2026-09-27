@@ -20,6 +20,9 @@
   <class type="rmcs_core::controller::arm::ArmController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::arm::ArmVisual" base_class_type="rmcs_executor::Component">
+    <description>Arm MoveIt trajectory visualizer.</description>
+  </class>
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
