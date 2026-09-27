@@ -48,8 +48,11 @@ offsets = np.array([hardware[n + "_angle_offset"] for n in joint_keys])
 consumer = config["wheel_leg_rl_consumer"]["ros__parameters"]
 joint_pid_names = ["left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"]
 joint_pids = [config[name + "_velocity_pid"]["ros__parameters"] for name in joint_pid_names]
-for extra in joint_pids[1:]:
-    assert extra == joint_pids[0], "joint velocity PID gains must be identical"
+gain_keys = ("kp", "ki", "kd", "integral_min", "integral_max",
+             "integral_split_min", "integral_split_max", "output_min", "output_max")
+gains_only = [{k: params[k] for k in gain_keys if k in params} for params in joint_pids]
+for extra in gains_only[1:]:
+    assert extra == gains_only[0], "joint velocity PID gains must be identical"
 pid_params = joint_pids[0]
 pid_gains = (pid_params["kp"], pid_params["ki"], pid_params.get("kd", 0.0),
              pid_params.get("integral_min", -math.inf), pid_params.get("integral_max", math.inf),
@@ -68,9 +71,13 @@ class PidMirror:
         self.last_err = np.full(shape, np.nan)
         self.last_reset = None
 
-    def update(self, err, reset_count):
+    def update(self, err, reset_count, active=True):
         if reset_count != self.last_reset:
             self.last_reset = reset_count
+            self.integral[...] = 0.
+            self.last_err[...] = np.nan
+            return np.zeros_like(err)
+        if not active:
             self.integral[...] = 0.
             self.last_err[...] = np.nan
             return np.zeros_like(err)
@@ -279,7 +286,7 @@ with tempfile.TemporaryDirectory(prefix="rmcs-v5-servo-") as temp:
                     invalid_feedback_steps += library.wheel_leg_pair_step(
                         measured, target_array, commands, parameters, 2 * args.envs, dt)
                     applied = pid_mirror.update(
-                        commands - dq[:, active_ids].cpu().numpy(), reset_count)
+                        commands - dq[:, active_ids].cpu().numpy(), reset_count, requested)
                     active_flags = np.ones(args.envs, dtype=bool)
                 max_command = max(max_command, float(np.max(np.abs(commands))))
                 max_command_step = max(max_command_step, float(np.max(np.abs(commands - old_commands))))

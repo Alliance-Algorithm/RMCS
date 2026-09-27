@@ -26,43 +26,42 @@
 
 查看器保留髋、膝的配对分支，处理 ±π 过零；12 个被动关节通过模型中的六处闭链连接求解。从模型标称装配姿态连续求解以保留装配分支；它们不是实测量。若连接误差超过 `2e-6 m`，保留上一有效姿态并显示 `POSE REJECTED`，不会偷偷修改主动电机反馈以闭合连杆。连接误差指各连接点位置差的最大绝对分量。
 
-当前加载的 V5 导出模型已经是 `Xforward_Yleft_Zup`，其 `base_link` 跟随物理车身 Body。它与 RL 观测坐标分别计算：
+当前加载的 V5 导出模型已经是 `Xforward_Yleft_Zup`，其 `base_link` 跟随物理车身 Body。用户已确认训练 IMU 观测也使用 Body xyz，URDF/CAD 坐标朝向不对 IMU 做 90° 换轴：
 
 ```text
-RL 向量 = [body_y, -body_x, body_z]
-q_BR = 绕 z 轴 +90°（RL → body）
+RL IMU 向量 = Body 向量
 q_W_model = q_WB
-q_W_RL = q_WB ⊗ q_BR
-RL 预期重力 = inverse(q_W_RL) * [0, 0, -1]
+q_W_RL_IMU = q_WB
+RL 预期重力 = inverse(q_WB) * [0, 0, -1]
 ```
 
 同时订阅当前 RL 使用的 `/wheel_leg/rl/imu/projected_gravity` 和角速度，比较它们与物理 IMU 推算结果的差异。窗口显示：
 
-- 六个主动电机角度、Body 与 RL 的 roll/pitch/yaw。
-- Body、RL 两组坐标轴，红/绿/蓝分别为 x/y/z。
+- 六个主动电机角度、Body 与 RL IMU 的 roll/pitch/yaw（两者相同）。
+- Body、RL IMU 两组同向坐标轴，红/绿/蓝分别为 x/y/z。
 - 青色 RL 重力、灰色世界向下方向。
 - 重力夹角误差、角速度向量误差、闭链连接误差。
 - 接收状态；超过 0.5 秒没有完整快照显示 `STALE`。
 
 ### 坐标轴方向与图示
 
-这里说的轴方向是实际空间方向，RL 三根轴在 Body 中分别是：
+这里展示的是策略使用的 IMU 观测轴。三根轴与 Body 逐轴一致：
 
-| RL 正轴 | Body 中的方向 |
+| RL IMU 正轴 | Body 中的方向 |
 | --- | --- |
-| RL x | `[0,+1,0]`，与 Body y 同向 |
-| RL y | `[-1,0,0]`，与 Body x 反向 |
-| RL z | `[0,0,+1]`，与 Body z 同向 |
+| RL IMU x | `[+1,0,0]`，与 Body x 同向 |
+| RL IMU y | `[0,+1,0]`，与 Body y 同向 |
+| RL IMU z | `[0,0,+1]`，与 Body z 同向 |
 
-RL 基向量相对 Body 绕 +z 转 +90°；同一向量从 Body 分量换算成 RL 分量使用逆旋转，因此为 `[y,-x,z]`。
+两组 origin 的位置分开只是为了看清标签。旧图中标为 RL、相对 Body 旋转 90° 的坐标误将 URDF 轴关系用到了 IMU 观测，现已修正。
 
-旧预览的箭头与文字端点错位：MuJoCo 3.5 的 OpenGL 箭头实际尖端在 `size[2]/2`，标签却放在完整长度的端点，导致 `RL y` 标签挤到 Body 一组附近。现在已让箭头尖端与标签锚点重合，分开两组坐标轴并标明各自 origin，顶部固定列出轴对应关系。依据已核对的 [MuJoCo 3.5 箭头绘制源码](https://github.com/google-deepmind/mujoco/blob/3.5.0/src/render/render_gl3.c) 修正显示长度；IMU 坐标换算仍遵循上表。
+MuJoCo 3.5 的 OpenGL 箭头实际尖端在 `size[2]/2`，查看器已让箭头尖端与标签锚点重合，分开两组坐标轴并标明各自 origin。依据已核对的 [MuJoCo 3.5 箭头绘制源码](https://github.com/google-deepmind/mujoco/blob/3.5.0/src/render/render_gl3.c) 修正显示长度。
 
-绘图回归检查 MuJoCo 场景几何，覆盖水平与组合倾斜姿态：`dot(RL y, Body x) = -1`，`RL x = Body y`，`RL z = Body z`，同时检查箭头尖端和标签位置重合。
+绘图回归覆盖水平与组合倾斜姿态，检查 `RL IMU xyz = Body xyz`，以及箭头尖端与标签位置重合；另检查旧 90° 换轴遥测确实产生重力和角速度误差。
 
 ### V5 模型本身的车头方向
 
-修正箭头标注后，原查看器仍把 `q_W_RL` 写入了导出模型的根节点，造成整车额外转了 +90°。这层模型映射已修正为 `q_W_model = q_WB`，车头对应 Body x；顶部两组坐标轴仍按前述关系显示。
+模型根姿态使用 `q_W_model = q_WB`，车头对应 Body x。此前额外叠加到模型根节点上的 +90° 也已移除。
 
 依据以下文件核对过模型的坐标转换：
 
@@ -71,7 +70,7 @@ RL 基向量相对 Body 绕 +z 转 +90°；同一向量从 Body 分量换算成 
 - 当前加载的 `robot.xml`：左右髋已经位于 `[0,0.1838,-0.00083697]`、`[0,-0.1828,0.00083241]`；`manifest.json` 标记 `control_frame: Xforward_Yleft_Zup`。
 - 另核对了 `Wheel_leg_V2/urdf/urdf_v5.0.urdf`，该文件的左右髋也已经分布在 ±y。不能仅凭同名 `base_link` 假定它与原始 CAD 坐标一致。
 
-因此，导出模型的 +x 是车头方向，+y 是左侧方向。模型根姿态直接使用物理 IMU 的 Body → world 四元数。对同一输入，整车相对上一版绕 Body z 转 −90°，四个主动电机角度和闭链装配关系保持一致。
+因此，导出模型的 +x 是车头方向，+y 是左侧方向。模型根姿态直接使用物理 IMU 的 Body → world 四元数；四个主动电机角度及闭链装配关系由关节反馈重建。
 
 回归检查还从原始 URDF 读取左右髋位置，验证导出变换，再通过实际 MuJoCo 左右髋连接点连线和车身向上方向推算车头，要求它与 Body x 同向。该检查独立于 RL 箭头构造。三项几何测试覆盖模型朝向、坐标轴绘图与原有闭链重建。
 
@@ -99,6 +98,8 @@ source install/setup.bash
 | `/wheel_leg/telemetry/imu_body` | `sensor_msgs/msg/Imu` | `chassis_body` |
 | `/wheel_leg/telemetry/rl_projected_gravity` | `geometry_msgs/msg/Vector3Stamped` | `rl_base` |
 | `/wheel_leg/telemetry/rl_angular_velocity` | `geometry_msgs/msg/Vector3Stamped` | `rl_base` |
+
+`rl_base` 表示策略的 Body IMU 观测系，`chassis_body → rl_base` 发布单位 TF；`odom → chassis_body` 随 EKF 四元数更新。`rl_base` 不再带 90° 偏转。
 
 四条消息共享一个 header 时间戳。查看器按时间戳配对，按 JointState 的名字映射电机，不依赖数组发送顺序。`imu_body` 提供四元数和角速度，未提供线加速度，其 covariance[0] 为 −1。
 
@@ -166,10 +167,10 @@ rmcs_ws/build/wheel_leg_viewer_venv/bin/python \
 ## 已完成的本地验证
 
 - 开发容器中 `rmcs_core`、`rmcs_bringup` 完整构建通过。
-- 五项离线测试通过：时间戳配对/关节名映射、无效四元数、错误坐标帧、实际 CDR 与 WebSocket 订阅、V5 闭链和坐标变换。
+- 七项离线测试通过：时间戳配对/关节名映射、无效四元数、错误坐标帧、实际 CDR 与 WebSocket 订阅、Body/RL IMU 同轴显示、V5 车头方向及闭链重建。
 - 之前实车日志中的 `[-99.421532, 179.194987, 89.957478, 168.761840]°` 及等价 ±2π 输入可重建闭链；该测试的 IMU 是人为设置的参考姿态。
 - 本机真实 Foxglove bridge 3.2.6 + 隔离 ROS 域合成发布源 → 查看器，收到 244 组完整数据，0 次姿态拒绝，最大连接误差约 `1.2e-14 m`。
-- 该链路使用车身横滚 +20°，显示 RL 俯仰 −20°；重力和角速度与合成参考一致。
+- 以上 244 组数据是旧换轴约定下的传输验证。修正后的 Body 横滚 +20° 应显示 RL IMU 横滚 +20°；该旧记录不用于证明新的坐标约定。
 - MuJoCo GUI、无窗口渲染、JSONL 录制和回放已运行通过。当前 Wayland 环境出现窗口位置/libdecor 的非致命提示。
 
 以上不代表已连接实车或已证实实际机械零位正确。仍需实车 SSH 地址，并确认实车运行含上述组件的版本后完成现场对照。
@@ -182,6 +183,6 @@ WHEEL_LEG_MODEL_BUNDLE='/home/noir/Documents/workspace/example/wheeled-legged_RL
   rmcs_ws/src/rmcs_core/test/test_wheel_leg_pose_viewer.py -v
 ```
 
-以下预览使用车身四元数 `[1,0,0,0]` 的水平合成姿态：车头沿 Body x，RL y 与车头反向，RL x 沿车身左侧。它不是实车截图：
+以下预览使用车身四元数 `[1,0,0,0]` 的水平合成姿态：车头沿 Body x，RL IMU 三轴与 Body 三轴逐轴同向。它不是实车截图：
 
 ![合成姿态预览](wheel_leg_pose_viewer_demo.png)
