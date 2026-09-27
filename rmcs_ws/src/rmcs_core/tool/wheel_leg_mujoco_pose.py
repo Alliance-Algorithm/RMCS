@@ -10,6 +10,8 @@ from scipy.optimize import least_squares
 from scipy.spatial.transform import Rotation
 
 MOTOR_JOINTS = ("L_joint1", "LL_joint1", "R_joint1", "RR_joint1", "L_joint3", "R_joint3")
+# Columns are the RL basis vectors expressed in Body: +y, -x, +z.
+# Mapping vector components Body -> RL uses the inverse of this rotation.
 BODY_FROM_RL = Rotation.from_euler("z", 90., degrees=True)
 
 
@@ -21,6 +23,8 @@ class PoseModel:
     def __init__(self, bundle, root_height=.65):
         self.bundle = Path(bundle).resolve()
         manifest = json.loads((self.bundle / "manifest.json").read_text())
+        if manifest.get("control_frame") != "Xforward_Yleft_Zup":
+            raise ValueError("expected the normalized V5 bundle with control_frame=Xforward_Yleft_Zup")
         self.model = mujoco.MjModel.from_xml_path(str(self.bundle / "robot.xml"))
         self.model.vis.headlight.ambient[:] = [.5, .5, .5]
         self.model.vis.headlight.diffuse[:] = [.8, .8, .8]
@@ -89,7 +93,10 @@ class PoseModel:
             world_from_body = Rotation.from_quat(q[[1, 2, 3, 0]])
             world_from_rl = world_from_body * BODY_FROM_RL
             self.data.qpos[self.root_address:self.root_address + 3] = [0., 0., self.root_height]
-            self.data.qpos[self.root_address + 3:self.root_address + 7] = world_from_rl.as_quat()[[3, 0, 1, 2]]
+            # The V5 exporter already rotates the source CAD base, root joint
+            # origins and meshes into x-forward/y-left/z-up (physical Body).
+            # Its base_link follows Body, separately from the policy frame.
+            self.data.qpos[self.root_address + 3:self.root_address + 7] = world_from_body.as_quat()[[3, 0, 1, 2]]
             self.data.qvel[:] = 0.
             self.data.ctrl[:] = 0.
             # This updates geometry only. The viewer never advances motor dynamics.
@@ -117,7 +124,7 @@ class PoseModel:
     def draw_axes(self, scene):
         if self.last_snapshot is None:
             return
-        origin = self.data.xpos[self.base_id] + [0., 0., .25]
+        origin = self.data.xpos[self.base_id] + [0., 0., .20]
         q = np.asarray(self.last_snapshot.quaternion_wxyz)
         world_from_body = Rotation.from_quat(q[[1, 2, 3, 0]])
         world_from_rl = world_from_body * BODY_FROM_RL
@@ -129,6 +136,9 @@ class PoseModel:
             mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_ARROW, np.zeros(3), np.zeros(3),
                                np.eye(3).ravel(), np.asarray(rgba, dtype=np.float32))
             mujoco.mjv_connector(geom, mujoco.mjtGeom.mjGEOM_ARROW, .007, start, end)
+            # MuJoCo 3.5's OpenGL arrow tip is at local z=size[2]/2.
+            # Match the visible tip to `end`, where the label is anchored.
+            geom.size[2] *= 2.
             geom.label = ""
             scene.ngeom += 1
             geom = scene.geoms[scene.ngeom]
@@ -138,10 +148,16 @@ class PoseModel:
             scene.ngeom += 1
 
         for rotation, start, prefix in ((world_from_rl, origin, "RL"),
-                                         (world_from_body, origin + [-.32, 0., 0.], "Body")):
+                                         (world_from_body, origin + [-.60, 0., 0.], "Body")):
             for i, color in enumerate(((1., .15, .15, 1.), (.15, 1., .15, 1.), (.15, .4, 1., 1.))):
-                arrow(start, start + .2 * rotation.as_matrix()[:, i], color, f"{prefix} {'xyz'[i]}")
-        start = origin + [.32, 0., 0.]
+                arrow(start, start + .18 * rotation.as_matrix()[:, i], color, f"{prefix} {'xyz'[i]}")
+            if scene.ngeom < scene.maxgeom:
+                geom = scene.geoms[scene.ngeom]
+                mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_SPHERE, np.full(3, .003),
+                                   start + [0., 0., -.10], np.eye(3).ravel(), np.ones(4, dtype=np.float32))
+                geom.label = f"{prefix} origin"
+                scene.ngeom += 1
+        start = origin + [.45, 0., 0.]
         arrow(start, start + .25 * world_from_rl.apply(self.last_snapshot.gravity_rl),
               (0., 1., 1., 1.), "RL gravity")
         arrow(start + [.1, 0., 0.], start + [.1, 0., -.25], (.8, .8, .8, 1.), "World down")
@@ -150,7 +166,8 @@ class PoseModel:
         prefix = "DEMO (synthetic)" if demo else "LIVE TELEMETRY"
         state = "STALE" if age > .5 else "RECEIVING"
         lines = [f"{prefix} | {state} | receive age {age:.2f}s", transport,
-                 "Root position fixed for display; passive joints inferred", "RGB axes: x / y / z"]
+                 "Root position fixed for display; passive joints inferred", "RGB axes: x / y / z",
+                 "RL x = Body y | RL y = -Body x | RL z = Body z"]
         if error:
             lines.append("POSE REJECTED: " + error)
         if self.metrics:
