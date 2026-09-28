@@ -21,7 +21,6 @@ rmcs_executor:
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::broadcaster::WheelLegStateBroadcaster -> wheel_leg_state_broadcaster
-      - rmcs_core::debug::ValueCollector -> value_collector
 
 wheel_leg_state_broadcaster:
   ros__parameters:
@@ -57,31 +56,6 @@ value_broadcaster:
       - /wheel_leg/right_wheel/velocity
       - /wheel_leg/right_wheel/control_velocity
       - /wheel_leg/right_wheel/control_torque
-
-value_collector:
-  ros__parameters:
-    # executor 内组件，按 write_interval 把下列 double 输出写进 CSV（无时间戳列，只有 index）。
-    # 必须启动时存在，改完要重启 executor。
-    csv_path: "/tmp/wheel_leg_joints_<timestamp>.csv"
-    signals:
-      - /wheel_leg/left_hip_joint/angle
-      - /wheel_leg/left_hip_joint/control_angle
-      - /wheel_leg/left_hip_joint/control_torque
-      - /wheel_leg/left_hip_joint/velocity
-      - /wheel_leg/left_knee_joint/angle
-      - /wheel_leg/left_knee_joint/control_angle
-      - /wheel_leg/left_knee_joint/control_torque
-      - /wheel_leg/left_knee_joint/velocity
-      - /wheel_leg/right_hip_joint/angle
-      - /wheel_leg/right_hip_joint/control_angle
-      - /wheel_leg/right_hip_joint/control_torque
-      - /wheel_leg/right_hip_joint/velocity
-      - /wheel_leg/right_knee_joint/angle
-      - /wheel_leg/right_knee_joint/control_angle
-      - /wheel_leg/right_knee_joint/control_torque
-      - /wheel_leg/right_knee_joint/velocity
-    write_interval: 1     # 1 kHz/1 = 1000 Hz；要 200 Hz 就填 5
-    flush_interval: 1000
 
 wheel_leg_infantry_rl:
   ros__parameters:
@@ -227,15 +201,8 @@ right_wheel_velocity_pid:
     kd: 0.0
     output_min: -4.5
     output_max: 4.5
-# DM 关节速度环（MIT 力矩模式，τ = PID(v_des − v)，输出即 t_ff）。
-# 2026-09-28 按实机录制的关节数据反演整定：kp=10 时 P 项仅
-#   3~6 Nm RMS 而积分项 11~25 Nm RMS（积分主导），故 kp 提到 20；实测静止保持力矩
-#   hip ≤17 / knee ≤13 Nm，故积分限收到 ±400（±20 Nm）给 P 项留 ≥20 Nm 余量。
-#   注意：validate_wheel_leg_pair.py --dm-feedback 对本组增益判 fail（最大终点误差
-#   0.124→0.922 rad、饱和 256k→720k 关节步），该仿真电机参数自述未辨识，以实机复测为准。
-# enable_interface：断使能期间电机收零力矩而 PID 仍对零设定积分，重新使能注入
-#   实测 29~37 Nm 冲击；随 /wheel_leg/joint_control_active 清积分并置零输出。
-# 限幅 ±40 Nm 与 Isaac 验证一致（额定 20 / 峰值 40 Nm），驱动侧另有 T_MAX 兜底。
+# MIT 力矩模式：角度环给速度，速度 PID 给力矩；运动门控关闭时清积分并输出零。
+# PidCalculator 在 1 kHz 下按周期累加误差：ki=0.05 对应连续积分增益 50，积分限对应 ±20 Nm。
 left_hip_joint_velocity_pid:
   ros__parameters:
     measurement: /wheel_leg/left_hip_joint/velocity
@@ -246,8 +213,6 @@ left_hip_joint_velocity_pid:
     kp: 10.0
     ki: 0.05
     kd: 0.0
-    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50
-    # （积分时间常数 Ti = kp/ki = 0.4 s），积分限 ±400 等效 ±20 Nm。
     integral_min: -400.0
     integral_max: 400.0
     output_min: -40.0
@@ -262,8 +227,6 @@ left_knee_joint_velocity_pid:
     kp: 10.0
     ki: 0.05
     kd: 0.0
-    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50
-    # （积分时间常数 Ti = kp/ki = 0.4 s），积分限 ±400 等效 ±20 Nm。
     integral_min: -400.0
     integral_max: 400.0
     output_min: -40.0
@@ -278,8 +241,6 @@ right_hip_joint_velocity_pid:
     kp: 10.0
     ki: 0.05
     kd: 0.0
-    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50
-    # （积分时间常数 Ti = kp/ki = 0.4 s），积分限 ±400 等效 ±20 Nm。
     integral_min: -400.0
     integral_max: 400.0
     output_min: -40.0
@@ -294,8 +255,6 @@ right_knee_joint_velocity_pid:
     kp: 10.0
     ki: 0.05
     kd: 0.0
-    # PidCalculator 每拍累加误差（1 kHz）：ki=0.05 等效连续 ki=50
-    # （积分时间常数 Ti = kp/ki = 0.4 s），积分限 ±400 等效 ±20 Nm。
     integral_min: -400.0
     integral_max: 400.0
     output_min: -40.0

@@ -137,12 +137,12 @@ public:
         *joint_control_active_output_ = joint_control_active_;
 
         constexpr double kRadToDeg = 180.0 / std::numbers::pi;
-        RCLCPP_INFO_THROTTLE(
+        RCLCPP_DEBUG_THROTTLE(
             logger_, *get_clock(), 100,
             "[wheel_leg angle deg] L_hip=%.2f L_knee=%.2f R_hip=%.2f R_knee=%.2f",
             hip_joint_motors_[0].angle() * kRadToDeg, knee_joint_motors_[0].angle() * kRadToDeg,
             hip_joint_motors_[1].angle() * kRadToDeg, knee_joint_motors_[1].angle() * kRadToDeg);
-        RCLCPP_INFO_THROTTLE(
+        RCLCPP_DEBUG_THROTTLE(
             logger_, *get_clock(), 100,
             "[wheel_leg DM torque Nm] L_hip=%.3f L_knee=%.3f R_hip=%.3f R_knee=%.3f",
             hip_joint_motors_[0].control_torque(), knee_joint_motors_[0].control_torque(),

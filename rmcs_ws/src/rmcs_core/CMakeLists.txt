@@ -50,15 +50,17 @@ if(BUILD_TESTING)
     target_include_directories(dm_joint_enable_sequence_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     ament_add_gtest(wheel_leg_rl_imu_test test/wheel_leg_rl_imu_test.cpp)
+    add_dependencies(wheel_leg_rl_imu_test ${PROJECT_NAME})
     target_include_directories(wheel_leg_rl_imu_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     ament_target_dependencies(
         wheel_leg_rl_imu_test rmcs_executor rmcs_msgs rmcs_description rclcpp pluginlib)
     target_compile_definitions(wheel_leg_rl_imu_test PRIVATE
         RMCS_WHEEL_LEG_IMU_REFERENCE_PATH="${PROJECT_SOURCE_DIR}/test/data/wheel_leg_rl_imu_isaac.csv")
 
-    add_executable(wheel_leg_dm_sim_bridge test/wheel_leg_dm_sim_bridge.cpp)
-    target_include_directories(wheel_leg_dm_sim_bridge PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_target_dependencies(wheel_leg_dm_sim_bridge rmcs_executor rclcpp pluginlib)
+    ament_add_gtest(rl_consumers_test test/rl_consumers_test.cpp)
+    add_dependencies(rl_consumers_test ${PROJECT_NAME})
+    target_include_directories(rl_consumers_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    ament_target_dependencies(rl_consumers_test rmcs_executor rmcs_msgs rclcpp pluginlib)
 
     add_executable(
         wheel_leg_joint_pair_geometry_test test/wheel_leg_joint_pair_geometry_test.cpp)

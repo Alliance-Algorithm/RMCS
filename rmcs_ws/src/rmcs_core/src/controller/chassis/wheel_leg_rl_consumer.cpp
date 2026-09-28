@@ -31,8 +31,8 @@ public:
         policy_leg_default_position_ = parameter_array_or(
             "policy_leg_default_position",
             std::array<double, 4>{0.42, -0.13742282595254576, -0.42, 0.13741557625658019});
-        urdf_zero_leg_position_ = parameter_array_or(
-            "urdf_zero_leg_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
+        urdf_zero_leg_position_ =
+            parameter_array_or("urdf_zero_leg_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
         calibrated_zero_leg_position_ = parameter_array_or(
             "calibrated_zero_leg_position", std::array<double, 4>{-1.6, -2.93, 1.6, 2.93});
         safe_leg_position_ = parameter_array_or(
@@ -56,26 +56,26 @@ public:
 
         action_scale_ = get_parameter_or<double>("action_scale", 0.25);
         wheel_velocity_scale_ = get_parameter_or<double>("wheel_velocity_scale", 10.0);
-        invalid_action_ = get_parameter_or<double>("invalid_action", 0.0);
     }
 
     void update() override {
         const bool actions_ready = std::all_of(
             action_.begin(), action_.end(), [](const auto& input) { return input.ready(); });
-        const bool leg_positions_ready = std::all_of(
-            leg_position_.begin(), leg_position_.end(),
-            [](const auto& input) { return input.ready() && std::isfinite(*input); });
+        const bool leg_positions_ready =
+            std::all_of(leg_position_.begin(), leg_position_.end(), [](const auto& input) {
+                return input.ready() && std::isfinite(*input);
+            });
         const auto state = static_cast<WheelLegControlState>(*state_);
         if (*reset_count_ != last_reset_count_) {
             last_reset_count_ = *reset_count_;
             hold_target_valid_ = false;
-            publish_safe_targets_();
+            publish_fixed_targets_(safe_leg_position_);
             return;
         }
         if (state == WheelLegControlState::kInit || state == WheelLegControlState::kDisabled
             || !leg_positions_ready) {
             hold_target_valid_ = false;
-            publish_safe_targets_();
+            publish_fixed_targets_(safe_leg_position_);
             return;
         }
         if (state == WheelLegControlState::kUrdfZero) {
@@ -102,15 +102,14 @@ public:
                 *leg_target_[i] = policy_leg_default_position_[i];
                 continue;
             }
-            const double desired = policy_leg_default_position_[i]
-                                 + action_scale_ * std::clamp(value, -3.0, 3.0);
+            const double desired =
+                policy_leg_default_position_[i] + action_scale_ * std::clamp(value, -3.0, 3.0);
             *leg_target_[i] = desired;
         }
         for (std::size_t i = 0; i < wheel_target_.size(); ++i) {
-            const double value = *action_[i == 0 ? 4 : 5];
-            *wheel_target_[i] = std::isfinite(value)
-                                    ? wheel_velocity_scale_ * std::clamp(value, -3.0, 3.0)
-                                    : 0.0;
+            const double value = *action_[leg_target_.size() + i];
+            *wheel_target_[i] =
+                std::isfinite(value) ? wheel_velocity_scale_ * std::clamp(value, -3.0, 3.0) : 0.0;
         }
     }
 
@@ -118,8 +117,8 @@ private:
     static constexpr std::array<const char*, 6> kActionNames{
         "left_hip", "left_knee", "right_hip", "right_knee", "left_wheel", "right_wheel"};
 
-    std::array<double, 4> parameter_array_or(
-        const char* name, const std::array<double, 4>& fallback) const {
+    std::array<double, 4>
+        parameter_array_or(const char* name, const std::array<double, 4>& fallback) const {
         if (!has_parameter(name))
             return fallback;
         const auto values = get_parameter(name).as_double_array();
@@ -136,12 +135,6 @@ private:
             result[i] = values[i];
         }
         return result;
-    }
-
-    void publish_safe_targets_() {
-        for (std::size_t i = 0; i < leg_target_.size(); ++i)
-            *leg_target_[i] = safe_leg_position_[i];
-        publish_wheel_zero_();
     }
 
     void publish_hold_targets_() {
@@ -184,7 +177,6 @@ private:
 
     double action_scale_ = 0.25;
     double wheel_velocity_scale_ = 10.0;
-    double invalid_action_ = 0.0;
     std::size_t last_reset_count_ = 0;
 };
 
@@ -192,5 +184,4 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-    rmcs_core::controller::chassis::WheelLegRlConsumer, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::WheelLegRlConsumer, rmcs_executor::Component)

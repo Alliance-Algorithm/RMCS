@@ -62,11 +62,8 @@ public:
             throw std::invalid_argument("WheelLegJointVelocityController: invalid parameter");
     }
 
-    void update() override { update_at(Clock::now()); }
-
-    // Use the same component in an offline, deterministic physics simulation.
-    // The runtime entry above always supplies the real steady clock.
-    void update_at(Clock::time_point now) {
+    void update() override {
+        const auto now = Clock::now();
         const bool reset = reset_count_.ready() && *reset_count_ != last_reset_count_;
         if (reset)
             last_reset_count_ = *reset_count_;

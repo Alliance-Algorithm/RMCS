@@ -79,8 +79,7 @@ struct WheelLegPairVelocityConfig {
     double max_difference = WheelLegJointPairGeometry::kDefaultMaxDifference;
 };
 
-// Shared by the RMCS component and the PhysX harness. No position reference
-// advances independently while the hardware cannot follow it.
+// Compute both motor velocities on the same mechanical branch from measured feedback.
 inline WheelLegJointPair wheel_leg_pair_velocity(
     WheelLegJointPairGeometry::Side side, const WheelLegPairPose& measured,
     const WheelLegPairPose& target, const WheelLegJointPair& previous,

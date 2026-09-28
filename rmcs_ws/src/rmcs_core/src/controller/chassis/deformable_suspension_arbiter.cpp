@@ -18,66 +18,70 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        joint_base_path_ = get_parameter_or<std::string>("joint_base_path", "/chassis");
-        joint_suffix_ = get_parameter_or<std::string>("joint_suffix", "_joint");
-        rl_base_ = get_parameter_or<std::string>("rl_base", "/chassis/rl");
+        const auto joint_base_path = get_parameter_or<std::string>("joint_base_path", "/chassis");
+        const auto joint_suffix = get_parameter_or<std::string>("joint_suffix", "_joint");
+        const auto rl_base = get_parameter_or<std::string>("rl_base", "/chassis/rl");
 
-        traditional_angle_suffix_ = get_parameter_or<std::string>(
+        const auto traditional_angle_suffix = get_parameter_or<std::string>(
             "traditional_angle_suffix", "/traditional_target_physical_angle");
-        traditional_velocity_suffix_ = get_parameter_or<std::string>(
+        const auto traditional_velocity_suffix = get_parameter_or<std::string>(
             "traditional_velocity_suffix", "/traditional_target_physical_velocity");
-        traditional_acceleration_suffix_ = get_parameter_or<std::string>(
+        const auto traditional_acceleration_suffix = get_parameter_or<std::string>(
             "traditional_acceleration_suffix", "/traditional_target_physical_acceleration");
-        traditional_error_suffix_ = get_parameter_or<std::string>(
+        const auto traditional_error_suffix = get_parameter_or<std::string>(
             "traditional_error_suffix", "/traditional_control_angle_error");
 
-        rl_angle_suffix_ =
+        const auto rl_angle_suffix =
             get_parameter_or<std::string>("rl_angle_suffix", "/rl_target_physical_angle");
-        rl_velocity_suffix_ =
+        const auto rl_velocity_suffix =
             get_parameter_or<std::string>("rl_velocity_suffix", "/rl_target_physical_velocity");
-        rl_acceleration_suffix_ = get_parameter_or<std::string>(
+        const auto rl_acceleration_suffix = get_parameter_or<std::string>(
             "rl_acceleration_suffix", "/rl_target_physical_acceleration");
-        rl_error_suffix_ =
+        const auto rl_error_suffix =
             get_parameter_or<std::string>("rl_error_suffix", "/rl_control_angle_error");
 
-        output_angle_suffix_ =
+        const auto output_angle_suffix =
             get_parameter_or<std::string>("output_angle_suffix", "/target_physical_angle");
-        output_velocity_suffix_ =
+        const auto output_velocity_suffix =
             get_parameter_or<std::string>("output_velocity_suffix", "/target_physical_velocity");
-        output_acceleration_suffix_ = get_parameter_or<std::string>(
+        const auto output_acceleration_suffix = get_parameter_or<std::string>(
             "output_acceleration_suffix", "/target_physical_acceleration");
-        output_error_suffix_ =
+        const auto output_error_suffix =
             get_parameter_or<std::string>("output_error_suffix", "/control_angle_error");
 
+        const auto joint_path = [&](std::size_t corner, const std::string& suffix) {
+            return joint_base_path + "/" + kJointName[corner] + joint_suffix + suffix;
+        };
+
         register_input("/chassis/active_suspension/active", active_suspension_);
-        register_input(rl_base_ + "/valid", valid_, false);
-        register_input(rl_base_ + "/healthy", healthy_, false);
+        register_input(rl_base + "/valid", valid_, false);
+        register_input(rl_base + "/healthy", healthy_, false);
         register_input("/chassis/deformable/reset_count", reset_count_);
-        register_output("/chassis/deformable/rl_suspension_authoritative", rl_authoritative_, false);
+        register_output(
+            "/chassis/deformable/rl_suspension_authoritative", rl_authoritative_, false);
 
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             register_input(
-                joint_path_(corner, traditional_angle_suffix_), traditional_angle_[corner]);
+                joint_path(corner, traditional_angle_suffix), traditional_angle_[corner]);
             register_input(
-                joint_path_(corner, traditional_velocity_suffix_), traditional_velocity_[corner],
+                joint_path(corner, traditional_velocity_suffix), traditional_velocity_[corner],
                 false);
             register_input(
-                joint_path_(corner, traditional_acceleration_suffix_),
+                joint_path(corner, traditional_acceleration_suffix),
                 traditional_acceleration_[corner], false);
             register_input(
-                joint_path_(corner, traditional_error_suffix_), traditional_error_[corner], false);
-            register_input(joint_path_(corner, rl_angle_suffix_), rl_angle_[corner], false);
-            register_input(joint_path_(corner, rl_velocity_suffix_), rl_velocity_[corner], false);
+                joint_path(corner, traditional_error_suffix), traditional_error_[corner], false);
+            register_input(joint_path(corner, rl_angle_suffix), rl_angle_[corner], false);
+            register_input(joint_path(corner, rl_velocity_suffix), rl_velocity_[corner], false);
             register_input(
-                joint_path_(corner, rl_acceleration_suffix_), rl_acceleration_[corner], false);
-            register_input(joint_path_(corner, rl_error_suffix_), rl_error_[corner], false);
-            register_output(joint_path_(corner, output_angle_suffix_), output_angle_[corner], nan_);
+                joint_path(corner, rl_acceleration_suffix), rl_acceleration_[corner], false);
+            register_input(joint_path(corner, rl_error_suffix), rl_error_[corner], false);
+            register_output(joint_path(corner, output_angle_suffix), output_angle_[corner], kNaN);
             register_output(
-                joint_path_(corner, output_velocity_suffix_), output_velocity_[corner], nan_);
+                joint_path(corner, output_velocity_suffix), output_velocity_[corner], kNaN);
             register_output(
-                joint_path_(corner, output_acceleration_suffix_), output_acceleration_[corner],
-                nan_);
-            register_output(joint_path_(corner, output_error_suffix_), output_error_[corner], nan_);
+                joint_path(corner, output_acceleration_suffix), output_acceleration_[corner], kNaN);
+            register_output(joint_path(corner, output_error_suffix), output_error_[corner], kNaN);
         }
     }
 
@@ -88,19 +92,19 @@ public:
             healthy_.make_and_bind_directly(0.0);
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             if (!traditional_velocity_[corner].ready())
-                traditional_velocity_[corner].make_and_bind_directly(nan_);
+                traditional_velocity_[corner].make_and_bind_directly(kNaN);
             if (!traditional_acceleration_[corner].ready())
-                traditional_acceleration_[corner].make_and_bind_directly(nan_);
+                traditional_acceleration_[corner].make_and_bind_directly(kNaN);
             if (!traditional_error_[corner].ready())
-                traditional_error_[corner].make_and_bind_directly(nan_);
+                traditional_error_[corner].make_and_bind_directly(kNaN);
             if (!rl_angle_[corner].ready())
-                rl_angle_[corner].make_and_bind_directly(nan_);
+                rl_angle_[corner].make_and_bind_directly(kNaN);
             if (!rl_velocity_[corner].ready())
-                rl_velocity_[corner].make_and_bind_directly(nan_);
+                rl_velocity_[corner].make_and_bind_directly(kNaN);
             if (!rl_acceleration_[corner].ready())
-                rl_acceleration_[corner].make_and_bind_directly(nan_);
+                rl_acceleration_[corner].make_and_bind_directly(kNaN);
             if (!rl_error_[corner].ready())
-                rl_error_[corner].make_and_bind_directly(nan_);
+                rl_error_[corner].make_and_bind_directly(kNaN);
         }
         last_reset_count_ = *reset_count_;
         publish_nan_outputs_();
@@ -116,8 +120,8 @@ public:
             authority_initialized_ = false;
         }
 
-        const bool use_rl = *active_suspension_ && *valid_ > 0.5 && *healthy_ > 0.5
-                         && rl_targets_finite_();
+        const bool use_rl =
+            *active_suspension_ && *valid_ > 0.5 && *healthy_ > 0.5 && rl_targets_finite_();
         *rl_authoritative_ = use_rl;
 
         if (!authority_initialized_ || use_rl != last_rl_authoritative_) {
@@ -150,11 +154,7 @@ private:
         "right_back",
         "right_front",
     };
-    static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
-
-    std::string joint_path_(std::size_t corner, const std::string& suffix) const {
-        return joint_base_path_ + "/" + kJointName[corner] + joint_suffix_ + suffix;
-    }
+    static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
     bool rl_targets_finite_() const {
         for (std::size_t corner = 0; corner < kCornerCount; ++corner)
@@ -165,10 +165,10 @@ private:
 
     void publish_nan_outputs_() {
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
-            *output_angle_[corner] = nan_;
-            *output_velocity_[corner] = nan_;
-            *output_acceleration_[corner] = nan_;
-            *output_error_[corner] = nan_;
+            *output_angle_[corner] = kNaN;
+            *output_velocity_[corner] = kNaN;
+            *output_acceleration_[corner] = kNaN;
+            *output_error_[corner] = kNaN;
         }
     }
 
@@ -190,22 +190,6 @@ private:
     std::array<OutputInterface<double>, kCornerCount> output_velocity_;
     std::array<OutputInterface<double>, kCornerCount> output_acceleration_;
     std::array<OutputInterface<double>, kCornerCount> output_error_;
-
-    std::string joint_base_path_;
-    std::string joint_suffix_;
-    std::string rl_base_;
-    std::string traditional_angle_suffix_;
-    std::string traditional_velocity_suffix_;
-    std::string traditional_acceleration_suffix_;
-    std::string traditional_error_suffix_;
-    std::string rl_angle_suffix_;
-    std::string rl_velocity_suffix_;
-    std::string rl_acceleration_suffix_;
-    std::string rl_error_suffix_;
-    std::string output_angle_suffix_;
-    std::string output_velocity_suffix_;
-    std::string output_acceleration_suffix_;
-    std::string output_error_suffix_;
 
     std::size_t last_reset_count_ = 0;
     bool last_rl_authoritative_ = false;
