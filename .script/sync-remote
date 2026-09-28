@@ -4,7 +4,6 @@ import socket
 import selectors
 import os
 import subprocess
-import time
 
 from colorama import Fore, Style
 
@@ -18,8 +17,6 @@ SYNC_FLAG = b"Nothing to do:"
 COLORED_SYNC_FLAG = (
     f"{Fore.LIGHTGREEN_EX}{Style.BRIGHT}Nothing to do{Style.RESET_ALL}:".encode("ascii")
 )
-
-PRUNE_INTERVAL_SECONDS = 5
 
 
 def prune_dangling_symlinks(root):
@@ -93,7 +90,6 @@ def main():
 
     clients = []
     ready = False
-    last_prune = time.monotonic()
 
     try:
         while True:
@@ -116,10 +112,6 @@ def main():
                     else:
                         ready = False
                     os.write(1, stdout)
-            now = time.monotonic()
-            if now - last_prune >= PRUNE_INTERVAL_SECONDS:
-                last_prune = now
-                prune_dangling_symlinks(SRC_DIR)
             if process.poll() is not None:
                 break
     except KeyboardInterrupt:
