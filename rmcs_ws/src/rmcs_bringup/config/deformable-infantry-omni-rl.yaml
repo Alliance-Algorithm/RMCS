@@ -41,28 +41,6 @@ rmcs_executor:
       - rmcs_rl::RlBridge -> rl_bridge
       - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs_core::debug::ValueCollector -> value_collector
-
-value_collector:
-  ros__parameters:
-    csv_path: "/tmp/pitch_<timestamp>.csv"
-    signals:
-      - /gimbal/pitch/angle
-      - /gimbal/pitch/velocity
-      - /gimbal/pitch/velocity_imu
-      - /gimbal/pitch/angle_error
-      - /gimbal/pitch/control_torque
-      - /gimbal/pitch/control_velocity
-    write_interval: 5
-    flush_interval: 1000
-
-value_broadcaster:
-  ros__parameters:
-    forward_list:
-      - /gimbal/pitch/angle
-      - /gimbal/pitch/velocity
-
 auto_aim_recorder:
   ros__parameters:
     output_path: "/autoaim/recoder"

@@ -32,10 +32,9 @@ g_RL     = inverse(normalize(q_WB)) * [0,0,-1]
 
 35 维策略观测中的第 4–6 项（从 0 计数）为 `0.5 * omega_Body`，第 7–9 项为 `g_Body`。例如 Body 角速度 `[1,2,3]` 在 RL 接口仍是 `[1,2,3]`，策略观测为 `[0.5,1,1.5]`。策略不使用线加速度或完整四元数作为观测。
 
-两个 YAML 都加载 `rmcs_core::controller::chassis::WheelLegRlImu -> wheel_leg_rl_imu`，并通过 `take=vec3` 读取 RL 角速度与重力接口：
+车辆 YAML 加载 `rmcs_core::controller::chassis::WheelLegRlImu -> wheel_leg_rl_imu`，并通过 `take=vec3` 读取 RL 角速度与重力接口：
 
 - `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml`
-- `rmcs_ws/src/rmcs_rl/config/executor.yaml`
 
 通用 `RlBridge` 的 `transform=projected_gravity` 按输入四元数直接乘重力；本车使用上面的向量接口，绕开该分支。无效输入会令两路 RL 输出为 NaN，避免沿用旧的有效观测。`/chassis/reset_count` 继续由桥清除观测历史及动作状态。
 
@@ -76,13 +75,15 @@ OMNI_KIT_ACCEPT_EULA=YES /home/noir/miniconda3/envs/isaaclab/bin/python rmcs_ws/
 
 此前带 90° 安装矩阵的对照只验证了那一假设下的软件一致性；不能证明训练观测必须换轴。当前参考按用户确认的 Body 观测约定重新生成，未修改训练代码或 USD。仿真与软件测试不等于实车姿态对照。
 
-本次验证：`rmcs_core`、`rmcs_bringup` 完整构建通过；C++ IMU/chassis 测试 7 项、查看器测试 7 项均通过；两份 YAML 的 ONNX 契约与有限值推理通过。12 个 Isaac 姿态与 C++ 输出对照的重力最大分量误差为 `4.76837e-7`，角速度最大分量误差为 `1.14441e-6 rad/s`。
+本次验证：`rmcs_core`、`rmcs_bringup` 完整构建通过；C++ IMU/chassis 测试 7 项、查看器测试 7 项均通过；当时两份 YAML 的 ONNX 契约与有限值推理通过。12 个 Isaac 姿态与 C++ 输出对照的重力最大分量误差为 `4.76837e-7`，角速度最大分量误差为 `1.14441e-6 rad/s`。
 
 ## 部署
 
 重新编译并重启实车 RMCS，以更新观测组件和遥测 TF；同步更新本机查看器。观测接口路径、维数和缩放保持一致，ONNX 图及权重无需修改：
 
 - `layout_hash = 0xec4b460a8c38acc7`
-- `model_id = 0xd4612f6cd48a6e9c`
+- 当前模型路径与 `expected_model_id` 见车辆 YAML
 
-两份 YAML 可分别用 `rmcs_ws/src/rmcs_rl/tool/check_policy_contract.py` 校验。布局哈希只描述接口布局，不能验证接口数值的坐标语义，因此部署时必须包含修正后的 `rmcs_core`。
+车辆 YAML 可用 `rmcs_ws/src/rmcs_rl/tool/check_policy_contract.py` 校验。
+布局哈希只描述接口布局，不能验证接口数值的坐标语义；模型 ID 以当前模型文件和车辆 YAML 为准。
+旧的 `rmcs_rl/config/executor.yaml` 示例已移除，避免维护两份车辆配置。
