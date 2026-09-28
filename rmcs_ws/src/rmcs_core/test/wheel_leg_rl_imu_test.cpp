@@ -15,32 +15,14 @@
 #include <gtest/gtest.h>
 #include <rclcpp/rclcpp.hpp>
 
-#include "controller/chassis/wheel_leg_chassis_controller.cpp"
-#include "controller/chassis/wheel_leg_rl_imu.cpp"
+#include "component_fixture.hpp"
 #include "filter/imu_ekf.hpp"
 #include "hardware/device/bmi088_ekf.hpp"
-
-namespace rmcs_executor {
-// Offline interface graph, following wheel_leg_dm_sim_bridge. No board or
-// executor thread is constructed; both the control and policy sinks are bound.
-class Executor {
-public:
-    static void pair(std::span<Component*> components) {
-        std::map<std::string, Component::OutputDeclaration*> outputs;
-        for (auto* component : components)
-            for (auto& output : component->output_list_)
-                if (!outputs.emplace(output.name, &output).second)
-                    throw std::runtime_error("duplicate test output " + output.name);
-        for (auto* component : components)
-            for (auto& input : component->input_list_) {
-                const auto output = outputs.find(input.name);
-                if (output == outputs.end() || input.type != output->second->type)
-                    throw std::runtime_error("unpaired test input " + input.name);
-                input.bind(input.binding, output->second->binding);
-            }
-    }
-};
-} // namespace rmcs_executor
+#include <pluginlib/class_loader.hpp>
+#include <rmcs_description/tf_description.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace {
 using Component = rmcs_executor::Component;
@@ -82,7 +64,10 @@ protected:
     }
 
     ImuSource source;
-    rmcs_core::controller::chassis::WheelLegRlImu transform;
+    pluginlib::ClassLoader<Component> loader_{"rmcs_executor", "rmcs_executor::Component"};
+    std::shared_ptr<Component> transform_owner_ =
+        loader_.createSharedInstance("rmcs_core::controller::chassis::WheelLegRlImu");
+    Component& transform = *transform_owner_;
     ImuSink sink;
 };
 
@@ -102,9 +87,12 @@ TEST_F(WheelLegRlImuTest, ProjectsWorldDownUsingTheActualEkfConvention) {
     // At rest, accelerometer specific force is opposite to gravity. These
     // cover level, roll, pitch, combined tilt, side-on and inverted poses.
     const std::array<Vec3, 6> accelerations{
-        Vec3{0, 0, 1}, Vec3{0, 0.5, 0.8660254037844386},
-        Vec3{-0.5, 0, 0.8660254037844386}, Vec3{1, 2, 3}.normalized(),
-        Vec3{1, 0, 0}, Vec3{0, 0, -1}};
+        Vec3{0, 0, 1},
+        Vec3{0, 0.5, 0.8660254037844386},
+        Vec3{-0.5, 0, 0.8660254037844386},
+        Vec3{1, 2, 3}.normalized(),
+        Vec3{1, 0, 0},
+        Vec3{0, 0, -1}};
     for (const auto& accel : accelerations) {
         // Changing world yaw must not rotate local projected gravity.
         for (const double yaw : {-2.2, 0.0, 1.4}) {
@@ -180,7 +168,9 @@ protected:
 
 TEST_F(WheelLegChassisImuTest, HeadingAndPolicyBothUseBodyAxes) {
     Component::initializing_component_name = "wheel_leg_chassis_imu_test";
-    rmcs_core::controller::chassis::WheelLegChassisController chassis;
+    auto chassis_owner =
+        loader_.createSharedInstance("rmcs_core::controller::chassis::WheelLegChassisController");
+    auto& chassis = *chassis_owner;
     RemoteSource remote;
     ChassisCommandSink commands;
     std::array<Component*, 6> components{&source, &transform, &sink, &remote, &chassis, &commands};
@@ -293,7 +283,8 @@ TEST_F(WheelLegRlImuTest, MatchesIsaacBodyImuAtKnownPhysicalPoses) {
                 *source.orientation = Eigen::Quaterniond{qw, qx, qy, qz};
             }
             transform.update();
-            const double gravity_error = (*sink.policy_gravity - isaac_gravity).cwiseAbs().maxCoeff();
+            const double gravity_error =
+                (*sink.policy_gravity - isaac_gravity).cwiseAbs().maxCoeff();
             const double gyro_error = (*sink.policy_gyro - isaac_gyro).cwiseAbs().maxCoeff();
             max_gravity_error = std::max(max_gravity_error, gravity_error);
             max_gyro_error = std::max(max_gyro_error, gyro_error);
