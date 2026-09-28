@@ -19,6 +19,18 @@ COLORED_SYNC_FLAG = (
 )
 
 
+def prune_dangling_symlinks(root):
+    removed = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        for name in filenames + dirnames:
+            path = os.path.join(dirpath, name)
+            if os.path.islink(path) and not os.path.exists(path):
+                os.remove(path)
+                removed.append(path)
+                print(f"pruned dangling symlink: {path}", flush=True)
+    return removed
+
+
 def create_process():
     command = [
         "unison",
@@ -67,6 +79,8 @@ def finish_connection(conn: socket):
 
 def main():
     selector = selectors.DefaultSelector()
+
+    prune_dangling_symlinks(SRC_DIR)
 
     process, pipe_stdout = create_process()
     selector.register(pipe_stdout, selectors.EVENT_READ, data=None)
