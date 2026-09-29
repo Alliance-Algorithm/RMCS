@@ -1,0 +1,101 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+      - rmcs_core::controller::identification::WheelLegWheelIdentificationController -> wheel_leg_wheel_identification_controller
+      - rmcs_core::controller::identification::WheelLegIdentificationRecorder -> wheel_leg_identification_recorder
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+wheel_leg:
+  ros__parameters:
+    board_serial: ""
+    require_enable_request: true
+    joint_control_mode: "torque"
+    allow_set_zero: false
+    # The wheel-only graph holds all four DM drives disabled.
+    dm_master_ids: [1, 2, 1, 2]
+    dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
+    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
+    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
+    dm_control_torque_max: [2.0, 2.0, 2.0, 2.0]
+
+wheel_leg_wheel_identification_controller:
+  ros__parameters:
+    # Both wheels are M3508 (CAN0, IDs 1/2); DjiMotor already divides angular
+    # speed by the installed 15.8 ratio and reports output-shaft rad/s / Nm.
+    # Body supported, legs airborne: no assumption that wheel carriers are fixed.
+    trajectory_revision: "wheel_multiband_v2"
+    control_frequency_hz: 1000.0
+    reference_frequency_hz: 50.0
+    wheel_low_speeds: [0.2, 0.5, 1.0]
+    wheel_speeds: [2.0, 5.0, 10.0, 20.0, 30.0]
+    wheel_ramp_s: 1.0
+    wheel_hold_s: 2.0
+    wheel_coast_s: 4.0
+    wheel_step_hold_s: 1.0
+    wheel_step_repetitions: 2
+    wheel_chirp_s: 12.0
+    wheel_validation_s: 12.0
+    # Intermediate-gain trial between measured Kp=0.2 and reference Kp=0.6.
+    # Keep the reference +/-4.5 Nm cap and the identical trajectory for comparison.
+    wheel_velocity_kp: 0.4   # Nm / (output-shaft rad/s); candidate, not released gains
+    wheel_velocity_ki: 0.0
+    wheel_velocity_kd: 0.0
+    wheel_feedforward: 0.0
+    wheel_reduction_ratio: 15.8
+    wheel_current_limit_a: 18.230894198876328
+    # Reference output cap converted through installed 15.8 ratio; driver full
+    # scale remains 20 A / 4.936675 Nm. Neither is a measured shaft torque rating.
+    wheel_torque_cap: 4.5
+    wheel_feedback_speed_cap: 40.0
+    arm_dwell_s: 0.5
+    feedback_timeout_s: 0.03
+    max_tick_gap_s: 0.02
+    # Coast=ESC still powered, commanded zero current. An actual ESC-disable
+    # glide is NOT provided by the M3508 0x200 current command interface.
+
+wheel_leg_identification_recorder:
+  ros__parameters:
+    side: "left" # label only; per-segment axis_scale in archived trajectory-plan.json
+    experiment_kind: "wheel"
+    trajectory_revision: "wheel_multiband_v2"
+    record_on_double_middle: true
+    asset_manifest_sha256: "dbec8e586cf29d9540db7040b133b3ff1170c1c700ff05eda64d94d8561c3dec"
+    asset_path: "model/纯底盘_v5_232mm/urdf/manifest.json"
+    gas_springs_installed: true
+    support_fixture: "rigid_fixed_frame"
+    wheels_off_ground: true
+    initial_pose_provenance: "body supported, complete legs airborne; DM disabled; carrier q/dq recorded, not assumed fixed"
+    control_contract: "50 Hz ZOH output-shaft speed reference; 1 kHz P from archived runtime gains; M3508 C620 0x200 current; inactive wheel zero current; DM disabled"
+    feedback_filter: "motor latest CAN frame (no software lowpass); IMU BMI088 EKF"
+    feedback_frequency: "asynchronous per-motor CAN sequence/timestamps; derive actual Hz from MCAP"
+    control_frequency_hz: 1000.0
+    reference_frequency_hz: 50.0
+    sample_frequency_hz: 1000.0
+    bus_voltage_source: "not bound on this board: NaN means unavailable"
+    dm_feedback_torque_source: "DM driver MIT torque report, estimate, not load cell"
+    wheel_feedback_torque_source: "M3508 reported motor current via installed 15.8 reduction"
+    motor_feedback_reference: "DM reducer-output Nm assumed pending scale check; M3508 wheel-output Nm after 15.8"
+    api_motor_reversed: [true, true, true, true]
+    wheel_motor_reversed: [true, true]
+    wheel_reduction_ratio: 15.8
+    encoder_zero_inner_knee_deg: 105.0
+
+value_broadcaster:
+  ros__parameters:
+    update_rate: 100.0
+    forward_list:
+      - /wheel_leg/identification/phase
+      - /wheel_leg/identification/segment_id
+      - /wheel_leg/identification/segment_waveform
+      - /wheel_leg/identification/segment_role
+      - /wheel_leg/identification/wheel_mode
+      - /wheel_leg/left_wheel/control_velocity
+      - /wheel_leg/right_wheel/control_velocity
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/left_wheel/torque
+      - /wheel_leg/right_wheel/torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/right_wheel/control_torque

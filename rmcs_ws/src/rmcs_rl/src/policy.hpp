@@ -9,6 +9,28 @@
 
 namespace rmcs::rl {
 
+// Contract of the bundled v5_flat_12486 ONNX, not the current V6 training
+// contract. A 35D tensor alone cannot identify observation or actuator semantics.
+// See docs/zh-cn/wheel_leg_refactoring_20260929.md for the version boundary.
+struct DeployedPolicyContract {
+    static constexpr double kPolicyFrequencyHz = 50.0;
+    static constexpr double kControlFrequencyHz = 200.0;
+    static constexpr double kPolicyPeriodSeconds = 1.0 / kPolicyFrequencyHz;
+    static constexpr double kControlPeriodSeconds = 1.0 / kControlFrequencyHz;
+    static constexpr double kNominalHeight = 0.305;
+    static constexpr double kLegKp = 60.0;
+    static constexpr double kLegKd = 2.0;
+    static constexpr double kLegTorqueLimit = 40.0;
+    static constexpr double kWheelKp = 0.2;
+    static constexpr float kLegActionLimit = 3.0f;
+    static constexpr float kWheelActionLimit = 9.0f;
+    static constexpr double kLegActionScale = 0.25;
+    static constexpr double kWheelActionScale = 10.0;
+    static constexpr double kWheelSpeedLimit = kWheelActionScale * kWheelActionLimit;
+    static constexpr std::array<double, 6> kNominalPosition{
+        0.42, -0.13742282595254576, -0.42, 0.13741557625658019, 0.0, 0.0};
+};
+
 struct ObservationLayout {
     static constexpr std::size_t kCommand = 0;
     static constexpr std::size_t kHeight = kCommand + 3;

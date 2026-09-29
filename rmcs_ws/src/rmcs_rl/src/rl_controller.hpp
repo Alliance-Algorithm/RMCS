@@ -1,10 +1,14 @@
 #pragma once
 
+#include "control_interval.hpp"
 #include "policy.hpp"
+#include "recovery_controller.hpp"
+#include "recovery_observer.hpp"
 
 #include <array>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <optional>
@@ -37,6 +41,8 @@ class RlController final
     , public rmcs_utility::NodeMixin {
 public:
     RlController();
+    ~RlController() override = default;
+
     void before_updating() override;
     void update() override;
 
@@ -44,16 +50,21 @@ private:
     using Clock = std::chrono::steady_clock;
     using Vector6 = Eigen::Matrix<double, 6, 1>;
 
-    bool read_model_state_();
-    bool assemble_observation_();
-    std::expected<void, std::string> process_action_(const PolicyAction& raw);
-    void compute_motor_torques_();
-    void apply_soft_limits_(Eigen::Vector4d& leg_torque) const;
-    void clear_outputs_();
     void enter_(State next);
+    void latch_fault_(std::optional<RecoveryFailure> reason = std::nullopt);
+    bool advance_recovery_();
+    bool evaluate_policy_(std::size_t tick, bool recovering);
+    void clear_outputs_();
+    void update_state_output_();
+    bool read_model_state_();
+    std::optional<RecoveryFeedback> observe_recovery_();
     bool update_prepare_();
     void update_command_reference_();
-    void update_state_output_();
+    bool assemble_observation_(bool shadow_recovery = false);
+    std::expected<void, std::string>
+        process_action_(const PolicyAction& raw, bool shadow_recovery = false);
+    void compute_motor_torques_();
+    void apply_soft_limits_(Eigen::Vector4d& leg_torque) const;
 
     std::array<InputInterface<double>, 6> angle_inputs_;
     std::array<InputInterface<double>, 6> velocity_inputs_;
@@ -61,6 +72,8 @@ private:
     std::array<InputInterface<double>, 6> torque_feedback_inputs_;
     std::array<OutputInterface<double>, 6> torque_outputs_;
     std::array<InputInterface<int>, 4> fault_inputs_;
+    std::array<InputInterface<std::uint64_t>, 4> leg_feedback_sequences_;
+    std::array<InputInterface<std::uint64_t>, 4> leg_feedback_ns_;
     InputInterface<bool> feedback_fresh_;
     InputInterface<Eigen::Quaterniond> orientation_;
     InputInterface<Eigen::Vector3d> gyro_;
@@ -74,7 +87,16 @@ private:
     InputInterface<std::size_t> update_count_;
     InputInterface<double> update_rate_;
     InputInterface<Clock::time_point> timestamp_;
+    InputInterface<bool> dm_control_ready_;
+    InputInterface<Eigen::Vector3d> acceleration_;
+    InputInterface<std::uint64_t> acceleration_ns_;
     OutputInterface<int> state_output_;
+    OutputInterface<bool> enable_request_;
+    OutputInterface<int> recovery_phase_output_;
+    OutputInterface<int> recovery_failure_output_;
+    OutputInterface<bool> recovery_support_output_;
+    OutputInterface<bool> recovery_geometry_output_;
+    OutputInterface<bool> recovery_motion_hold_output_;
     OutputInterface<double> inference_time_us_;
     OutputInterface<double> pd_time_us_;
     std::array<OutputInterface<double>, ObservationLayout::kSize> observation_outputs_;
@@ -86,8 +108,7 @@ private:
     Eigen::Matrix4d leg_jacobian_ = Eigen::Matrix4d::Zero();
     Eigen::Vector4d leg_offset_ = Eigen::Vector4d::Zero();
     Eigen::Vector2d wheel_scale_ = Eigen::Vector2d::Ones();
-    std::array<double, 6> nominal_{0.42, -0.13742282595254576, -0.42, 0.13741557625658019, 0.0,
-                                   0.0};
+    std::array<double, 6> nominal_ = DeployedPolicyContract::kNominalPosition;
     std::array<double, 4> hinge_coeff_{}; // [left_hip, left_knee, right_hip, right_knee]
     std::array<double, 2> hinge_bias_{};
     std::array<double, 2> hinge_min_{};
@@ -100,33 +121,58 @@ private:
     bool auto_enter_rl_ = false;
     bool fault_latched_ = false;
     bool timing_ready_ = false;
+    bool recovery_enabled_ = false;
+    bool recovery_profile_ready_ = false;
+    bool recovery_started_ = false;
+    bool policy_targets_valid_ = false;
+    bool motor_feedback_initialized_ = false;
+    // IMU body axes -> frozen policy base_link. The source CAD's +90 degree
+    // yaw was already applied when exporting the X-forward training asset.
     Eigen::Matrix3d imu_to_base_ = Eigen::Matrix3d::Identity();
 
     Vector6 q_ = Vector6::Zero();
     Vector6 dq_ = Vector6::Zero();
+    std::array<std::uint64_t, 4> previous_motor_sequence_{};
+    std::array<std::uint64_t, 4> previous_motor_sample_ns_{};
+    std::array<double, 4> previous_motor_angle_{};
+    std::array<double, 4> recovery_dm_feedback_position_max_{};
     Vector6 targets_ = Vector6::Zero();
+    Vector6 policy_targets_ = Vector6::Zero();
+    RecoveryController recovery_;
+    RecoveryPeakBudget recovery_peak_budget_;
+    RecoveryCommand recovery_command_;
+    std::optional<RecoveryObserver> recovery_observer_;
+    RecoveryFeedback last_recovery_feedback_;
+    RecoveryFailure recovery_failure_latched_ = RecoveryFailure::kNone;
     PolicyObservation observation_{};
     PolicyAction previous_action_{};
     std::size_t last_reset_count_ = 0;
     std::size_t last_policy_tick_ = 0;
-    std::size_t last_pd_tick_ = 0;
+    std::optional<std::size_t> last_pd_tick_;
     std::size_t policy_divisor_ = 20;
     std::size_t pd_divisor_ = 5;
     State state_ = State::kInit;
     Clock::time_point jump_start_{};
     Clock::time_point rl_start_{};
+    Clock::time_point enable_wait_start_{};
+    Clock::time_point recovery_update_time_{};
+    Clock::time_point recovery_rl_start_{};
+    ControlInterval recovery_interval_;
+    ControlInterval recovery_actuation_interval_;
+    double recovery_dt_ = DeployedPolicyContract::kControlPeriodSeconds;
     Clock::time_point height_start_{};
     std::optional<Clock::time_point> prepare_stable_since_;
     bool jump_was_requested_ = false;
     double vx_reference_ = 0.0;
     double yaw_reference_ = 0.0;
-    double height_reference_ = 0.305;
-    double height_from_ = 0.305;
-    double height_target_ = 0.305;
+    double recovery_upright_seconds_ = 0.0;
+    double height_reference_ = DeployedPolicyContract::kNominalHeight;
+    double height_from_ = DeployedPolicyContract::kNominalHeight;
+    double height_target_ = DeployedPolicyContract::kNominalHeight;
     double height_transition_seconds_ = 6.0;
     double wheel_radius_ = 0.06;
     double wheel_track_ = 0.4373;
-    double inference_frequency_ = 50.0;
+    double inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;
     double prepare_kp_ = 80.0;
     double prepare_kd_ = 2.0;
     double prepare_max_velocity_ = 1.0;
@@ -136,6 +182,9 @@ private:
     double prepare_max_joint_velocity_ = 0.5;
     double prepare_stable_seconds_ = 0.25;
     double hinge_margin_ = 0.03;
+    double recovery_dm_rated_output_rpm_ = 100.0;
+    double recovery_dm_rated_torque_nm_ = 20.0;
+    double recovery_dm_peak_torque_nm_ = 40.0;
 };
 
 } // namespace rmcs::rl

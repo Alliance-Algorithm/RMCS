@@ -1,0 +1,54 @@
+{
+  "verified_utc_unix_s": 1790604426.107075,
+  "topic": "/wheel_leg/identification/sample",
+  "publisher": "wheel_leg_identification_recorder",
+  "recorder": "rosbag2_recorder",
+  "subscribed": true,
+  "paused": false,
+  "runtime_parameters": {
+    "trajectory_revision": "wheel_multiband_v2",
+    "control_frequency_hz": 1000.0,
+    "reference_frequency_hz": 50.0,
+    "wheel_low_speeds": [
+      0.2,
+      0.5,
+      1.0
+    ],
+    "wheel_speeds": [
+      2.0,
+      5.0,
+      10.0,
+      20.0,
+      30.0
+    ],
+    "wheel_ramp_s": 1.0,
+    "wheel_hold_s": 2.0,
+    "wheel_coast_s": 4.0,
+    "wheel_step_hold_s": 1.0,
+    "wheel_step_repetitions": 2,
+    "wheel_chirp_s": 12.0,
+    "wheel_validation_s": 12.0,
+    "wheel_velocity_kp": 0.4,
+    "wheel_velocity_ki": 0.0,
+    "wheel_velocity_kd": 0.0,
+    "wheel_feedforward": 0.0,
+    "wheel_reduction_ratio": 15.8,
+    "wheel_current_limit_a": 18.230894198876328,
+    "wheel_torque_cap": 4.5,
+    "wheel_feedback_speed_cap": 40.0,
+    "arm_dwell_s": 0.5,
+    "feedback_timeout_s": 0.03,
+    "max_tick_gap_s": 0.02
+  },
+  "runtime_recorder_parameters": {
+    "experiment_kind": "wheel",
+    "record_on_double_middle": true,
+    "trajectory_revision": "wheel_multiband_v2",
+    "control_frequency_hz": 1000.0,
+    "reference_frequency_hz": 50.0,
+    "sample_frequency_hz": 1000.0,
+    "wheel_reduction_ratio": 15.8,
+    "wheels_off_ground": true
+  },
+  "note": "Endpoint/service handshake; sample publication begins at both MIDDLE."
+}

@@ -1,0 +1,172 @@
+{
+  "source_run": "/tmp/right-pair-pd-loaded-20260928T144606Z",
+  "samples": 677743,
+  "axes": [
+    2,
+    3
+  ],
+  "controller": {
+    "side": "right",
+    "experiment_stage": "probe",
+    "probe_pattern": "multiband_chirp",
+    "probe_measured_delta_policy": "diagnostic",
+    "control_frequency_hz": 1000.0,
+    "control_law": "rl_pd",
+    "reference_frequency_hz": 50.0,
+    "dm_motor_family": "DM-J8009",
+    "dm_rated_torque_nm": 20.0,
+    "dm_peak_torque_nm": 40.0,
+    "hold_test_duration_s": 0.5,
+    "phase_api_angle": true,
+    "model_sign": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "model_offset": [
+      -1.6,
+      -2.93,
+      1.6,
+      2.93
+    ],
+    "max_speed": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "max_acceleration": [
+      80.0,
+      80.0,
+      80.0,
+      80.0
+    ],
+    "braking_acceleration": [
+      0.4,
+      0.4,
+      0.4,
+      0.4
+    ],
+    "max_torque": [
+      40.0,
+      40.0,
+      40.0,
+      40.0
+    ],
+    "pd_kp": [
+      160.0,
+      160.0,
+      160.0,
+      160.0
+    ],
+    "pd_kd": [
+      2.5,
+      2.5,
+      2.5,
+      2.5
+    ],
+    "gravity_feedforward_model": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "ki_velocity": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "integral_limit": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "multiband_load_offset": 0.2,
+    "multiband_validation_relative_scale": 3.0,
+    "multiband_common_hz": [
+      0.08,
+      0.75,
+      2.0,
+      6.0
+    ],
+    "multiband_relative_hz": [
+      0.1,
+      0.9,
+      2.5,
+      6.0
+    ],
+    "multiband_common_amplitude": [
+      1.0471975511965976,
+      0.32,
+      0.04
+    ],
+    "multiband_relative_amplitude": [
+      0.12,
+      0.08,
+      0.025
+    ],
+    "multiband_band_s": [
+      24.0,
+      16.0,
+      12.0
+    ],
+    "multiband_shape_offset": 0.04,
+    "multiband_eighth_turn_s": 0.8,
+    "multiband_dwell_s": 1.5,
+    "multiband_ramp_s": 2.0,
+    "multiband_common_step": 0.35,
+    "multiband_relative_step": 0.12,
+    "multiband_step_rise_s": 0.22,
+    "multiband_validation_s": 30.0,
+    "root_min": [
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0
+    ],
+    "root_max": [
+      100.0,
+      100.0,
+      100.0,
+      100.0
+    ],
+    "spring_delta_min": [
+      -1.42,
+      -0.16
+    ],
+    "spring_delta_max": [
+      0.16,
+      1.42
+    ],
+    "joint_margin": 0.05,
+    "spring_margin": 0.005,
+    "beta_margin_degrees": 5.0,
+    "max_position_error": [
+      0.2,
+      0.2,
+      0.2,
+      0.2
+    ],
+    "max_velocity_error": [
+      0.7,
+      0.7,
+      0.7,
+      0.7
+    ],
+    "max_measured_acceleration": [
+      30.0,
+      30.0,
+      30.0,
+      30.0
+    ],
+    "ready_timeout_s": 12.0,
+    "feedback_timeout_s": 0.05,
+    "max_tick_gap_s": 0.02,
+    "other_side_speed_limit": 0.1
+  },
+  "profile_sha256": "23dc0088283d659b60eccbbdc34245f083343aaaf81c8881e9de17ecf4ae796d",
+  "note": "Full-rate telemetry; no resampling, filtering or force reinterpretation."
+}

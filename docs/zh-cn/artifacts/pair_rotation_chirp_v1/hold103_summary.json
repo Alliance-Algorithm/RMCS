@@ -1,0 +1,51 @@
+{
+  "bag": "/root/identification_bags/left-pair-20260928T011836Z/bag",
+  "total_samples": 4185,
+  "last_run_samples": 1655,
+  "last_run_duration_s": 1.6539456270000001,
+  "all_running_segments": [
+    0
+  ],
+  "reference_variation_rad": [
+    0,
+    0
+  ],
+  "actual_motor_excursion_rad": [
+    0.026321812771801234,
+    0.05722133211261138
+  ],
+  "speed_min_rad_s": [
+    -2.142857142857146,
+    -4.076923076923073
+  ],
+  "speed_max_rad_s": [
+    2.6483516483516496,
+    4.18681318681319
+  ],
+  "command_min_nm": [
+    -20.0,
+    -20.0
+  ],
+  "command_max_nm": [
+    20.0,
+    20.0
+  ],
+  "terminal_model_delta_rad": -1.4154505226214997,
+  "configured_delta_low_rad": -1.415,
+  "mapping_command_report_correlation": {
+    "hip_to_hip": {
+      "correlation": 0.8959,
+      "lag_ms": 8
+    },
+    "aux_to_aux": {
+      "correlation": 0.9289,
+      "lag_ms": 7
+    }
+  },
+  "limitations": [
+    "Effective correlation lags in closed-loop oscillation are not isolated USB latency",
+    "Driver-reported torque is not a load-cell measurement",
+    "Bag contains an executor restart; diagnosis selects only the final run",
+    "Reference held for entire running interval; does not qualify full chirp or fitted dynamics"
+  ]
+}

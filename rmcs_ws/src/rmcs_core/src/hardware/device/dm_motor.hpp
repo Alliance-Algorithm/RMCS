@@ -49,8 +49,9 @@ public:
     enum class Type : uint8_t { kDM8009 }; // 如需其他型号在此扩展
 
     struct Config {
-        explicit Config(Type motor_type)
-            : motor_type(motor_type) {}
+        explicit Config(Type motor_type, std::uint8_t id = 1)
+            : motor_type(motor_type)
+            , id(id) {}
 
         Config& set_id(std::uint8_t id) { return this->id = id, *this; }
         Config& set_feedback_id(std::uint16_t feedback_id) {
@@ -58,8 +59,8 @@ public:
         }
         Config& set_reversed() { return reversed = true, *this; }
         Config& set_reversed(bool value) { return reversed = value, *this; }
-        /// angle_bias：电机角 → 策略角的偏置，策略角 = sign*(电机角 − angle_bias)（参考 XYEGA
-        /// 做法）
+        /// angle_bias is in the motor feedback frame; API angle = sign*(raw_angle - angle_bias).
+        /// Motor zero and the policy model's joint zero are separate calibrations.
         Config& set_angle_bias(double angle_bias) { return this->angle_bias = angle_bias, *this; }
         /// 设置 MIT 定标范围，必须与电机内寄存器（调试助手设定）一致
         Config& set_limits(double position_max, double velocity_max, double torque_max) {
@@ -71,14 +72,14 @@ public:
         }
 
         Type motor_type;
-        std::uint8_t id = 1;              // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
+        std::uint8_t id;                  // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
         std::uint16_t feedback_id = 0;    // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
         bool reversed = false;
         double angle_bias = 0.0;          // rad
         double position_max = 12.5;       // P_MAX [rad]，须与电机寄存器一致
         double velocity_max = 45.0;       // V_MAX [rad/s]，须与电机寄存器一致
         double torque_max = 54.0;         // T_MAX [Nm]，须与电机寄存器一致
-        double control_torque_max = 40.0; // 输出力矩限幅（峰值 40Nm）
+        double control_torque_max = 40.0; // 纯力矩与前馈上限；不限制电机内部位置 PD
     };
 
     static constexpr double kKpMax = 500.0;
@@ -92,28 +93,20 @@ public:
 
     DmMotor(
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
-        const std::string& name_prefix)
-        : status_component_(status_component)
-        , command_component_(command_component) {
-        status_component_.register_output(name_prefix + "/angle", angle_output_, 0.0);
-        status_component_.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
-        status_component_.register_output(name_prefix + "/torque", torque_output_, 0.0);
-        status_component_.register_output(
+        const std::string& name_prefix) {
+        status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
+        status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
+        status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
+        status_component.register_output(
             name_prefix + "/temperature_mos", temperature_mos_output_, 0.0);
-        status_component_.register_output(
+        status_component.register_output(
             name_prefix + "/temperature_rotor", temperature_rotor_output_, 0.0);
-        status_component_.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
-        status_component_.register_output(name_prefix + "/fault_code", fault_code_output_, 0);
-        status_component_.register_output(name_prefix + "/status_code", status_code_output_, 0);
+        status_component.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
+        status_component.register_output(name_prefix + "/fault_code", fault_code_output_, 0);
+        status_component.register_output(name_prefix + "/status_code", status_code_output_, 0);
 
-        // 模式 A：PC 侧 PD，纯扭矩下发
-        command_component_.register_input(name_prefix + "/control_torque", control_torque_, false);
-        // 模式 B（可选）：电机内环 PD 透传
-        command_component_.register_input(name_prefix + "/control_angle", control_angle_, false);
-        command_component_.register_input(
-            name_prefix + "/control_velocity", control_velocity_, false);
-        command_component_.register_input(name_prefix + "/control_kp", control_kp_, false);
-        command_component_.register_input(name_prefix + "/control_kd", control_kd_, false);
+        command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
+        command_component.register_input(name_prefix + "/control_angle", control_angle_, false);
     }
 
     DmMotor(
@@ -165,15 +158,26 @@ public:
         const double sign = reversed_ ? -1.0 : 1.0;
         const double tff_motor = sign * torque;
 
-        const auto pos_u = float_to_uint(0.0, -position_max_, position_max_, 16);
-        const auto vel_u = float_to_uint(0.0, -velocity_max_, velocity_max_, 12);
-        const auto kp_u = float_to_uint(0.0, 0.0, kKpMax, 12);
-        const auto kd_u = float_to_uint(0.0, 0.0, kKdMax, 12);
-        const auto tff_u = float_to_uint(tff_motor, -torque_max_, torque_max_, 12);
-        return pack_mit(pos_u, vel_u, kp_u, kd_u, tff_u);
+        return encode_mit_frame(0.0, 0.0, 0.0, 0.0, tff_motor);
+    }
+
+    /// Feed-forward torque actually encoded in a MIT frame, in API coordinates.
+    /// Only meaningful for pure-torque frames; position-PD adds motor-internal effort.
+    double command_frame_torque(CanPacket8 packet) const {
+        const auto bytes = packet.as_bytes();
+        const auto encoded = static_cast<std::uint16_t>(
+            ((static_cast<std::uint8_t>(bytes[6]) & 0x0F) << 8)
+            | static_cast<std::uint8_t>(bytes[7]));
+        return (reversed_ ? -1.0 : 1.0) * uint_to_float(encoded, -torque_max_, torque_max_, 12);
     }
 
     /// 模式 B：电机内环 PD（p_des/v_des 单位 rad/rad/s；kp/kd 为物理增益）
+    CanPacket8 generate_command_pd(double kp, double kd) const {
+        if (!control_angle_.ready())
+            return generate_command(0.0);
+        return generate_command_pd(*control_angle_, 0.0, kp, kd, 0.0);
+    }
+
     CanPacket8
         generate_command_pd(double p_des, double v_des, double kp, double kd, double t_ff) const {
         if (!std::isfinite(p_des) || !std::isfinite(v_des) || !std::isfinite(kp)
@@ -187,12 +191,7 @@ public:
         kp = std::clamp(kp, 0.0, kKpMax);
         kd = std::clamp(kd, 0.0, kKdMax);
 
-        const auto pos_u = float_to_uint(p_motor, -position_max_, position_max_, 16);
-        const auto vel_u = float_to_uint(v_motor, -velocity_max_, velocity_max_, 12);
-        const auto kp_u = float_to_uint(kp, 0.0, kKpMax, 12);
-        const auto kd_u = float_to_uint(kd, 0.0, kKdMax, 12);
-        const auto tff_u = float_to_uint(tff_motor, -torque_max_, torque_max_, 12);
-        return pack_mit(pos_u, vel_u, kp_u, kd_u, tff_u);
+        return encode_mit_frame(p_motor, v_motor, kp, kd, tff_motor);
     }
 
     // ---- 系统命令 ----
@@ -241,6 +240,8 @@ public:
         const double raw_velocity = uint_to_float(vel_u, -velocity_max_, velocity_max_, 12);
         const double raw_torque = uint_to_float(tff_u, -torque_max_, torque_max_, 12);
 
+        raw_angle_ = raw_angle;
+        raw_position_u_ = pos_u;
         angle_ = sign * (raw_angle - angle_bias_);
         velocity_ = sign * raw_velocity;
         torque_ = sign * raw_torque;
@@ -271,30 +272,13 @@ public:
             return *control_angle_;
         return 0.0;
     }
-    bool control_velocity_ready() const noexcept { return control_velocity_.ready(); }
-    double control_velocity() const {
-        if (control_velocity_.ready())
-            return *control_velocity_;
-        return 0.0;
-    }
-    bool control_kp_ready() const noexcept { return control_kp_.ready(); }
-    double control_kp() const {
-        if (control_kp_.ready())
-            return *control_kp_;
-        return 0.0;
-    }
-    bool control_kd_ready() const noexcept { return control_kd_.ready(); }
-    double control_kd() const {
-        if (control_kd_.ready())
-            return *control_kd_;
-        return 0.0;
-    }
-
     std::uint8_t id() const noexcept { return id_; }
     /// MIT 命令帧 ID == 电机 CAN ID
     std::uint32_t send_id() const noexcept { return id_; }
     std::uint32_t feedback_id() const noexcept { return feedback_id_; }
     double angle() const { return angle_; }
+    double raw_angle() const { return raw_angle_; }
+    std::uint16_t raw_position() const { return raw_position_u_; }
     double velocity() const { return velocity_; }
     double torque() const { return torque_; }
     double max_torque() const { return control_torque_max_; }
@@ -344,6 +328,16 @@ public:
     }
 
 private:
+    CanPacket8 encode_mit_frame(
+        double p_motor, double v_motor, double kp, double kd, double tff_motor) const {
+        const auto pos_u = float_to_uint(p_motor, -position_max_, position_max_, 16);
+        const auto vel_u = float_to_uint(v_motor, -velocity_max_, velocity_max_, 12);
+        const auto kp_u = float_to_uint(kp, 0.0, kKpMax, 12);
+        const auto kd_u = float_to_uint(kd, 0.0, kKdMax, 12);
+        const auto tff_u = float_to_uint(tff_motor, -torque_max_, torque_max_, 12);
+        return pack_mit(pos_u, vel_u, kp_u, kd_u, tff_u);
+    }
+
     Type type_ = Type::kDM8009;
     std::uint8_t id_ = 1;
     std::uint16_t feedback_id_ = 0;
@@ -357,15 +351,14 @@ private:
     std::atomic<CanPacket8> can_data_{CanPacket8{0}};
 
     double angle_ = 0.0;
+    double raw_angle_ = 0.0;
+    std::uint16_t raw_position_u_ = 0;
     double velocity_ = 0.0;
     double torque_ = 0.0;
     double temperature_mos_ = 0.0;
     double temperature_rotor_ = 0.0;
     int fault_code_ = 0;
     int status_code_ = 0;
-
-    rmcs_executor::Component& status_component_;
-    rmcs_executor::Component& command_component_;
 
     rmcs_executor::Component::OutputInterface<double> angle_output_;
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
@@ -378,9 +371,6 @@ private:
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
     rmcs_executor::Component::InputInterface<double> control_angle_;
-    rmcs_executor::Component::InputInterface<double> control_velocity_;
-    rmcs_executor::Component::InputInterface<double> control_kp_;
-    rmcs_executor::Component::InputInterface<double> control_kd_;
 };
 
 } // namespace rmcs_core::hardware::device

@@ -1,0 +1,12 @@
+{
+  "run": "/root/identification_bags/left-pair-pd-20260928T050017Z",
+  "messages": 692773,
+  "duration_ns": 692771818416,
+  "trajectory_segments_logged": 153,
+  "completed": [
+    "[INFO] [1790572550.050371395] [wheel_leg_pair_identification_controller]: Identification PROBE complete; disabling drive"
+  ],
+  "stopped_errors": [],
+  "mcap_sha256": "a60ae06cb0a4178068bdcf563038074157fb1268cf8738b91c9908784838f4c8",
+  "note": "Completion log and sealed metadata verified; per-sample data quality and physical identification not yet evaluated."
+}

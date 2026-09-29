@@ -1,0 +1,690 @@
+{
+  "source_run": "/home/yukikaze/Downloads/identification_bags/wheels-20260928T140705Z",
+  "status": "diagnostic_estimates_not_released_to_training",
+  "assumptions": [
+    "Body supported; all DM drives disabled; carrier q/dq must remain quiet in accepted windows.",
+    "Torque uses nominal M3508 motor Kt and installed 15.8 ratio, with no load-cell calibration.",
+    "Airborne data do not identify tyre/ground friction or the loaded torque-speed envelope."
+  ],
+  "fitting_split": "Settled single-wheel plateaus fit resistance. Coast releases from 5/20 rad/s fit inertia; releases from 10 rad/s are reserved to check that estimate.",
+  "wheels": [
+    {
+      "side": "left",
+      "platforms": [
+        {
+          "segment_id": 2,
+          "target": 0.2,
+          "speed": 0.0,
+          "speed_std": 0.0,
+          "command_nm": 0.08014865451388889,
+          "reported_nm": 0.07532768281380535,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "stationary or near stiction"
+          ]
+        },
+        {
+          "segment_id": 5,
+          "target": -0.2,
+          "speed": 0.0,
+          "speed_std": 0.0,
+          "command_nm": -0.08014865451388889,
+          "reported_nm": -0.07653292573882624,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "stationary or near stiction"
+          ]
+        },
+        {
+          "segment_id": 8,
+          "target": 0.5,
+          "speed": 0.0,
+          "speed_std": 0.0,
+          "command_nm": 0.20007032555346702,
+          "reported_nm": 0.20037163628472224,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "stationary or near stiction"
+          ]
+        },
+        {
+          "segment_id": 11,
+          "target": -0.5,
+          "speed": -0.35127512793303595,
+          "speed_std": 0.2121212881578731,
+          "command_nm": -0.05950886942290623,
+          "reported_nm": -0.06387787502610694,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 14,
+          "target": 1.0,
+          "speed": 0.8483625731212943,
+          "speed_std": 0.16073474882056812,
+          "command_nm": 0.06056345698229951,
+          "reported_nm": 0.041580880913220555,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 17,
+          "target": -1.0,
+          "speed": -0.9013852339413752,
+          "speed_std": 0.15834966790674862,
+          "command_nm": -0.03947170579443401,
+          "reported_nm": -0.042183502375731,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 20,
+          "target": 2.0,
+          "speed": 1.8756766265103615,
+          "speed_std": 0.16780359758689564,
+          "command_nm": 0.04971627065711153,
+          "reported_nm": 0.04308743456949666,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 23,
+          "target": -2.0,
+          "speed": -1.8823044591128717,
+          "speed_std": 0.17490990495098363,
+          "command_nm": -0.04700447407581454,
+          "reported_nm": -0.042786123838241444,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 26,
+          "target": 5.0,
+          "speed": 4.871456962844932,
+          "speed_std": 0.14940080019138932,
+          "command_nm": 0.051524135044642864,
+          "reported_nm": 0.04971627065711153,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 29,
+          "target": -5.0,
+          "speed": -4.864829130242422,
+          "speed_std": 0.16640094324165725,
+          "command_nm": -0.053934620894684634,
+          "reported_nm": -0.05182544577589809,
+          "temperature_c": 27.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 32,
+          "target": 10.0,
+          "speed": 9.862214912535046,
+          "speed_std": 0.1360452197204516,
+          "command_nm": 0.055139863819705516,
+          "reported_nm": 0.058755592594768175,
+          "temperature_c": 27.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 35,
+          "target": -10.0,
+          "speed": -9.842331414727516,
+          "speed_std": 0.15385709138378603,
+          "command_nm": -0.06297394283234127,
+          "reported_nm": -0.060262146251044285,
+          "temperature_c": 27.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 38,
+          "target": 20.0,
+          "speed": 19.850358644517783,
+          "speed_std": 0.09523449610704707,
+          "command_nm": 0.05996083551978906,
+          "reported_nm": 0.06387787502610694,
+          "temperature_c": 27.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 41,
+          "target": -20.0,
+          "speed": -19.856986477120294,
+          "speed_std": 0.10510603560218855,
+          "command_nm": -0.05724903893849207,
+          "reported_nm": -0.07291719696376359,
+          "temperature_c": 27.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 44,
+          "target": 30.0,
+          "speed": 29.85175804170554,
+          "speed_std": 0.07578745994289338,
+          "command_nm": 0.05935821405727862,
+          "reported_nm": 0.06176869990732039,
+          "temperature_c": 27.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 47,
+          "target": -30.0,
+          "speed": -29.845130209103033,
+          "speed_std": 0.08955754381447911,
+          "command_nm": -0.06207001063857561,
+          "reported_nm": -0.07005474501683898,
+          "temperature_c": 27.0,
+          "accepted": true,
+          "reasons": []
+        }
+      ],
+      "command_based_resistance": {
+        "coefficients": [
+          0.056511232820617124,
+          0.059123140529209674,
+          8.268731978895716e-05
+        ],
+        "rmse_nm": 0.002236456666489287,
+        "max_abs_residual_nm": 0.003516022581596244,
+        "coefficient_order": [
+          "coulomb_positive_nm",
+          "coulomb_negative_nm",
+          "viscous_nm_per_rad_s"
+        ],
+        "design_condition": 79.8887163610507,
+        "note": "Directional intercepts include any unseparated current offset / direction asymmetry."
+      },
+      "feedback_based_resistance": {
+        "coefficients": [
+          0.055106087064177176,
+          0.06138551746664467,
+          0.0003203915132334312
+        ],
+        "rmse_nm": 0.0031699139501952154,
+        "max_abs_residual_nm": 0.005169669551458561,
+        "coefficient_order": [
+          "coulomb_positive_nm",
+          "coulomb_negative_nm",
+          "viscous_nm_per_rad_s"
+        ],
+        "design_condition": 79.8887163610507,
+        "note": "Directional intercepts include any unseparated current offset / direction asymmetry."
+      },
+      "coast_inertia": {
+        "effective_kg_m2": 0.004591214425521476,
+        "fit_mse_rad2_s2": 0.20934778072222063,
+        "segments": [
+          {
+            "segment_id": 93,
+            "validation": false,
+            "initial_speed": 4.80517863681983,
+            "samples": 465,
+            "rmse_rad_s": 0.5557286526217771,
+            "relative_rmse": 0.11565202766105073
+          },
+          {
+            "segment_id": 97,
+            "validation": false,
+            "initial_speed": -4.7654116412047705,
+            "samples": 445,
+            "rmse_rad_s": 0.5125652953533402,
+            "relative_rmse": 0.10755950040524845
+          },
+          {
+            "segment_id": 101,
+            "validation": true,
+            "initial_speed": 9.59047377583213,
+            "samples": 855,
+            "rmse_rad_s": 0.40171605677350997,
+            "relative_rmse": 0.04188698766747366
+          },
+          {
+            "segment_id": 105,
+            "validation": true,
+            "initial_speed": -9.802564419112455,
+            "samples": 839,
+            "rmse_rad_s": 0.37882849739636837,
+            "relative_rmse": 0.03864585645137421
+          },
+          {
+            "segment_id": 109,
+            "validation": false,
+            "initial_speed": 19.784080318492684,
+            "samples": 1607,
+            "rmse_rad_s": 0.41554639583028813,
+            "relative_rmse": 0.02100407949930664
+          },
+          {
+            "segment_id": 113,
+            "validation": false,
+            "initial_speed": -19.71780199246758,
+            "samples": 1566,
+            "rmse_rad_s": 0.30521271018073176,
+            "relative_rmse": 0.015479043267465938
+          }
+        ],
+        "heldout_coast_pass": true,
+        "qualification": "Coast consistency only; closed-loop trajectory replay still required before training release."
+      },
+      "coast_coverage": [
+        {
+          "segment_id": 93,
+          "runup_target": 5,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 97,
+          "runup_target": 5,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 101,
+          "runup_target": 10,
+          "validation": true,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 105,
+          "runup_target": 10,
+          "validation": true,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 109,
+          "runup_target": 20,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 113,
+          "runup_target": 20,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        }
+      ]
+    },
+    {
+      "side": "right",
+      "platforms": [
+        {
+          "segment_id": 138,
+          "target": 0.2,
+          "speed": 0.0,
+          "speed_std": 0.0,
+          "command_nm": 0.08014865451388889,
+          "reported_nm": 0.08286045109518589,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "stationary or near stiction"
+          ]
+        },
+        {
+          "segment_id": 141,
+          "target": -0.2,
+          "speed": 0.0,
+          "speed_std": 0.0,
+          "command_nm": -0.08014865451388889,
+          "reported_nm": -0.07562899354506057,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "stationary or near stiction"
+          ]
+        },
+        {
+          "segment_id": 144,
+          "target": 0.5,
+          "speed": 0.0,
+          "speed_std": 0.0024776788375323955,
+          "command_nm": 0.20007032555346702,
+          "reported_nm": 0.20007032555346702,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "stationary or near stiction"
+          ]
+        },
+        {
+          "segment_id": 147,
+          "target": -0.5,
+          "speed": -0.33139163012550554,
+          "speed_std": 0.20717209217154234,
+          "command_nm": -0.0674936038011696,
+          "reported_nm": -0.06839753599493525,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 150,
+          "target": 1.0,
+          "speed": 0.656155427648501,
+          "speed_std": 0.19560174069088454,
+          "command_nm": 0.13739769345238095,
+          "reported_nm": 0.11751118518953635,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 153,
+          "target": -1.0,
+          "speed": -0.828479075313764,
+          "speed_std": 0.19900697809547993,
+          "command_nm": -0.06869884672619048,
+          "reported_nm": -0.0521267565071533,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 156,
+          "target": 2.0,
+          "speed": 1.8624209613053413,
+          "speed_std": 0.21120873045651256,
+          "command_nm": 0.055139863819705516,
+          "reported_nm": 0.046401852613304095,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 159,
+          "target": -2.0,
+          "speed": -1.716608644050119,
+          "speed_std": 0.2319985527444813,
+          "command_nm": -0.11329283495196325,
+          "reported_nm": -0.09882991985171262,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 162,
+          "target": 5.0,
+          "speed": 4.858201297639912,
+          "speed_std": 0.20558536281528886,
+          "command_nm": 0.05664641747598163,
+          "reported_nm": 0.05423593162593986,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 165,
+          "target": -5.0,
+          "speed": -4.8780847954474424,
+          "speed_std": 0.21329097430146476,
+          "command_nm": -0.04881233846334587,
+          "reported_nm": -0.047908406269580206,
+          "temperature_c": 26.0,
+          "accepted": false,
+          "reasons": [
+            "wheel speed not settled"
+          ]
+        },
+        {
+          "segment_id": 168,
+          "target": 10.0,
+          "speed": 9.822447916919986,
+          "speed_std": 0.16803749661474787,
+          "command_nm": 0.07110933257623225,
+          "reported_nm": 0.06568573941363827,
+          "temperature_c": 26.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 171,
+          "target": -10.0,
+          "speed": -9.815820084317474,
+          "speed_std": 0.18204255848561493,
+          "command_nm": -0.07382112915752925,
+          "reported_nm": -0.06719229306991438,
+          "temperature_c": 26.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 174,
+          "target": 20.0,
+          "speed": 19.823847314107745,
+          "speed_std": 0.14201723959750642,
+          "command_nm": 0.07050671111372181,
+          "reported_nm": 0.07412243988878447,
+          "temperature_c": 26.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 177,
+          "target": -20.0,
+          "speed": -19.803963816300215,
+          "speed_std": 0.14704230472682572,
+          "command_nm": -0.07834079012635757,
+          "reported_nm": -0.07834079012635757,
+          "temperature_c": 26.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 180,
+          "target": 30.0,
+          "speed": 29.825246711295502,
+          "speed_std": 0.09519427452912997,
+          "command_nm": 0.06990408965121137,
+          "reported_nm": 0.07412243988878447,
+          "temperature_c": 26.0,
+          "accepted": true,
+          "reasons": []
+        },
+        {
+          "segment_id": 183,
+          "target": -30.0,
+          "speed": -29.81861887869299,
+          "speed_std": 0.1051609515436925,
+          "command_nm": -0.07261588623250836,
+          "reported_nm": -0.08225782963267544,
+          "temperature_c": 26.0,
+          "accepted": true,
+          "reasons": []
+        }
+      ],
+      "command_based_resistance": {
+        "coefficients": [
+          0.07050671110757775,
+          0.0749259351659911,
+          3.099326451108795e-13
+        ],
+        "rmse_nm": 0.0017769103363650606,
+        "max_abs_residual_nm": 0.00341485495422858,
+        "coefficient_order": [
+          "coulomb_positive_nm",
+          "coulomb_negative_nm",
+          "viscous_nm_per_rad_s"
+        ],
+        "design_condition": 79.64219561589638,
+        "note": "Directional intercepts include any unseparated current offset / direction asymmetry."
+      },
+      "feedback_based_resistance": {
+        "coefficients": [
+          0.05966580369342142,
+          0.0642923901510164,
+          0.0005873936839374677
+        ],
+        "rmse_nm": 0.0022949798953470144,
+        "max_abs_residual_nm": 0.0030625253447286588,
+        "coefficient_order": [
+          "coulomb_positive_nm",
+          "coulomb_negative_nm",
+          "viscous_nm_per_rad_s"
+        ],
+        "design_condition": 79.64219561589638,
+        "note": "Directional intercepts include any unseparated current offset / direction asymmetry."
+      },
+      "coast_inertia": {
+        "effective_kg_m2": 0.004410229270556558,
+        "fit_mse_rad2_s2": 0.20040712438074268,
+        "segments": [
+          {
+            "segment_id": 229,
+            "validation": false,
+            "initial_speed": 5.050408443112705,
+            "samples": 318,
+            "rmse_rad_s": 0.21909123007020279,
+            "relative_rmse": 0.04338089335506711
+          },
+          {
+            "segment_id": 233,
+            "validation": false,
+            "initial_speed": -4.685877649974649,
+            "samples": 367,
+            "rmse_rad_s": 0.5275430835652524,
+            "relative_rmse": 0.11258148909801485
+          },
+          {
+            "segment_id": 237,
+            "validation": true,
+            "initial_speed": 9.59047377583213,
+            "samples": 495,
+            "rmse_rad_s": 0.45174149021180887,
+            "relative_rmse": 0.047103146389930343
+          },
+          {
+            "segment_id": 241,
+            "validation": true,
+            "initial_speed": -9.424777960769378,
+            "samples": 508,
+            "rmse_rad_s": 0.8554599598553603,
+            "relative_rmse": 0.09076712081878331
+          },
+          {
+            "segment_id": 245,
+            "validation": false,
+            "initial_speed": 19.379782529739565,
+            "samples": 1219,
+            "rmse_rad_s": 0.5286831798315147,
+            "relative_rmse": 0.0272801399613342
+          },
+          {
+            "segment_id": 249,
+            "validation": false,
+            "initial_speed": -19.552106177404827,
+            "samples": 1125,
+            "rmse_rad_s": 0.44251544693377615,
+            "relative_rmse": 0.02263262294704415
+          }
+        ],
+        "heldout_coast_pass": true,
+        "qualification": "Coast consistency only; closed-loop trajectory replay still required before training release."
+      },
+      "coast_coverage": [
+        {
+          "segment_id": 229,
+          "runup_target": 5,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 233,
+          "runup_target": 5,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 237,
+          "runup_target": 10,
+          "validation": true,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 241,
+          "runup_target": 10,
+          "validation": true,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 245,
+          "runup_target": 20,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        },
+        {
+          "segment_id": 249,
+          "runup_target": 20,
+          "validation": false,
+          "accepted": true,
+          "quiet_carrier": true,
+          "zero_current": true
+        }
+      ]
+    }
+  ]
+}

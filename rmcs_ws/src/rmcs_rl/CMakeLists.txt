@@ -34,9 +34,13 @@ endif()
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
   src/rl_controller.cpp
+  src/configuration.cpp
+  src/controller_recovery.cpp
   src/observation.cpp
   src/action.cpp
   src/onnx_policy.cpp
+  src/recovery_controller.cpp
+  src/recovery_observer.cpp
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${ORT_ROOT}/include)
 target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so)
@@ -45,5 +49,22 @@ install(DIRECTORY ${ORT_ROOT}/lib/ DESTINATION lib FILES_MATCHING PATTERN "*.so*
 install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models
   FILES_MATCHING PATTERN "*.onnx")
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(control_interval_test test/control_interval_test.cpp)
+  target_include_directories(control_interval_test PRIVATE src)
+  ament_add_gtest(recovery_controller_test test/recovery_controller_test.cpp
+    src/recovery_controller.cpp src/recovery_observer.cpp)
+  target_include_directories(recovery_controller_test PRIVATE src)
+  ament_add_gtest(rl_controller_test test/rl_controller_test.cpp)
+  target_include_directories(rl_controller_test PRIVATE src)
+  target_link_libraries(rl_controller_test ${PROJECT_NAME})
+  ament_target_dependencies(rl_controller_test
+    rclcpp rmcs_executor rmcs_description rmcs_msgs rmcs_utility)
+  target_compile_definitions(rl_controller_test PRIVATE
+    RL_CONTROLLER_TEST_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-rl.yaml"
+    RL_CONTROLLER_TEST_MODEL="${PROJECT_SOURCE_DIR}/models/wheel_leg/policy.onnx")
+endif()
 
 ament_auto_package()
