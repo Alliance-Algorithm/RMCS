@@ -368,14 +368,14 @@ private:
             status.register_output("/chassis/imu/roll_rate", chassis_imu_roll_rate_, 0.0);
             status.register_output(
                 "/chassis/imu/quaternion", chassis_imu_quaternion_, Eigen::Quaterniond::Identity());
-            rl_high_physical_angle_rad_ = status.get_parameter_or("rl_high_physical_angle_deg", 59.0)
+            rl_high_physical_angle_rad_ = status.get_parameter_or("rl_high_physical_angle_deg", 75.0)
                 * std::numbers::pi / 180.0;
-            rl_low_physical_angle_rad_ = status.get_parameter_or("rl_low_physical_angle_deg", 5.0)
+            rl_low_physical_angle_rad_ = status.get_parameter_or("rl_low_physical_angle_deg", 17.0)
                 * std::numbers::pi / 180.0;
             rl_q_max_rad_ = status.get_parameter_or("rl_q_max_rad", 1.36);
             if (!(rl_high_physical_angle_rad_ > rl_low_physical_angle_rad_)) {
-                rl_high_physical_angle_rad_ = 59.0 * std::numbers::pi / 180.0;
-                rl_low_physical_angle_rad_  = 5.0 * std::numbers::pi / 180.0;
+                rl_high_physical_angle_rad_ = 75.0 * std::numbers::pi / 180.0;
+                rl_low_physical_angle_rad_  = 17.0 * std::numbers::pi / 180.0;
             }
             if (!(rl_q_max_rad_ > 0.0))
                 rl_q_max_rad_ = 1.36;
@@ -612,8 +612,8 @@ private:
         OutputInterface<double> rl_low_physical_angle_;
         OutputInterface<double> rl_q_max_;
 
-        double rl_high_physical_angle_rad_ = 59.0 * std::numbers::pi / 180.0;
-        double rl_low_physical_angle_rad_  = 5.0 * std::numbers::pi / 180.0;
+        double rl_high_physical_angle_rad_ = 75.0 * std::numbers::pi / 180.0;
+        double rl_low_physical_angle_rad_  = 17.0 * std::numbers::pi / 180.0;
         double rl_q_max_rad_               = 1.36;
 
         OutputInterface<double> encoder_alpha_;

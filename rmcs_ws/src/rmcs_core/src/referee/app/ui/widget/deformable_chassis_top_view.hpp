@@ -65,8 +65,8 @@ private:
     static constexpr double rear_pair_offset_deg_ = 28.0;
     static constexpr double degrees_to_radians_ = std::numbers::pi_v<double> / 180.0;
 
-    static constexpr double default_min_angle_deg_ = 8.0;
-    static constexpr double default_max_angle_deg_ = 58.0;
+    static constexpr double default_min_angle_deg_ = 17.0;
+    static constexpr double default_max_angle_deg_ = 75.0;
 
     static constexpr double deg_to_rad_(double degrees) { return degrees * degrees_to_radians_; }
 

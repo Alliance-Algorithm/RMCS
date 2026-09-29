@@ -116,6 +116,8 @@ deformable_infantry:
     rod_length: 0.140
     yaw_motor_zero_point: 38910
     pitch_motor_zero_point: 32214
+    rl_high_physical_angle_deg: 75.0
+    rl_low_physical_angle_deg: 17.0
 
 chassis_controller:
   ros__parameters:

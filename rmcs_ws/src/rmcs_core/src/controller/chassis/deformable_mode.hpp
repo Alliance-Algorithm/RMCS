@@ -29,13 +29,13 @@ public:
         SuspensionMode suspension_mode = SuspensionMode::OFF;
         bool symmetric_posture_target = true;
         bool spinning_forward = true;
-        std::array<double, 4> joint_posture_target_deg = {58.0, 58.0, 58.0, 58.0};
-        double suspension_reference_angle_deg = 58.0;
+        std::array<double, 4> joint_posture_target_deg = {75.0, 75.0, 75.0, 75.0};
+        double suspension_reference_angle_deg = 75.0;
     };
 
     explicit DeformableChassisModeManager(rclcpp::Node& node)
-        : min_angle_(node.get_parameter_or("min_angle", 5.0))
-        , max_angle_(node.get_parameter_or("max_angle", 59.0))
+        : min_angle_(node.get_parameter_or("min_angle", 17.0))
+        , max_angle_(node.get_parameter_or("max_angle", 75.0))
         , active_suspension_base_angle_(
               std::clamp(
                   node.get_parameter_or("active_suspension_base_angle", max_angle_),

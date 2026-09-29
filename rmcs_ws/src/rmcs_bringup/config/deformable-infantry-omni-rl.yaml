@@ -103,14 +103,14 @@ deformable_infantry:
 
     # RL 坐标标定（硬件层）：q_rl=0 对应最高姿态，q_rl=rl_q_max 对应最低姿态。
     # 现场用机械定位/量角器实测后填写；缺省值仅作为占位。
-    rl_high_physical_angle_deg: 59.0
-    rl_low_physical_angle_deg: 5.0
+    rl_high_physical_angle_deg: 75.0
+    rl_low_physical_angle_deg: 17.0
     rl_q_max_rad: 1.36
 
 chassis_controller:
   ros__parameters:
-    min_angle: 8.0
-    max_angle: 59.0
+    min_angle: 17.0
+    max_angle: 75.0
     active_suspension_enable: true
     wireless_charging_offset_deg: 135.0
     wireless_charging_speed_limit: 0.6
@@ -165,7 +165,7 @@ rl_bridge:
     enable_default: false
     invalid_value: "nan"                   # 必须加引号！
     reset_interface: "/chassis/deformable/reset_count"
-    expected_model_id: "0"
+    expected_model_id: "0xd5899956ba7faeda"
 
     # 关节序 = 训练 DOF 序：RF, LF, LB, RB。角度/速度来自硬件的 RL 坐标输出，
     # 力矩用硬件实测 /torque（不再是下游关节控制器的 control_torque）。
@@ -200,7 +200,7 @@ rl_bridge:
 policy_server:
   ros__parameters:
     rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable_sps_V2.onnx"
+    rl_model_path: "models/deformable_sps_V1.onnx"
     input_name: "obs"
     output_name: "actions"
     normalization_from_metadata: true
