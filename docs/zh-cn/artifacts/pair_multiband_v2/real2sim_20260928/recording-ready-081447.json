@@ -1,0 +1,91 @@
+{
+  "verified_utc_unix_s": 1790583288.3352425,
+  "topic": "/wheel_leg/identification/sample",
+  "publisher": "wheel_leg_identification_recorder",
+  "recorder": "rosbag2_recorder",
+  "subscribed": true,
+  "paused": false,
+  "runtime_parameters": {
+    "probe_pattern": "multiband_chirp",
+    "control_frequency_hz": 1000.0,
+    "side": "left",
+    "max_tick_gap_s": 0.02,
+    "probe_measured_delta_policy": "diagnostic",
+    "control_law": "rl_pd",
+    "reference_frequency_hz": 50.0,
+    "pd_kp": [
+      160.0,
+      160.0,
+      160.0,
+      160.0
+    ],
+    "pd_kd": [
+      3.0,
+      3.0,
+      3.0,
+      3.0
+    ],
+    "ki_velocity": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "integral_limit": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "gravity_feedforward_model": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_torque": [
+      40.0,
+      40.0,
+      40.0,
+      40.0
+    ],
+    "multiband_load_offset": 0.2,
+    "multiband_validation_relative_scale": 3.0,
+    "multiband_common_hz": [
+      0.08,
+      0.75,
+      2.0,
+      6.0
+    ],
+    "multiband_relative_hz": [
+      0.1,
+      0.9,
+      2.5,
+      6.0
+    ],
+    "multiband_common_amplitude": [
+      1.0471975511965976,
+      0.32,
+      0.04
+    ],
+    "multiband_relative_amplitude": [
+      0.12,
+      0.08,
+      0.025
+    ],
+    "multiband_band_s": [
+      24.0,
+      16.0,
+      12.0
+    ],
+    "multiband_shape_offset": 0.04,
+    "multiband_eighth_turn_s": 0.8,
+    "multiband_dwell_s": 1.5,
+    "multiband_ramp_s": 2.0,
+    "multiband_common_step": 0.35,
+    "multiband_relative_step": 0.12,
+    "multiband_step_rise_s": 0.22,
+    "multiband_validation_s": 30.0
+  },
+  "note": "Endpoint/service handshake; sample publication begins at both MIDDLE."
+}

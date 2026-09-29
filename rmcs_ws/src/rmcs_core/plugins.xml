@@ -6,7 +6,7 @@
   <class type="rmcs_core::hardware::DeformableInfantryOmniB" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmniC" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::WheelLegInfantryRL" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::WheelLeg" base_class_type="rmcs_executor::Component" />
   
   <class type="rmcs_core::hardware::Px4VisionBridge" base_class_type="rmcs_executor::Component" />
 
@@ -29,7 +29,6 @@
   <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::WheelLegChassisController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::WheelLegReferenceController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::WheelLegRlConsumer" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
@@ -72,5 +71,9 @@
 
   <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::WheelLegPairIdentificationController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::WheelLegWheelIdentificationController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::WheelLegPassiveRecorderGate" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::identification::WheelLegIdentificationRecorder" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
 </library>

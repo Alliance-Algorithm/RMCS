@@ -1,8 +1,11 @@
+#include <cstdint>
+
 #include <rclcpp/node.hpp>
 #include <rclcpp/parameter_event_handler.hpp>
 #include <rmcs_executor/component.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <std_msgs/msg/u_int8.hpp>
 
 namespace rmcs_core::broadcaster {
 
@@ -30,6 +33,10 @@ public:
             } else if (output.type.get() == typeid(int)) {
                 forward_units_.emplace(
                     name, std::make_unique<ForwardUnit<int, std_msgs::msg::Int32>>(this, name));
+            } else if (output.type.get() == typeid(std::uint8_t)) {
+                forward_units_.emplace(
+                    name,
+                    std::make_unique<ForwardUnit<std::uint8_t, std_msgs::msg::UInt8>>(this, name));
             }
         }
         std::vector<std::string> forward_list;

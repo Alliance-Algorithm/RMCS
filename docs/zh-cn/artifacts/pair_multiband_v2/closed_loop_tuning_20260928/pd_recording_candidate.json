@@ -1,0 +1,27 @@
+{
+  "status": "bench_candidate_not_validated_training_parameters",
+  "control_law": "pure_position_pd",
+  "kp_nm_per_rad": [
+    60.0,
+    60.0
+  ],
+  "kd_nm_s_per_rad": [
+    2.0,
+    2.0
+  ],
+  "pd_hz": 1000,
+  "target_hz": 50,
+  "mit_transmit_hz": 1000,
+  "raw_bag_sample_hz": 1000,
+  "torque_cap_nm": 40.0,
+  "manufacturer_rated_nm": 20.0,
+  "manufacturer_peak_nm": 40.0,
+  "mit_encoding_tmax_nm": 54.0,
+  "side": "left",
+  "trajectory_seconds": 687.3,
+  "profile_sha256": "b0cf13672d90dcad79705427baf21a7f12c643c664d14ff5a0679cba420c05af",
+  "selection": "Retained 60/2 after finite-grid sensitivity screen; no claim of uniquely optimal or real-world improvement before PD bag validation",
+  "evidence": "rl_pd_1khz_screen.json",
+  "physical_model_release": false,
+  "training_and_rl_deployment_timing_migrated": false
+}
