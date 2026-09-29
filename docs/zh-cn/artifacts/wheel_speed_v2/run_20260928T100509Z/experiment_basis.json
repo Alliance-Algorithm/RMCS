@@ -1,0 +1,21 @@
+{
+  "status": "running_observed",
+  "run": "wheels-20260928T100509Z",
+  "reference_commit": "1870f2462f4759f6e5514009ac8ae1fc9ba563e4",
+  "baseline_run": "wheels-20260928T093805Z",
+  "candidate": {
+    "kp": 0.6,
+    "ki": 0.0,
+    "kd": 0.0,
+    "torque_cap_nm": 4.5,
+    "current_cap_a": 18.230894198876328
+  },
+  "trajectory": "wheel_multiband_v2",
+  "duration_s": 630,
+  "segments": 291,
+  "comparison": "Same 50 Hz reference and 1 kHz loop; compare low-speed start, plateau error, step overshoot/settling, chirp tracking and current ripple. Report saturated and unsaturated windows separately.",
+  "training_release": false,
+  "start_utc": "2026-09-28T10:07:18.422038+00:00",
+  "expected_completion_cst": "2026-09-28T18:17:48.422038+08:00",
+  "live_check": "live-start-check.json"
+}

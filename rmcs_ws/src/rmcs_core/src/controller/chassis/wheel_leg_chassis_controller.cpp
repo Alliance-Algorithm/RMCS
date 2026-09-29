@@ -1,7 +1,10 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <ranges>
+#include <stdexcept>
 #include <string>
 
 #include <eigen3/Eigen/Dense>
@@ -12,52 +15,23 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/rclcpp/node_mixin.hpp>
+
+#include "wheel_leg_arm_sequence.hpp"
 
 namespace rmcs_core::controller::chassis {
 
 // Chassis command source of the wheel-leg. It decodes the remote control into the chassis command
 // interfaces. RlController alone owns PREPARE -> RL, so the executor graph stays acyclic.
-class WheelLegChassisController
+class WheelLegChassisController final
     : public rmcs_executor::Component
-    , public rclcpp::Node {
+    , public rclcpp::Node
+    , public rmcs_utility::NodeMixin {
 public:
     explicit WheelLegChassisController()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        register_input("/remote/joystick/right", joystick_right_);
-        register_input("/remote/joystick/left", joystick_left_);
-        register_input("/remote/switch/right", switch_right_);
-        register_input("/remote/switch/left", switch_left_);
-        register_input("/remote/knob", rotary_knob_);
-        register_input("/remote/keyboard", keyboard_);
-
-        register_input("/wheel_leg/imu/quaternion", chassis_imu_quaternion_, false);
-
-        register_output(
-            "/chassis/control_velocity", chassis_control_velocity_,
-            rmcs_description::BaseLink::DirectionVector{0.0, 0.0, 0.0});
-        register_output("/chassis/control_height", chassis_control_height_, 0.0);
-        register_output("/chassis/control_state", chassis_control_state_, 0);
-        register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
-        register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
-        register_output("/chassis/jump_request", jump_request_, false);
-        register_output("/chassis/jump_apex_delta", jump_apex_delta_, 0.0);
-
-        vx_max_ = get_parameter_or<double>("vx_max", 2.5);
-        yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 3.0);
-        deadzone_ = get_parameter_or<double>("deadzone", 0.08);
-
-        command_height_min_ = get_parameter_or<double>("command_height_min", 0.20);
-        command_height_max_ = get_parameter_or<double>("command_height_max", 0.42);
-        default_command_height_ = get_parameter_or<double>("default_command_height", 0.22);
-        height_range_ = get_parameter_or<double>("height_range", 0.20);
-        height_step_ = get_parameter_or<double>("height_step", 0.01);
-
-        angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
-        height_invert_ = get_parameter_or<bool>("height_invert", false);
-        heading_kp_ = get_parameter_or<double>("heading_kp", 3.0);
-
+        : Node{get_component_name(), node::options()} {
+        register_interfaces_();
+        load_parameters_();
         height_ = default_command_height_;
         stop_controls_(0);
     }
@@ -90,51 +64,15 @@ public:
         *jump_request_ = false;
         *jump_apex_delta_ = 0.0;
 
-        do {
-            if (!switch_activity_seen_) {
-                stop_controls_(0);
-                break;
-            }
-
-            if (!(any_unknown || both_down))
-                reset_active_ = false;
-
-            if (any_unknown || both_down) {
-                reset_all_controls_();
-                break;
-            }
-
-            auto mode = *mode_;
-            if (switch_left != Switch::DOWN) {
-                if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
-                    if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
-                        mode = rmcs_msgs::ChassisMode::SPIN_FAST;
-                        spinning_forward_ = !spinning_forward_;
-                    } else {
-                        mode = rmcs_msgs::ChassisMode::STEP_DOWN;
-                    }
-                } else if (!last_keyboard_.c && keyboard.c) {
-                    if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
-                        mode = rmcs_msgs::ChassisMode::SPIN_FAST;
-                        spinning_forward_ = !spinning_forward_;
-                    } else {
-                        mode = rmcs_msgs::ChassisMode::AUTO;
-                    }
-                } else if (!last_keyboard_.x && keyboard.x) {
-                    mode = mode != rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                             ? rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                             : rmcs_msgs::ChassisMode::AUTO;
-                } else if (!last_keyboard_.z && keyboard.z) {
-                    mode = mode != rmcs_msgs::ChassisMode::STEP_DOWN
-                             ? rmcs_msgs::ChassisMode::STEP_DOWN
-                             : rmcs_msgs::ChassisMode::AUTO;
-                }
-
-                *mode_ = mode;
-            }
-
+        if (!switch_activity_seen_) {
+            stop_controls_(0);
+        } else if (any_unknown || both_down) {
+            reset_all_controls_();
+        } else {
+            reset_active_ = false;
+            update_mode_(switch_left, switch_right, keyboard);
             update_remote_control_();
-        } while (false);
+        }
 
         last_switch_left_ = switch_left;
         last_switch_right_ = switch_right;
@@ -142,6 +80,94 @@ public:
     }
 
 private:
+    void register_interfaces_() {
+        register_input("/remote/joystick/right", joystick_right_);
+        register_input("/remote/joystick/left", joystick_left_);
+        register_input("/remote/switch/right", switch_right_);
+        register_input("/remote/switch/left", switch_left_);
+        register_input("/remote/rotary_knob", rotary_knob_);
+        register_input("/remote/keyboard", keyboard_);
+
+        register_input("/wheel_leg/imu/quaternion", chassis_imu_quaternion_, false);
+
+        register_output(
+            "/chassis/control_velocity", chassis_control_velocity_,
+            rmcs_description::BaseLink::DirectionVector{0.0, 0.0, 0.0});
+        register_output("/chassis/control_height", chassis_control_height_, 0.0);
+        register_output("/chassis/control_state", chassis_control_state_, 0);
+        register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
+        register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
+        register_output("/chassis/jump_request", jump_request_, false);
+        register_output("/chassis/jump_apex_delta", jump_apex_delta_, 0.0);
+    }
+
+    void load_parameters_() {
+        vx_max_ = get_parameter_or<double>("vx_max", 2.5);
+        yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 3.0);
+        deadzone_ = get_parameter_or<double>("deadzone", 0.08);
+
+        command_height_min_ = get_parameter_or<double>("command_height_min", 0.20);
+        command_height_max_ = get_parameter_or<double>("command_height_max", 0.42);
+        default_command_height_ = get_parameter_or<double>("default_command_height", 0.22);
+        height_range_ = get_parameter_or<double>("height_range", 0.20);
+        height_step_ = get_parameter_or<double>("height_step", 0.01);
+
+        angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
+        height_invert_ = get_parameter_or<bool>("height_invert", false);
+        heading_kp_ = get_parameter_or<double>("heading_kp", 3.0);
+
+        const std::array values{
+            vx_max_,
+            yaw_rate_max_,
+            deadzone_,
+            command_height_min_,
+            command_height_max_,
+            default_command_height_,
+            height_range_,
+            height_step_,
+            heading_kp_};
+        if (!std::ranges::all_of(values, [](double value) { return std::isfinite(value); })
+            || vx_max_ <= 0.0 || yaw_rate_max_ <= 0.0 || deadzone_ < 0.0 || deadzone_ >= 1.0
+            || command_height_min_ <= 0.0 || command_height_min_ > command_height_max_
+            || default_command_height_ < command_height_min_
+            || default_command_height_ > command_height_max_ || height_range_ < 0.0
+            || height_step_ < 0.0 || heading_kp_ < 0.0)
+            throw std::invalid_argument("Invalid wheel-leg chassis command limits");
+    }
+
+    void update_mode_(
+        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
+        const rmcs_msgs::Keyboard& keyboard) {
+        using rmcs_msgs::Switch;
+        auto mode = *mode_;
+        if (switch_left != Switch::DOWN) {
+            if (last_switch_right_ == Switch::MIDDLE && switch_right == Switch::DOWN) {
+                if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
+                    mode = rmcs_msgs::ChassisMode::SPIN_FAST;
+                    spinning_forward_ = !spinning_forward_;
+                } else {
+                    mode = rmcs_msgs::ChassisMode::STEP_DOWN;
+                }
+            } else if (!last_keyboard_.c && keyboard.c) {
+                if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
+                    mode = rmcs_msgs::ChassisMode::SPIN_FAST;
+                    spinning_forward_ = !spinning_forward_;
+                } else {
+                    mode = rmcs_msgs::ChassisMode::AUTO;
+                }
+            } else if (!last_keyboard_.x && keyboard.x) {
+                mode = mode != rmcs_msgs::ChassisMode::LAUNCH_RAMP
+                         ? rmcs_msgs::ChassisMode::LAUNCH_RAMP
+                         : rmcs_msgs::ChassisMode::AUTO;
+            } else if (!last_keyboard_.z && keyboard.z) {
+                mode = mode != rmcs_msgs::ChassisMode::STEP_DOWN ? rmcs_msgs::ChassisMode::STEP_DOWN
+                                                                 : rmcs_msgs::ChassisMode::AUTO;
+            }
+
+            *mode_ = mode;
+        }
+    }
+
     void reset_all_controls_() {
         if (!reset_active_) {
             *reset_count_output_ += 1;
@@ -149,7 +175,8 @@ private:
             // Capture the current chassis facing as the "gimbal forward" for this session.
             reference_yaw_ = chassis_yaw_();
         }
-        armed_ = false;
+        arm_sequence_.update(*switch_left_, *switch_right_);
+        *mode_ = rmcs_msgs::ChassisMode::AUTO;
         stop_controls_(1);
     }
 
@@ -165,29 +192,21 @@ private:
 
     void update_remote_control_() {
         update_state_command_();
+        if (!arm_sequence_.armed()) {
+            stop_controls_(1);
+            return;
+        }
         update_velocity_control_();
         update_height_control_();
         // Hold the request while V is held; RL owns the elapsed time and release transition.
-        *jump_request_ = armed_ && keyboard_->v;
+        *jump_request_ = keyboard_->v;
         *jump_apex_delta_ = *jump_request_ ? (keyboard_->shift ? 0.10 : 0.06) : 0.0;
     }
 
-    // The operator requests RL after both switches were down. RL enters PREPARE internally
-    // and starts inference only after the joint targets have been reached.
+    // Require double DOWN before arming; a single MIDDLE cannot start PREPARE.
     void update_state_command_() {
-        using rmcs_msgs::Switch;
-
-        const auto switch_left = *switch_left_;
-        const auto switch_right = *switch_right_;
-
-        const bool previous_both_down =
-            last_switch_left_ == Switch::DOWN && last_switch_right_ == Switch::DOWN;
-        const bool either_middle = switch_left == Switch::MIDDLE || switch_right == Switch::MIDDLE;
-
-        if (previous_both_down && either_middle) {
-            armed_ = true;
-        }
-        *chassis_control_state_ = armed_ ? 3 : 1;
+        arm_sequence_.update(*switch_left_, *switch_right_);
+        *chassis_control_state_ = arm_sequence_.armed() ? 3 : 1;
     }
 
     void update_velocity_control_() {
@@ -332,7 +351,7 @@ private:
 
     bool spinning_forward_ = true;
     bool switch_activity_seen_ = false;
-    bool armed_ = false;
+    WheelLegArmSequence arm_sequence_;
     bool reset_active_ = false;
     double reference_yaw_ = 0.0;
     double height_ = 0.0;

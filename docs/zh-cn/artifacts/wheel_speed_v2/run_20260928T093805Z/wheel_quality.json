@@ -1,0 +1,8488 @@
+{
+  "status": "complete_for_analysis",
+  "reasons": [],
+  "samples": 630151,
+  "running_samples": 630000,
+  "segments": [
+    {
+      "id": 0,
+      "label": "initial_zero_current",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 1,
+      "label": "left_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.12325507950138637,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 2,
+      "label": "left_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.19989975003508623,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 3,
+      "label": "left_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.12678575661345853,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 4,
+      "label": "left_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.1236952763859883,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 5,
+      "label": "left_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.20000000000000162,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 6,
+      "label": "left_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.12709929114557694,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 7,
+      "label": "left_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.30765490733493567,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 8,
+      "label": "left_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.4998510079765548,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 9,
+      "label": "left_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.31695775783985963,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 10,
+      "label": "left_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3085906668616887,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 11,
+      "label": "left_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5001308316570059,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 12,
+      "label": "left_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        0.019883497807530334,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.31838700253419705,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 13,
+      "label": "left_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        0.7356894188786224,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5769222436268571,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 14,
+      "label": "left_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        0.7356894188786224,
+        -0.0
+      ],
+      "speed_end": [
+        0.5832492690208898,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.25473355263290093,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 15,
+      "label": "left_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        0.6163884320334404,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.21540149271266154,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 16,
+      "label": "left_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -1.1201037098242088,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5610226603008658,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 17,
+      "label": "left_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -1.1068480446191886,
+        -0.0
+      ],
+      "speed_end": [
+        -0.5898771016233999,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.2535818832754242,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 18,
+      "label": "left_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.5766214364183797,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.2418282306736943,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 19,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        1.6238189876149773,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.37391001706096877,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 20,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        1.6834694810375683,
+        -0.0
+      ],
+      "speed_end": [
+        1.5707963267948963,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.2792616919113185,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 21,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        1.5575406615898761,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.22178211602522926,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 22,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -1.4978901681672852,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3014517761463165,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 23,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -1.6503303180250177,
+        -0.0
+      ],
+      "speed_end": [
+        -2.147417763213276,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.28485304134854167,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 24,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -2.074511604585665,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.22106648411030824,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 25,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        4.5533209979244464,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.40759328349362417,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 26,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.75878380860226,
+        -0.0
+      ],
+      "speed_end": [
+        4.719016812987199,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3046161449491278,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 27,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.844945632434891,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.19841364023468505,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 28,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -4.626227156552058,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3749161385961585,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 29,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -5.030524945305174,
+        -0.0
+      ],
+      "speed_end": [
+        -4.712388980384689,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.31337695491881645,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 30,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -4.77866730640979,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.20842741479525498,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 31,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        9.795936586509944,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5145191623042624,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 32,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.795936586509944,
+        -0.0
+      ],
+      "speed_end": [
+        9.530823282409541,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3236239801177454,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 33,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        10.001399397187758,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.2122350010535166,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 34,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -9.623612938844682,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.528614565629427,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 35,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.749541758292374,
+        -0.0
+      ],
+      "speed_end": [
+        -9.597101608434642,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.33577409224387694,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 36,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.855587079932535,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.21960797971613277,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 37,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        19.67140716425001,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.8074944544974607,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 38,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        19.75094115548013,
+        -0.0
+      ],
+      "speed_end": [
+        19.65815149904499,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.33095231191136637,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 39,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        19.75094115548013,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.38225268681695707,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 40,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -19.757568988082642,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.8136664208587324,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 41,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -19.57861750781487,
+        -0.0
+      ],
+      "speed_end": [
+        -19.6647793316475,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.34177135689633215,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 42,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -19.60512883822491,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3891546192284345,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 43,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        29.69931789184781,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.0697544534084718,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 44,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        29.712573557052828,
+        -0.0
+      ],
+      "speed_end": [
+        29.825246711295502,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3146249690007221,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 45,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        29.72582922225785,
+        -0.0
+      ],
+      "speed_end": [
+        0.1126731542426719,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6236324093663608,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 46,
+      "label": "left_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        0.1126731542426719,
+        -0.0
+      ],
+      "speed_end": [
+        -29.619783900617687,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.0951434539608205,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 47,
+      "label": "left_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -29.70594572445032,
+        -0.0
+      ],
+      "speed_end": [
+        -29.6926900592453,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3291272972975855,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 48,
+      "label": "left_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -29.553505574592588,
+        -0.0
+      ],
+      "speed_end": [
+        -0.013255665205020223,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6266551590751172,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 49,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.013255665205020223,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0005928113697080781,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 50,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        1.736492141857649,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.37915850900006326,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 51,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        1.7630034722676897,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.21753027225061872,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 52,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -1.663585983230038,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.38827177194421275,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 53,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -1.5244014985773255,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.21445089566772502,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 54,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        4.593087993539507,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6932581469760184,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 55,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.80517863681983,
+        -0.0
+      ],
+      "speed_end": [
+        9.49105628679448,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7130852454154223,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 56,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.862214912535046,
+        -0.0
+      ],
+      "speed_end": [
+        19.810591648902722,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.2696587470983847,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 57,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        19.54547834480232,
+        -0.0
+      ],
+      "speed_end": [
+        29.72582922225785,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.2794553034028742,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 58,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        29.67280656143777,
+        -0.0
+      ],
+      "speed_end": [
+        19.5985010056224,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.162600678580836,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 59,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        19.737685490275112,
+        -0.0
+      ],
+      "speed_end": [
+        9.683263432267273,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.1808021640155935,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 60,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.616985106242172,
+        -0.0
+      ],
+      "speed_end": [
+        4.665994152167118,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6335901776092545,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 61,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.897968293254972,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.611524258172275,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 62,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -4.891340460652462,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.696859071432566,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 63,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -4.72564464558971,
+        -0.0
+      ],
+      "speed_end": [
+        -9.749541758292374,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7228119163506559,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 64,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.597101608434642,
+        -0.0
+      ],
+      "speed_end": [
+        -19.538850512199808,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.2793879923059286,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 65,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -19.69129066205754,
+        -0.0
+      ],
+      "speed_end": [
+        -29.6926900592453,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.2777442498811749,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 66,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -29.619783900617687,
+        -0.0
+      ],
+      "speed_end": [
+        -19.757568988082642,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.153580115151429,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 67,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -19.757568988082642,
+        -0.0
+      ],
+      "speed_end": [
+        -9.597101608434642,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.1775761548121806,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 68,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.716402595279824,
+        -0.0
+      ],
+      "speed_end": [
+        -5.017269280100154,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6316126940008934,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 69,
+      "label": "left_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -4.798550804217321,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5650426513834997,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 70,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 71,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        1.5310293311798358,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.38719975536639084,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 72,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        1.5177736659748156,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.22654916875099554,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 73,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -1.716608644050119,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.3920686439120408,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 74,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -1.6900973136400783,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.2219281029817353,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 75,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        4.75878380860226,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6908816032262246,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 76,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.692505482577159,
+        -0.0
+      ],
+      "speed_end": [
+        9.809192251714965,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.709731343042674,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 77,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.603729441037151,
+        -0.0
+      ],
+      "speed_end": [
+        19.67140716425001,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.284534289131455,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 78,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        19.764196820685154,
+        -0.0
+      ],
+      "speed_end": [
+        29.67280656143777,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.2768257677116919,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 79,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        29.72582922225785,
+        -0.0
+      ],
+      "speed_end": [
+        19.64489583383997,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.1571770681069,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 80,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        19.737685490275112,
+        -0.0
+      ],
+      "speed_end": [
+        9.49105628679448,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.1720375381750079,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 81,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.921865405957638,
+        -0.0
+      ],
+      "speed_end": [
+        4.480414839296835,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6310766944844185,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 82,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.665994152167118,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5732599356678512,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 83,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -4.599715826142018,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6907472561619544,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 84,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -4.573204495731977,
+        -0.0
+      ],
+      "speed_end": [
+        -9.56396244542209,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7180439572481895,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 85,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.941748903765166,
+        -0.0
+      ],
+      "speed_end": [
+        -19.591873173019888,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.2728900134443266,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 86,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -19.71780199246758,
+        -0.0
+      ],
+      "speed_end": [
+        -29.580016905002626,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.277786298118448,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 87,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -29.606528235412668,
+        -0.0
+      ],
+      "speed_end": [
+        -19.71780199246758,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.193830550246166,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 88,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -19.69129066205754,
+        -0.0
+      ],
+      "speed_end": [
+        -9.749541758292374,
+        -0.0
+      ],
+      "speed_rmse": [
+        1.1697143454911914,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 89,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.550706780217071,
+        -0.0
+      ],
+      "speed_end": [
+        -4.367741685054163,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6316612122192561,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 90,
+      "label": "left_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -4.811806469422341,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6089088323216003,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 91,
+      "label": "left_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        4.970874451882583,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.36957520925210163,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 92,
+      "label": "left_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.74552814339724,
+        -0.0
+      ],
+      "speed_end": [
+        4.632854989154568,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.30305983171437106,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 93,
+      "label": "left_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        4.400880848066714,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.9484194265566268,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 94,
+      "label": "left_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 95,
+      "label": "left_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -4.626227156552058,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.4494410008609529,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 96,
+      "label": "left_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -4.599715826142018,
+        -0.0
+      ],
+      "speed_end": [
+        -4.851573465037402,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.31206891704905276,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 97,
+      "label": "left_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -4.917851791062502,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.9220050805394836,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 98,
+      "label": "left_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0012575428184552026,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 99,
+      "label": "left_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        9.55733461281958,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5510953086857738,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 100,
+      "label": "left_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.643496436652212,
+        -0.0
+      ],
+      "speed_end": [
+        9.656752101857233,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.32058647114108535,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 101,
+      "label": "left_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        9.47780062158946,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        2.5592695616963814,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 102,
+      "label": "left_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 103,
+      "label": "left_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -9.749541758292374,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.528824833404918,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 104,
+      "label": "left_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.398266630359338,
+        -0.0
+      ],
+      "speed_end": [
+        -9.689891264869782,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.336136019805128,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 105,
+      "label": "left_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -9.928493238560147,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        2.5404248669700844,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 106,
+      "label": "left_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 107,
+      "label": "left_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        19.684662829455032,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.8101827194312519,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 108,
+      "label": "left_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        19.67140716425001,
+        -0.0
+      ],
+      "speed_end": [
+        19.55873401000734,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.32483236191396136,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 109,
+      "label": "left_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        19.71117415986507,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        6.979534928543898,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 110,
+      "label": "left_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 111,
+      "label": "left_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -19.359899031932034,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.8104663735664045,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 112,
+      "label": "left_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -19.830475146710253,
+        -0.0
+      ],
+      "speed_end": [
+        -19.591873173019888,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.33870648517775787,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 113,
+      "label": "left_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -19.744313322877623,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        6.947513753311457,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 114,
+      "label": "left_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 115,
+      "label": "left_triangle_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -1.842537463497811,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.2969887619629692,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 116,
+      "label": "left_triangle",
+      "samples": 8000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -1.968466282945503,
+        -0.0
+      ],
+      "speed_end": [
+        -1.4647510051547346,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.37579936705042405,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 117,
+      "label": "left_triangle_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -1.4514953399497144,
+        -0.0
+      ],
+      "speed_end": [
+        -0.07953399123012134,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.23729603895264564,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 118,
+      "label": "left_chirp_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.10604532164016178,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.02639924881193409,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 119,
+      "label": "left_low_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.45385777306841596,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 120,
+      "label": "left_high_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.2618043898999649,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 121,
+      "label": "left_chirp_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 122,
+      "label": "left_chirp_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        9.630240771447191,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5151400234917161,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 123,
+      "label": "left_low_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.875470577740066,
+        -0.0
+      ],
+      "speed_end": [
+        9.742913925689864,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6729202278506254,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 124,
+      "label": "left_high_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.974888066777718,
+        -0.0
+      ],
+      "speed_end": [
+        9.809192251714965,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.49896821243208894,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 125,
+      "label": "left_chirp_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.848959247330026,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.21791413907139387,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 126,
+      "label": "left_chirp_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -9.56396244542209,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5227942400599105,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 127,
+      "label": "left_low_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -10.008027229790269,
+        -0.0
+      ],
+      "speed_end": [
+        -9.49768411939699,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6801197135302788,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 128,
+      "label": "left_high_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.676635599664763,
+        -0.0
+      ],
+      "speed_end": [
+        -9.58384594322962,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.5086765696027297,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 129,
+      "label": "left_chirp_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.736286093087354,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.21822152219715024,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 130,
+      "label": "left_validation_entry",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        6.713994426342743,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.4518326329183064,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 131,
+      "label": "left_heldout_multisine",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        6.773644919765334,
+        -0.0
+      ],
+      "speed_end": [
+        6.800156250175374,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7807216794372033,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 132,
+      "label": "left_validation_exit",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        6.634460435112621,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.18387495263558906,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 133,
+      "label": "left_validation_entry",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -6.780272752367844,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.4436211366835306,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 134,
+      "label": "left_heldout_multisine",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -6.6941109285352125,
+        -0.0
+      ],
+      "speed_end": [
+        -6.7935284175728645,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7764574630575621,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 135,
+      "label": "left_validation_exit",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -6.8200397479829045,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.1939899034254293,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 136,
+      "label": "left_end_zero_current",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        1,
+        0
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.001317255676690137,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 137,
+      "label": "right_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0012575428184552026,
+        0.12288579005800833
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 138,
+      "label": "right_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.20000000000000162
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 139,
+      "label": "right_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.12678322833496375
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 140,
+      "label": "right_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.12352995633537577
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 141,
+      "label": "right_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.20000000000000162
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 142,
+      "label": "right_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.1271488250338235
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 143,
+      "label": "right_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        0.41755345395813703
+      ],
+      "speed_rmse": [
+        0.0,
+        0.27829958891538265
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 144,
+      "label": "right_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        0.41755345395813703
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.4933657655733818
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 145,
+      "label": "right_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3170755525230068
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 146,
+      "label": "right_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0012575428184552026,
+        0.30846692895598726
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 147,
+      "label": "right_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0008892170545621172,
+        0.5000477543208576
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 148,
+      "label": "right_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.31827969487067603
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 149,
+      "label": "right_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        1.014058388184047
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3044518204034102
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 150,
+      "label": "right_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        1.0008027229790268
+      ],
+      "speed_end": [
+        -0.0,
+        0.7091780884685819
+      ],
+      "speed_rmse": [
+        0.0,
+        0.2723187195228819
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 151,
+      "label": "right_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        0.6428997624434808
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.24061327957590528
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 152,
+      "label": "right_low_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.9146408991463953
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3656255428599989
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 153,
+      "label": "right_low_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.8815017361338449
+      ],
+      "speed_end": [
+        -0.0,
+        -1.0206862207865572
+      ],
+      "speed_rmse": [
+        0.0,
+        0.2702652079004865
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 154,
+      "label": "right_low_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -1.007430555581537
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.22158169519243728
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 155,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        1.4713788377572448
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3260844436053964
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 156,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        1.8889322917153817
+      ],
+      "speed_end": [
+        -0.0,
+        2.2070682566358673
+      ],
+      "speed_rmse": [
+        0.0,
+        0.36479732259274666
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 157,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        2.2932300804684984
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3498644846240888
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 158,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -2.1209064328032357
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3836667648561208
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 159,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -2.200440424033357
+      ],
+      "speed_end": [
+        -0.0,
+        -1.3852170139246134
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3707049834266081
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 160,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -1.4647510051547346
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.24500615273283957
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 161,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        4.77203947380728
+      ],
+      "speed_rmse": [
+        0.0,
+        0.4544427016816154
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 162,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        4.593087993539507
+      ],
+      "speed_end": [
+        -0.0,
+        4.16227887437635
+      ],
+      "speed_rmse": [
+        0.0,
+        0.4138236587387664
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 163,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        4.361113852451654
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3150938838220843
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 164,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -4.102628380953759
+      ],
+      "speed_rmse": [
+        0.0,
+        0.44252036193415295
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 165,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -4.559948830526957
+      ],
+      "speed_end": [
+        -0.0,
+        -4.367741685054163
+      ],
+      "speed_rmse": [
+        0.0,
+        0.4467206178017194
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 166,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -4.7654116412047705
+      ],
+      "speed_end": [
+        -0.0,
+        0.019883497807530334
+      ],
+      "speed_rmse": [
+        0.0,
+        0.23551857701654497
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 167,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        0.019883497807530334
+      ],
+      "speed_end": [
+        -0.0,
+        9.5043119519995
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5402287443668055
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 168,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.55733461281958
+      ],
+      "speed_end": [
+        -0.0,
+        9.49105628679448
+      ],
+      "speed_rmse": [
+        0.0,
+        0.41009760060455475
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 169,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.391638797756828
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.27543073029650816
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 170,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -9.371755299949298
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6065982599248433
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 171,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.484428454191969
+      ],
+      "speed_end": [
+        -0.0,
+        -9.292221308719176
+      ],
+      "speed_rmse": [
+        0.0,
+        0.436133789945748
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 172,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.650124269254722
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.2656112937961758
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 173,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        19.784080318492684
+      ],
+      "speed_rmse": [
+        0.0,
+        0.8264152733825839
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 174,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        19.55873401000734
+      ],
+      "speed_end": [
+        -0.0,
+        19.393038194944587
+      ],
+      "speed_rmse": [
+        0.0,
+        0.4003848992328539
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 175,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        19.684662829455032
+      ],
+      "speed_end": [
+        -0.0,
+        -0.013255665205020223
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3909543032445611
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 176,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.013255665205020223
+      ],
+      "speed_end": [
+        -0.0,
+        -19.757568988082642
+      ],
+      "speed_rmse": [
+        0.0,
+        0.8762825114899898
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 177,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -19.929892635747905
+      ],
+      "speed_end": [
+        -0.0,
+        -19.843730811915275
+      ],
+      "speed_rmse": [
+        0.0,
+        0.417277497715362
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 178,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -19.56536184260985
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.39068482755224604
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 179,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        29.599900402810157
+      ],
+      "speed_rmse": [
+        0.0,
+        1.1206279900313285
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 180,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        29.520366411580035
+      ],
+      "speed_end": [
+        -0.0,
+        29.72582922225785
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3885272721920944
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 181,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        29.712573557052828
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5979407248506896
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 182,
+      "label": "right_platform_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -29.81861887869299
+      ],
+      "speed_rmse": [
+        0.0,
+        1.1370030486253875
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 183,
+      "label": "right_platform_steady",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -29.77222405047542
+      ],
+      "speed_end": [
+        -0.0,
+        -29.74571272006538
+      ],
+      "speed_rmse": [
+        0.0,
+        0.40172135040131135
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 184,
+      "label": "right_platform_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -29.65292306363024
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6149051966852578
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 185,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.003273907796759496
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 186,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        2.014861111163074
+      ],
+      "speed_rmse": [
+        0.0,
+        0.43235434904178804
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 187,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        1.835909630895301
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.2241162173141313
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 188,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -1.5906798246024267
+      ],
+      "speed_rmse": [
+        0.0,
+        0.42818732323495723
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 189,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -1.8160261330877705
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.20357860132288222
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 190,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        4.719016812987199
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7187257908022416
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 191,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        4.513554002309386
+      ],
+      "speed_end": [
+        -0.0,
+        9.935121071162657
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7559930060915023
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 192,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.630240771447191
+      ],
+      "speed_end": [
+        -0.0,
+        19.764196820685154
+      ],
+      "speed_rmse": [
+        0.0,
+        1.2853200089002919
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 193,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        19.684662829455032
+      ],
+      "speed_end": [
+        -0.0,
+        29.659550896232748
+      ],
+      "speed_rmse": [
+        0.0,
+        1.2957512835882272
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 194,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        29.712573557052828
+      ],
+      "speed_end": [
+        -0.0,
+        19.69791849466005
+      ],
+      "speed_rmse": [
+        0.0,
+        1.1629149841792366
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 195,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        19.61175667082742
+      ],
+      "speed_end": [
+        -0.0,
+        9.795936586509944
+      ],
+      "speed_rmse": [
+        0.0,
+        1.1872253202959722
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 196,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.709774762677313
+      ],
+      "speed_end": [
+        -0.0,
+        4.480414839296835
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6482290434252914
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 197,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        4.831689967229871
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.558564460928806
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 198,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -4.520181834911896
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7235449796705437
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 199,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -5.030524945305174
+      ],
+      "speed_end": [
+        -0.0,
+        -9.955004568970187
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7707852463891356
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 200,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.49768411939699
+      ],
+      "speed_end": [
+        -0.0,
+        -19.56536184260985
+      ],
+      "speed_rmse": [
+        0.0,
+        1.3113597281933826
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 201,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -19.856986477120294
+      ],
+      "speed_end": [
+        -0.0,
+        -29.59327257020765
+      ],
+      "speed_rmse": [
+        0.0,
+        1.293913684442102
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 202,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -29.553505574592588
+      ],
+      "speed_end": [
+        -0.0,
+        -19.744313322877623
+      ],
+      "speed_rmse": [
+        0.0,
+        1.1602335424304278
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 203,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -19.69129066205754
+      ],
+      "speed_end": [
+        -0.0,
+        -9.444661458576908
+      ],
+      "speed_rmse": [
+        0.0,
+        1.2024391245481458
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 204,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.928493238560147
+      ],
+      "speed_end": [
+        -0.0,
+        -4.798550804217321
+      ],
+      "speed_rmse": [
+        0.0,
+        0.654036180355942
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 205,
+      "label": "right_step_0",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -4.931107456267523
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5437883607475071
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 206,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 207,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        2.0016054459580537
+      ],
+      "speed_rmse": [
+        0.0,
+        0.42913557368141325
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 208,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        2.0016054459580537
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.21930415448903373
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 209,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -1.4117283443346538
+      ],
+      "speed_rmse": [
+        0.0,
+        0.4168207955769194
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 210,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -1.424984009539674
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.21750735079985636
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 211,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        4.453903508886794
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7374661755365878
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 212,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        4.77203947380728
+      ],
+      "speed_end": [
+        -0.0,
+        9.656752101857233
+      ],
+      "speed_rmse": [
+        0.0,
+        0.767368637809018
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 213,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.54407894761456
+      ],
+      "speed_end": [
+        -0.0,
+        19.55873401000734
+      ],
+      "speed_rmse": [
+        0.0,
+        1.3212786491241368
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 214,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        19.419549525354626
+      ],
+      "speed_end": [
+        -0.0,
+        29.69931789184781
+      ],
+      "speed_rmse": [
+        0.0,
+        1.3242419958482317
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 215,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        29.76559621787291
+      ],
+      "speed_end": [
+        -0.0,
+        19.459316520969686
+      ],
+      "speed_rmse": [
+        0.0,
+        1.1853096642562793
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 216,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        19.863614309722802
+      ],
+      "speed_end": [
+        -0.0,
+        9.795936586509944
+      ],
+      "speed_rmse": [
+        0.0,
+        1.2116248409144104
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 217,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.365127467346788
+      ],
+      "speed_end": [
+        -0.0,
+        4.374369517656674
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6565214618560963
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 218,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        4.513554002309386
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5530536525672544
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 219,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -4.559948830526957
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7197098630612541
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 220,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -4.559948830526957
+      ],
+      "speed_end": [
+        -0.0,
+        -9.47117278898695
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7861357278574155
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 221,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.623612938844682
+      ],
+      "speed_end": [
+        -0.0,
+        -19.856986477120294
+      ],
+      "speed_rmse": [
+        0.0,
+        1.3151536536804092
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 222,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -19.47257218617471
+      ],
+      "speed_end": [
+        -0.0,
+        -29.454088085554936
+      ],
+      "speed_rmse": [
+        0.0,
+        1.3248286142382184
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 223,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -29.553505574592588
+      ],
+      "speed_end": [
+        -0.0,
+        -19.426177357957137
+      ],
+      "speed_rmse": [
+        0.0,
+        1.1839292746447978
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 224,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -19.830475146710253
+      ],
+      "speed_end": [
+        -0.0,
+        -9.703146930074803
+      ],
+      "speed_rmse": [
+        0.0,
+        1.2136214511598276
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 225,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.802564419112455
+      ],
+      "speed_end": [
+        -0.0,
+        -4.460531341489305
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6698159756176761
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 226,
+      "label": "right_step_1",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -4.72564464558971
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5480008871382899
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 227,
+      "label": "right_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        4.719016812987199
+      ],
+      "speed_rmse": [
+        0.001405975613341255,
+        0.4619411320861984
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 228,
+      "label": "right_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        4.4273921784767545
+      ],
+      "speed_end": [
+        -0.0,
+        4.692505482577159
+      ],
+      "speed_rmse": [
+        0.0,
+        0.3950080694820634
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 229,
+      "label": "right_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        4.4273921784767545
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6260650904368903
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 230,
+      "label": "right_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 231,
+      "label": "right_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -4.255068530811491
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6149650653355986
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 232,
+      "label": "right_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -4.407508680669224
+      ],
+      "speed_end": [
+        -0.0,
+        -4.354486019849143
+      ],
+      "speed_rmse": [
+        0.0,
+        0.40405399825039634
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 233,
+      "label": "right_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -4.685877649974649
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7713188422562649
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 234,
+      "label": "right_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 235,
+      "label": "right_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        9.49105628679448
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5920602222927279
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 236,
+      "label": "right_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.921865405957638
+      ],
+      "speed_end": [
+        -0.0,
+        9.630240771447191
+      ],
+      "speed_rmse": [
+        0.0,
+        0.41310792318219797
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 237,
+      "label": "right_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        9.848959247330026
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        2.051587728266938
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 238,
+      "label": "right_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 239,
+      "label": "right_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -9.444661458576908
+      ],
+      "speed_rmse": [
+        0.0,
+        0.61407762300823
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 240,
+      "label": "right_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.901981908150107
+      ],
+      "speed_end": [
+        -0.0,
+        -9.888726242945086
+      ],
+      "speed_rmse": [
+        0.0,
+        0.42709013400643614
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 241,
+      "label": "right_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -9.51093978460201
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        2.3812922049353538
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 242,
+      "label": "right_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 243,
+      "label": "right_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        19.764196820685154
+      ],
+      "speed_rmse": [
+        0.0,
+        0.9319407624686157
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 244,
+      "label": "right_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        19.65815149904499
+      ],
+      "speed_end": [
+        -0.0,
+        19.54547834480232
+      ],
+      "speed_rmse": [
+        0.0,
+        0.4066691054868846
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 245,
+      "label": "right_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        19.784080318492684
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        6.156249327955793
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 246,
+      "label": "right_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 247,
+      "label": "right_coast_runup",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -19.538850512199808
+      ],
+      "speed_rmse": [
+        0.0,
+        0.8932664008476302
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 248,
+      "label": "right_coast_plateau",
+      "samples": 2000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -19.704546327262562
+      ],
+      "speed_end": [
+        -0.0,
+        -19.52559484699479
+      ],
+      "speed_rmse": [
+        0.0,
+        0.42192249168800616
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 249,
+      "label": "right_zero_current_release",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -19.485827851379728
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        6.21817205216006
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 250,
+      "label": "right_recover_zero",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 251,
+      "label": "right_triangle_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -1.3984726791296336
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6051971664036804
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 252,
+      "label": "right_triangle",
+      "samples": 8000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -1.4647510051547346
+      ],
+      "speed_end": [
+        -0.0,
+        -1.2725438596819414
+      ],
+      "speed_rmse": [
+        0.0,
+        0.519581331793572
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 253,
+      "label": "right_triangle_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -1.1731263706442898
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.2824550406558891
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 254,
+      "label": "right_chirp_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.00239887257183523
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 255,
+      "label": "right_low_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6857517338360384
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 256,
+      "label": "right_high_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.27263982715398016
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 257,
+      "label": "right_chirp_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.0
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 258,
+      "label": "right_chirp_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        9.530823282409541
+      ],
+      "speed_rmse": [
+        0.0,
+        0.6831047702344681
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 259,
+      "label": "right_low_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.54407894761456
+      ],
+      "speed_end": [
+        -0.0,
+        9.55733461281958
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7208108573732801
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 260,
+      "label": "right_high_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.683263432267273
+      ],
+      "speed_end": [
+        -0.0,
+        9.921865405957638
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5683816871580122
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 261,
+      "label": "right_chirp_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        9.723030427882334
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.2888310388798096
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 262,
+      "label": "right_chirp_entry",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -9.424777960769378
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5698862693653328
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 263,
+      "label": "right_low_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.968260234175208
+      ],
+      "speed_end": [
+        -0.0,
+        -9.789308753907434
+      ],
+      "speed_rmse": [
+        0.0,
+        0.7222951247632838
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 264,
+      "label": "right_high_chirp",
+      "samples": 12000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.762797423497394
+      ],
+      "speed_end": [
+        -0.0,
+        -9.550706780217071
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5756870050808709
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 265,
+      "label": "right_chirp_exit",
+      "samples": 1000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -9.636868604049702
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.26723244498799836
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 266,
+      "label": "right_validation_entry",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        6.760389254560313
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5896882081131817
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 267,
+      "label": "right_heldout_multisine",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        6.700738761137723
+      ],
+      "speed_end": [
+        -0.0,
+        6.866434576200476
+      ],
+      "speed_rmse": [
+        0.0,
+        0.8234044805192889
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 268,
+      "label": "right_validation_exit",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        6.800156250175374
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.25816217231387145
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 269,
+      "label": "right_validation_entry",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -6.846551078392945
+      ],
+      "speed_rmse": [
+        0.0,
+        0.5460893123047166
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 270,
+      "label": "right_heldout_multisine",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -6.627832602510112
+      ],
+      "speed_end": [
+        -0.0,
+        -6.9194572370205565
+      ],
+      "speed_rmse": [
+        0.0,
+        0.8124839145097317
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 271,
+      "label": "right_validation_exit",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -6.6941109285352125
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.23517764229991325
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 272,
+      "label": "right_end_zero_current",
+      "samples": 4000,
+      "validation": false,
+      "axis_scale": [
+        0,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.001133533778257934
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 273,
+      "label": "both_api_same_entry",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        4.632854989154568,
+        4.5533209979244464
+      ],
+      "speed_rmse": [
+        0.39670580003026895,
+        0.5002348260546865
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 274,
+      "label": "both_api_same_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.679249817372138,
+        4.844945632434891
+      ],
+      "speed_end": [
+        4.619599323949548,
+        4.513554002309386
+      ],
+      "speed_rmse": [
+        0.3048895667280711,
+        0.3995682227954313
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 275,
+      "label": "both_api_same_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.679249817372138,
+        4.467159174091815
+      ],
+      "speed_end": [
+        9.769425256099904,
+        9.033735837221283
+      ],
+      "speed_rmse": [
+        0.5525845662683609,
+        0.6330557681073133
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 276,
+      "label": "both_api_same_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.709774762677313,
+        9.146408991463954
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7900141954651188,
+        0.762823784671936
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 277,
+      "label": "both_api_same_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -9.49768411939699,
+        -9.345243969539258
+      ],
+      "speed_rmse": [
+        0.9211610946588357,
+        0.9668380872393613
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 278,
+      "label": "both_api_same_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.663379934459742,
+        -9.398266630359338
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.8063770860215432,
+        0.7637365853377721
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 279,
+      "label": "both_api_same_heldout_chirp",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        0.019883497807530334,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7445141104512524,
+        0.7953646959158032
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 280,
+      "label": "both_api_same_heldout_multisine",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        0.019883497807530334,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6171469065747056,
+        0.639345624579494
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 281,
+      "label": "both_api_same_end_zero_current",
+      "samples": 4000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0012962454673069335,
+        0.0008317863901619282
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 282,
+      "label": "both_api_opposite_entry",
+      "samples": 1000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        4.80517863681983,
+        -5.030524945305174
+      ],
+      "speed_rmse": [
+        0.38340879723818155,
+        0.5436789534367689
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 283,
+      "label": "both_api_opposite_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.5268096675144065,
+        -4.77866730640979
+      ],
+      "speed_end": [
+        4.566576663129466,
+        -4.699133315179669
+      ],
+      "speed_rmse": [
+        0.30159760662095975,
+        0.4055740866322618
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 284,
+      "label": "both_api_opposite_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        4.732272478192219,
+        -4.73890031079473
+      ],
+      "speed_end": [
+        9.683263432267273,
+        -9.550706780217071
+      ],
+      "speed_rmse": [
+        0.5496326635475914,
+        0.6167586502215335
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 285,
+      "label": "both_api_opposite_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        9.683263432267273,
+        -9.597101608434642
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7968060735133542,
+        0.8037431343795433
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 286,
+      "label": "both_api_opposite_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -9.716402595279824,
+        9.961632401572697
+      ],
+      "speed_rmse": [
+        0.9084524693132424,
+        0.9472624224590425
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 287,
+      "label": "both_api_opposite_heldout_step",
+      "samples": 2000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -9.597101608434642,
+        9.54407894761456
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.8077345194275212,
+        0.7981904884538342
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 288,
+      "label": "both_api_opposite_heldout_chirp",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.7470495796831439,
+        0.8496221416978575
+      ],
+      "peak_abs_leg_velocity": [
+        0.0549450549450512,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 289,
+      "label": "both_api_opposite_heldout_multisine",
+      "samples": 12000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "velocity_P",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.6092506278903395,
+        0.7466418271518406
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    },
+    {
+      "id": 290,
+      "label": "both_api_opposite_end_zero_current",
+      "samples": 4000,
+      "validation": true,
+      "axis_scale": [
+        1,
+        -1
+      ],
+      "mode": "zero_current",
+      "speed_start": [
+        -0.0,
+        -0.0
+      ],
+      "speed_end": [
+        -0.0,
+        -0.0
+      ],
+      "speed_rmse": [
+        0.0,
+        0.001032113366552932
+      ],
+      "peak_abs_leg_velocity": [
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364,
+        0.0329670329670364
+      ]
+    }
+  ],
+  "p_algebra_max_error_nm": 0.0,
+  "limit_algebra_max_error_nm": 0.0,
+  "raw_current_encoding_max_error_nm": 0.00015065473698007225,
+  "frame_telemetry_max_error_nm": 4.440892098500626e-16,
+  "tick_gap_count": 0,
+  "sample_interval_max_ms": 1.422304,
+  "feedback_age_max_ms": [
+    12.682043,
+    12.681956999999999,
+    10.683897,
+    10.627699,
+    4.774624,
+    4.566316
+  ],
+  "wheel_speed_range_rad_s": [
+    [
+      -29.997570358960765,
+      -29.924664200333154
+    ],
+    [
+      29.931292032935662,
+      29.931292032935662
+    ]
+  ],
+  "wheel_command_peak_nm": [
+    2.1001832966830505,
+    2.1256489400101404
+  ],
+  "wheel_current_command_peak_a": [
+    8.50830078125,
+    8.612060546875
+  ],
+  "leg_velocity_peak_rad_s": [
+    0.0549450549450512,
+    0.0329670329670364,
+    0.0329670329670364,
+    0.0329670329670364
+  ],
+  "note": "DM axes are passive, not clamped. Carrier motion and feedback age must be qualified before fitting wheel dynamics. CAN bytes are host submissions, not receipt acknowledgements.",
+  "source_run": "/tmp/wheel-speed-093805",
+  "profile_sha256": "ee7bb669870d926b636c5a0f5656bbb019c6d5af3440cc174eb5abdeef60e141"
+}

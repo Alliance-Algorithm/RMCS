@@ -40,18 +40,27 @@ if not response.group(1) == "True":
     sys.exit(f"Robot status failed: {message}")
 
 fresh = re.search(r"feedback fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
+dm_fresh = re.search(r"dm feedback fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
 dr16 = re.search(r"dr16 fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
-enable = re.search(r"dm enable requested:\s*(true|false|0|1)", message, re.IGNORECASE)
+enable = re.search(r"dm enable requested \[L,R\]: \[(\d+),(\d+)\]", message)
 mode = re.search(r"joint mode:\s*(torque|position_pd)", message)
+switches = re.search(r"switches \[left,right\]: \[(\d+),(\d+)\]", message)
+pd_age = re.search(r"last position PD age=([-\d.]+) ms", message)
 status = f"Robot status | feedback: {fresh.group(1) if fresh else 'not reported'}"
+if dm_fresh:
+    status += f" | DM feedback: {dm_fresh.group(1)}"
 if dr16:
     status += f" | DR16: {dr16.group(1)}"
 if enable:
-    status += f" | DM enable request: {enable.group(1)}"
+    status += f" | DM enable request L/R: {enable.group(1)}/{enable.group(2)}"
 if mode:
     status += f" | joint mode: {mode.group(1)}"
+if switches:
+    status += f" | switches L/R: {switches.group(1)}/{switches.group(2)}"
+if pd_age:
+    status += f" | last position PD: {pd_age.group(1)} ms ago"
 print(status)
-print(f"{'Motor':<20} {'CAN':>3} {'Master':>6} {'Status':>6} {'Angle(rad)':>11} {'Vel(rad/s)':>11} {'Torque(Nm)':>11} {'Fault':>6}")
+print(f"{'Motor':<20} {'CAN':>3} {'Master':>6} {'Status':>6} {'Angle(rad)':>11} {'Vel(rad/s)':>11} {'Torque(Nm)':>11} {'Fault':>6} {'Age(ms)':>8} {'LastSys':>7} {'SysAge(ms)':>10}")
 
 for line in message.splitlines():
     match = re.match(r"\s*(left_hip_joint|right_hip_joint|left_knee_joint|right_knee_joint|wheel\[[01]\]):\s*(.*)", line)
@@ -64,5 +73,6 @@ for line in message.splitlines():
     print(
         f"{match.group(1):<20} {field('can_id'):>3} {field('master_id'):>6} "
         f"{field('status'):>6} {field('angle'):>11} {field('vel'):>11} "
-        f"{field('torque'):>11} {field('fault'):>6}"
+        f"{field('torque'):>11} {field('fault'):>6} {field('feedback_age_ms'):>8} "
+        f"{field('last_system_cmd'):>7} {field('last_system_age_ms'):>10}"
     )

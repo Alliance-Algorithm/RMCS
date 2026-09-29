@@ -1,0 +1,27 @@
+{
+  "duration_s": 687.3,
+  "segments": 153,
+  "max_speed_rad_s": 2.29578359392,
+  "max_acceleration_rad_s2": 16.7939071285,
+  "profile_sha256": "ce3d6b25467dcbc8feaacfe808af01d0e27a9b1ffd41b7a6202e0e95bdc362f1",
+  "initial_example_model_rad": [
+    1.031609,
+    -0.3510346
+  ],
+  "audit_dt_s": 0.001,
+  "preview_dt_s": 0.02,
+  "kind": "planned_reference_only_not_a_physics_simulation",
+  "branch_checks": {
+    "sides": [
+      "left",
+      "right"
+    ],
+    "initial_delta_magnitudes_rad": [
+      0.8,
+      1.38264,
+      1.41499
+    ]
+  },
+  "torque_cap_nm": 20,
+  "torque_feasibility": "not identified; requires measured tracking, saturation and gravity/spring load"
+}

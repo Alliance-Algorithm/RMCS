@@ -13,5 +13,6 @@
   <depend>rmcs_description</depend>
   <depend>rmcs_msgs</depend>
   <depend>ament_index_cpp</depend>
+  <test_depend>ament_cmake_gtest</test_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

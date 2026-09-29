@@ -2,182 +2,34 @@
 
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
 #include <limits>
 #include <numbers>
-#include <ranges>
 #include <stdexcept>
 #include <utility>
-#include <vector>
 
-#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <pluginlib/class_list_macros.hpp>
 
 namespace rmcs::rl {
 
 namespace {
-std::vector<double> parameter_vector(rclcpp::Node& node, const char* name, std::size_t count) {
-    const auto v = node.get_parameter(name).as_double_array();
-    if (v.size() != count || !std::ranges::all_of(v, [](double x) { return std::isfinite(x); }))
-        throw std::runtime_error(
-            std::string{name} + " must have " + std::to_string(count) + " finite values");
-    return v;
-}
-
 bool almost_integer(double value) {
     return std::isfinite(value) && value >= 1.0 && std::abs(value - std::round(value)) < 1e-6;
 }
+
 } // namespace
 
 bool accepts_motion_command(
     bool jump, double height, rmcs_msgs::ChassisMode mode,
     const rmcs_description::BaseLink::DirectionVector& command) {
     if (!std::isfinite(height) || !command.vector.allFinite() || jump
-        || std::abs(height - 0.305) > 1e-3 || command.vector.x() < -3.0 || command.vector.x() > 3.0
-        || command.vector.z() < -1.05 || command.vector.z() > 4.0 * std::numbers::pi + 1e-3)
+        || std::abs(height - DeployedPolicyContract::kNominalHeight) > 1e-3
+        || command.vector.x() < -3.0 || command.vector.x() > 3.0 || command.vector.z() < -1.05
+        || command.vector.z() > 4.0 * std::numbers::pi + 1e-3)
         return false;
     if (rmcs_msgs::is_spining(mode)
         && (std::abs(command.vector.x()) > 1e-3 || std::abs(command.vector.y()) > 1e-3))
         return false;
     return std::abs(command.vector.y()) <= 1e-3;
-}
-
-RlController::RlController()
-    : Node{get_component_name(), node::options()} {
-    constexpr const char* base = "/wheel_leg/";
-    for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
-        const std::string prefix = std::string{base} + kMotorNames[i];
-        register_input(prefix + "/angle", angle_inputs_[i]);
-        register_input(prefix + "/velocity", velocity_inputs_[i]);
-        register_input(prefix + "/torque", torque_feedback_inputs_[i]);
-        register_input(prefix + "/max_torque", max_torque_inputs_[i]);
-        register_output(prefix + "/control_torque", torque_outputs_[i], 0.0);
-        if (i < 4)
-            register_input(prefix + "/fault_code", fault_inputs_[i]);
-    }
-    register_input("/wheel_leg/feedback_fresh", feedback_fresh_);
-    register_input("/wheel_leg/imu/quaternion", orientation_);
-    register_input("/wheel_leg/imu/angular_velocity", gyro_);
-    register_input("/chassis/control_velocity", velocity_command_);
-    register_input("/chassis/control_height", height_command_);
-    register_input("/chassis/control_state", state_command_);
-    register_input("/chassis/reset_count", reset_count_);
-    register_input("/chassis/control_mode", chassis_mode_);
-    register_input("/chassis/jump_request", jump_command_);
-    register_input("/chassis/jump_apex_delta", jump_apex_command_);
-    register_input("/predefined/update_count", update_count_);
-    register_input("/predefined/update_rate", update_rate_);
-    register_input("/predefined/timestamp", timestamp_);
-    register_output("/wheel_leg/rl/state", state_output_, std::to_underlying(State::kInit));
-    register_output("/wheel_leg/rl/performance/inference_us", inference_time_us_, 0.0);
-    register_output("/wheel_leg/rl/performance/pd_us", pd_time_us_, 0.0);
-    for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
-        register_output(
-            std::string{"/wheel_leg/rl/observation/"} + std::string{kObservationNames[i]},
-            observation_outputs_[i], 0.0);
-    for (std::size_t i = 0; i < action_outputs_.size(); ++i)
-        register_output(
-            std::string{"/wheel_leg/rl/action/"} + kMotorNames[i], action_outputs_[i], 0.0);
-
-    calibration_ready_ = get_parameter_or("calibration_ready", false);
-    soft_limits_ready_ = get_parameter_or("soft_limits_ready", false);
-    imu_alignment_ready_ = get_parameter_or("imu_alignment_ready", false);
-    auto_enter_rl_ = get_parameter_or("auto_enter_rl", false);
-    prepare_kp_ = get_parameter_or("prepare_kp", 80.0);
-    prepare_kd_ = get_parameter_or("prepare_kd", 2.0);
-    prepare_max_velocity_ = get_parameter_or("prepare_max_velocity", 1.0);
-    prepare_reach_threshold_ = get_parameter_or("prepare_reach_threshold", 0.02);
-    prepare_max_tilt_rad_ = get_parameter_or("prepare_max_tilt_rad", 0.2);
-    prepare_max_angular_velocity_ = get_parameter_or("prepare_max_angular_velocity", 0.35);
-    prepare_max_joint_velocity_ = get_parameter_or("prepare_max_joint_velocity", 0.5);
-    prepare_stable_seconds_ = get_parameter_or("prepare_stable_seconds", 0.25);
-    hinge_margin_ = get_parameter_or("hinge_margin", 0.03);
-    height_transition_seconds_ = get_parameter_or("height_transition_seconds", 6.0);
-    wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
-    wheel_track_ = get_parameter_or("wheel_track", 0.4373);
-    inference_frequency_ = get_parameter_or("rl_inference_frequency", 50.0);
-    const std::array parameters{
-        inference_frequency_,
-        prepare_kp_,
-        prepare_kd_,
-        prepare_max_velocity_,
-        prepare_reach_threshold_,
-        prepare_max_tilt_rad_,
-        prepare_max_angular_velocity_,
-        prepare_max_joint_velocity_,
-        prepare_stable_seconds_,
-        hinge_margin_,
-        height_transition_seconds_,
-        wheel_radius_,
-        wheel_track_,
-    };
-    if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
-        || inference_frequency_ != 50.0 || prepare_kp_ <= 0 || prepare_kd_ < 0
-        || prepare_max_velocity_ <= 0 || prepare_reach_threshold_ <= 0 || prepare_max_tilt_rad_ <= 0
-        || prepare_max_tilt_rad_ >= std::numbers::pi / 2 || prepare_max_angular_velocity_ <= 0
-        || prepare_max_joint_velocity_ <= 0 || prepare_stable_seconds_ <= 0 || hinge_margin_ < 0
-        || height_transition_seconds_ <= 0 || wheel_radius_ <= 0 || wheel_track_ <= 0)
-        throw std::runtime_error("Invalid policy frequency, PREPARE thresholds, or robot geometry");
-
-    const auto matrix = parameter_vector(*this, "leg_motor_to_model", 16);
-    const auto offsets = parameter_vector(*this, "leg_model_offsets", 4);
-    const auto wheel_scales = parameter_vector(*this, "wheel_model_scale", 2);
-    const auto hinge = parameter_vector(*this, "hinge_coefficients", 4);
-    const auto hinge_bias = parameter_vector(*this, "hinge_bias", 2);
-    const auto hinge_min = parameter_vector(*this, "hinge_min", 2);
-    const auto hinge_max = parameter_vector(*this, "hinge_max", 2);
-    const auto nominal = parameter_vector(*this, "nominal_model_pos", 6);
-    const auto imu_alignment = parameter_vector(*this, "imu_to_base", 9);
-    for (int row = 0; row < 4; ++row) {
-        leg_offset_[row] = offsets[row];
-        for (int col = 0; col < 4; ++col)
-            leg_jacobian_(row, col) = matrix[row * 4 + col];
-        hinge_coeff_[row] = hinge[row];
-    }
-    for (int i = 0; i < 2; ++i) {
-        wheel_scale_[i] = wheel_scales[i];
-        hinge_bias_[i] = hinge_bias[i];
-        hinge_min_[i] = hinge_min[i];
-        hinge_max_[i] = hinge_max[i];
-    }
-    std::ranges::copy(nominal, nominal_.begin());
-    for (int row = 0; row < 3; ++row)
-        for (int col = 0; col < 3; ++col)
-            imu_to_base_(row, col) = imu_alignment[row * 3 + col];
-
-    if (calibration_ready_
-        && (std::abs(leg_jacobian_.determinant()) < 1e-6 || std::abs(wheel_scale_[0]) < 1e-6
-            || std::abs(wheel_scale_[1]) < 1e-6))
-        throw std::runtime_error("Calibrated motor-to-model Jacobian must be invertible");
-    if (soft_limits_ready_) {
-        for (int side = 0; side < 2; ++side) {
-            const double b = hinge_coeff_[side * 2 + 1];
-            if (std::abs(b) < 1e-6 || hinge_min_[side] >= hinge_max_[side]
-                || hinge_max_[side] - hinge_min_[side] < 2 * hinge_margin_)
-                throw std::runtime_error("Uncalibrated/invalid hinge soft limits");
-            const double at_nominal = hinge_coeff_[side * 2] * nominal_[side * 2]
-                                    + b * nominal_[side * 2 + 1] + hinge_bias_[side];
-            if (at_nominal < hinge_min_[side] + hinge_margin_
-                || at_nominal > hinge_max_[side] - hinge_margin_)
-                throw std::runtime_error("Nominal leg posture is outside calibrated hinge limits");
-        }
-    }
-    if (imu_alignment_ready_
-        && (std::abs(imu_to_base_.determinant() - 1.0) > 1e-3
-            || (imu_to_base_.transpose() * imu_to_base_ - Eigen::Matrix3d::Identity()).norm()
-                   > 1e-3))
-        throw std::runtime_error("imu_to_base must be a calibrated rotation matrix");
-
-    const std::string model_path = get_parameter_or<std::string>("rl_model_path", "");
-    if (!model_path.empty()) {
-        auto path = std::filesystem::path{model_path};
-        if (!path.is_absolute())
-            path = std::filesystem::path{ament_index_cpp::get_package_share_directory("rmcs_rl")}
-                 / path;
-        policy_ = std::make_unique<OnnxPolicy>(path.string());
-        policy_ready_ = true;
-    }
-    clear_outputs_();
 }
 
 void RlController::before_updating() {
@@ -188,6 +40,8 @@ void RlController::before_updating() {
         RCLCPP_WARN(
             get_logger(),
             "RL disarmed: calibrated motor mapping, hinge limits and ONNX model are required");
+    if (recovery_enabled_ && !recovery_profile_ready_)
+        RCLCPP_WARN(get_logger(), "Self-righting disarmed: recovery profile is not calibrated");
 }
 
 void RlController::clear_outputs_() {
@@ -195,9 +49,19 @@ void RlController::clear_outputs_() {
         *output = 0.0;
 }
 
+void RlController::latch_fault_(std::optional<RecoveryFailure> reason) {
+    fault_latched_ = true;
+    if (reason)
+        recovery_failure_latched_ = *reason;
+    enter_(State::kIdle);
+    clear_outputs_();
+}
+
 void RlController::enter_(State next) {
     if (state_ == next)
         return;
+    if (next == State::kIdle && recovery_.phase() == RecoveryPhase::kFailed)
+        recovery_failure_latched_ = recovery_.failure();
     state_ = next;
     prepare_stable_since_.reset();
     if (next != State::kRl) {
@@ -211,54 +75,91 @@ void RlController::enter_(State next) {
             *output = 0.0;
     }
     if (next == State::kIdle || next == State::kInit) {
+        *enable_request_ = false;
+        recovery_.reset();
+        recovery_peak_budget_.reset();
+        recovery_interval_.reset();
+        recovery_actuation_interval_.reset();
+        last_pd_tick_.reset();
+        motor_feedback_initialized_ = false;
+        if (recovery_observer_)
+            recovery_observer_->reset();
+        recovery_started_ = false;
+        recovery_upright_seconds_ = 0.0;
+        policy_targets_valid_ = false;
         jump_was_requested_ = false;
         vx_reference_ = yaw_reference_ = 0.0;
-        height_reference_ = height_from_ = height_target_ = 0.305;
+        height_reference_ = height_from_ = height_target_ = DeployedPolicyContract::kNominalHeight;
         height_start_ = *timestamp_;
     } else if (next == State::kPrepare) {
+        recovery_.reset();
+        recovery_started_ = false;
+        recovery_upright_seconds_ = 0.0;
+        motor_feedback_initialized_ = false;
+        recovery_command_ = {};
         targets_ = q_;
-    } else if (next == State::kRl) {
+        policy_targets_valid_ = false;
         last_policy_tick_ = std::numeric_limits<std::size_t>::max();
+        enable_wait_start_ = Clock::now();
+    } else if (next == State::kRl) {
+        if (!recovery_started_)
+            last_policy_tick_ = std::numeric_limits<std::size_t>::max();
+        else
+            recovery_upright_seconds_ = 0.0;
         rl_start_ = *timestamp_;
+        recovery_rl_start_ = recovery_update_time_;
         jump_was_requested_ = false;
     }
 }
 
-void RlController::update_state_output_() { *state_output_ = std::to_underlying(state_); }
+void RlController::update_state_output_() {
+    *state_output_ = std::to_underlying(state_);
+    *recovery_phase_output_ = std::to_underlying(recovery_.phase());
+    *recovery_failure_output_ = std::to_underlying(recovery_failure_latched_);
+    *recovery_support_output_ = recovery_started_ && last_recovery_feedback_.support_confirmed;
+    *recovery_geometry_output_ = recovery_started_ && last_recovery_feedback_.geometry_valid;
+    *recovery_motion_hold_output_ = hold_recovery_command(
+        recovery_started_, state_ == State::kPrepare,
+        std::chrono::duration<double>(recovery_update_time_ - recovery_rl_start_).count(),
+        recovery_upright_seconds_);
+}
 
-bool RlController::update_prepare_() {
-    const double dt = 1.0 / *update_rate_;
-    bool reached = true;
-    for (int i = 0; i < 4; ++i) {
-        const double delta = std::remainder(nominal_[i] - targets_[i], 2 * std::numbers::pi);
-        targets_[i] += std::clamp(delta, -prepare_max_velocity_ * dt, prepare_max_velocity_ * dt);
-        reached &= std::abs(std::remainder(nominal_[i] - q_[i], 2 * std::numbers::pi))
-                 < prepare_reach_threshold_;
-    }
-    targets_[4] = targets_[5] = 0.0;
-    const Eigen::Quaterniond q_world_base =
-        orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
-    const double gravity_z = (q_world_base.conjugate() * -Eigen::Vector3d::UnitZ()).z();
-    if (!reached || -gravity_z < std::cos(prepare_max_tilt_rad_)
-        || gyro_->norm() > prepare_max_angular_velocity_
-        || dq_.cwiseAbs().maxCoeff() > prepare_max_joint_velocity_) {
-        prepare_stable_since_.reset();
+bool RlController::evaluate_policy_(std::size_t tick, bool recovering) {
+    const bool shadow = recovering && recovery_command_.phase != RecoveryPhase::kBlend;
+    if (!assemble_observation_(recovering)) {
         return false;
     }
-    if (!prepare_stable_since_ || *timestamp_ < *prepare_stable_since_)
-        prepare_stable_since_ = *timestamp_;
-    return *timestamp_ - *prepare_stable_since_
-        >= std::chrono::duration<double>{prepare_stable_seconds_};
+    const auto inference_start = Clock::now();
+    const auto inference =
+        policy_->run(observation_).and_then([this, shadow](const PolicyAction& raw) {
+            return process_action_(raw, shadow);
+        });
+    *inference_time_us_ =
+        std::chrono::duration<double, std::micro>{Clock::now() - inference_start}.count();
+    if (!inference) {
+        node::error("ONNX inference failed: {}", inference.error());
+        return false;
+    }
+    last_policy_tick_ = tick;
+    for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
+        *observation_outputs_[i] = observation_[i];
+    if (!shadow)
+        for (std::size_t i = 0; i < action_outputs_.size(); ++i)
+            *action_outputs_[i] = previous_action_[i];
+    return true;
 }
 
 void RlController::update() {
+    recovery_update_time_ = Clock::now();
     if (!timing_ready_) {
         const double rate = *update_rate_;
-        if (!almost_integer(rate / inference_frequency_) || !almost_integer(rate / 200.0))
+        if (!almost_integer(rate / inference_frequency_)
+            || !almost_integer(rate / DeployedPolicyContract::kControlFrequencyHz))
             throw std::runtime_error(
                 "RMCS update_rate must be an integer multiple of 200Hz and 50Hz");
         policy_divisor_ = static_cast<std::size_t>(std::llround(rate / inference_frequency_));
-        pd_divisor_ = static_cast<std::size_t>(std::llround(rate / 200.0));
+        pd_divisor_ = static_cast<std::size_t>(
+            std::llround(rate / DeployedPolicyContract::kControlFrequencyHz));
         timing_ready_ = true;
     }
     const int requested = *state_command_;
@@ -266,9 +167,12 @@ void RlController::update() {
     last_reset_count_ = *reset_count_;
     if (reset) {
         fault_latched_ = false;
+        recovery_failure_latched_ = RecoveryFailure::kNone;
         enter_(State::kIdle);
     }
     if (requested == 0) {
+        if (recovery_started_)
+            recovery_failure_latched_ = RecoveryFailure::kCancelled;
         enter_(State::kInit);
         clear_outputs_();
         update_state_output_();
@@ -278,6 +182,8 @@ void RlController::update() {
     // re-arm itself merely because auto_enter_rl was configured.
     const bool automatic = requested == 1 && auto_enter_rl_ && *reset_count_ == 0;
     if (requested == 1 && !automatic) {
+        if (recovery_started_)
+            recovery_failure_latched_ = RecoveryFailure::kCancelled;
         enter_(State::kIdle);
         clear_outputs_();
         update_state_output_();
@@ -291,58 +197,124 @@ void RlController::update() {
             "Requested motion exceeds the active policy capability profile");
     if ((requested != 2 && requested != 3 && !automatic) || unsupported_command || fault_latched_
         || !policy_ready_ || !calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_
-        || !read_model_state_()) {
+        || (recovery_enabled_ && !recovery_profile_ready_) || !read_model_state_()) {
         if (requested >= 2 && calibration_ready_ && soft_limits_ready_ && policy_ready_
             && imu_alignment_ready_)
             fault_latched_ = true;
+        if (recovery_started_ && !feedback_valid_)
+            recovery_failure_latched_ = RecoveryFailure::kInvalidFeedback;
         enter_(State::kIdle);
         clear_outputs_();
         update_state_output_();
         return;
     }
 
-    if (requested == 2 || (state_ != State::kPrepare && state_ != State::kRl))
-        enter_(State::kPrepare);
-    if (state_ == State::kPrepare) {
-        const bool ready = update_prepare_();
-        if (ready && (requested == 3 || automatic))
-            enter_(State::kRl);
+    if (recovery_enabled_ && requested == 3 && state_ != State::kRl
+        && (*chassis_mode_ != rmcs_msgs::ChassisMode::AUTO
+            || (!recovery_started_
+                && !neutral_recovery_request(true, velocity_command_->vector)))) {
+        enter_(State::kIdle);
+        fault_latched_ = true;
+        recovery_failure_latched_ = RecoveryFailure::kUnsafeRequest;
+        update_state_output_();
+        return;
     }
-    if (state_ == State::kRl) {
-        const std::size_t tick = *update_count_;
-        if (last_policy_tick_ == std::numeric_limits<std::size_t>::max()
-            || tick - last_policy_tick_ >= policy_divisor_) {
-            if (!assemble_observation_()) {
-                fault_latched_ = true;
-                enter_(State::kIdle);
-                clear_outputs_();
+
+    const std::size_t tick = *update_count_;
+    const bool pd_due = !last_pd_tick_ || tick - *last_pd_tick_ >= pd_divisor_;
+    if (recovery_enabled_ && pd_due) {
+        const auto elapsed = recovery_interval_.sample(recovery_update_time_);
+        if (!elapsed) {
+            latch_fault_(RecoveryFailure::kInvalidFeedback);
+            update_state_output_();
+            return;
+        }
+        recovery_dt_ = *elapsed;
+    }
+    if (state_ == State::kRl && recovery_started_) {
+        const Eigen::Quaterniond world_base =
+            orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
+        const Eigen::Vector3d gravity = world_base.conjugate() * -Eigen::Vector3d::UnitZ();
+        if (-gravity.z() < std::cos(45.0 * std::numbers::pi / 180.0)) {
+            latch_fault_(RecoveryFailure::kLostUpright);
+            update_state_output_();
+            return;
+        }
+        if (pd_due) {
+            const auto feedback = observe_recovery_();
+            if (!feedback || !feedback->geometry_valid || !feedback->spring_compensation_valid) {
+                latch_fault_(RecoveryFailure::kInvalidFeedback);
                 update_state_output_();
                 return;
             }
-            const auto inference_start = Clock::now();
-            const auto inference =
-                policy_->run(observation_).and_then([this](const PolicyAction& raw) {
-                    return process_action_(raw);
-                });
-            *inference_time_us_ =
-                std::chrono::duration<double, std::micro>{Clock::now() - inference_start}.count();
-            if (!inference) {
-                node::error("ONNX inference failed: {}", inference.error());
-                fault_latched_ = true;
-                enter_(State::kIdle);
-                clear_outputs_();
-                update_state_output_();
-                return;
-            }
-            last_policy_tick_ = tick;
-            for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
-                *observation_outputs_[i] = observation_[i];
-            for (std::size_t i = 0; i < action_outputs_.size(); ++i)
-                *action_outputs_[i] = previous_action_[i];
+            recovery_upright_seconds_ = recovery_upright_for_motion(*feedback)
+                                          ? std::min(1.0, recovery_upright_seconds_ + recovery_dt_)
+                                          : 0.0;
         }
     }
-    const std::size_t tick = *update_count_;
-    if (tick - last_pd_tick_ >= pd_divisor_ || last_pd_tick_ == 0) {
+    if (requested == 2 || (state_ != State::kPrepare && state_ != State::kRl))
+        enter_(State::kPrepare);
+    if (requested == 2 && recovery_started_) {
+        latch_fault_(RecoveryFailure::kCancelled);
+        update_state_output_();
+        return;
+    }
+    *enable_request_ = true;
+    if (state_ == State::kRl && (!dm_control_ready_.ready() || !*dm_control_ready_)) {
+        latch_fault_(RecoveryFailure::kInvalidFeedback);
+        update_state_output_();
+        return;
+    }
+    if (state_ == State::kPrepare) {
+        if (!dm_control_ready_.ready() || !*dm_control_ready_) {
+            clear_outputs_();
+            if (recovery_started_) {
+                latch_fault_(RecoveryFailure::kInvalidFeedback);
+                update_state_output_();
+                return;
+            }
+            if (recovery_enabled_ && requested == 3 && pd_due && recovery_observer_
+                && !observe_recovery_()) {
+                // Contact evidence must not survive a gap in IMU feedback.
+                recovery_observer_->reset();
+                last_recovery_feedback_ = {};
+            }
+            // Even while waiting for the first MIT, observation runs only on
+            // the control cadence, not once per executor tick with a fake 5 ms.
+            if (pd_due)
+                last_pd_tick_ = tick;
+            if (recovery_update_time_ - enable_wait_start_ > std::chrono::seconds{1}) {
+                latch_fault_();
+            }
+            update_state_output_();
+            return;
+        }
+        if (recovery_enabled_ && requested == 3) {
+            if (pd_due) {
+                if (!advance_recovery_()) {
+                    latch_fault_();
+                    update_state_output_();
+                    return;
+                }
+            }
+        } else {
+            const bool ready = update_prepare_();
+            if (ready && (requested == 3 || automatic))
+                enter_(State::kRl);
+        }
+    }
+    const bool recovering = state_ == State::kPrepare && recovery_started_;
+    if (state_ == State::kRl || recovering) {
+        if (last_policy_tick_ == std::numeric_limits<std::size_t>::max()
+            || tick - last_policy_tick_ >= policy_divisor_) {
+            if (!evaluate_policy_(tick, recovering)) {
+                latch_fault_();
+                update_state_output_();
+                return;
+            }
+        }
+    }
+    if (pd_due) {
         const auto pd_start = Clock::now();
         compute_motor_torques_();
         if (state_ == State::kPrepare || state_ == State::kRl)

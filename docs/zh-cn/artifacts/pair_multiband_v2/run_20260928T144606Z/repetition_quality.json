@@ -1,0 +1,49 @@
+{
+  "0": {
+    "samples": 975,
+    "phase_counts": {
+      "-1": 7,
+      "1": 968
+    },
+    "failure_counts": {
+      "0": 968,
+      "3": 7
+    },
+    "completed": false,
+    "running_samples": 0
+  },
+  "1": {
+    "samples": 676768,
+    "phase_counts": {
+      "1": 5347,
+      "2": 671420,
+      "3": 1
+    },
+    "failure_counts": {
+      "0": 676768
+    },
+    "completed": true,
+    "running_samples": 671420,
+    "segment_count": 161,
+    "segment_min": 0,
+    "segment_max": 160,
+    "running_span_s": 671.418952479,
+    "tick_gaps": 0,
+    "dt_min_ms": 0.454666,
+    "dt_max_ms": 1.543869,
+    "dt_p99_ms": 1.1439686799999986,
+    "recorder_dropped": 0,
+    "axis_rmse_rad": [
+      0.08057505017059584,
+      0.07976425837499658
+    ],
+    "peak_torque_nm": [
+      29.87531740832173,
+      30.18651053444863
+    ],
+    "saturation_fraction": [
+      0.0,
+      0.0
+    ]
+  }
+}

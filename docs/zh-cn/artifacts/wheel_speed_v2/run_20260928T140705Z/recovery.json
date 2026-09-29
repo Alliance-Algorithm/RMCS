@@ -1,0 +1,24 @@
+{
+  "status": "execution_completed_recorder_interrupted_before_seal",
+  "source": "archived_controller_log",
+  "completion_lines": [
+    "[INFO] [1790605227.723628499] [wheel_leg_wheel_identification_controller]: Wheel identification complete: all outputs zero current"
+  ],
+  "original_mcap_sha256": "db7de993216c164a0f26d87873ccfe854f07856bd842f4fb707d6fa85d7c035e",
+  "original_mcap_bytes": 853372928,
+  "metadata_present": false,
+  "note": "Host rebooted before recorder was gracefully stopped. Preserve original MCAP and recover a copy; verify terminal event and sample coverage before fitting.",
+  "recovered_message_count": 629742,
+  "running_samples": 629592,
+  "recovered_complete_segments": 290,
+  "tail_missing_approx_s": 0.404,
+  "bag_terminal_event_present": false,
+  "excluded_comparison_segments": [
+    80,
+    123,
+    168,
+    263,
+    290
+  ],
+  "recovery_method": "ros2 bag reindex -s mcap on downloaded copy; original MCAP bytes unchanged"
+}

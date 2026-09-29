@@ -1,0 +1,39 @@
+{
+  "status": "prepared_not_yet_validated",
+  "candidate": {
+    "kp": 0.4,
+    "ki": 0.0,
+    "kd": 0.0,
+    "torque_cap_nm": 4.5,
+    "current_limit_a": 18.230894198876328
+  },
+  "baselines": [
+    "wheels-20260928T093805Z",
+    "wheels-20260928T100509Z"
+  ],
+  "selection_method": "Intermediate point between measured gain 0.2 and reference gain 0.6; not a model-optimized or validated optimum.",
+  "change_from_06": [
+    "wheel_velocity_kp"
+  ],
+  "held_fixed": [
+    "trajectory_manifest",
+    "50 Hz ZOH reference",
+    "1000 Hz P loop",
+    "torque cap 4.5 Nm",
+    "current conversion and reduction 15.8",
+    "all DM disabled",
+    "recording schema"
+  ],
+  "duration_s": 630,
+  "segments": 291,
+  "comparison_metrics": [
+    "single-wheel and both-wheel tracking RMSE",
+    "low/high chirp and multisine RMSE",
+    "steady low-speed motion and stopping ripple",
+    "raw peak and 10 ms averaged step overshoot",
+    "command effort RMS and saturation",
+    "temperature and passive leg movement"
+  ],
+  "decision_rule": "Compare all three gains. Prefer 0.4 as compromise only if effort and overshoot decrease and tracking remains substantially better than 0.2. Report tradeoffs; do not declare every metric improved. Persistent low-speed stiction is not solved by an intermediate P gain.",
+  "training_release": false
+}

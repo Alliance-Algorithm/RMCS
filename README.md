@@ -3,6 +3,8 @@ RoboMaster Control System based on ROS2.
 
 快速开始: [quick-start](https://github.com/Alliance-Algorithm/RMCS/wiki/Quick-Start)
 
+轮腿部署代码： [硬件、最终 PD 辨识、自起动作序列与 RL 组件整理](docs/zh-cn/wheel_leg_refactoring_20260929.md)，包含当前模型与 V6 训练合同的版本边界、动作对照和离线验证结果。
+
 ## Development
 
 ### Pre-requirements:

@@ -1,0 +1,216 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+      - rmcs_core::controller::identification::WheelLegPairIdentificationController -> wheel_leg_pair_identification_controller
+      - rmcs_core::controller::identification::WheelLegIdentificationRecorder -> wheel_leg_identification_recorder
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+wheel_leg:
+  ros__parameters:
+    board_serial: ""
+    require_enable_request: true
+    joint_control_mode: "torque"
+    allow_set_zero: false
+    # DM hardware parameter order [left hip, right hip, left knee, right knee].
+    # Verify these MIT register scales on the actual four drives before a run.
+    dm_master_ids: [1, 2, 1, 2]
+    dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
+    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
+    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
+    # DM-J8009 / J8009P family: rated 20 Nm, peak 40 Nm (manufacturer).
+    # MIT T_MAX=54 above is the encoding scale, not physical capability.
+    dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
+
+wheel_leg_pair_identification_controller:
+  ros__parameters:
+    # For the right pair, set BOTH this side and the recorder side to right.
+    # Startup validation rejects mismatches; the other pair stays disabled.
+    side: "right"
+    # Active motor-coordinate identification, without inventing a beta LUT.
+    experiment_stage: "probe"
+    probe_pattern: "multiband_chirp"
+    # Operator-requested continuous observation. The uncalibrated motor-axis
+    # difference proxy is NOT a measured physical knee angle or spring stroke.
+    # Keep reference/initial-pose admission; log runtime crossings in the bag.
+    probe_measured_delta_policy: "diagnostic"
+    control_frequency_hz: 1000.0
+    control_law: "rl_pd"
+    reference_frequency_hz: 50.0
+    dm_motor_family: "DM-J8009"
+    dm_rated_torque_nm: 20.0
+    dm_peak_torque_nm: 40.0
+    hold_test_duration_s: 0.5
+    # origin/feat/rmcs_rl used reversed feedback for all four DM drives and
+    # q_URDF = remainder(angle_offset - raw_motor, 2*pi). The current hardware
+    # already reports angle_api = -raw_motor, so the extra model signs are +1.
+    # These are scalar joint-axis maps; a CAD-mesh yaw is not an extra motor rotation.
+    # Reproduce the validated feat/rmcs_rl mapping: apply the offset BEFORE
+    # wrapping q_model into (-pi,pi]. That branch internally zeroed each DM
+    # at thigh-up / physical inner knee 105 deg. Verify the MIT ranges separately.
+    phase_api_angle: true
+    model_sign: [1.0, 1.0, 1.0, 1.0]
+    model_offset: [-1.6, -2.93, 1.6, 2.93]
+    # Command kinematic budgets for large sweeps; not fitted motor capabilities.
+    # Runtime measured speed/acceleration and braking estimates are diagnostic.
+    max_speed: [4.0, 4.0, 4.0, 4.0]
+    max_acceleration: [20.0, 20.0, 20.0, 20.0]
+    braking_acceleration: [0.4, 0.4, 0.4, 0.4]
+    max_torque: [40.0, 40.0, 40.0, 40.0]
+    # Explicit PC PD, P4 order LH,LK,RH,RK. No velocity feedforward or I.
+    # The 1 kHz ensemble screen supports retaining the 60/2 baseline;
+    # it does not establish a uniquely optimal gain or validated physical model.
+    pd_kp: [60.0, 60.0, 60.0, 60.0]
+    pd_kd: [2.0, 2.0, 2.0, 2.0]
+    gravity_feedforward_model: [0.0, 0.0, 0.0, 0.0]
+    ki_velocity: [0.0, 0.0, 0.0, 0.0]
+    integral_limit: [0.0, 0.0, 0.0, 0.0]
+    # Measured initial shape; no forced large opening to fit an amplitude.
+    # c=(q_hip+q_aux)/2, d=q_aux-q_hip. Differential motion drives BOTH axes
+    # in opposite directions. d is not the physical inner-knee angle.
+    # Low common and differential chirps are separate; mid/high chirps excite
+    # both coordinates with different frequency laws and a phase offset.
+    multiband_common_hz: [0.08, 0.5, 1.5, 4.0]
+    multiband_relative_hz: [0.1, 0.65, 1.8, 4.0]
+    multiband_common_amplitude: [0.7853981633974483, 0.20, 0.025]
+    multiband_relative_amplitude: [0.06, 0.035, 0.014]
+    multiband_band_s: [24.0, 16.0, 12.0]
+    # Shape B changes d by at most 0.04 rad toward the branch interior;
+    # this is a reference candidate, NOT a measured reachable pose.
+    multiband_shape_offset: 0.04
+    multiband_eighth_turn_s: 1.5
+    multiband_dwell_s: 1.5
+    multiband_ramp_s: 2.0
+    multiband_common_step: 0.2617993877991494
+    multiband_relative_step: 0.04
+    multiband_step_rise_s: 0.30
+    # Two 30 s validation multisines use disjoint fixed frequency lines,
+    # explicitly frozen in PairMultibandPlan and archived with the source.
+    multiband_validation_s: 30.0
+    # The thigh can rotate 360 degrees; +/-pi is a phase seam, not a stop.
+    # Software unwrapping preserves continuous paired axes across that seam.
+    # These +/-100 rad numeric bounds are not physical root hard stops.
+    # The drive-difference interval below is an uncalibrated reference/initial
+    # pose constraint, not a measured 105-degree knee stop or spring stroke.
+    root_min: [-100.0, -100.0, -100.0, -100.0]
+    root_max: [100.0, 100.0, 100.0, 100.0]
+    spring_delta_min: [-1.42, -0.16]
+    spring_delta_max: [0.16, 1.42]
+    joint_margin: 0.05
+    spring_margin: 0.005
+    beta_margin_degrees: 5.0
+    # PROBE runtime estimates below are warnings, not stop conditions. Root
+    # bounds, finite/fresh feedback, drive faults and torque caps remain active.
+    # Runtime drive-difference crossings follow the explicit policy above;
+    # reference and initial-pose checks still enforce the configured interval.
+    max_position_error: [0.2, 0.2, 0.2, 0.2]
+    max_velocity_error: [0.7, 0.7, 0.7, 0.7]
+    # Diagnostic warning only, once per axis per run; not a calibrated stop limit.
+    # Quantized asynchronous velocity differences must not abort the experiment.
+    max_measured_acceleration: [30.0, 30.0, 30.0, 30.0]
+    # Fresh both-MIDDLE starts enable directly, without a preceding DOWN dwell.
+    # Both-DOWN publishes NaN controller torque, queues DM 0xFD and resets.
+    # Startup wait and feedback watchdog are experiment choices.
+    # The feedback watchdog matches the board's 50 ms aggregate freshness gate;
+    # individual axis/IMU failures are separately labeled in the MCAP.
+    ready_timeout_s: 12.0  # includes the complete 1 ms-grid reference preflight
+    feedback_timeout_s: 0.05
+    # Bounded scheduling jitter: one 13 ms skip was measured on the rig.
+    # Multiband holds I (does not clear it) on intervals > 2.5 nominal ticks.
+    # Outer timing and cascade share this budget; no hidden 12 ms deadline.
+    max_tick_gap_s: 0.02
+    # Passive motion of the disabled other leg is diagnostic in PROBE.
+    other_side_speed_limit: 0.1
+
+    # A later physical-inner-angle trajectory REQUIRES measured bench calibration.
+    # The probe does not output an inferred beta; record actual inner-knee angle
+    # separately when fitting the spring or linkage model.
+    # Four-element arrays are P4: [left hip, left knee drive, right hip, right knee drive].
+    # inertia_bound / load_torque_bound / viscous_bound: required only for
+    #               subsequent trajectory stage's conservative model preflight
+    # Replace provisional relative/joint envelopes above with measured boundaries.
+    # At the old internally-zeroed pose beta=105 deg, the offset candidates give
+    # q_aux-q_hip = -1.33 rad (left) and +1.33 rad (right). This is ONE end
+    # point of the linkage relation, not a measurement of its interior or a LUT.
+    # left_beta_degrees / left_delta_rad: measured monotone knee-to-active-delta LUT
+    # right_beta_degrees / right_delta_rad: measured right-side LUT, no simulation values
+    # Real knee stop is 105 degrees, not the training model's 110; the probe
+    # keeps relative references in the interior; actual geometric bounds remain.
+    # The keys below are required only after selecting experiment_stage: trajectory.
+    # pose_hip / pose_beta_degrees: corresponding safe pose lists; first 3
+    #                are base, common-rotation, fixed-hip flexion
+    # frequencies_hz / hip_amplitudes / beta_amplitudes_degrees: bounded excitation
+    # move_s / hold_s / excite_s / max_hip_excitation / max_beta_excitation_degrees
+    # PD gains, 1 kHz feedback and motor capability require real paired validation.
+    # max_position_error / max_velocity_error / max_measured_acceleration
+    # Motor-angle phase lifting preserves full turns across the +/-pi seam.
+
+wheel_leg_identification_recorder:
+  ros__parameters:
+    side: "right"
+    experiment_kind: "pair"
+    record_on_double_middle: true
+    asset_manifest_sha256: "dbec8e586cf29d9540db7040b133b3ff1170c1c700ff05eda64d94d8561c3dec"
+    asset_path: "model/纯底盘_v5_232mm/urdf/manifest.json"
+    gas_springs_installed: true
+    support_fixture: "rigid_fixed_frame"
+    wheels_off_ground: true
+    gravity_condition: "Earth gravity active; chassis rigidly supported, mounted legs and wheels hang free"
+    fixture_orientation_source: "recorded IMU quaternion and stationary accelerometer; verify frame before MuJoCo replay"
+    fitting_contract: "fixed-base closed-chain replay with link/wheel mass and installed springs; local affine load fit is invalid over full rotations"
+    trajectory_revision: "pair_multiband_v3_pd_1khz"
+    initial_pose_provenance: "first fresh paired feedback at arm; physical beta unmeasured"
+    control_contract: "DM MIT mode A; PC pure PD Kp60 Kd2 recomputed at 1000 Hz; target hold 50 Hz; torque send 1 kHz; no I or velocity/gravity feedforward"
+    timing_contract: "executor/PD 1 kHz: every tick uses newest feedback; reference every 20 ticks; skipped intervals update once without catch-up; original trajectory derivative is diagnostic only"
+    feedback_filter: "motor latest CAN frame (no software lowpass); IMU BMI088 EKF"
+    feedback_frequency: "asynchronous per-motor CAN sequence/timestamps; derive actual Hz from MCAP"
+    control_frequency_hz: 1000.0
+    sample_frequency_hz: 1000.0
+    bus_voltage_source: "not bound on this board: NaN means unavailable"
+    dm_feedback_torque_source: "DM driver MIT torque report, estimate, not load cell"
+    wheel_feedback_torque_source: "M3508 reported motor current via installed 15.8 reduction"
+    motor_feedback_reference: "DM reducer-output Nm assumed pending scale check; M3508 wheel-output Nm after 15.8"
+    api_motor_reversed: [true, true, true, true]
+    wheel_motor_reversed: [true, true]
+    wheel_reduction_ratio: 15.8
+    # Already zeroed inside each DM at the 105-degree physical inner-knee pose.
+    # This field is run provenance, NOT a model active-axis offset.
+    encoder_zero_inner_knee_deg: 105.0
+
+value_broadcaster:
+  ros__parameters:
+    # Foxglove: 100 Hz scalar preview. The full 1 kHz sample goes to rosbag2.
+    update_rate: 100.0
+    forward_list:
+      - /wheel_leg/identification/phase
+      - /wheel_leg/identification/segment_id
+      - /wheel_leg/identification/segment_waveform
+      - /wheel_leg/identification/failure_reason
+      - /wheel_leg/identification/actuation_scope
+      - /wheel_leg/identification/selected/hip/angle_api
+      - /wheel_leg/identification/selected/hip/angle_model
+      - /wheel_leg/identification/selected/hip/velocity_model
+      - /wheel_leg/identification/selected/inner_knee_measured_deg
+      - /wheel_leg/identification/selected/inner_knee_target_deg
+      - /wheel_leg/identification/selected/hip/velocity_api
+      - /wheel_leg/identification/selected/hip/torque_feedback_api
+      - /wheel_leg/identification/selected/hip/torque_command_api
+      - /wheel_leg/identification/selected/hip/torque_frame_api
+      - /wheel_leg/identification/selected/hip/reference_model
+      - /wheel_leg/identification/selected/hip/velocity_target_model
+      - /wheel_leg/identification/selected/hip/position_error_model
+      - /wheel_leg/identification/selected/hip/speed_error_model
+      - /wheel_leg/identification/selected/hip/torque_preclip_model
+      - /wheel_leg/identification/selected/knee/angle_api
+      - /wheel_leg/identification/selected/knee/angle_model
+      - /wheel_leg/identification/selected/knee/velocity_model
+      - /wheel_leg/identification/selected/knee/velocity_api
+      - /wheel_leg/identification/selected/knee/torque_feedback_api
+      - /wheel_leg/identification/selected/knee/torque_command_api
+      - /wheel_leg/identification/selected/knee/torque_frame_api
+      - /wheel_leg/identification/selected/knee/reference_model
+      - /wheel_leg/identification/selected/knee/velocity_target_model
+      - /wheel_leg/identification/selected/knee/position_error_model
+      - /wheel_leg/identification/selected/knee/speed_error_model
+      - /wheel_leg/identification/selected/knee/torque_preclip_model

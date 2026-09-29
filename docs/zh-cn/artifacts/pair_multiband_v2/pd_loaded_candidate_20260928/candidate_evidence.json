@@ -1,0 +1,191 @@
+{
+  "source_mcap_sha256": "a60ae06cb0a4178068bdcf563038074157fb1268cf8738b91c9908784838f4c8",
+  "gain_candidate": {
+    "kp": [
+      120,
+      120
+    ],
+    "kd": [
+      3,
+      3
+    ],
+    "axes": [
+      "hip",
+      "auxiliary knee drive"
+    ],
+    "control_hz": 1000,
+    "reference_hz": 50,
+    "torque_cap_nm": 40,
+    "status": "candidate_for_on_rig_validation_not_proven_better"
+  },
+  "rationale": "Measured differential motion is weak; increase restoring gain and paired reference loading with the installed springs retained.",
+  "measured_baseline": {
+    "running_samples": 687301,
+    "algebra_max_error_nm": 0.0,
+    "tracking_rmse_rad": [
+      0.041353657881538976,
+      0.0441678275381066
+    ],
+    "command_rms_nm": [
+      1.8330005831060894,
+      2.0520437327951737
+    ],
+    "command_peak_nm": [
+      6.487556618175063,
+      7.400266590103863
+    ],
+    "saturation_fraction": [
+      0.0,
+      0.0
+    ],
+    "measured_difference_range_rad": [
+      -1.386839856565194,
+      -1.3589921416037232
+    ],
+    "segments": {
+      "1": {
+        "measured_difference_ptp_rad": 0.012207217517357094,
+        "reference_difference_ptp_rad": 4.440892098500626e-16,
+        "tracking_rmse_rad": [
+          0.05387553999828473,
+          0.051304013846953565
+        ],
+        "command_peak_nm": [
+          3.4369777162044652,
+          2.817134537657518
+        ]
+      },
+      "3": {
+        "measured_difference_ptp_rad": 0.003814755474174092,
+        "reference_difference_ptp_rad": 0.05176969161678535,
+        "tracking_rmse_rad": [
+          0.023856498152910254,
+          0.019771897006222186
+        ],
+        "command_peak_nm": [
+          2.2618043072510448,
+          1.9613571453440555
+        ]
+      },
+      "71": {
+        "measured_difference_ptp_rad": 0.005722133211261138,
+        "reference_difference_ptp_rad": 0.04052448300596678,
+        "tracking_rmse_rad": [
+          0.03072907524349574,
+          0.03774344910816118
+        ],
+        "command_peak_nm": [
+          3.882173411552589,
+          4.219328262295161
+        ]
+      },
+      "81": {
+        "measured_difference_ptp_rad": 0.008010986495765593,
+        "reference_difference_ptp_rad": 0.040524483005967005,
+        "tracking_rmse_rad": [
+          0.033684952938770836,
+          0.030090987307387684
+        ],
+        "command_peak_nm": [
+          3.7616015874722226,
+          3.549953953402994
+        ]
+      },
+      "109": {
+        "measured_difference_ptp_rad": 0.006866559853513365,
+        "reference_difference_ptp_rad": 0.11576906421219046,
+        "tracking_rmse_rad": [
+          0.029239443392746187,
+          0.06171940577725003
+        ],
+        "command_peak_nm": [
+          3.320734339713864,
+          5.564299886480881
+        ]
+      },
+      "111": {
+        "measured_difference_ptp_rad": 0.01373311970702673,
+        "reference_difference_ptp_rad": 0.06999999046164462,
+        "tracking_rmse_rad": [
+          0.048049671086119385,
+          0.067314718651666
+        ],
+        "command_peak_nm": [
+          5.0572794128572,
+          7.400266590103863
+        ]
+      }
+    }
+  },
+  "shadow_effort": {
+    "peak_nm": [
+      13.831883316940711,
+      16.021986668591886
+    ],
+    "fraction_over_40nm": [
+      0.0,
+      0.0
+    ],
+    "scope": "Frozen baseline q/dq and reference, not a forward simulation or a prediction for the larger new trajectory"
+  },
+  "local_sensitivity": {
+    "results": [
+      {
+        "kp": 60,
+        "kd": 2,
+        "nominal_max_real_pole_per_s": -27.57353946915016,
+        "worst_max_real_pole_per_s": -15.53393405751991
+      },
+      {
+        "kp": 80,
+        "kd": 2.5,
+        "nominal_max_real_pole_per_s": -28.65243812634309,
+        "worst_max_real_pole_per_s": -15.016379835481503
+      },
+      {
+        "kp": 100,
+        "kd": 2.5,
+        "nominal_max_real_pole_per_s": -28.389376243562793,
+        "worst_max_real_pole_per_s": -12.531944291674444
+      },
+      {
+        "kp": 120,
+        "kd": 3,
+        "nominal_max_real_pole_per_s": -25.335233599917437,
+        "worst_max_real_pole_per_s": -8.827657899512564
+      },
+      {
+        "kp": 140,
+        "kd": 3,
+        "nominal_max_real_pole_per_s": -22.73098114521899,
+        "worst_max_real_pole_per_s": -6.452021041579666
+      },
+      {
+        "kp": 160,
+        "kd": 3.5,
+        "nominal_max_real_pole_per_s": -19.41195699391135,
+        "worst_max_real_pole_per_s": -1.5995255380359004
+      },
+      {
+        "kp": 200,
+        "kd": 4,
+        "nominal_max_real_pole_per_s": -13.763372123109447,
+        "worst_max_real_pole_per_s": 4.952616106259754
+      }
+    ],
+    "scope": "Old P+PI bag 5-90 Hz empirical ensemble, not validated full-chain dynamics; stable linear poles do not guarantee rig stability."
+  },
+  "identifiability": "Gas spring curve remains fixed. Weak baseline motor-difference motion does not identify independent differential inertia, friction, spring load or motor response uniquely.",
+  "reference_only_loading": {
+    "offset_rad": 0.2,
+    "stages": 4,
+    "stationary_no_motion_position_term_nm_per_axis": [
+      3,
+      6,
+      9,
+      12
+    ],
+    "explanation": "Kp120 * (motor-difference change / 2), ignoring gravity and actual movement; these are not imposed constant torque commands."
+  },
+  "profile_sha256": "bbf3eb70dbe99d545b617dba136002f21d66852932bd92e52fb99acd6b307dba"
+}
