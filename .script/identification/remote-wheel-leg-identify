@@ -1,0 +1,373 @@
+#!/usr/bin/env bash
+# Run from the RMCS development container after .script/sync-remote completed.
+# Starts the installed single-side position/velocity-to-torque identification graph.
+set -euo pipefail
+
+remote_root="/root/identification_bags"
+
+usage() {
+    printf 'Usage: %s <start-pd-loaded|record-pd-loaded|start-wheels|stop|status>\n' "$0" >&2
+    exit 2
+}
+
+[[ $# -eq 1 ]] || usage
+case "$1" in
+start-pd-loaded|record-pd-loaded|start-wheels)
+    launch_action="$1"
+    if [[ "$1" == start-wheels ]]; then
+        robot=wheel-leg-infantry-wheel-identification
+        run_prefix=wheels
+    else
+        robot=wheel-leg-infantry-pair-pd-loaded-identification
+        [[ "$1" != record-pd-loaded ]] || launch_action=record
+    fi
+    profile="/workspaces/RMCS/rmcs_ws/src/rmcs_bringup/config/$robot.yaml"
+    remote_profile="/rmcs_install/share/rmcs_bringup/config/$robot.yaml"
+    python3 /workspaces/RMCS/.script/identification/check_wheel_leg_profile.py "$profile"
+    if [[ "$robot" == wheel-leg-infantry-pair-pd-loaded-identification ]]; then
+        side="$(python3 -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["wheel_leg_pair_identification_controller"]["ros__parameters"]["side"])' "$profile")"
+        run_prefix="$side-pair-pd-loaded"
+    fi
+    local_sha="$(sha256sum "$profile")"
+    remote_sha="$(ssh -o BatchMode=yes -o ConnectTimeout=8 remote sha256sum "$remote_profile")"
+    if [[ "${local_sha%% *}" != "${remote_sha%% *}" ]]; then
+        printf 'Remote identification profile differs from local build; run sync-remote first.\n' >&2
+        exit 1
+    fi
+    local_core="$(sha256sum /workspaces/RMCS/rmcs_ws/install/lib/librmcs_core.so)"
+    remote_core="$(ssh -o BatchMode=yes -o ConnectTimeout=8 remote sha256sum /rmcs_install/lib/librmcs_core.so)"
+    if [[ "${local_core%% *}" != "${remote_core%% *}" ]]; then
+        printf 'Remote rmcs_core library differs from local build; sync before starting.\n' >&2
+        exit 1
+    fi
+
+    # Preserve the exact uncommitted controller/planner/driver sources used by
+    # this run, so later fixed-base replay can reproduce the PC cascade too.
+    source_archive="$(mktemp /tmp/wheel-leg-id-source.XXXXXX.tar.gz)"
+    trap 'rm -f -- "$source_archive"' EXIT
+    tar -czf "$source_archive" -C /workspaces/RMCS \
+        rmcs_ws/src/rmcs_core/src/identification \
+        rmcs_ws/src/rmcs_core/src/hardware/wheel-leg.cpp \
+        rmcs_ws/src/rmcs_core/src/hardware/wheel_leg_control.hpp \
+        rmcs_ws/src/rmcs_core/src/hardware/device/dm_motor.hpp \
+        rmcs_ws/src/rmcs_core/src/hardware/device/dji_motor.hpp \
+        rmcs_ws/src/rmcs_msgs/msg/WheelLegIdentificationSample.msg
+    source_sha="$(sha256sum "$source_archive")"
+    source_sha="${source_sha%% *}"
+    source_remote="/tmp/wheel-leg-id-source-$source_sha.tar.gz"
+    scp -q "$source_archive" "remote:$source_remote"
+    source_head="$(git -C /workspaces/RMCS rev-parse HEAD)"
+    ssh -o BatchMode=yes -o ConnectTimeout=8 remote bash -s -- "$remote_root" "$robot" "$run_prefix" "$source_remote" "$source_sha" "$source_head" "$launch_action" <<'REMOTE'
+set -euo pipefail
+root="$1"
+robot="$2"
+run_prefix="$3"
+source_archive="$4"
+source_sha="$5"
+source_head="$6"
+launch_mode="$7"
+actual_source_sha="$(sha256sum "$source_archive")"
+[[ "${actual_source_sha%% *}" == "$source_sha" ]] || exit 1
+set +u
+source /opt/ros/jazzy/setup.bash
+source /rmcs_install/local_setup.bash
+set -u
+if screen -ls 2>/dev/null | grep -q wheel-leg-bag; then
+    printf 'A wheel-leg bag is already recording. Stop it first.\n' >&2
+    exit 1
+fi
+if [[ "$launch_mode" != record && ! -x /usr/local/bin/set-robot ]]; then
+    printf 'Cannot persist selected profile: /usr/local/bin/set-robot is missing.\n' >&2
+    exit 1
+fi
+response="No executor before launch"
+if [[ "$launch_mode" == record ]]; then
+    # Record an already loaded pair controller without restarting or enabling it.
+    python3 - "$robot" <<'PY_PROCESS'
+import sys
+from pathlib import Path
+matches = []
+for proc in Path("/proc").iterdir():
+    if not proc.name.isdecimal():
+        continue
+    try:
+        args = (proc / "cmdline").read_bytes().split(b"\0")
+        if args and args[0].endswith(b"/rmcs_executor"):
+            matches.append(args)
+    except (OSError, ProcessLookupError):
+        pass
+expected = ("/rmcs_install/share/rmcs_bringup/config/" + sys.argv[1] + ".yaml").encode()
+if len(matches) != 1 or expected not in matches[0]:
+    raise SystemExit("Recording requires exactly one executor with the selected identification profile")
+PY_PROCESS
+    response="$(timeout 8 ros2 service call /rmcs/service/robot_status std_srvs/srv/Trigger '{}' 2>&1)"
+else
+if pgrep -x rmcs_executor >/dev/null; then
+    response="$(timeout 8 ros2 service call /rmcs/service/robot_status std_srvs/srv/Trigger '{}' 2>&1)"
+    python3 -c 'import math,re,sys
+s=sys.stdin.read()
+if "success=True" not in s:
+    raise SystemExit("Cannot replace RMCS: robot status service failed")
+if "WheelLeg status (" in s:
+    if not re.search(r"\bdr16 fresh: 1\b",s) or "switches [left,right]: [2,2]" not in s:
+        raise SystemExit("Cannot replace RMCS: fresh DR16 and both DOWN required")
+elif "WheelLegInfantryRL status:" in s:
+    if not re.search(r"Joint control: enabled=0 control_active=0\b",s):
+        raise SystemExit("Cannot replace running legacy RL: joint control active")
+    for name in ("left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"):
+        line=next((x for x in re.split(r"\\n|\n",s) if re.search(r"\b"+name+r":",x)),"")
+        match=re.search(r"\bstatus=0\b.*?\bfeedback_ready=1\b.*?feedback_age_ms=([-+\d.eE]+)",line)
+        if not match or not math.isfinite(float(match.group(1))) or not 0 <= float(match.group(1)) < 50:
+            raise SystemExit("Cannot replace legacy RL: disabled fresh DM feedback missing for "+name)
+else:
+    raise SystemExit("Cannot replace RMCS: unknown status service version")' <<<"$response"
+    screen -S rmcs -X quit
+    for i in {1..30}; do
+        pgrep -x rmcs_executor >/dev/null || break
+        sleep 0.2
+    done
+    if pgrep -x rmcs_executor >/dev/null; then
+        printf 'Old RMCS did not exit; no second board instance was started.\n' >&2
+        exit 1
+    fi
+fi
+# Ordinary rmcs-cli/service restarts read these defaults. Keep them aligned
+# with the explicitly selected experiment so a restart cannot revert to v1.
+/usr/local/bin/set-robot "$robot"
+screen -dmS rmcs bash -lc \
+    "source /opt/ros/jazzy/setup.bash; source /rmcs_install/local_setup.bash; exec ros2 launch rmcs_bringup rmcs.launch.py robot:=$robot"
+fi
+ready=0
+for i in {1..20}; do
+    if [[ "$(ros2 topic type /wheel_leg/identification/sample 2>/dev/null)" == 'rmcs_msgs/msg/WheelLegIdentificationSample' ]]; then
+        ready=1
+        break
+    fi
+    sleep 0.5
+done
+if (( ! ready )); then
+    if [[ "$launch_mode" != record ]]; then screen -S rmcs -X quit || true; fi
+    printf 'Recorder topic did not appear; no recording started.\n' >&2
+    exit 1
+fi
+test -d /root
+mkdir -p "$root"
+run="$root/$run_prefix-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir "$run"
+cp "/rmcs_install/share/rmcs_bringup/config/$robot.yaml" "$run/profile.yaml"
+cp "$source_archive" "$run/controller-source.tar.gz"
+printf '%s  controller-source.tar.gz\n' "$source_sha" > "$run/source.sha256"
+printf '%s\n' "$source_head" > "$run/rmcs-head.txt"
+cp /rmcs_install/lib/librmcs_core.so "$run/librmcs_core.so"
+sha256sum "$run/profile.yaml" > "$run/profile.sha256"
+cp /rmcs_install/share/rmcs_msgs/msg/WheelLegIdentificationSample.msg "$run/"
+cp /rmcs_install/share/rmcs_msgs/msg/WheelLegIdentificationSample.idl "$run/"
+sha256sum "$run/WheelLegIdentificationSample.msg" "$run/WheelLegIdentificationSample.idl" \
+    /rmcs_install/lib/librmcs_core.so > "$run/runtime.sha256"
+printf 'ROS_DISTRO=%s\nROS_VERSION=%s\n' "${ROS_DISTRO:-unknown}" "${ROS_VERSION:-unknown}" \
+    > "$run/ros-environment.txt"
+printf '%s\n' "$response" > "$run/status-before-launch.txt"
+printf '%s\n' "$run" > "$root/.active_run"
+screen -L -Logfile "$run/recorder.log" -dmS wheel-leg-bag bash -lc \
+    "source /opt/ros/jazzy/setup.bash; source /rmcs_install/local_setup.bash; exec ros2 bag record -s mcap -o '$run/bag' /wheel_leg/identification/sample"
+# A visible sample topic is not proof that rosbag has subscribed. Check the
+# actual recorder endpoint and its live not-paused service before announcing arm.
+if ! python3 - "$run" <<'PY_READY'
+import json
+import sys
+import time
+from pathlib import Path
+import rclpy
+from rosbag2_interfaces.srv import IsPaused
+from rcl_interfaces.srv import GetParameters
+import yaml
+
+rclpy.init()
+node = rclpy.create_node("identification_recording_preflight")
+client = node.create_client(IsPaused, "/rosbag2_recorder/is_paused")
+profile = yaml.safe_load(Path(sys.argv[1], "profile.yaml").read_text())
+wheel = "wheel_leg_wheel_identification_controller" in profile
+controller_name = "wheel_leg_wheel_identification_controller" if wheel else "wheel_leg_pair_identification_controller"
+expected = profile.get(controller_name, {}).get("ros__parameters")
+parameter_client = node.create_client(GetParameters, "/" + controller_name + "/get_parameters") if expected else None
+recorder_client = node.create_client(GetParameters, "/wheel_leg_identification_recorder/get_parameters") if wheel else None
+runtime_parameters = None
+runtime_recorder_parameters = None
+
+
+def field_for(value):
+    if isinstance(value, bool):
+        return "bool_value"
+    if isinstance(value, str):
+        return "string_value"
+    if isinstance(value, list):
+        return "double_array_value"
+    return "integer_value" if isinstance(value, int) else "double_value"
+
+
+def read_values(values, fields):
+    result = {}
+    types = {"bool_value": 1, "integer_value": 2, "double_value": 3,
+             "string_value": 4, "double_array_value": 8}
+    for value, (key, field) in zip(values, fields.items()):
+        if value.type != types[field]:
+            raise SystemExit("Running controller parameters disagree with archived profile: undeclared/wrong type " + key)
+        item = getattr(value, field)
+        result[key] = list(item) if field.endswith("array_value") else item
+    return result
+deadline = time.monotonic() + 15
+confirmed = False
+try:
+    while time.monotonic() < deadline:
+        rclpy.spin_once(node, timeout_sec=.1)
+        topic = "/wheel_leg/identification/sample"
+        publishers = node.get_publishers_info_by_topic(topic)
+        subscribers = node.get_subscriptions_info_by_topic(topic)
+        subscribed = any(e.node_name == "rosbag2_recorder" for e in subscribers)
+        if len(publishers) != 1 or not subscribed or not client.service_is_ready():
+            continue
+        if expected and runtime_parameters is None:
+            if not parameter_client.service_is_ready():
+                continue
+            if wheel:
+                fields = {key: field_for(value) for key, value in expected.items()}
+                fields["wheel_trajectory_manifest_json"] = "string_value"
+                names = list(fields)
+            else:
+                names = ["probe_pattern", "control_frequency_hz", "side", "max_tick_gap_s", "probe_measured_delta_policy"]
+                pd_fields = {"control_law": "string_value", "reference_frequency_hz": "double_value",
+                             "pd_kp": "double_array_value", "pd_kd": "double_array_value",
+                             "ki_velocity": "double_array_value", "integral_limit": "double_array_value",
+                             "gravity_feedforward_model": "double_array_value", "max_torque": "double_array_value"} \
+                    if expected.get("control_law") == "rl_pd" else {}
+                # Verify actual trajectory parameters as well as the control law.
+                # Includes the opt-in spring-loading sequence, so an omitted runtime
+                # field cannot silently fall back to the old unloaded experiment.
+                for key, value in expected.items():
+                    if key.startswith("multiband_"):
+                        pd_fields[key] = "double_array_value" if isinstance(value, list) else "double_value"
+                names.extend(pd_fields)
+            request = GetParameters.Request(names=names)
+            parameters_future = parameter_client.call_async(request)
+            rclpy.spin_until_future_complete(node, parameters_future, timeout_sec=1)
+            if not parameters_future.done() or parameters_future.result() is None:
+                continue
+            values = parameters_future.result().values
+            if len(values) != len(names):
+                raise SystemExit("Running controller did not return its experiment contract")
+            if wheel:
+                runtime_parameters = read_values(values, fields)
+                manifest = json.loads(runtime_parameters.pop("wheel_trajectory_manifest_json"))
+                if (manifest.get("revision") != expected["trajectory_revision"]
+                        or manifest.get("reference_frequency_hz") != expected["reference_frequency_hz"]
+                        or not manifest.get("segments")):
+                    raise SystemExit("Running wheel trajectory manifest disagrees with archived profile")
+                if runtime_parameters != expected:
+                    raise SystemExit("Running controller parameters disagree with archived profile: " + str(runtime_parameters))
+                Path(sys.argv[1], "trajectory-plan.json").write_text(json.dumps(manifest, indent=2) + "\n")
+            else:
+                runtime_parameters = {"probe_pattern": values[0].string_value,
+                                      "control_frequency_hz": values[1].double_value,
+                                      "side": values[2].string_value,
+                                      "max_tick_gap_s": values[3].double_value,
+                                      "probe_measured_delta_policy": values[4].string_value}
+                for index, (key, field) in enumerate(pd_fields.items(), start=5):
+                    value = getattr(values[index], field)
+                    runtime_parameters[key] = list(value) if field == "double_array_value" else value
+                expected_parameters = {key: expected[key] for key in runtime_parameters
+                                       if key != "probe_measured_delta_policy"}
+                expected_parameters["probe_measured_delta_policy"] = expected.get("probe_measured_delta_policy", "stop")
+                if runtime_parameters != expected_parameters:
+                    raise SystemExit("Running controller parameters disagree with archived profile: " + str(runtime_parameters))
+        if wheel and runtime_recorder_parameters is None:
+            if not recorder_client.service_is_ready():
+                continue
+            record_expected = profile["wheel_leg_identification_recorder"]["ros__parameters"]
+            keys = ("experiment_kind", "record_on_double_middle", "trajectory_revision", "control_frequency_hz",
+                    "reference_frequency_hz", "sample_frequency_hz", "wheel_reduction_ratio", "wheels_off_ground")
+            record_fields = {key: field_for(record_expected[key]) for key in keys}
+            result = recorder_client.call_async(GetParameters.Request(names=list(record_fields)))
+            rclpy.spin_until_future_complete(node, result, timeout_sec=1)
+            if not result.done() or result.result() is None:
+                continue
+            if len(result.result().values) != len(record_fields):
+                raise SystemExit("Running recorder did not return its wheel contract")
+            runtime_recorder_parameters = read_values(result.result().values, record_fields)
+            if runtime_recorder_parameters != {key: record_expected[key] for key in keys}:
+                raise SystemExit("Running recorder parameters disagree with archived profile")
+        future = client.call_async(IsPaused.Request())
+        rclpy.spin_until_future_complete(node, future, timeout_sec=1)
+        if future.done() and future.result() is not None and not future.result().paused:
+            Path(sys.argv[1], "recording-ready.json").write_text(json.dumps({
+                "verified_utc_unix_s": time.time(), "topic": topic,
+                "publisher": publishers[0].node_name, "recorder": "rosbag2_recorder",
+                "subscribed": True, "paused": False,
+                "runtime_parameters": runtime_parameters,
+                "runtime_recorder_parameters": runtime_recorder_parameters,
+                "note": "Endpoint/service handshake; sample publication begins at both MIDDLE."
+            }, indent=2) + "\n")
+            confirmed = True
+            break
+finally:
+    node.destroy_node()
+    rclpy.shutdown()
+if not confirmed:
+    raise SystemExit("Recorder subscription/readiness was not confirmed")
+PY_READY
+then
+    screen -S wheel-leg-bag -p 0 -X stuff $'\003' || true
+    if [[ "$launch_mode" != record ]]; then screen -S rmcs -X quit || true; fi
+    printf 'Recording handshake failed; inspect %s/recorder.log\n' "$run" >&2
+    exit 1
+fi
+if [[ "$robot" == wheel-leg-infantry-wheel-identification ]]; then
+    printf 'Wheel recorder ready. Both MIDDLE starts left/right/both sequence; both DOWN commands zero wheel current; DM stays disabled.\n'
+else
+    printf 'Recorder subscribed and active. Both MIDDLE starts the sequence; both DOWN releases and disables.\n'
+fi
+printf 'Recording MCAP at %s/bag; use this script stop after DOWN to seal metadata.\n' "$run"
+REMOTE
+    ;;
+stop)
+    ssh -o BatchMode=yes -o ConnectTimeout=8 remote bash -s -- "$remote_root" <<'REMOTE'
+set -euo pipefail
+root="$1"
+if ! screen -ls 2>/dev/null | grep -q wheel-leg-bag; then
+    printf 'No active wheel-leg bag screen.\n' >&2
+    exit 1
+fi
+screen -S wheel-leg-bag -p 0 -X stuff $'\003'
+for i in {1..30}; do
+    screen -ls 2>/dev/null | grep -q wheel-leg-bag || break
+    sleep 0.2
+done
+if screen -ls 2>/dev/null | grep -q wheel-leg-bag; then
+    printf 'Recorder has not stopped yet; inspect the remote screen.\n' >&2
+    exit 1
+fi
+run="$(<"$root/.active_run")"
+set +u
+source /opt/ros/jazzy/setup.bash
+source /rmcs_install/local_setup.bash
+set -u
+ros2 bag info "$run/bag"
+printf 'Identification controller remains running. Keep both switches DOWN after the test; bag: %s/bag\n' "$run"
+REMOTE
+    ;;
+status)
+    ssh -o BatchMode=yes -o ConnectTimeout=8 remote bash -s -- "$remote_root" <<'REMOTE'
+set -euo pipefail
+root="$1"
+screen -ls || true
+if [[ -f "$root/.active_run" ]]; then
+    printf 'Most recent run: %s\n' "$(<"$root/.active_run")"
+fi
+set +u
+source /opt/ros/jazzy/setup.bash
+source /rmcs_install/local_setup.bash
+set -u
+ros2 topic type /wheel_leg/identification/sample || true
+REMOTE
+    ;;
+*) usage ;;
+esac

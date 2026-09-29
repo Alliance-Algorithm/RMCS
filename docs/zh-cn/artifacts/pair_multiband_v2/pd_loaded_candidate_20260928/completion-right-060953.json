@@ -1,0 +1,10 @@
+{
+  "run": "/root/identification_bags/right-pair-pd-loaded-20260928T060953Z",
+  "messages": 676768,
+  "duration_ns": 676766844045,
+  "normal_completion": true,
+  "segment_count": 161,
+  "failure_lines": [],
+  "mcap_sha256": "7a5d815944c530dabaca3e1a25c8f5d132895048df93f6122033c2a295090032",
+  "note": "Sealed diagnostic/tuning bag; not a final post-tuning actuator validation dataset."
+}

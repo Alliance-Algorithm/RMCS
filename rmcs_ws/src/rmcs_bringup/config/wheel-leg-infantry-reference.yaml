@@ -2,18 +2,17 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::WheelLegInfantryRL -> wheel_leg_infantry_rl
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
       - rmcs_core::controller::chassis::WheelLegReferenceController -> wheel_leg_reference_controller
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
-wheel_leg_infantry_rl:
+wheel_leg:
   ros__parameters:
     board_serial: ""
     require_enable_request: true
     joint_control_mode: "position_pd"
     joint_position_kp: 30.0
     joint_position_kd: 1.0
-    joint_position_error_max_rad: 0.02
     dm_master_ids: [1, 2, 1, 2]
     dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
     dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
@@ -22,13 +21,10 @@ wheel_leg_infantry_rl:
 
 wheel_leg_reference_controller:
   ros__parameters:
-    # All four DM drives were zeroed at the 110-degree mechanical reference pose.
+    # All four DM drives were zeroed at the 105-degree mechanical reference pose.
+    # These are motor API targets, not URDF assembly or policy nominal joint angles.
     # Order: left hip, left knee drive, right hip, right knee drive.
     reference_motor_angles: [0.0, 0.0, 0.0, 0.0]
-    hold_output_mode: "position_pd"
-    capture_window_rad: 0.02
-    hold_velocity_limit: 0.4
-    max_feedback_step_rad: 0.015
 
 value_broadcaster:
   ros__parameters:

@@ -24,13 +24,18 @@ public:
     using TimePoint = rmcs_msgs::BoardClock::time_point;
     using Snapshot = rmcs_msgs::ImuSnapshot;
 
+    struct AccelerationSnapshot {
+        Eigen::Vector3d specific_force_body_mps2;
+        TimePoint timestamp;
+    };
+
     explicit Bmi088Ekf(Config config)
         : config_(std::move(config)) {}
 
     Bmi088Ekf()
         : Bmi088Ekf(Config{}) {}
 
-    void push_accelerometer_sample(
+    bool push_accelerometer_sample(
         std::int16_t x, std::int16_t y, std::int16_t z, TimePoint sample_time) {
         const Eigen::Vector3d accel_g =
             config_.body_to_sensor.transpose() * convert_accelerometer(x, y, z);
@@ -44,18 +49,25 @@ public:
                     ekf_state_time_,
                 };
                 const auto guard = std::scoped_lock{mutex_};
+                latest_acceleration_ = AccelerationSnapshot{accel_g * 9.80665, sample_time};
                 initialized_ = true;
+                return true;
             }
-            return;
+            return false;
         }
 
-        if (sample_time < ekf_state_time_)
-            return;
+        if (sample_time <= ekf_state_time_)
+            return false;
 
-        if (pending_accel_sample_ && sample_time < pending_accel_sample_->sample_time)
-            return;
+        if (pending_accel_sample_ && sample_time <= pending_accel_sample_->sample_time)
+            return false;
 
+        {
+            const auto guard = std::scoped_lock{mutex_};
+            latest_acceleration_ = AccelerationSnapshot{accel_g * 9.80665, sample_time};
+        }
         pending_accel_sample_ = {accel_g, sample_time};
+        return true;
     }
 
     std::optional<Snapshot> try_update_with_gyroscope_sample(
@@ -133,6 +145,11 @@ public:
         return latest_snapshot_;
     }
 
+    [[nodiscard]] std::optional<AccelerationSnapshot> acceleration_snapshot() const noexcept {
+        const auto guard = std::scoped_lock{mutex_};
+        return latest_acceleration_;
+    }
+
 private:
     [[nodiscard]] static Eigen::Vector3d
         convert_accelerometer(std::int16_t x, std::int16_t y, std::int16_t z) noexcept {
@@ -167,6 +184,7 @@ private:
     std::optional<AccelSample> pending_accel_sample_;
 
     Snapshot latest_snapshot_;
+    std::optional<AccelerationSnapshot> latest_acceleration_;
 };
 
 } // namespace rmcs_core::hardware::device

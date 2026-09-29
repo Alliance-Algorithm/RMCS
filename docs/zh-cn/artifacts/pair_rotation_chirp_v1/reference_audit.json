@@ -1,0 +1,634 @@
+{
+  "source": "Compiled production PairSweepPlan sampled at 1 kHz; reference only, not measured motion",
+  "profile_sha256": "4f95c2da8b97edabecc46150c43965e6c27d4f78b96173a342d46838fb35f3c7",
+  "duration_s": 251.4,
+  "initial_example_model_rad": [
+    1.02932,
+    -0.32395
+  ],
+  "max_speed_rad_s": [
+    2.29489420271,
+    2.29489420271
+  ],
+  "max_acc_rad_s2": [
+    7.20507457099,
+    9.27341937739
+  ],
+  "delta_range_rad": [
+    -1.35327,
+    -0.585
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "start_s": 0.0,
+      "end_s": 2.0,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -1.35327
+    },
+    {
+      "id": 1,
+      "start_s": 2.0,
+      "end_s": 5.0,
+      "waveform": 1,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.9350000001548
+    },
+    {
+      "id": 2,
+      "start_s": 5.0,
+      "end_s": 7.0,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 3,
+      "start_s": 7.0,
+      "end_s": 7.8,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.2911193827,
+      "delta_end_rad": -0.935000000005
+    },
+    {
+      "id": 4,
+      "start_s": 7.8,
+      "end_s": 9.8,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.2911193878,
+      "hip_end_rad": 1.2911193878,
+      "delta_end_rad": -0.935000000001
+    },
+    {
+      "id": 5,
+      "start_s": 9.8,
+      "end_s": 10.601,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 1.2911193878,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 6,
+      "start_s": 10.601,
+      "end_s": 12.601,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 7,
+      "start_s": 12.601,
+      "end_s": 13.401,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 1.0293199949,
+      "hip_end_rad": 0.767520612201,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 8,
+      "start_s": 13.401,
+      "end_s": 15.401,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 0.767520612201,
+      "hip_end_rad": 0.767520612201,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 9,
+      "start_s": 15.401,
+      "end_s": 16.201,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 0.767520617305,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 10,
+      "start_s": 16.201,
+      "end_s": 18.201,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 11,
+      "start_s": 18.201,
+      "end_s": 19.001,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.785
+    },
+    {
+      "id": 12,
+      "start_s": 19.001,
+      "end_s": 21.001,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.785
+    },
+    {
+      "id": 13,
+      "start_s": 21.001,
+      "end_s": 21.801,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 14,
+      "start_s": 21.801,
+      "end_s": 23.801,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 15,
+      "start_s": 23.801,
+      "end_s": 24.601,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -1.085
+    },
+    {
+      "id": 16,
+      "start_s": 24.601,
+      "end_s": 26.601,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -1.085
+    },
+    {
+      "id": 17,
+      "start_s": 26.601,
+      "end_s": 27.401,
+      "waveform": 3,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 18,
+      "start_s": 27.401,
+      "end_s": 29.401,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 19,
+      "start_s": 29.401,
+      "end_s": 33.401,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 1.02932000025,
+      "hip_end_rad": 2.60011632679,
+      "delta_end_rad": -0.9349999999999998
+    },
+    {
+      "id": 20,
+      "start_s": 33.401,
+      "end_s": 35.401,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 2.60011632679,
+      "hip_end_rad": 2.60011632679,
+      "delta_end_rad": -0.9349999999999998
+    },
+    {
+      "id": 21,
+      "start_s": 35.401,
+      "end_s": 39.401,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 2.60011632704,
+      "hip_end_rad": 4.17091265359,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 22,
+      "start_s": 39.401,
+      "end_s": 41.401,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 4.17091265359,
+      "hip_end_rad": 4.17091265359,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 23,
+      "start_s": 41.401,
+      "end_s": 45.401,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 4.17091265384,
+      "hip_end_rad": 5.74170898038,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 24,
+      "start_s": 45.401,
+      "end_s": 47.401,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 5.74170898038,
+      "hip_end_rad": 5.74170898038,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 25,
+      "start_s": 47.401,
+      "end_s": 51.401,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 5.74170898063,
+      "hip_end_rad": 7.31250530718,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 26,
+      "start_s": 51.401,
+      "end_s": 53.401,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 7.31250530718,
+      "hip_end_rad": 7.31250530718,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 27,
+      "start_s": 53.401,
+      "end_s": 57.401,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 7.31250530693,
+      "hip_end_rad": 5.74170898038,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 28,
+      "start_s": 57.401,
+      "end_s": 59.401,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 5.74170898038,
+      "hip_end_rad": 5.74170898038,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 29,
+      "start_s": 59.401,
+      "end_s": 63.401,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 5.74170898014,
+      "hip_end_rad": 4.17091265359,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 30,
+      "start_s": 63.401,
+      "end_s": 65.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 4.17091265359,
+      "hip_end_rad": 4.17091265359,
+      "delta_end_rad": -0.9350000000000005
+    },
+    {
+      "id": 31,
+      "start_s": 65.4,
+      "end_s": 69.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 4.17091265359,
+      "hip_end_rad": 2.60011632704,
+      "delta_end_rad": -0.9349999999999998
+    },
+    {
+      "id": 32,
+      "start_s": 69.4,
+      "end_s": 71.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 2.60011632679,
+      "hip_end_rad": 2.60011632679,
+      "delta_end_rad": -0.9349999999999998
+    },
+    {
+      "id": 33,
+      "start_s": 71.4,
+      "end_s": 75.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 2.60011632679,
+      "hip_end_rad": 1.02932000025,
+      "delta_end_rad": -0.9350000000047001
+    },
+    {
+      "id": 34,
+      "start_s": 75.4,
+      "end_s": 77.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 35,
+      "start_s": 77.4,
+      "end_s": 117.4,
+      "waveform": 6,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.9350000000009
+    },
+    {
+      "id": 36,
+      "start_s": 117.4,
+      "end_s": 119.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 37,
+      "start_s": 119.4,
+      "end_s": 159.4,
+      "waveform": 6,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.9350000000005
+    },
+    {
+      "id": 38,
+      "start_s": 159.4,
+      "end_s": 161.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    },
+    {
+      "id": 39,
+      "start_s": 161.4,
+      "end_s": 164.4,
+      "waveform": 1,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.735000000074
+    },
+    {
+      "id": 40,
+      "start_s": 164.4,
+      "end_s": 166.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.735
+    },
+    {
+      "id": 41,
+      "start_s": 166.4,
+      "end_s": 170.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 2.60011632655,
+      "delta_end_rad": -0.7349999999999999
+    },
+    {
+      "id": 42,
+      "start_s": 170.4,
+      "end_s": 172.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 2.60011632679,
+      "hip_end_rad": 2.60011632679,
+      "delta_end_rad": -0.7349999999999999
+    },
+    {
+      "id": 43,
+      "start_s": 172.4,
+      "end_s": 176.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 2.60011632679,
+      "hip_end_rad": 4.17091265334,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 44,
+      "start_s": 176.4,
+      "end_s": 178.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 4.17091265359,
+      "hip_end_rad": 4.17091265359,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 45,
+      "start_s": 178.4,
+      "end_s": 182.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 4.17091265359,
+      "hip_end_rad": 5.74170898014,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 46,
+      "start_s": 182.4,
+      "end_s": 184.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 5.74170898038,
+      "hip_end_rad": 5.74170898038,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 47,
+      "start_s": 184.4,
+      "end_s": 188.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 5.74170898038,
+      "hip_end_rad": 7.31250530693,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 48,
+      "start_s": 188.4,
+      "end_s": 190.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 7.31250530718,
+      "hip_end_rad": 7.31250530718,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 49,
+      "start_s": 190.4,
+      "end_s": 194.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 7.31250530718,
+      "hip_end_rad": 5.74170898063,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 50,
+      "start_s": 194.4,
+      "end_s": 196.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 5.74170898038,
+      "hip_end_rad": 5.74170898038,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 51,
+      "start_s": 196.4,
+      "end_s": 200.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 5.74170898038,
+      "hip_end_rad": 4.17091265384,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 52,
+      "start_s": 200.4,
+      "end_s": 202.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 4.17091265359,
+      "hip_end_rad": 4.17091265359,
+      "delta_end_rad": -0.7350000000000003
+    },
+    {
+      "id": 53,
+      "start_s": 202.4,
+      "end_s": 206.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 4.17091265359,
+      "hip_end_rad": 2.60011632704,
+      "delta_end_rad": -0.7349999999999999
+    },
+    {
+      "id": 54,
+      "start_s": 206.4,
+      "end_s": 208.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 2.60011632679,
+      "hip_end_rad": 2.60011632679,
+      "delta_end_rad": -0.7349999999999999
+    },
+    {
+      "id": 55,
+      "start_s": 208.4,
+      "end_s": 212.4,
+      "waveform": 7,
+      "validation": false,
+      "hip_start_rad": 2.60011632679,
+      "hip_end_rad": 1.02932000025,
+      "delta_end_rad": -0.7350000000050001
+    },
+    {
+      "id": 56,
+      "start_s": 212.4,
+      "end_s": 214.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.735
+    },
+    {
+      "id": 57,
+      "start_s": 214.4,
+      "end_s": 244.4,
+      "waveform": 6,
+      "validation": true,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932000022,
+      "delta_end_rad": -0.7350000000570001
+    },
+    {
+      "id": 58,
+      "start_s": 244.4,
+      "end_s": 246.4,
+      "waveform": 0,
+      "validation": true,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.735
+    },
+    {
+      "id": 59,
+      "start_s": 246.4,
+      "end_s": 249.4,
+      "waveform": 1,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.934999999926
+    },
+    {
+      "id": 60,
+      "start_s": 249.4,
+      "end_s": 251.4,
+      "waveform": 0,
+      "validation": false,
+      "hip_start_rad": 1.02932,
+      "hip_end_rad": 1.02932,
+      "delta_end_rad": -0.935
+    }
+  ],
+  "control_frequency_hz": 1000.0
+}
