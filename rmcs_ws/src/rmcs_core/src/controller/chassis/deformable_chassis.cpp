@@ -57,6 +57,7 @@ public:
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
         register_output("/chassis/pitch_lock_active", pitch_lock_active_, false);
+        register_output("/chassis/joint_control_active", joint_control_active_, false);
         register_output("/chassis/active_suspension/active", active_suspension_active_, false);
         register_output("/chassis/deformable/low_prone_active", low_prone_active_, false);
         register_output("/chassis/deformable/rl_q_cmd", rl_q_cmd_, rl_q_cmd_high_rad_);
@@ -127,6 +128,8 @@ public:
             const bool both_down =
                 switch_left == Switch::DOWN && switch_right == Switch::DOWN;
 
+            *joint_control_active_ = !any_unknown && !both_down;
+
             if (!(any_unknown || both_down))
                 reset_active_ = false;
 
@@ -185,6 +188,7 @@ private:
 
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         *pitch_lock_active_ = false;
+        *joint_control_active_ = false;
         *active_suspension_active_ = false;
         *low_prone_active_ = false;
         *rl_q_cmd_ = rl_q_cmd_high_rad_;
@@ -413,6 +417,7 @@ private:
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<bool> pitch_lock_active_;
+    OutputInterface<bool> joint_control_active_;
     OutputInterface<bool> active_suspension_active_;
     OutputInterface<bool> low_prone_active_;
     OutputInterface<double> rl_q_cmd_;
