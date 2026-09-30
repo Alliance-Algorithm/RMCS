@@ -22,9 +22,7 @@ public:
         ps.is_diff = true;
         ps.robot_state.is_diff = true;
         ps.link_padding.push_back(
-            moveit_msgs::msg::LinkPadding().set__link_name("base_link").set__padding(0.0));
-        ps.link_padding.push_back(
-            moveit_msgs::msg::LinkPadding().set__link_name("link_1").set__padding(0.0));
+            moveit_msgs::msg::LinkPadding().set__link_name("link_6").set__padding(0.000));
         planning_scene_.applyPlanningScene(ps);
 
         Eigen::Vector3d mm2m_scale = {0.001, 0.001, 0.001};

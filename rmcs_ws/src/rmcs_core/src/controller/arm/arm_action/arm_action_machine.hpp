@@ -194,13 +194,14 @@ private:
             move_group_->clearPathConstraints();
 
             move_group_->setStartState(*current_state);
-            move_group_->setPlanningTime(5.0);
+            move_group_->setPlanningTime(10.0);
             move_group_->setMaxVelocityScalingFactor(step.params().vel);
             move_group_->setMaxAccelerationScalingFactor(step.params().acc);
             move_group_->setGoalOrientationTolerance(step.params().tolerance_ori);
             move_group_->setGoalPositionTolerance(step.params().tolerance_pos);
             move_group_->setPlanningPipelineId(step.pipelineId());
             move_group_->setPlannerId(step.plannerId());
+
             if (!planSingleStep(
                     step, move_group_.get(), current_state, segment_pts, segment_joint_names)) {
                 RCLCPP_WARN(node_->get_logger(), "segment %zu plan failed", i);
