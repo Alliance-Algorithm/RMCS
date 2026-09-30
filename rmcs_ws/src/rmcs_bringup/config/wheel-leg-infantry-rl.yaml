@@ -168,6 +168,9 @@ policy_server:
     rl_model_path: "models/wheel_leg_v2.onnx"
     input_name: "obs"
     output_name: "actions"
+    model_type: "auto"
+    rl_obs_size: 35        # 必须与 rl_bridge.rl_obs_size 一致（启动期尺寸交叉校验）
+    rl_action_size: 6
     normalization_from_metadata: true
     publish_status: true
 
