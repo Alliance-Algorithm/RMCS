@@ -203,6 +203,9 @@ policy_server:
     rl_model_path: "models/deformable_sps_V1.onnx"
     input_name: "obs"
     output_name: "actions"
+    model_type: "auto"
+    rl_obs_size: 26        # 必须与 rl_bridge.rl_obs_size 一致（启动期尺寸交叉校验）
+    rl_action_size: 4
     normalization_from_metadata: true
     publish_status: false
     status_rate: 2.0
