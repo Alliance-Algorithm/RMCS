@@ -4,8 +4,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <librmcs/agent/c_board.hpp>
-#include <librmcs/agent/rmcs_board_lite.hpp>
+#include <librmcs/board/c_board.hpp>
+#include <librmcs/board/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
 #include <memory>
 #include <rclcpp/logging.hpp>
@@ -60,15 +60,14 @@ private:
     std::shared_ptr<EngineerCommand> engineer_command_;
 
     class ArmBoard final
-        : private librmcs::agent::CBoard
+        : public librmcs::board::CBoard::Callback
         , rclcpp::Node {
     public:
         friend class TEST;
         explicit ArmBoard(
             TEST& engineer, [[maybe_unused]] EngineerCommand& engineer_command,
             const std::string& serial_filter)
-            : librmcs::agent::CBoard(serial_filter)
-            , rclcpp::Node{"arm_board"}
+            : rclcpp::Node{"arm_board"}
             , bmi088_(1000, 0.2, 0) {
             using namespace device;
 
@@ -83,6 +82,9 @@ private:
             engineer.register_output("roll_imu_angle", roll_imu_angle, NAN);
 
             engineer.register_output("/gimbal/auto_aim/imu_snapshot", imu_snapshot);
+
+            board_ = std::make_unique<librmcs::board::CBoard>(
+                *this, static_cast<std::string>(serial_filter), librmcs::board::AdvancedOptions{});
         }
         ~ArmBoard() final {}
 
@@ -112,16 +114,14 @@ private:
         }
 
     protected:
-        void can2_receive_callback(
-            [[maybe_unused]] const librmcs::data::CanDataView& data) override {}
-        void can1_receive_callback(
-            [[maybe_unused]] const librmcs::data::CanDataView& data) override {}
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void can_receive_callback(
+            [[maybe_unused]] const Spec::Can& can,
+            [[maybe_unused]] const View::Can& data) override {}
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -135,6 +135,7 @@ private:
         OutputInterface<double> roll_imu_velocity;
         OutputInterface<double> roll_imu_angle;
         EventOutputInterface<rmcs_msgs::ImuSnapshot> imu_snapshot;
+        std::unique_ptr<librmcs::board::CBoard> board_;
 
     } armboard_;
 

@@ -12,8 +12,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <librmcs/agent/c_board.hpp>
-#include <librmcs/agent/rmcs_board_lite.hpp>
+#include <librmcs/board/c_board.hpp>
+#include <librmcs/board/rmcs_board_lite.hpp>
 #include <librmcs/data/datas.hpp>
 #include <memory>
 #include <rclcpp/logging.hpp>
@@ -90,15 +90,14 @@ private:
     std::unique_ptr<device::RemoteControl> remote_control_;
 
     class ArmBoard final
-        : private librmcs::agent::CBoard
+        : public librmcs::board::CBoard::Callback
         , rclcpp::Node {
     public:
         friend class ClimberEngineer;
         explicit ArmBoard(
             ClimberEngineer& engineer, EngineerCommand& engineer_command,
             const std::string& serial_filter)
-            : librmcs::agent::CBoard(serial_filter)
-            , rclcpp::Node{"arm_board"}
+            : rclcpp::Node{"arm_board"}
             , joint(
                   {engineer, engineer_command, "/arm/joint_1/motor"},
                   {engineer, engineer_command, "/arm/joint_2/motor"},
@@ -151,33 +150,44 @@ private:
             engineer.register_output("roll_imu_angle", roll_imu_angle, NAN);
             engineer_command.register_input(
                 "/arm/gripper/calibration_done", gripper_calibration_done_signal_, false);
+
+            board_ = std::make_unique<librmcs::board::CBoard>(
+                *this, static_cast<std::string>(serial_filter), librmcs::board::AdvancedOptions{});
         }
         ~ArmBoard() final {
-            auto tx = start_transmit();
+            auto tx = board_->start_transmit();
             for (int i = 0; i < 10; i++) {
                 if (i % 2 == 0) {
-                    tx.can2_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan2,
                         {.can_id = 0x145,
                          .can_data = joint[4].lk_zero_torque_command().as_bytes()});
-                    tx.can2_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan2,
                         {.can_id = 0x144,
                          .can_data = joint[3].lk_zero_torque_command().as_bytes()});
-                    tx.can1_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan1,
                         {.can_id = 0x148,
                          .can_data = image_pitch.lk_zero_torque_command().as_bytes()});
-                    tx.can1_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan1,
                         {.can_id = 0x143,
                          .can_data = joint[2].lk_zero_torque_command().as_bytes()});
                 } else {
-                    tx.can2_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan2,
                         {.can_id = 0x141,
                          .can_data = joint[5].lk_zero_torque_command().as_bytes()});
-                    tx.can2_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan2,
                         {.can_id = 0x147, .can_data = gripper.lk_zero_torque_command().as_bytes()});
-                    tx.can1_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan1,
                         {.can_id = 0x142,
                          .can_data = joint[1].lk_zero_torque_command().as_bytes()});
-                    tx.can1_transmit(
+                    tx.can_transmit(
+                        Spec::kCans.kCan1,
                         {.can_id = 0x141,
                          .can_data = joint[0].lk_zero_torque_command().as_bytes()});
                 }
@@ -201,176 +211,236 @@ private:
         void update_arm_command() {
             static uint64_t i = 0;
 
-            auto tx = start_transmit();
+            auto tx = board_->start_transmit();
 
             if (i % 8 == 0) {
-                tx.can1_transmit({
-                    .can_id = 0x148,
-                    .can_data = image_pitch.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x148,
+                        .can_data = image_pitch.generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x143,
-                    .can_data = joint[2].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x143,
+                        .can_data = joint[2].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[0].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[0].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x147,
-                    .can_data = gripper.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2, {
+                                           .can_id = 0x147,
+                                           .can_data = gripper.generate_torque_command().as_bytes(),
+                                       });
 
             } else if (i % 8 == 1) {
-                tx.can2_transmit({
-                    .can_id = 0x147,
-                    .can_data = gripper.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2, {
+                                           .can_id = 0x147,
+                                           .can_data = gripper.generate_torque_command().as_bytes(),
+                                       });
 
-                tx.can2_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[5].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[5].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x145,
-                    .can_data = joint[4].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x145,
+                        .can_data = joint[4].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x148,
-                    .can_data = image_pitch.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x148,
+                        .can_data = image_pitch.generate_torque_command().as_bytes(),
+                    });
 
             } else if (i % 8 == 2) {
-                tx.can1_transmit({
-                    .can_id = 0x148,
-                    .can_data = image_pitch.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x148,
+                        .can_data = image_pitch.generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x143,
-                    .can_data = joint[2].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x143,
+                        .can_data = joint[2].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x142,
-                    .can_data = joint[1].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x142,
+                        .can_data = joint[1].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[5].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[5].generate_torque_command().as_bytes(),
+                    });
 
             } else if (i % 8 == 3) {
-                tx.can2_transmit({
-                    .can_id = 0x147,
-                    .can_data = gripper.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2, {
+                                           .can_id = 0x147,
+                                           .can_data = gripper.generate_torque_command().as_bytes(),
+                                       });
 
-                tx.can2_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[5].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[5].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x144,
-                    .can_data = joint[3].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x144,
+                        .can_data = joint[3].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x143,
-                    .can_data = joint[2].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x143,
+                        .can_data = joint[2].generate_torque_command().as_bytes(),
+                    });
 
             } else if (i % 8 == 4) {
-                tx.can1_transmit({
-                    .can_id = 0x148,
-                    .can_data = image_pitch.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x148,
+                        .can_data = image_pitch.generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[0].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[0].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x142,
-                    .can_data = joint[1].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x142,
+                        .can_data = joint[1].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x145,
-                    .can_data = joint[4].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x145,
+                        .can_data = joint[4].generate_torque_command().as_bytes(),
+                    });
 
             } else if (i % 8 == 5) {
 
-                tx.can2_transmit({
-                    .can_id = 0x147,
-                    .can_data = gripper.generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2, {
+                                           .can_id = 0x147,
+                                           .can_data = gripper.generate_torque_command().as_bytes(),
+                                       });
 
-                tx.can2_transmit({
-                    .can_id = 0x145,
-                    .can_data = joint[4].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x145,
+                        .can_data = joint[4].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x144,
-                    .can_data = joint[3].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x144,
+                        .can_data = joint[3].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[0].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[0].generate_torque_command().as_bytes(),
+                    });
             } else if (i % 8 == 6) {
 
-                tx.can1_transmit({
-                    .can_id = 0x143,
-                    .can_data = joint[2].generate_torque_command().as_bytes(),
-                });
-                tx.can1_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[0].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x143,
+                        .can_data = joint[2].generate_torque_command().as_bytes(),
+                    });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[0].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x142,
-                    .can_data = joint[1].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x142,
+                        .can_data = joint[1].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x144,
-                    .can_data = joint[3].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x144,
+                        .can_data = joint[3].generate_torque_command().as_bytes(),
+                    });
 
             } else if (i % 8 == 7) {
 
-                tx.can2_transmit({
-                    .can_id = 0x141,
-                    .can_data = joint[5].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x141,
+                        .can_data = joint[5].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x145,
-                    .can_data = joint[4].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x145,
+                        .can_data = joint[4].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can2_transmit({
-                    .can_id = 0x144,
-                    .can_data = joint[3].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2,
+                    {
+                        .can_id = 0x144,
+                        .can_data = joint[3].generate_torque_command().as_bytes(),
+                    });
 
-                tx.can1_transmit({
-                    .can_id = 0x142,
-                    .can_data = joint[1].generate_torque_command().as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan1,
+                    {
+                        .can_id = 0x142,
+                        .can_data = joint[1].generate_torque_command().as_bytes(),
+                    });
             }
             i++;
         }
@@ -405,41 +475,38 @@ private:
         }
 
     protected:
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
 
-            if (data.can_id == 0x141) {
-                joint[5].store_status(data.can_data);
-            } else if (data.can_id == 0x145) {
-                joint[4].store_status(data.can_data);
-            } else if (data.can_id == 0x144) {
-                joint[3].store_status(data.can_data);
-            } else if (data.can_id == 0x147) {
-                gripper.store_status(data.can_data);
+            if (can == Spec::kCans.kCan2) {
+                if (data.can_id == 0x141) {
+                    joint[5].store_status(data.can_data);
+                } else if (data.can_id == 0x145) {
+                    joint[4].store_status(data.can_data);
+                } else if (data.can_id == 0x144) {
+                    joint[3].store_status(data.can_data);
+                } else if (data.can_id == 0x147) {
+                    gripper.store_status(data.can_data);
+                }
+            } else if (can == Spec::kCans.kCan1) {
+                if (data.can_id == 0x143) {
+                    joint[2].store_status(data.can_data);
+                } else if (data.can_id == 0x142) {
+                    joint[1].store_status(data.can_data);
+                } else if (data.can_id == 0x141) {
+                    joint[0].store_status(data.can_data);
+                } else if (data.can_id == 0x148) {
+                    image_pitch.store_status(data.can_data);
+                }
             }
         }
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x143) {
-                joint[2].store_status(data.can_data);
-            } else if (data.can_id == 0x142) {
-                joint[1].store_status(data.can_data);
-            } else if (data.can_id == 0x141) {
-                joint[0].store_status(data.can_data);
-            } else if (data.can_id == 0x148) {
-                image_pitch.store_status(data.can_data);
-            };
-        }
-        void accelerometer_receive_callback(
-            const librmcs::data::AccelerometerDataView& data) override {
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
         }
 
-        void gyroscope_receive_callback(const librmcs::data::GyroscopeDataView& data) override {
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
@@ -457,19 +524,19 @@ private:
         OutputInterface<double> roll_imu_angle;
         InputInterface<bool> gripper_calibration_done_signal_;
         bool last_gripper_calibration_done_signal{false};
+        std::unique_ptr<librmcs::board::CBoard> board_;
 
     } armboard_;
 
     class LittleBoard final
-        : private librmcs::agent::RmcsBoardLite
+        : public librmcs::board::RmcsBoardLite::Callback
         , rclcpp::Node {
     public:
         friend class ClimberEngineer;
         explicit LittleBoard(
             ClimberEngineer& engineer, EngineerCommand& engineer_command,
             const std::string& serial_filter)
-            : librmcs::agent::RmcsBoardLite(serial_filter)
-            , rclcpp::Node{"little_board"}
+            : rclcpp::Node{"little_board"}
             , Steering_motors(
                   {engineer, engineer_command, "/steering/steering/lf"},
                   {engineer, engineer_command, "/steering/steering/lb"},
@@ -552,79 +619,89 @@ private:
             engineer_command.register_input("/arm/enable_flag", is_arm_enable);
 
             steering_wheel_watchdog_.reset(100);
+
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
+                *this, static_cast<std::string>(serial_filter), librmcs::board::AdvancedOptions{});
         }
         ~LittleBoard() final {
-            auto tx = start_transmit();
-            tx.can0_transmit({
-                .can_id = 0x1FE,
-                .can_data =
-                    device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }
-                        .as_bytes(),
-            });
-            tx.can1_transmit({
-                .can_id = 0x1FE,
-                .can_data =
-                    device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }
-                        .as_bytes(),
-            });
-            tx.can2_transmit({
-                .can_id = 0x1FE,
-                .can_data =
-                    device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }
-                        .as_bytes(),
-            });
-            tx.can2_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }
-                        .as_bytes(),
-            });
-            tx.can1_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }
-                        .as_bytes(),
-            });
-            tx.can0_transmit({
-                .can_id = 0x200,
-                .can_data =
-                    device::CanPacket8{
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                        device::CanPacket8::PaddingQuarter{},
-                    }
-                        .as_bytes(),
-            });
-            tx.can3_transmit({
-                .can_id = 0x142,
-                .can_data = big_yaw.lk_zero_torque_command().as_bytes(),
-            });
+            auto tx = board_->start_transmit();
+            tx.can_transmit(
+                Spec::kCans.kCan0, {
+                                       .can_id = 0x1FE,
+                                       .can_data =
+                                           device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                           }
+                                               .as_bytes(),
+                                   });
+            tx.can_transmit(
+                Spec::kCans.kCan1, {
+                                       .can_id = 0x1FE,
+                                       .can_data =
+                                           device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                           }
+                                               .as_bytes(),
+                                   });
+            tx.can_transmit(
+                Spec::kCans.kCan2, {
+                                       .can_id = 0x1FE,
+                                       .can_data =
+                                           device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                           }
+                                               .as_bytes(),
+                                   });
+            tx.can_transmit(
+                Spec::kCans.kCan2, {
+                                       .can_id = 0x200,
+                                       .can_data =
+                                           device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                           }
+                                               .as_bytes(),
+                                   });
+            tx.can_transmit(
+                Spec::kCans.kCan1, {
+                                       .can_id = 0x200,
+                                       .can_data =
+                                           device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                           }
+                                               .as_bytes(),
+                                   });
+            tx.can_transmit(
+                Spec::kCans.kCan0, {
+                                       .can_id = 0x200,
+                                       .can_data =
+                                           device::CanPacket8{
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                               device::CanPacket8::PaddingQuarter{},
+                                           }
+                                               .as_bytes(),
+                                   });
+            tx.can_transmit(
+                Spec::kCans.kCan3, {
+                                       .can_id = 0x142,
+                                       .can_data = big_yaw.lk_zero_torque_command().as_bytes(),
+                                   });
         }
         void update() {
             for (auto& motor : Steering_motors) {
@@ -652,204 +729,206 @@ private:
                 chassis_disable();
             }
             static bool turn{false};
-            auto tx = start_transmit();
+            auto tx = board_->start_transmit();
             if (turn) {
-                tx.can3_transmit({
-                    .can_id = 0x142,
-                    .can_data = big_yaw.generate_torque_command().as_bytes(),
-                });
-                tx.can2_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                            Track_motors[0].generate_command(),
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::PaddingQuarter{},
-                            Track_motors[1].generate_command(),
-                        }
-                            .as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan3, {
+                                           .can_id = 0x142,
+                                           .can_data = big_yaw.generate_torque_command().as_bytes(),
+                                       });
+                tx.can_transmit(
+                    Spec::kCans.kCan2, {
+                                           .can_id = 0x200,
+                                           .can_data =
+                                               device::CanPacket8{
+                                                   Track_motors[0].generate_command(),
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   Track_motors[1].generate_command(),
+                                               }
+                                                   .as_bytes(),
+                                       });
                 if (is_chassis_enable)
-                    tx.can1_transmit({
-                        .can_id = 0x200,
-                        .can_data =
-                            device::CanPacket8{
-                                device::CanPacket8::PaddingQuarter{},
-                                device::CanPacket8::PaddingQuarter{},
-                                Wheel_motors[2].generate_command(),
-                                Wheel_motors[3].generate_command(),
-                            }
-                                .as_bytes(),
-                    });
+                    tx.can_transmit(
+                        Spec::kCans.kCan1, {
+                                               .can_id = 0x200,
+                                               .can_data =
+                                                   device::CanPacket8{
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                       Wheel_motors[2].generate_command(),
+                                                       Wheel_motors[3].generate_command(),
+                                                   }
+                                                       .as_bytes(),
+                                           });
                 if (is_chassis_enable)
-                    tx.can0_transmit({
-                        .can_id = 0x200,
-                        .can_data =
-                            device::CanPacket8{
-                                Wheel_motors[0].generate_command(),
-                                Wheel_motors[1].generate_command(),
-                                device::CanPacket8::PaddingQuarter{},
-                                device::CanPacket8::PaddingQuarter{},
-                            }
-                                .as_bytes(),
-                    });
+                    tx.can_transmit(
+                        Spec::kCans.kCan0, {
+                                               .can_id = 0x200,
+                                               .can_data =
+                                                   device::CanPacket8{
+                                                       Wheel_motors[0].generate_command(),
+                                                       Wheel_motors[1].generate_command(),
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                   }
+                                                       .as_bytes(),
+                                           });
             } else {
-                tx.can2_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                            device::CanPacket8::PaddingQuarter{},
-                            Lift_motors[0].generate_command(),
-                            Lift_motors[1].generate_command(),
-                            device::CanPacket8::PaddingQuarter{},
-                        }
-                            .as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan2, {
+                                           .can_id = 0x200,
+                                           .can_data =
+                                               device::CanPacket8{
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   Lift_motors[0].generate_command(),
+                                                   Lift_motors[1].generate_command(),
+                                                   device::CanPacket8::PaddingQuarter{},
+                                               }
+                                                   .as_bytes(),
+                                       });
                 if (is_chassis_enable)
-                    tx.can1_transmit({
-                        .can_id = 0x1FE,
-                        .can_data =
-                            device::CanPacket8{
-                                device::CanPacket8::PaddingQuarter{},
-                                device::CanPacket8::PaddingQuarter{},
-                                Steering_motors[2].generate_command(),
-                                Steering_motors[3].generate_command(),
-                            }
-                                .as_bytes(),
-                    });
+                    tx.can_transmit(
+                        Spec::kCans.kCan1, {
+                                               .can_id = 0x1FE,
+                                               .can_data =
+                                                   device::CanPacket8{
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                       Steering_motors[2].generate_command(),
+                                                       Steering_motors[3].generate_command(),
+                                                   }
+                                                       .as_bytes(),
+                                           });
                 if (is_chassis_enable)
-                    tx.can0_transmit({
-                        .can_id = 0x1FE,
-                        .can_data =
-                            device::CanPacket8{
-                                Steering_motors[0].generate_command(),
-                                Steering_motors[1].generate_command(),
-                                device::CanPacket8::PaddingQuarter{},
-                                device::CanPacket8::PaddingQuarter{},
-                            }
-                                .as_bytes(),
-                    });
+                    tx.can_transmit(
+                        Spec::kCans.kCan0, {
+                                               .can_id = 0x1FE,
+                                               .can_data =
+                                                   device::CanPacket8{
+                                                       Steering_motors[0].generate_command(),
+                                                       Steering_motors[1].generate_command(),
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                       device::CanPacket8::PaddingQuarter{},
+                                                   }
+                                                       .as_bytes(),
+                                           });
             }
             turn = !turn;
         }
 
     protected:
-        void can0_receive_callback(const librmcs::data::CanDataView& data) override {
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
                 [[unlikely]]
                 return;
-            if (data.can_id == 0x205) {
-                Steering_motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x206) {
-                Steering_motors[1].store_status(data.can_data);
-                steering_wheel_watchdog_.reset(100);
-            } else if (data.can_id == 0x201) {
-                Wheel_motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x202) {
-                Wheel_motors[1].store_status(data.can_data);
-                steering_wheel_watchdog_.reset(100);
-            }
-            steering_wheel_watchdog_.tick_always();
-        }
-        void can1_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x207) {
-                Steering_motors[2].store_status(data.can_data);
-                steering_wheel_watchdog_.reset(100);
-            } else if (data.can_id == 0x208) {
-                Steering_motors[3].store_status(data.can_data);
-            } else if (data.can_id == 0x203) {
-                Wheel_motors[2].store_status(data.can_data);
-                steering_wheel_watchdog_.reset(100);
-            } else if (data.can_id == 0x204) {
-                Wheel_motors[3].store_status(data.can_data);
-            }
-            steering_wheel_watchdog_.tick_always();
-        }
-        void can2_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x201) {
-                Track_motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x204) {
-                Track_motors[1].store_status(data.can_data);
-            } else if (data.can_id == 0x202) {
-                Lift_motors[0].store_status(data.can_data);
-            } else if (data.can_id == 0x203) {
-                Lift_motors[1].store_status(data.can_data);
-            } else if (data.can_id == 0x205) {
-                joint2_encoder_.store_status(data.can_data);
-            }
-        }
-        void can3_receive_callback(const librmcs::data::CanDataView& data) override {
-            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
-                [[unlikely]]
-                return;
-            if (data.can_id == 0x100) {
-                power_meter.store_status(data.can_data);
-
-            } else if (data.can_id == 0x142) {
-                big_yaw.store_status(data.can_data);
+            if (can == Spec::kCans.kCan0) {
+                if (data.can_id == 0x205) {
+                    Steering_motors[0].store_status(data.can_data);
+                } else if (data.can_id == 0x206) {
+                    Steering_motors[1].store_status(data.can_data);
+                    steering_wheel_watchdog_.reset(100);
+                } else if (data.can_id == 0x201) {
+                    Wheel_motors[0].store_status(data.can_data);
+                } else if (data.can_id == 0x202) {
+                    Wheel_motors[1].store_status(data.can_data);
+                    steering_wheel_watchdog_.reset(100);
+                }
+                steering_wheel_watchdog_.tick_always();
+            } else if (can == Spec::kCans.kCan1) {
+                if (data.can_id == 0x207) {
+                    Steering_motors[2].store_status(data.can_data);
+                    steering_wheel_watchdog_.reset(100);
+                } else if (data.can_id == 0x208) {
+                    Steering_motors[3].store_status(data.can_data);
+                } else if (data.can_id == 0x203) {
+                    Wheel_motors[2].store_status(data.can_data);
+                    steering_wheel_watchdog_.reset(100);
+                } else if (data.can_id == 0x204) {
+                    Wheel_motors[3].store_status(data.can_data);
+                }
+                steering_wheel_watchdog_.tick_always();
+            } else if (can == Spec::kCans.kCan2) {
+                if (data.can_id == 0x201) {
+                    Track_motors[0].store_status(data.can_data);
+                } else if (data.can_id == 0x204) {
+                    Track_motors[1].store_status(data.can_data);
+                } else if (data.can_id == 0x202) {
+                    Lift_motors[0].store_status(data.can_data);
+                } else if (data.can_id == 0x203) {
+                    Lift_motors[1].store_status(data.can_data);
+                } else if (data.can_id == 0x205) {
+                    joint2_encoder_.store_status(data.can_data);
+                }
+            } else if (can == Spec::kCans.kCan3) {
+                if (data.can_id == 0x100) {
+                    power_meter.store_status(data.can_data);
+                } else if (data.can_id == 0x142) {
+                    big_yaw.store_status(data.can_data);
+                }
             }
         }
 
-        void dbus_receive_callback(const librmcs::data::UartDataView& data) override {
-            dr16_.store_status(data.uart_data);
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            if (uart == Spec::kUarts.kDbus) {
+                dr16_.store_status(data.uart_data);
+            }
         }
 
     private:
         void chassis_disable() {
             static bool turn{false};
-            auto tx = start_transmit();
+            auto tx = board_->start_transmit();
             if (!turn) {
-                tx.can0_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                            device::CanPacket8::Quarter{0},
-                            device::CanPacket8::Quarter{0},
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::PaddingQuarter{},
-                        }
-                            .as_bytes(),
-                });
-                tx.can1_transmit({
-                    .can_id = 0x1FE,
-                    .can_data =
-                        device::CanPacket8{
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::Quarter{0},
-                            device::CanPacket8::Quarter{0},
-                        }
-                            .as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan0, {
+                                           .can_id = 0x1FE,
+                                           .can_data =
+                                               device::CanPacket8{
+                                                   device::CanPacket8::Quarter{0},
+                                                   device::CanPacket8::Quarter{0},
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   device::CanPacket8::PaddingQuarter{},
+                                               }
+                                                   .as_bytes(),
+                                       });
+                tx.can_transmit(
+                    Spec::kCans.kCan1, {
+                                           .can_id = 0x1FE,
+                                           .can_data =
+                                               device::CanPacket8{
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   device::CanPacket8::Quarter{0},
+                                                   device::CanPacket8::Quarter{0},
+                                               }
+                                                   .as_bytes(),
+                                       });
             } else {
-                tx.can0_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                            device::CanPacket8::Quarter{0},
-                            device::CanPacket8::Quarter{0},
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::PaddingQuarter{},
-                        }
-                            .as_bytes(),
-                });
-                tx.can1_transmit({
-                    .can_id = 0x200,
-                    .can_data =
-                        device::CanPacket8{
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::PaddingQuarter{},
-                            device::CanPacket8::Quarter{0},
-                            device::CanPacket8::Quarter{0},
-                        }
-                            .as_bytes(),
-                });
+                tx.can_transmit(
+                    Spec::kCans.kCan0, {
+                                           .can_id = 0x200,
+                                           .can_data =
+                                               device::CanPacket8{
+                                                   device::CanPacket8::Quarter{0},
+                                                   device::CanPacket8::Quarter{0},
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   device::CanPacket8::PaddingQuarter{},
+                                               }
+                                                   .as_bytes(),
+                                       });
+                tx.can_transmit(
+                    Spec::kCans.kCan1, {
+                                           .can_id = 0x200,
+                                           .can_data =
+                                               device::CanPacket8{
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   device::CanPacket8::PaddingQuarter{},
+                                                   device::CanPacket8::Quarter{0},
+                                                   device::CanPacket8::Quarter{0},
+                                               }
+                                                   .as_bytes(),
+                                       });
             }
             turn = !turn;
         }
@@ -866,6 +945,7 @@ private:
 
         InputInterface<bool> is_arm_enable;
         rmcs_utility::TickTimer steering_wheel_watchdog_;
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     } littleboard_;
 
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;

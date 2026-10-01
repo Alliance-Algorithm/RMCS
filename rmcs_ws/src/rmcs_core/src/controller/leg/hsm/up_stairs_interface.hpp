@@ -175,17 +175,12 @@ public:
 
     Auto_Leg_Up_Stairs(
         rmcs_executor::Component& component, std::string_view name,
-        std::vector<std::string_view> layer_ids)
-        : context_{
-              &planner_, [this]() { return readCurrentLegJoints(); },
-              [this]() { return readCurrentSpeedX(); }, &result_}
+        std::vector<std::string_view> layer_ids,
+        std::function<std::array<double, LegJointCount>()> read_joints,
+        std::function<double()> read_speed)
+        : context_{&planner_, std::move(read_joints), std::move(read_speed), &result_}
         , runner_([this](LayerId id) { return resolveLayer(id); }) {
         resetResult();
-        component.register_input("/leg/joint/lf/angle", theta_lf_);
-        component.register_input("/leg/encoder/lb/angle", theta_lb_);
-        component.register_input("/leg/encoder/rb/angle", theta_rb_);
-        component.register_input("/leg/joint/rf/angle", theta_rf_);
-        component.register_input("/chassis/expected_control_velocity", speed_);
         plan_.clear();
         layers_.clear();
         plan_.assign(layer_ids.begin(), layer_ids.end());
@@ -268,12 +263,6 @@ private:
             std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(),
             std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
     }
-    std::array<double, LegJointCount> readCurrentLegJoints() const {
-        return {*theta_lf_, *theta_lb_, *theta_rb_, *theta_rf_};
-    }
-
-    double readCurrentSpeedX() const { return (*speed_)->x(); }
-
     linear::ILayer<UpStairsRunnerContext>* resolveLayer(const LayerId& id) {
         auto it = std::find_if(layers_.begin(), layers_.end(), [id](const UpStairsLayer& layer) {
             return layer.getLayerId() == id;
@@ -287,12 +276,6 @@ private:
     UpStairsRunnerContext context_{};
     std::vector<UpStairsLayer> layers_{};
     std::vector<LayerId> plan_{};
-
-    rmcs_executor::Component::InputInterface<double> theta_lf_;
-    rmcs_executor::Component::InputInterface<double> theta_lb_;
-    rmcs_executor::Component::InputInterface<double> theta_rb_;
-    rmcs_executor::Component::InputInterface<double> theta_rf_;
-    rmcs_executor::Component::InputInterface<rmcs_description::BaseLink::DirectionVector> speed_;
 
     LayerRunner runner_;
 };

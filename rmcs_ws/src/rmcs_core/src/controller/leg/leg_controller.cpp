@@ -56,11 +56,21 @@ public:
         , lf_velocity_pid_controller_(0.8, 0.0, 0.001)
         , rf_velocity_pid_controller_(1.0, 0.0, 0.001)
         , up_stairs{
-              {*this, "up_one_stairs", {"initial", "press", "press_wait", "lift"}},
+              {*this, "up_one_stairs", {"initial", "press", "press_wait", "lift"},
+               [this]() {
+                   return std::array<double, hsm::up_stairs::LegJointCount>{
+                       *theta_lf, *theta_lb, *theta_rb, *theta_rf};
+               },
+               [this]() { return (*expected_control_velocity_)->x(); }},
               {*this,
                "up_two_stairs",
-               {"initial", "press", "press_wait", "lift", "lift_wait","initial_again", "initial_wait",
-                "press_again", "lift_again"}}} {
+               {"initial", "press", "press_wait", "lift", "lift_wait", "initial_again",
+                "initial_wait", "press_again", "lift_again"},
+               [this]() {
+                   return std::array<double, hsm::up_stairs::LegJointCount>{
+                       *theta_lf, *theta_lb, *theta_rb, *theta_rf};
+               },
+               [this]() { return (*expected_control_velocity_)->x(); }}} {
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -78,6 +88,7 @@ public:
         register_input("/leg/encoder/lb/angle", theta_lb);
         register_input("/leg/encoder/rb/angle", theta_rb);
         register_input("/leg/joint/rf/angle", theta_rf);
+        register_input("/chassis/expected_control_velocity", expected_control_velocity_);
         register_input("/leg/joint/lf/velocity", leg_lf_joint_velocity_, NAN);
         register_output("/leg/joint/lf/control_torque", leg_lf_joint_control_torque_);
         register_input("/leg/joint/rf/velocity", leg_rf_joint_velocity_, NAN);
@@ -488,6 +499,7 @@ private:
     InputInterface<double> theta_lb;
     InputInterface<double> theta_rb;
     InputInterface<double> theta_rf;
+    InputInterface<rmcs_description::BaseLink::DirectionVector> expected_control_velocity_;
 
     OutputInterface<double> omni_l_target_vel;
     OutputInterface<double> omni_r_target_vel;
