@@ -22,17 +22,21 @@ public:
         ps.is_diff = true;
         ps.robot_state.is_diff = true;
         ps.link_padding.push_back(
-            moveit_msgs::msg::LinkPadding().set__link_name("link_6").set__padding(0.000));
+            moveit_msgs::msg::LinkPadding().set__link_name("link_6").set__padding(0.02));
         planning_scene_.applyPlanningScene(ps);
 
         Eigen::Vector3d mm2m_scale = {0.001, 0.001, 0.001};
 
         Pose energy_unit_compensation{-0.0475, -0.0475, -0.0725, 0, 0, 0};
-        Pose gimbal_compensation{-0.50775 + 0.04105, -0.280, -0.37885 + 0.004, 0, 0, 0};
+        // Pose gimbal_compensation{-0.50775 + 0.04105, -0.280, -0.37885 + 0.004, 0, 0, 0};
+
+        Pose gimbal_compensation{0, 0.5399, -0.264 + 0.004, 0, 0, 0};
+
+        // Pose gimbal_compensation{0, 0, 0, 0, 0, 0};
 
         add_collision(
             "energy_unit_left_front", "energy_unit", mm2m_scale, energy_unit_compensation,
-            {0.102, -0.431, 0.447, -1.57, 0.0, 1.571});
+            {-0.237, -0.127, 0.131, 0, 0, 0});
         add_collision(
             "energy_unit_left_back", "energy_unit", mm2m_scale, energy_unit_compensation,
             {0.102, -0.431, 0.157, 0.0, 1.57, 1.571});
@@ -40,7 +44,7 @@ public:
             "energy_unit_right_back", "energy_unit", mm2m_scale, energy_unit_compensation);
         add_collision(
             "energy_unit_right_front", "energy_unit", mm2m_scale, energy_unit_compensation);
-        add_collision("gimbal", "gimbal", mm2m_scale, gimbal_compensation);
+        add_collision("gimbal", "gimbal", mm2m_scale, gimbal_compensation, {0, 0, 0, 0, 0, 0});
 
         set_operation("energy_unit_left_back", CollisionObjectOperation::REMOVE);
         set_operation("gimbal", CollisionObjectOperation::ADD);

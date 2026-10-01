@@ -1,6 +1,7 @@
 #include "controller/arm/arm_action/action_dictionary.hpp"
 #include "controller/arm/arm_action/action_step.hpp"
 #include "controller/arm/arm_action/arm_action_machine.hpp"
+#include "controller/arm/arm_action/obstacle/obstacle_course.hpp"
 #include "filter/low_pass_filter.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
@@ -56,6 +57,7 @@ public:
         , action_dictionary_(make_action_parameter_map(get_parameter("action_profile").as_string()))
         , chassis_type_(get_parameter("action_profile").as_string())
         , arm_action_machine_()
+        , obstacle_course_(arm_action_machine_.moveit_group_getter().get())
         , custom_joint_filter_(0.2) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -95,10 +97,10 @@ public:
 
     void update() override {
         auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto knob         = *rotary_knob_switch;
-        auto keyboard     = *keyboard_;
-        auto mouse        = *mouse_;
+        auto switch_left = *switch_left_;
+        auto knob = *rotary_knob_switch;
+        auto keyboard = *keyboard_;
+        auto mouse = *mouse_;
         using namespace rmcs_msgs;
 
         static bool initial_check_done{false};
@@ -125,13 +127,13 @@ public:
         gripper_control();
         image_pitch_control();
 
-        last_switch_left_        = switch_left;
-        last_switch_right_       = switch_right;
+        last_switch_left_ = switch_left;
+        last_switch_right_ = switch_right;
         last_rotary_knob_switch_ = knob;
-        last_keyboard_           = keyboard;
-        last_mouse_              = mouse;
-        last_gripper_mode_       = get_gripper_mode();
-        last_arm_mode_           = get_arm_mode();
+        last_keyboard_ = keyboard;
+        last_mouse_ = mouse;
+        last_gripper_mode_ = get_gripper_mode();
+        last_arm_mode_ = get_arm_mode();
     }
 
 private:
@@ -148,10 +150,10 @@ private:
 
     void mode_selection() {
         auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto keyboard     = *keyboard_;
-        auto mouse        = *mouse_;
-        auto knob         = *rotary_knob_switch;
+        auto switch_left = *switch_left_;
+        auto keyboard = *keyboard_;
+        auto mouse = *mouse_;
+        auto knob = *rotary_knob_switch;
 
         using namespace rmcs_msgs;
         if (switch_left == Switch::UP && switch_right == Switch::UP) {
@@ -290,6 +292,11 @@ private:
     void arm_control() {
         if (request_trigger_ != last_processed_trigger_) {
             last_processed_trigger_ = request_trigger_;
+            // obstacle_course_.set_operation(
+            //     "energy_unit_left_front", obstacle::CollisionObjectOperation::ADD);
+
+            obstacle_course_.apply_collision();
+
             switch (get_arm_mode()) {
                 using namespace rmcs_msgs;
             case ArmMode::Auto_Extract_LF:
@@ -411,8 +418,8 @@ private:
             return;
 
         if (result->request_id != last_executed_request_id_) {
-            current_step_index_       = 0;
-            step_position_index_      = 0;
+            current_step_index_ = 0;
+            step_position_index_ = 0;
             last_executed_request_id_ = result->request_id;
         }
         if (static_cast<size_t>(current_step_index_) >= result->step_position_map.size())
@@ -451,7 +458,7 @@ private:
         const auto& custom_data = *custom_data_;
         std::array<std::uint8_t, sizeof(CustomFrame)> raw{};
         std::copy_n(custom_data.begin(), raw.size(), raw.begin());
-        const auto frame  = std::bit_cast<CustomFrame>(raw);
+        const auto frame = std::bit_cast<CustomFrame>(raw);
         constexpr auto pi = std::numbers::pi;
 
         const auto raw_to_angle = [](std::uint16_t raw, double divisor) {
@@ -464,8 +471,8 @@ private:
         Eigen::Vector<double, 6> angles;
         for (Eigen::Index i = 0; i < angles.size(); ++i) {
             const auto joint_index = static_cast<std::size_t>(i);
-            double divisor         = (joint_index == 0 || joint_index == 5) ? 32768.0 : 65536.0;
-            angles[i]              = raw_to_angle(frame.joint[joint_index], divisor);
+            double divisor = (joint_index == 0 || joint_index == 5) ? 32768.0 : 65536.0;
+            angles[i] = raw_to_angle(frame.joint[joint_index], divisor);
             if (i == 2 || i == 5) {
                 angles[i] = -angles[i];
             }
@@ -516,12 +523,12 @@ private:
         return angle < 0 ? angle + M_PI : angle - M_PI;
     }
     void gripper_control() {
-        const double gripper_step        = this->get_parameter("gripper_step").as_double();
-        const double gripper_open_angle  = this->get_parameter("gripper_open_angle").as_double();
+        const double gripper_step = this->get_parameter("gripper_step").as_double();
+        const double gripper_open_angle = this->get_parameter("gripper_open_angle").as_double();
         const double gripper_close_angle = this->get_parameter("gripper_close_angle").as_double();
         static bool initial_calibration{false};
 
-        const auto gripper_mode  = get_gripper_mode();
+        const auto gripper_mode = get_gripper_mode();
         const auto stock_control = [this, gripper_step]() {
             if (std::abs(*gripper_velocity_) < 0.01 && std::abs(*gripper_torque_) > 1.0) {
                 *gripper_target_theta = NAN;
@@ -535,11 +542,11 @@ private:
             *gripper_calibration_trigger_ = false;
             if (stock_control()) {
                 *gripper_calibration_trigger_ = true;
-                initial_calibration           = true;
+                initial_calibration = true;
                 return true;
             } else {
                 *gripper_calibration_trigger_ = false;
-                initial_calibration           = false;
+                initial_calibration = false;
                 return false;
             }
         };
@@ -589,14 +596,14 @@ private:
         for (std::size_t i = 0; i < std::size(theta); ++i) {
             *target_theta[i] = *theta[i];
         }
-        *gripper_target_theta      = NAN;
+        *gripper_target_theta = NAN;
         *image_pitch_target_theta_ = NAN;
         image_pitch_theta1_offset_ = 0.0;
-        last_switch_left_          = *switch_left_;
-        last_switch_right_         = *switch_right_;
-        last_rotary_knob_switch_   = *rotary_knob_switch;
-        last_keyboard_             = *keyboard_;
-        last_mouse_                = *mouse_;
+        last_switch_left_ = *switch_left_;
+        last_switch_right_ = *switch_right_;
+        last_rotary_knob_switch_ = *rotary_knob_switch;
+        last_keyboard_ = *keyboard_;
+        last_mouse_ = *mouse_;
         custom_joint_filter_.reset();
         set_arm_mode(rmcs_msgs::ArmMode::None, false);
         set_gripper_mode(rmcs_msgs::GripperMode::None);
@@ -604,6 +611,7 @@ private:
     ActionDictionary action_dictionary_;
     std::string chassis_type_;
     ActionMachine arm_action_machine_;
+    obstacle::ObstacleCourse obstacle_course_;
 
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch last_switch_right_{rmcs_msgs::Switch::UNKNOWN};
@@ -650,8 +658,6 @@ private:
 
     InputInterface<std::string> up_stairs_layer;
     std::string last_up_stairs_layer{"none"};
-
-    bool Auto_Three_Mine_First_finish{false};
 };
 
 } // namespace rmcs_core::controller::arm

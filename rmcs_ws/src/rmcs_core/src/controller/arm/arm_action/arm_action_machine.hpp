@@ -194,7 +194,7 @@ private:
             move_group_->clearPathConstraints();
 
             move_group_->setStartState(*current_state);
-            move_group_->setPlanningTime(10.0);
+            move_group_->setPlanningTime(5.0);
             move_group_->setMaxVelocityScalingFactor(step.params().vel);
             move_group_->setMaxAccelerationScalingFactor(step.params().acc);
             move_group_->setGoalOrientationTolerance(step.params().tolerance_ori);

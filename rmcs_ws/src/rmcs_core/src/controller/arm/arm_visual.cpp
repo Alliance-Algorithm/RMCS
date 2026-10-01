@@ -1,4 +1,5 @@
 #include "arm_action/obstacle/obstacle_course.hpp"
+#include "controller/arm/arm_action/action_dictionary.hpp"
 #include "controller/arm/arm_action/arm_action_machine.hpp"
 #include "controller/arm/arm_action/obstacle/obstacle.hpp"
 #include <Eigen/Geometry>
@@ -43,6 +44,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        , action_dictionary_(make_action_parameter_map(get_parameter("action_profile").as_string()))
         , arm_action_machine_()
         , move_group_(arm_action_machine_.moveit_group_getter().get())
         , moveit_visual_tools_(
@@ -146,12 +148,26 @@ private:
 
         obstacle_course_.apply_collision();
 
-        const Action::PoseTarget target{-0.295, -0.033, 0.177, 1.972, -0.603, 1.442};
-        arm_action_machine_.process({Action::Step::makePose(target, Action::MotionParams{})});
+        const Action::PoseTarget target{-0.350, -0.208, 0.222, 1.310, -1.571, -2.707};
+        uint64_t previous_id = 0;
+        if (const auto current = arm_action_machine_.get_trajectory())
+            previous_id = current->request_id;
 
-        const auto result = wait_for_plan();
-        if (!result || !result->plan_success) {
-            RCLCPP_ERROR(get_logger(), "Planning failed");
+        arm_action_machine_.process({Action::Step::makePose(target, Action::MotionParams{})});
+        // arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_lf"));
+
+        const auto result = wait_for_plan(previous_id);
+        if (!result) {
+            RCLCPP_ERROR(get_logger(), "Timed out waiting for planning result");
+            moveit_visual_tools_.publishText(
+                geometry_msgs::msg::Pose().set__position(
+                    geometry_msgs::msg::Point().set__x(0.3).set__y(0.0).set__z(0.6)),
+                "Planning result timeout", rviz_visual_tools::RED, rviz_visual_tools::XXLARGE);
+            moveit_visual_tools_.trigger();
+            return;
+        }
+        if (!result->plan_success) {
+            RCLCPP_ERROR(get_logger(), "MoveIt returned a failed planning result");
             moveit_visual_tools_.publishText(
                 geometry_msgs::msg::Pose().set__position(
                     geometry_msgs::msg::Point().set__x(0.3).set__y(0.0).set__z(0.6)),
@@ -282,18 +298,10 @@ private:
         pose_text_pub_->publish(arr);
     }
 
-    std::shared_ptr<const ActionMachine::PlannedTrajectory> wait_for_plan() {
-        uint64_t last_id = 0;
-        if (const auto current = arm_action_machine_.get_trajectory())
-            last_id = current->request_id;
-
-        constexpr auto timeout = std::chrono::seconds(15);
-        const auto deadline = std::chrono::steady_clock::now() + timeout;
-
-        while (running_.load(std::memory_order_acquire)
-               && std::chrono::steady_clock::now() < deadline) {
+    std::shared_ptr<const ActionMachine::PlannedTrajectory> wait_for_plan(uint64_t previous_id) {
+        while (running_.load(std::memory_order_acquire)) {
             const auto result = arm_action_machine_.get_trajectory();
-            if (result && result->request_id != 0 && result->request_id != last_id)
+            if (result && result->request_id > previous_id)
                 return result;
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -319,6 +327,7 @@ private:
         return msg;
     }
 
+    ActionDictionary action_dictionary_;
     ActionMachine arm_action_machine_;
     moveit::planning_interface::MoveGroupInterface* move_group_;
     moveit_visual_tools::MoveItVisualTools moveit_visual_tools_;

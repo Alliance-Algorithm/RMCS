@@ -17,6 +17,10 @@ test:
   ros__parameters:
     board_serial_arm_board: "D4-2418-9DD3-9A8B-B5BD-DF64-CE71"
 
+arm_visual:
+  ros__parameters:
+    action_profile: lunar_rover
+
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
