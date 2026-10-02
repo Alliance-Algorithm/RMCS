@@ -82,13 +82,40 @@ public:
         register_output("/wheelleg/state/com_offset", state_com_offset_, 0.0);
         register_output("/wheelleg/state/com_x", state_com_x_, 0.0);
         register_output("/wheelleg/state/com_z", state_com_z_, 0.0);
+        // Yaw (heading) and yaw rate of the base, for the differential-steering
+        // (turning) loop. yaw is about the world up axis; yaw_rate is the world
+        // z angular velocity of base_link.
+        register_output("/wheelleg/state/yaw", state_yaw_, 0.0);
+        register_output("/wheelleg/state/yaw_rate", state_yaw_rate_, 0.0);
+        // Roll (lateral tilt) and roll rate, for the roll control loop.
+        register_output("/wheelleg/state/roll", state_roll_, 0.0);
+        register_output("/wheelleg/state/roll_rate", state_roll_rate_, 0.0);
+        // Body-forward speed of the base (m/s), heading-independent. Used by the
+        // outer speed loop so that turning does not change the plant gain.
+        register_output("/wheelleg/state/velocity", state_velocity_, 0.0);
+        // Body-forward odometry distance (m), the integral of the body-forward
+        // speed. The outer loop is a second-order plant on this coordinate
+        // (s_ddot = b0 * tau + f), matching the ADRC's second-order ESO, and it
+        // is heading-independent (unlike the world-frame com_x).
+        register_output("/wheelleg/state/distance", state_distance_, 0.0);
 
-        // Emitted here (not on the command partner) so the trajectory controller,
-        // which consumes them, does not form a dependency cycle with the
-        // component that consumes its references.
-        register_output("/wheelleg/command/velocity", command_velocity_, 0.0);
-        register_output("/wheelleg/command/acceleration", command_acceleration_, 0.0);
-        register_output("/wheelleg/command/leg_length", command_leg_length_, kNaN);
+        // Wheel-ground friction diagnostics (phase-0 observation). These expose
+        // the *actual* contact state so the friction margin can be measured:
+        //   contact_normal_*        instantaneous normal force N per wheel (N)
+        //   slip_*                  contact-point slip speed (m/s, ~0 = rolling)
+        //   friction_utilization_*  |Ft| / (mu*N), 1.0 = at the friction cone
+        //   friction_torque_limit_* mu*N*r, the traction torque the contact can
+        //                           actually transmit (Nm), vs wheel_torque_*
+        register_output("/wheelleg/state/contact_normal_l", state_contact_normal_l_, 0.0);
+        register_output("/wheelleg/state/contact_normal_r", state_contact_normal_r_, 0.0);
+        register_output("/wheelleg/state/slip_l", state_slip_l_, 0.0);
+        register_output("/wheelleg/state/slip_r", state_slip_r_, 0.0);
+        register_output("/wheelleg/state/friction_utilization_l", state_friction_utilization_l_, 0.0);
+        register_output("/wheelleg/state/friction_utilization_r", state_friction_utilization_r_, 0.0);
+        register_output("/wheelleg/state/friction_torque_limit_l", state_friction_torque_limit_l_, 0.0);
+        register_output("/wheelleg/state/friction_torque_limit_r", state_friction_torque_limit_r_, 0.0);
+        register_output("/wheelleg/state/wheel_torque_l", state_wheel_torque_l_, 0.0);
+        register_output("/wheelleg/state/wheel_torque_r", state_wheel_torque_r_, 0.0);
 
         setup_state_publisher_();
 
@@ -100,10 +127,10 @@ public:
             "(motor x 268/17)",
             hip_torque_limit_, crank_torque_limit_, wheel_torque_limit_);
         info(
-            "wheel friction torque limit: {:.2f} Nm (mu={:.2f}, static weight, r={:.3f} m); "
-            "effective wheel limit {:.2f} Nm",
-            wheel_friction_torque_limit_, friction_coefficient_, wheel_radius_,
-            std::min(wheel_torque_limit_, wheel_friction_torque_limit_));
+            "wheel friction torque: nominal static-weight ceiling {:.2f} Nm "
+            "(mu={:.2f}, r={:.3f} m); online per-wheel ceiling is mu*N(t)*r from the "
+            "contact solver, motor cap {:.2f} Nm",
+            wheel_friction_torque_limit_, friction_coefficient_, wheel_radius_, wheel_torque_limit_);
 
         start_viewer_();
     }
@@ -148,34 +175,92 @@ public:
                 0.5
                 * (data_->xanchor[3 * joint_ids_[kLJoint3] + 1]
                    + data_->xanchor[3 * joint_ids_[kRJoint3] + 1]);
+            const double* base_rotation = data_->xmat + 9 * base_body_id_;
+            const double n_l = l_contact_.normal;
+            const double s_l = l_contact_.slip;
+            const double n_r = r_contact_.normal;
+            const double s_r = r_contact_.slip;
+            // Roll-axis generalized torque on the floating base: project the
+            // base angular dof forces onto the body forward axis. Splits the
+            // roll source into bias (gyroscopic/gravity), constraint
+            // (contacts/equalities) and applied (actuators).
+            const int bd = base_dof_adr_;
+            const double* fwd = base_rotation + 3; // body y axis in world
+            const auto roll_torque = [&](const double* vec) {
+                return vec[bd + 3] * fwd[0] + vec[bd + 4] * fwd[1] + vec[bd + 5] * fwd[2];
+            };
+            const double qbR = roll_torque(data_->qfrc_bias);
+            const double qcR = roll_torque(data_->qfrc_constraint);
+            const double qaR = roll_torque(data_->qfrc_applied);
+            const double qbX = data_->qfrc_bias[bd + 3];
+            const double qbY = data_->qfrc_bias[bd + 4];
+            const double qbZ = data_->qfrc_bias[bd + 5];
+            const double qcX = data_->qfrc_constraint[bd + 3];
+            const double qcY = data_->qfrc_constraint[bd + 4];
+            const double qcZ = data_->qfrc_constraint[bd + 5];
+            const double tauHR = data_->ctrl[actuator_ids_[kActuatorHipR]];
+            const double tauCR = data_->ctrl[actuator_ids_[kActuatorCrankR]];
+            // Gravity part of the base angular bias: sum over bodies of
+            // (r_i - base_origin) x (m_i g), rotated into the body frame.
+            double gtx = 0.0, gty = 0.0;
+            const double* bp = data_->xpos + 3 * base_body_id_;
+            for (int bi = 1; bi < model_->nbody; ++bi) {
+                const double bm = model_->body_mass[bi];
+                if (bm <= 0.0)
+                    continue;
+                const double* ri = data_->xipos + 3 * bi;
+                const double rx = ri[0] - bp[0];
+                const double ry = ri[1] - bp[1];
+                gtx += -bm * 9.81 * ry;
+                gty += bm * 9.81 * rx;
+            }
+            const double* Rm = data_->xmat + 9 * base_body_id_;
+            const double qgX = Rm[0] * gtx + Rm[1] * gty;
+            const double qgY = Rm[3] * gtx + Rm[4] * gty;
+            // CoM offset from the base origin, in the body frame (lateral x /
+            // forward y). x_offset * M g is the gravity roll torque.
+            const double ox = com[0] - bp[0];
+            const double oy = com[1] - bp[1];
+            const double oz = com[2] - bp[2];
+            const double dxb = ox * Rm[0] + oy * Rm[1] + oz * Rm[2];
+            const double dyb = ox * Rm[3] + oy * Rm[4] + oz * Rm[5];
             info(
                 "t={:.1f} L0L={:.4f} L0R={:.4f} aL={:.4f} aR={:.4f} d={:.4f} pitch={:.4f} "
-                "tauH={:.2f} tauC={:.2f} tauW={:.2f} cH={:.1f} cC={:.1f} dqC={:.3f} "
-                "bz={:.3f} az={:.3f} by={:.4f} dqW={:.3f} dqWR={:.3f} cx={:.4f} bq={:.3f},{:.3f},{:.3f},{:.3f}",
+                "tauH={:.2f} tauC={:.2f} tauW={:.2f} tauWR={:.2f} cH={:.1f} cC={:.1f} dqC={:.3f} "
+                "hL={:.3f} hR={:.3f} kL={:.3f} kR={:.3f} "
+                "bz={:.3f} az={:.3f} by={:.4f} dqW={:.3f} dqWR={:.3f} cx={:.4f} "
+                "roll={:.3f} vw={:.2f} vbody={:.2f} tcmn={:.2f} tdif={:.2f} "
+                "nL={:.1f} sL={:.2f} nR={:.1f} sR={:.2f} uL={:.2f} uR={:.2f} "
+                "flL={:.2f} flR={:.2f} "
+                "qbR={:.3f} qaR={:.3f} qbX={:.3f} qbY={:.3f} qbZ={:.3f} "
+                "qcX={:.3f} qcY={:.3f} qcZ={:.3f} qgX={:.3f} qgY={:.3f} "
+                "cX={:.4f} cZ={:.4f} dxb={:.4f} dyb={:.4f} tHR={:.2f} tCR={:.2f} "
+                "bq={:.3f},{:.3f},{:.3f},{:.3f}",
                 step_count_ * dt_, leg_l[0], leg_r[0], leg_l[1], leg_r[1], com[1] - axle_y,
                 body_pitch_(), dbg_hip_torque_, dbg_crank_torque_, dbg_wheel_torque_,
+                dbg_wheel_torque_r_,
                 data_->ctrl[actuator_ids_[kActuatorHipL]], data_->ctrl[actuator_ids_[kActuatorCrankL]],
-                joint_velocity_(kLCrank), data_->qpos[base_qpos_adr_ + 2],
+                joint_velocity_(kLCrank),
+                joint_position_(kLJoint1), joint_position_(kRJoint1),
+                joint_position_(kLCrank), joint_position_(kRCrank),
+                data_->qpos[base_qpos_adr_ + 2],
                 data_->xanchor[3 * joint_ids_[kLJoint3] + 2], data_->qpos[base_qpos_adr_ + 1],
                 joint_velocity_(kLJoint3), joint_velocity_(kRJoint3), com[1],
+                std::atan2(base_rotation[6], base_rotation[8]),
+                -0.5 * (joint_velocity_(kLJoint3) + joint_velocity_(kRJoint3)) * wheel_radius_,
+                *state_velocity_,
+                0.5 * (dbg_wheel_torque_ + dbg_wheel_torque_r_),
+                0.5 * (dbg_wheel_torque_ - dbg_wheel_torque_r_),
+                n_l, s_l, n_r, s_r, l_contact_.utilization, r_contact_.utilization,
+                dbg_wheel_friction_limit_l_, dbg_wheel_friction_limit_r_,
+                qbR, qaR, qbX, qbY, qbZ, qcX, qcY, qcZ, qgX, qgY,
+                com[0], com[2], dxb, dyb, tauHR, tauCR,
                 data_->qpos[base_qpos_adr_ + 3], data_->qpos[base_qpos_adr_ + 4],
                 data_->qpos[base_qpos_adr_ + 5], data_->qpos[base_qpos_adr_ + 6]);
         }
 
         const double sim_time = step_count_ * dt_;
-        double velocity_command = command_velocity_target_;
-        if (std::isfinite(command_velocity_period_) && command_velocity_period_ > 0.0
-            && std::isfinite(command_velocity_target_2_)) {
-            // Periodic square wave: alternate target every |period| seconds.
-            const auto half = static_cast<long long>(sim_time / command_velocity_period_);
-            velocity_command = (half % 2 == 0) ? command_velocity_target_ : command_velocity_target_2_;
-        } else if (std::isfinite(command_velocity_switch_) && sim_time >= command_velocity_switch_
-                   && std::isfinite(command_velocity_target_2_)) {
-            velocity_command = command_velocity_target_2_;
-        }
-        *command_velocity_ = (sim_time >= command_velocity_start_) ? velocity_command : 0.0;
-        *command_acceleration_ = command_acceleration_target_;
-        *command_leg_length_ = command_leg_length_target_;
+        (void)sim_time;
 
         ++step_count_;
     }
@@ -208,6 +293,7 @@ private:
         open_loop_wheel_torque_ =
             node::param_or("open_loop_wheel_torque", std::numeric_limits<double>::quiet_NaN());
         open_loop_wheel_same_sign_ = node::param_or("open_loop_wheel_same_sign", false);
+        open_loop_roll_bias_ = node::param_or("open_loop_roll_bias", kNaN);
         open_loop_wheel_start_ = node::param_or("open_loop_wheel_start", 0.0);
         disturbance_force_ = node::param_or("disturbance_force", 0.0);
         disturbance_start_ = node::param_or("disturbance_start", -1.0);
@@ -271,14 +357,10 @@ private:
         // i.e. negative when bent.
         state_knee_sign_ = node::param_or("state_knee_sign", -1.0);
         state_wheel_sign_ = node::param_or("state_wheel_sign", 1.0);
-
-        command_velocity_target_ = node::param_or("command_velocity", 0.0);
-        command_velocity_start_ = node::param_or("command_velocity_start", 0.0);
-        command_velocity_target_2_ = node::param_or("command_velocity_2", kNaN);
-        command_velocity_switch_ = node::param_or("command_velocity_switch", kNaN);
-        command_velocity_period_ = node::param_or("command_velocity_period", kNaN);
-        command_acceleration_target_ = node::param_or("command_acceleration", 0.0);
-        command_leg_length_target_ = node::param_or("command_leg_length", kNaN);
+        state_yaw_sign_ = node::param_or("state_yaw_sign", 1.0);
+        state_velocity_sign_ = node::param_or("state_velocity_sign", 1.0);
+        state_distance_sign_ = node::param_or("state_distance_sign", 1.0);
+        state_roll_sign_ = node::param_or("state_roll_sign", 1.0);
 
         viewer_state_rate_ = node::param_or("viewer_state_rate", 100.0);
         state_topic_ =
@@ -336,6 +418,10 @@ private:
                 "(set the 'viewer_script' parameter)");
             return;
         }
+        info(
+            "viewer cfg: follow={} track_body='{}' distance={} azimuth={} elevation={}",
+            viewer_follow_, viewer_follow_ ? viewer_track_body_ : std::string{},
+            viewer_distance_, viewer_azimuth_, viewer_elevation_);
 
         std::vector<std::string> arguments{
             script,
@@ -499,6 +585,10 @@ private:
 
         base_free_joint_id_ = mj_name2id(model_, mjOBJ_JOINT, "base_free");
         base_body_id_ = mj_name2id(model_, mjOBJ_BODY, "base_link");
+        l_wheel_body_id_ = mj_name2id(model_, mjOBJ_BODY, "L_link3");
+        r_wheel_body_id_ = mj_name2id(model_, mjOBJ_BODY, "R_link3");
+        l_wheel_geom_id_ = mj_name2id(model_, mjOBJ_GEOM, "L_link3_collision");
+        r_wheel_geom_id_ = mj_name2id(model_, mjOBJ_GEOM, "R_link3_collision");
         if (base_free_joint_id_ < 0 || base_body_id_ < 0)
             throw std::runtime_error{
                 "wheelleg_simulation: model must expose a base_free joint on base_link"};
@@ -604,6 +694,11 @@ private:
             "com=({:.4f}, {:.4f})",
             0.5 * (leg_l[0] + leg_r[0]), 0.5 * (leg_l[1] + leg_r[1]), com[1] - axle_y, com[1],
             com[2]);
+
+        // Seed the online friction ceiling so the very first control step does
+        // not see a zero (uninitialised) normal force.
+        l_contact_ = wheel_contact_state_(l_wheel_geom_id_, l_wheel_body_id_);
+        r_contact_ = wheel_contact_state_(r_wheel_geom_id_, r_wheel_body_id_);
     }
 
     // Commissioning aid: pin the floating base / lock the leg using the model's
@@ -676,8 +771,61 @@ private:
 
     double body_pitch_() const {
         const double* rotation = data_->xmat + 9 * base_body_id_;
-        // Third column of the body rotation is the body "up" axis in world.
-        return std::atan2(rotation[5], rotation[8]);
+        // Fore-aft pitch from the body forward (y) axis vertical component.
+        // MuJoCo stores xmat row-major with the body axes as its *columns*, so
+        // the forward axis is R[:,1] and its world-z component is R[2][1]
+        // (flat index 7). The old code read R[1][2] (flat index 5) -- the body
+        // z-axis's world-y component -- which is not the pitch and whose gain
+        // collapses as cos(yaw) (blind at yaw = 90deg), decoupling the balance
+        // loop from the true fore-aft tilt.
+        // asin(forward_z) is independent of roll, unlike atan2(forward_z, up_z)
+        // which is biased by roll (and would fool the pitch balance loop).
+        // Negated so nose-up is negative, matching the balance loop's sign
+        // convention (was asin(R[1][2]) == -theta at yaw = 0).
+        return -std::asin(std::clamp(rotation[7], -1.0, 1.0));
+    }
+
+    // Instantaneous wheel-ground contact diagnostics. `normal` is the total
+    // normal force, `slip` the speed of the contact point (0 while rolling
+    // without slip, large when slipping), `traction` the transmitted tangential
+    // force, `friction_limit` the cone bound sum(mu_i * N_i) and `utilization`
+    // the ratio traction/limit (1.0 == at the friction limit).
+    struct WheelContact {
+        double normal = 0.0;
+        double slip = 0.0;
+        double traction = 0.0;
+        double friction_limit = 0.0;
+        double utilization = 0.0;
+    };
+
+    [[nodiscard]] WheelContact wheel_contact_state_(int geom_id, int body_id) const {
+        WheelContact out;
+        if (geom_id < 0 || body_id < 0)
+            return out;
+        double vel[6] = {};
+        mj_objectVelocity(model_, data_, mjOBJ_BODY, body_id, vel, 0);
+        const double* com = data_->xipos + 3 * body_id;
+        for (int i = 0; i < data_->ncon; ++i) {
+            const auto& c = data_->contact[i];
+            if (c.geom1 != geom_id && c.geom2 != geom_id)
+                continue;
+            double force[6] = {};
+            mj_contactForce(model_, data_, i, force);
+            const double normal = std::abs(force[0]);
+            out.normal += normal;
+            out.friction_limit += c.friction[0] * normal;
+            out.traction += std::hypot(force[1], force[2]);
+            const double rx = c.pos[0] - com[0];
+            const double ry = c.pos[1] - com[1];
+            const double rz = c.pos[2] - com[2];
+            const double vx = vel[3] + vel[1] * rz - vel[2] * ry;
+            const double vy = vel[4] + vel[2] * rx - vel[0] * rz;
+            const double vz = vel[5] + vel[0] * ry - vel[1] * rx;
+            out.slip += std::sqrt(vx * vx + vy * vy + vz * vz);
+        }
+        if (out.friction_limit > 1e-9)
+            out.utilization = out.traction / out.friction_limit;
+        return out;
     }
 
     void apply_control_() {
@@ -766,10 +914,13 @@ private:
                 crank_torque_r -= direct_crank_kd_ * joint_velocity_(kRCrank);
             }
         } else {
+            const double roll_bias = std::isfinite(open_loop_roll_bias_)
+                                        ? open_loop_roll_bias_
+                                        : (command.roll_bias_valid ? command.roll_bias : 0.0);
             const double crank_l = crank_target(
-                *linkage_l_, knee_rel_offset_l_, linkage_l_->assembly_crank(), kLJoint1);
-            const double crank_r =
-                crank_target(*linkage_r_, knee_rel_offset_r_, linkage_r_->assembly_crank(), kRJoint1);
+                *linkage_l_, knee_rel_offset_l_ + roll_bias, linkage_l_->assembly_crank(), kLJoint1);
+            const double crank_r = crank_target(
+                *linkage_r_, knee_rel_offset_r_ - roll_bias, linkage_r_->assembly_crank(), kRJoint1);
 
             hip_torque_l = hip_kp_ * (hip_l - joint_position_(kLJoint1))
                          - hip_kd_ * joint_velocity_(kLJoint1);
@@ -846,27 +997,41 @@ private:
                                                          : -open_loop_wheel_torque_;
         }
 
-        // A5 acceleration feedforward: F = M*a -> tau = M*a*r (commissioning test).
-        if (std::abs(command_acceleration_target_) > 1e-6) {
-            const double accel_torque =
-                total_mass_ * command_acceleration_target_ * wheel_radius_;
-            wheel_torque_l += accel_torque;
-            wheel_torque_r += accel_torque;
-        }
+        // A5 acceleration feedforward removed: it consumed /wheelleg/command/*
+        // and would make the bridge depend on the motion planner while the
+        // planner depends on /wheelleg/state/yaw (circular dependency).
 
-        // Wheel torque is capped by both the motor and the ground friction.
-        const double wheel_limit = std::min(wheel_torque_limit_, wheel_friction_torque_limit_);
+        // Wheel torque is capped by the motor and, while in contact, by the
+        // friction cone mu*N*r evaluated online from the last solved contact
+        // state. Unlike the old static total-weight estimate (a fixed constant
+        // per wheel) this tracks the instantaneous normal force, so a
+        // lightly-loaded wheel -- e.g. the inside wheel of a turn or a wheel
+        // about to lift -- gets proportionally less torque authority. The cone
+        // force comes straight from the contact solver, so mu and N match the
+        // actual contact. With no contact there is no friction to limit the
+        // wheel: only the motor cap applies (an airborne wheel is free to spin
+        // and still reacts on the body through its motor).
+        const auto wheel_limit_for = [&](const WheelContact& contact) {
+            if (contact.normal <= kContactNormalEps)
+                return wheel_torque_limit_;
+            return std::min(wheel_torque_limit_, contact.friction_limit * wheel_radius_);
+        };
+        const double wheel_limit_l = wheel_limit_for(l_contact_);
+        const double wheel_limit_r = wheel_limit_for(r_contact_);
+        dbg_wheel_friction_limit_l_ = wheel_limit_l;
+        dbg_wheel_friction_limit_r_ = wheel_limit_r;
 
         set_torque_(kActuatorHipL, hip_torque_l, hip_torque_limit_);
         set_torque_(kActuatorCrankL, crank_torque_l, crank_torque_limit_);
-        set_torque_(kActuatorWheelL, wheel_torque_l, wheel_limit);
+        set_torque_(kActuatorWheelL, wheel_torque_l, wheel_limit_l);
         set_torque_(kActuatorHipR, hip_torque_r, hip_torque_limit_);
         set_torque_(kActuatorCrankR, crank_torque_r, crank_torque_limit_);
-        set_torque_(kActuatorWheelR, wheel_torque_r, wheel_limit);
+        set_torque_(kActuatorWheelR, wheel_torque_r, wheel_limit_r);
 
         dbg_hip_torque_ = hip_torque_l;
         dbg_crank_torque_ = crank_torque_l;
         dbg_wheel_torque_ = wheel_torque_l;
+        dbg_wheel_torque_r_ = wheel_torque_r;
     }
 
     void set_torque_(std::size_t index, double torque, double limit) {
@@ -987,6 +1152,27 @@ private:
             0.5
             * (data_->xanchor[3 * joint_ids_[kLJoint3] + 1]
                + data_->xanchor[3 * joint_ids_[kRJoint3] + 1]);
+        const double axle_x =
+            0.5
+            * (data_->xanchor[3 * joint_ids_[kLJoint3] + 0]
+               + data_->xanchor[3 * joint_ids_[kRJoint3] + 0]);
+
+        // Horizontal body heading (body +y axis projected on the floor).
+        const double* base_rotation = data_->xmat + 9 * base_body_id_;
+        // Body forward (y) axis = xmat column 1 (MuJoCo columns are body axes),
+        // i.e. (R[0][1], R[1][1]) = base_rotation[1], base_rotation[4]. The old
+        // base_rotation[3] was the body x-axis's world-y component, which is the
+        // forward heading mirrored in x (180deg wrong at yaw = 90deg).
+        double heading_x = base_rotation[1];
+        double heading_y = base_rotation[4];
+        const double heading_norm = std::hypot(heading_x, heading_y);
+        if (heading_norm > 1e-9) {
+            heading_x /= heading_norm;
+            heading_y /= heading_norm;
+        } else {
+            heading_x = 0.0;
+            heading_y = 1.0;
+        }
 
         *state_leg_length_ = leg_length;
         *state_leg_angle_ = 0.5 * (leg_l[1] + leg_r[1]);
@@ -996,7 +1182,90 @@ private:
         *state_leg_angle_r_ = leg_r[1];
         *state_com_x_ = com[1];
         *state_com_z_ = com[2];
-        *state_com_offset_ = com[1] - axle_y;
+        // CoM offset d in the axle (body-forward) frame: heading-independent, so
+        // the posture loop stays valid while turning (was a world-y difference).
+        *state_com_offset_ = (com[0] - axle_x) * heading_x + (com[1] - axle_y) * heading_y;
+
+        // Yaw from the base quaternion (rotation about world +z), and yaw rate
+        // from the base body's world-frame angular velocity.
+        const double qw = data_->qpos[base_qpos_adr_ + 3];
+        const double qx = data_->qpos[base_qpos_adr_ + 4];
+        const double qy = data_->qpos[base_qpos_adr_ + 5];
+        const double qz = data_->qpos[base_qpos_adr_ + 6];
+        const double yaw_wrapped =
+            std::atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz));
+        // Unwrap so a continuous spin yields a continuous heading (the yaw-angle
+        // ADRC cannot handle the +/-pi branch cut).
+        if (has_previous_yaw_) {
+            double dyaw = yaw_wrapped - previous_yaw_;
+            while (dyaw > std::numbers::pi)
+                dyaw -= 2.0 * std::numbers::pi;
+            while (dyaw < -std::numbers::pi)
+                dyaw += 2.0 * std::numbers::pi;
+            unwrapped_yaw_ += dyaw;
+        } else {
+            unwrapped_yaw_ = yaw_wrapped;
+            has_previous_yaw_ = true;
+        }
+        previous_yaw_ = yaw_wrapped;
+        double base_velocity[6] = {};
+        mj_objectVelocity(model_, data_, mjOBJ_BODY, base_body_id_, base_velocity, 0);
+        *state_yaw_ = state_yaw_sign_ * unwrapped_yaw_;
+        *state_yaw_rate_ = state_yaw_sign_ * base_velocity[2];
+
+        // Roll: lateral tilt about the body forward axis (roll-independent of
+        // pitch). Rate is finite-differenced like the other rate states.
+        // Roll about the body forward axis: the world-up projected on the body
+        // x-z plane. With MuJoCo xmat columns as body axes, that is
+        // atan2(R[2][0], R[2][2]) = atan2(base_rotation[6], base_rotation[8])
+        // (body x-axis world-z vs body z-axis world-z). The old
+        // atan2(-base_rotation[2], base_rotation[8]) used the world x-z
+        // projection, which is roll about the world x-axis and therefore
+        // contaminated by yaw (gain collapsed as cos(yaw)).
+        const double roll = std::atan2(base_rotation[6], base_rotation[8]);
+        double roll_rate = 0.0;
+        if (has_previous_roll_)
+            roll_rate = (roll - previous_roll_) / dt_;
+        previous_roll_ = roll;
+        has_previous_roll_ = true;
+        *state_roll_ = state_roll_sign_ * roll;
+        *state_roll_rate_ = state_roll_sign_ * roll_rate;
+
+        // Body-forward CoM position and speed: the world CoM velocity projected
+        // on the horizontal body heading, integrated. For yaw = 0 this reduces
+        // exactly to com_x (so the outer loop matches the proven straight-line
+        // behaviour), while for yaw != 0 it stays in the body frame and its
+        // plant gain does not collapse with the heading.
+        double com_velocity[3] = {0.0, 0.0, 0.0};
+        if (has_previous_com_) {
+            com_velocity[0] = (com[0] - previous_com_[0]) / dt_;
+            com_velocity[1] = (com[1] - previous_com_[1]) / dt_;
+            com_velocity[2] = (com[2] - previous_com_[2]) / dt_;
+        }
+        previous_com_ = com;
+        has_previous_com_ = true;
+
+        const double body_forward_speed =
+            heading_x * com_velocity[0] + heading_y * com_velocity[1];
+        body_distance_ += body_forward_speed * dt_;
+        *state_velocity_ = state_velocity_sign_ * body_forward_speed;
+        *state_distance_ = state_distance_sign_ * body_distance_;
+
+        // Wheel-ground friction diagnostics (phase 0): sample the contact state
+        // once per step and expose it so the friction margin can be measured
+        // against the applied wheel torque.
+        l_contact_ = wheel_contact_state_(l_wheel_geom_id_, l_wheel_body_id_);
+        r_contact_ = wheel_contact_state_(r_wheel_geom_id_, r_wheel_body_id_);
+        *state_contact_normal_l_ = l_contact_.normal;
+        *state_contact_normal_r_ = r_contact_.normal;
+        *state_slip_l_ = l_contact_.slip;
+        *state_slip_r_ = r_contact_.slip;
+        *state_friction_utilization_l_ = l_contact_.utilization;
+        *state_friction_utilization_r_ = r_contact_.utilization;
+        *state_friction_torque_limit_l_ = l_contact_.friction_limit * wheel_radius_;
+        *state_friction_torque_limit_r_ = r_contact_.friction_limit * wheel_radius_;
+        *state_wheel_torque_l_ = dbg_wheel_torque_;
+        *state_wheel_torque_r_ = dbg_wheel_torque_r_;
     }
 
     // Mirror the raw MuJoCo state to ROS so an out-of-process passive viewer
@@ -1038,6 +1307,11 @@ private:
             bool per_leg_wheel_valid = false;
             double wheel_torque_l = 0.0;
             double wheel_torque_r = 0.0;
+            // Roll loop actuation: a differential reduced-knee bias (rad) applied
+            // as +bias on the left leg and -bias on the right, which tilts the
+            // body laterally (differential leg length) to control roll.
+            bool roll_bias_valid = false;
+            double roll_bias = 0.0;
         };
 
         explicit WheelLegSimulationCommand(WheelLegSimulation& simulation)
@@ -1054,6 +1328,7 @@ private:
             register_input("/wheelleg/control/crank_torque_r", crank_torque_r_, false);
             register_input("/wheelleg/control/wheel_torque_l", wheel_torque_l_, false);
             register_input("/wheelleg/control/wheel_torque_r", wheel_torque_r_, false);
+            register_input("/wheelleg/control/roll_bias", roll_bias_, false);
         }
 
         void update() override {
@@ -1092,6 +1367,9 @@ private:
                 control_.wheel_torque_l = *wheel_torque_l_;
                 control_.wheel_torque_r = *wheel_torque_r_;
             }
+            control_.roll_bias_valid = roll_bias_.ready() && std::isfinite(*roll_bias_);
+            if (control_.roll_bias_valid)
+                control_.roll_bias = *roll_bias_;
             control_.valid = (hip_angle_.ready() && knee_angle_.ready())
                           || control_.leg_torque_valid || control_.per_leg_torque_valid;
         }
@@ -1114,6 +1392,7 @@ private:
         InputInterface<double> crank_torque_r_;
         InputInterface<double> wheel_torque_l_;
         InputInterface<double> wheel_torque_r_;
+        InputInterface<double> roll_bias_;
 
         Control control_;
     };
@@ -1148,6 +1427,9 @@ private:
         "R_joint1_motor", "R_crank_motor", "R_joint3_motor"};
 
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    // Below this normal force the wheel is treated as airborne: no contact, so
+    // no friction ceiling (only the motor cap applies).
+    static constexpr double kContactNormalEps = 1e-3;
 
     std::shared_ptr<WheelLegSimulationCommand> command_component_;
 
@@ -1159,6 +1441,10 @@ private:
 
     int base_free_joint_id_ = -1;
     int base_body_id_ = -1;
+    int l_wheel_body_id_ = -1;
+    int r_wheel_body_id_ = -1;
+    int l_wheel_geom_id_ = -1;
+    int r_wheel_geom_id_ = -1;
     int base_dof_adr_ = -1;
     int base_qpos_adr_ = -1;
     std::array<double, 7> base_hold_qpos_{0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0};
@@ -1196,6 +1482,7 @@ private:
     double wheel_kp_ = 20.0;
     double open_loop_wheel_torque_ = std::numeric_limits<double>::quiet_NaN();
     bool open_loop_wheel_same_sign_ = false;
+    double open_loop_roll_bias_ = std::numeric_limits<double>::quiet_NaN();
     double open_loop_wheel_start_ = 0.0;
     double wheel_velocity_damping_ = 0.0;
     double disturbance_force_ = 0.0;
@@ -1208,6 +1495,9 @@ private:
     double dbg_hip_torque_ = 0.0;
     double dbg_crank_torque_ = 0.0;
     double dbg_wheel_torque_ = 0.0;
+    double dbg_wheel_torque_r_ = 0.0;
+    double dbg_wheel_friction_limit_l_ = 0.0;
+    double dbg_wheel_friction_limit_r_ = 0.0;
 
     double joint_damping_ = 0.1;
     double hip_armature_ = 5.0e-3;
@@ -1237,19 +1527,23 @@ private:
     double state_shank_sign_ = 1.0;
     double state_knee_sign_ = 1.0;
     double state_wheel_sign_ = 1.0;
+    double state_yaw_sign_ = 1.0;
+    double state_velocity_sign_ = 1.0;
+    double state_distance_sign_ = 1.0;
+    double state_roll_sign_ = 1.0;
+    bool has_previous_roll_ = false;
+    double previous_roll_ = 0.0;
+    double body_distance_ = 0.0;
 
     bool has_previous_state_ = false;
     double previous_shank_ = 0.0;
     double previous_knee_ = 0.0;
     double previous_pitch_ = 0.0;
-
-    double command_velocity_target_ = 0.0;
-    double command_velocity_start_ = 0.0;
-    double command_velocity_target_2_ = std::numeric_limits<double>::quiet_NaN();
-    double command_velocity_switch_ = std::numeric_limits<double>::quiet_NaN();
-    double command_velocity_period_ = std::numeric_limits<double>::quiet_NaN();
-    double command_acceleration_target_ = 0.0;
-    double command_leg_length_target_ = kNaN;
+    bool has_previous_com_ = false;
+    std::array<double, 3> previous_com_{0.0, 0.0, 0.0};
+    bool has_previous_yaw_ = false;
+    double previous_yaw_ = 0.0;
+    double unwrapped_yaw_ = 0.0;
 
     double viewer_state_rate_ = 100.0;
     std::string state_topic_ = "/wheelleg/simulation/state";
@@ -1285,10 +1579,26 @@ private:
     OutputInterface<double> state_com_offset_;
     OutputInterface<double> state_com_x_;
     OutputInterface<double> state_com_z_;
+    OutputInterface<double> state_yaw_;
+    OutputInterface<double> state_yaw_rate_;
+    OutputInterface<double> state_roll_;
+    OutputInterface<double> state_roll_rate_;
+    OutputInterface<double> state_velocity_;
+    OutputInterface<double> state_distance_;
 
-    OutputInterface<double> command_velocity_;
-    OutputInterface<double> command_acceleration_;
-    OutputInterface<double> command_leg_length_;
+    WheelContact l_contact_;
+    WheelContact r_contact_;
+    OutputInterface<double> state_contact_normal_l_;
+    OutputInterface<double> state_contact_normal_r_;
+    OutputInterface<double> state_slip_l_;
+    OutputInterface<double> state_slip_r_;
+    OutputInterface<double> state_friction_utilization_l_;
+    OutputInterface<double> state_friction_utilization_r_;
+    OutputInterface<double> state_friction_torque_limit_l_;
+    OutputInterface<double> state_friction_torque_limit_r_;
+    OutputInterface<double> state_wheel_torque_l_;
+    OutputInterface<double> state_wheel_torque_r_;
+
 };
 
 } // namespace rmcs_core::hardware

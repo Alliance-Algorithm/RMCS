@@ -25,6 +25,8 @@
 
   <class type="rmcs_core::controller::wheelleg::WheelLegTrajectoryController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegTaskMapper" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegWheelMixer" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegMotionPlanner" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegDecoupledLegController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegTestSignal" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegLqrController" base_class_type="rmcs_executor::Component" />

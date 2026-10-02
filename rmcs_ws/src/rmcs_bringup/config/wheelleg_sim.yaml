@@ -3,9 +3,12 @@ rmcs_executor:
     update_rate: 1000.0
     components:
     - rmcs_core::hardware::WheelLegSimulation -> wheelleg_sim
+    - rmcs_core::controller::wheelleg::WheelLegMotionPlanner -> wheelleg_motion_planner
     - rmcs_core::controller::wheelleg::WheelLegTrajectoryController -> wheelleg_trajectory_controller
-    - rmcs_core::controller::adrc::AdrcController -> wheelleg_station_controller
     - rmcs_core::controller::adrc::AdrcController -> wheelleg_balance_controller
+    - rmcs_core::controller::adrc::AdrcController -> wheelleg_yaw_controller
+    - rmcs_core::controller::pid::ErrorPidController -> wheelleg_roll_controller
+    - rmcs_core::controller::wheelleg::WheelLegWheelMixer -> wheelleg_wheel_mixer
 wheelleg_sim:
   ros__parameters:
     dt: 0.001
@@ -44,7 +47,7 @@ wheelleg_sim:
     state_shank_sign: 1.0
     state_knee_sign: -1.0
     state_wheel_sign: 1.0
-    command_velocity: 1.0
+    state_yaw_sign: 1.0
     viewer: true
     viewer_state_rate: 100.0
     viewer_track_body: base_link
@@ -58,15 +61,65 @@ wheelleg_sim:
     disturbance_force: 0.0
     disturbance_start: 3.0
     disturbance_duration: 0.2
-    command_acceleration: 0.0
-    command_leg_length: 0.3
     open_loop_wheel_torque: .nan
     open_loop_wheel_same_sign: true
+wheelleg_motion_planner:
+  ros__parameters:
+    dt: 0.001
+    # twist (default): follow /wheelleg/move/velocity + /wheelleg/move/yaw_rate
+    # square / patrol: commissioning test behaviours (below)
+    behavior: stadium
+    max_velocity: 5.0
+    max_yaw_rate: 12.0
+    channel_kp: 10.0
+    velocity_accel: 1.5
+    velocity_jerk: 4.0
+    yaw_accel: 6.28
+    yaw_jerk: 40.0
+    leg_length: 0.3
+    # behavior: square
     command_velocity_start: 3.0
-    command_velocity: 2.0
+    command_velocity: 0.0
     command_velocity_switch: 5.0
-    command_velocity_2: -2.0
+    command_velocity_2: 0.0
     command_velocity_period: 5.0
+    command_yaw_rate: 6.28
+    command_yaw_rate_start: 3.0
+    command_yaw_rate_period: 0.0
+    # behavior: patrol
+    patrol_velocity: 3.0
+    patrol_straight_time: 5.0
+    patrol_yaw_rate: 3.14
+    patrol_yaw_accel: 6.28
+    patrol_turn_degrees: 180.0
+    patrol_start: 3.0
+    patrol_yaw_sign: 1.0
+    # behavior: circle (combined translation + turning: radius v/omega)
+    circle_velocity: 2.0
+    circle_yaw_rate: 1.0
+    circle_start: 3.0
+    # behavior: stadium (oval track: straight 3 m/s, 180deg arc at 2 m/s
+    # centreline speed = moving turn, radius v_arc/omega_arc = 2 m)
+    stadium_straight_velocity: 3.3
+    stadium_straight_time: 5.0
+    stadium_arc_velocity: 2.5
+    stadium_arc_yaw_rate: 1.0
+    stadium_start: 3.0
+    stadium_yaw_sign: 1.0
+    # lateral bank plan: a_lat = v*omega -> bank = atan(a_lat/g); the leg-length
+    # differential feedforward roll_bias_ff = bank_to_roll_bias * bank
+    # (bank_to_roll_bias = 1/(open-loop static gain roll/roll_bias ~ 0.9),
+    # tuned to ~2.11 so the PD roll stabiliser's steady opposition is cancelled).
+    gravity: 9.81
+    bank_to_roll_bias: 1.06
+    # Feasible lateral accel: min(mu*g [friction], g*w/(2h) [tip-over, the
+    # per-wheel normal force staying positive]) times a safety factor.
+    # lat_accel_max > 0 is an optional extra hard cap (0 = auto/physical).
+    friction_mu: 2.0
+    track_width: 0.396
+    com_height: 0.26
+    lat_accel_safety: 0.7
+    lat_accel_max: 0.0
 wheelleg_trajectory_controller:
   ros__parameters:
     dt: 0.001
@@ -90,13 +143,15 @@ wheelleg_trajectory_controller:
     accel_to_pitch: 0.0
     accel_pitch_limit: 0.35
     leg_motion_coupling: 0.0
-    outer_kx: 0.0
-    outer_kv: 0.0
+    outer_kx: 0.5
+    outer_kv: 0.5
     com_height: 0.26
     accel_leg_ff: -0.909
     accel_d_kp: -0.5
     accel_theta_ff: 3.85
-    accel_kv: 0.0
+    accel_kv: 2.0
+    yaw_torque_ff: 0.0
+    posture_yaw_scale: 0.15
     command_accel_limit: 1.5
     command_jerk_limit: 4.0
     command_vloop_kp: 10.0
@@ -106,6 +161,7 @@ wheelleg_balance_controller:
     measurement: /wheelleg/state/pitch
     setpoint: /wheelleg/reference/pitch
     control: /wheelleg/control/wheel_torque
+    debug: true
     dt: 0.001
     b0: 20.0
     kt: 1.0
@@ -122,28 +178,51 @@ wheelleg_balance_controller:
     u_max: 16.13
     output_min: -16.13
     output_max: 16.13
-    feedforward: /wheelleg/control/wheel_torque_ff
-wheelleg_station_controller:
+wheelleg_yaw_controller:
   ros__parameters:
-    measurement: /wheelleg/state/com_x
-    setpoint: /wheelleg/reference/com_x
-    control: /wheelleg/control/wheel_torque_ff
+    measurement: /wheelleg/state/yaw
+    setpoint: /wheelleg/command/yaw
+    control: /wheelleg/control/wheel_torque_diff
     dt: 0.001
-    b0: 0.68
+    b0: 2.32
     kt: 1.0
     td_h: 0.001
     td_r: 50.0
-    eso_w0: 25.0
+    eso_w0: 50.0
     eso_auto_beta: false
-    eso_beta1: 75.0
-    eso_beta2: 1875.0
-    eso_beta3: 20.0
-    k1: 35.0
-    k2: 25.0
+    eso_beta1: 150.0
+    eso_beta2: 7500.0
+    eso_beta3: 0.0
+    # omega_c ~ 5 rad/s: the original k1=k2=2 (~1.4 rad/s) only tracked a steady
+    # spin but lagged a 1 rad/s arc ramp, dragging out the turns. Startup chatter
+    # stays low at this gain (k1~100 excited the drop transient).
+    k1: 25.0
+    k2: 10.0
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -16.13
-    u_max: 16.13
-    output_min: -16.13
-    output_max: 16.13
+    u_min: -8.0
+    u_max: 8.0
+    output_min: -8.0
+    output_max: 8.0
+wheelleg_wheel_mixer:
+  ros__parameters:
+    yaw_sign: -1.0
+    wheel_torque_limit: 16.13
+wheelleg_roll_controller:
+  ros__parameters:
+    # Lateral/bank: a differential-leg-length feedforward banks the body to the
+    # planned bank; the PD acts on the tracking error (roll - bank), so at steady
+    # state it adds nothing and does not fight the bank (no FF/PD rebalancing).
+    measurement: /wheelleg/command/roll_error
+    feedforward: /wheelleg/command/roll_bias_ff
+    control: /wheelleg/control/roll_bias
+    kp: -1.0
+    ki: 0.0
+    kd: -50.0
+    integral_min: -0.5
+    integral_max: 0.5
+    integral_split_min: -1.0
+    integral_split_max: 1.0
+    output_min: -0.5
+    output_max: 0.5

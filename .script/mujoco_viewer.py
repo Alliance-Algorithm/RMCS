@@ -51,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rate", type=float, default=60.0, help="viewer refresh rate [Hz]")
     parser.add_argument(
         "--track-body",
-        default="base_link",
-        help="body the camera follows (empty to keep the free camera)",
+        default="",
+        help="body the camera follows (empty = static free camera)",
     )
     parser.add_argument("--distance", type=float, default=2.5, help="camera distance [m]")
     parser.add_argument("--azimuth", type=float, default=90.0, help="camera azimuth [deg]")
@@ -92,6 +92,9 @@ def main() -> int:
     threading.Thread(target=spin, daemon=True).start()
 
     mismatched = False
+    bridge.get_logger().info(
+        f"[viewer args] topic={args.topic} track_body={args.track_body!r} "
+        f"distance={args.distance} azimuth={args.azimuth} elevation={args.elevation}")
     viewer = mujoco.viewer.launch_passive(model, data)
 
     # Lock the camera onto a body so it follows the (moving) vehicle at a fixed
@@ -108,8 +111,16 @@ def main() -> int:
         viewer.cam.distance = args.distance
         viewer.cam.azimuth = args.azimuth
         viewer.cam.elevation = args.elevation
-    elif args.track_body:
-        bridge.get_logger().warn(f"track body '{args.track_body}' not found; free camera")
+        bridge.get_logger().info(
+            f"camera TRACKING body '{args.track_body}' (follow)")
+    else:
+        # Explicitly pin a static free camera (viewer_follow=false / no track
+        # body): do not re-assert it every frame so it stays put.
+        viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+        viewer.cam.fixedcamid = -1
+        viewer.cam.trackbodyid = -1
+        bridge.get_logger().info(
+            f"camera FREE (static); track-body was {args.track_body!r}")
 
     period = 1.0 / args.rate if args.rate > 0.0 else 0.0
     try:

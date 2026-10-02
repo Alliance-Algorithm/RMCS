@@ -43,8 +43,25 @@ public:
         // A5: acceleration-mode command (m/s^2) + base position for tracking.
         register_input("/wheelleg/command/acceleration", acceleration_command_, false);
         register_input("/wheelleg/state/com_x", state_com_x_);
+        // Heading, for the turning-aware position reference (see update()).
+        register_input("/wheelleg/state/yaw", state_yaw_, false);
+        // Body-frame forward speed/distance for the posture-based outer loop.
+        register_input("/wheelleg/state/velocity", state_velocity_);
+        register_input("/wheelleg/state/distance", state_distance_);
+        // Yaw-rate command, for the yaw feedforward torque.
+        register_input("/wheelleg/command/yaw_rate", yaw_rate_command_, false);
 
         register_output("/wheelleg/reference/wheel_velocity", reference_wheel_velocity_, kNaN);
+        // Body-forward speed reference (m/s) for the heading-independent outer
+        // speed loop (used instead of the world-forward position during turns).
+        register_output("/wheelleg/reference/velocity", reference_velocity_, kNaN);
+        // Body-forward distance reference (m), the integral of the commanded
+        // speed. The outer loop tracks this with a second-order ADRC; being a
+        // body-frame coordinate it stays valid while turning.
+        register_output("/wheelleg/reference/distance", reference_distance_, kNaN);
+        // Yaw feedforward torque for the yaw-rate loop: kff * yaw_rate_command.
+        // Gives responsiveness without raising the feedback gain.
+        register_output("/wheelleg/control/wheel_torque_diff_ff", yaw_torque_ff_, 0.0);
         register_output("/wheelleg/reference/pitch", reference_pitch_, kNaN);
         register_output("/wheelleg/reference/shank_angle", reference_shank_angle_, kNaN);
         register_output("/wheelleg/reference/knee_angle", reference_knee_angle_, kNaN);
@@ -103,6 +120,10 @@ public:
         const double velocity_command_ref = velocity_ref_;
         const double a_planned = accel_ref_;
 
+        // Body-forward distance reference (integral of the commanded speed) for
+        // the posture-based outer loop.
+        body_distance_reference_ += velocity_command_ref * dt_;
+
         const double a_explicit =
             (acceleration_command_.ready() && std::isfinite(*acceleration_command_))
                 ? *acceleration_command_ : 0.0;
@@ -113,30 +134,43 @@ public:
         double base_leg_length =
             std::isfinite(leg_length_command) ? leg_length_command : nominal_leg_length_;
 
-        // Velocities in m/s (v_base = wheel_velocity * r).
-        const double v_now_mps =
-            (state_wheel_velocity_.ready() && std::isfinite(*state_wheel_velocity_))
-                ? (*state_wheel_velocity_ * wheel_radius_) : 0.0;
+        // Yaw feedforward torque. The old "posture gate" (which disabled the
+        // gait while turning) is removed: the claim that the body-frame
+        // speed/distance is polluted by omega x offset was not reproducible
+        // (the CoM-based and wheel-odometry forward speeds agree under yaw), and
+        // the gate blocked combined translation + turning. Set
+        // posture_gate_enabled=true to restore the old soft gate if needed.
+        const double yaw_rate_cmd =
+            (yaw_rate_command_.ready() && std::isfinite(*yaw_rate_command_))
+                ? *yaw_rate_command_ : 0.0;
+        *yaw_torque_ff_ = yaw_torque_ff_gain_ * yaw_rate_cmd;
+        const double yaw_norm = yaw_rate_cmd / std::max(posture_yaw_scale_, kEpsilon);
+        const double posture_gate =
+            posture_gate_enabled_ ? 1.0 / (1.0 + yaw_norm * yaw_norm) : 1.0;
 
-        // The acceleration command for the d-loop (gait) is the planned
-        // real-time acceleration plus any explicit acceleration command. It is
-        // zero during cruise, so the posture returns to d~0 when not moving.
-        const double a_cmd = a_explicit + a_planned;
-        const bool accel_mode = std::abs(a_cmd) > 1e-3;
+        // Outer speed/position loop -> desired acceleration, realised as a
+        // posture command on the equivalent leg (CoM offset d). This replaces
+        // the previous wheel-torque outer loop: the balance ring now owns the
+        // common wheel torque, so forward motion is commanded by posture and
+        // does not compete with the balance loop for wheel torque. The outer
+        // action is gated off while turning (see posture_gate).
+        const double v_meas =
+            (state_velocity_.ready() && std::isfinite(*state_velocity_)) ? *state_velocity_ : 0.0;
+        const double s_meas =
+            (state_distance_.ready() && std::isfinite(*state_distance_)) ? *state_distance_ : 0.0;
+        const double a_outer = posture_gate
+                             * (outer_kv_ * (velocity_command_ref - v_meas)
+                                + outer_kx_ * (body_distance_reference_ - s_meas));
 
-        // Stability bias (always computed): position + velocity error -> pitch
-        // setpoint, tracked by the inner pitch ring (ADRC). The velocity error
-        // uses the planned reference velocity, not the raw command.
-        com_x_reference_ += velocity_command_ref * dt_;
-        const double x_err =
-            (state_com_x_.ready() && std::isfinite(*state_com_x_))
-                ? (com_x_reference_ - *state_com_x_) : 0.0;
-        double pitch_bias = outer_kx_ * x_err + outer_kv_ * (velocity_command_ref - v_now_mps);
+        // Planned (S-curve feedforward) + explicit command + gated outer correction.
+        const double a_cmd = a_explicit + a_planned + a_outer;
 
-        // Keep the body upright while shaping the acceleration posture.
-        if (accel_mode)
-            pitch_bias = 0.0;
-        velocity_pitch_bias_ = std::clamp(pitch_bias, -accel_pitch_limit_, accel_pitch_limit_);
+        // The outer loop no longer biases the pitch reference.
+        velocity_pitch_bias_ = 0.0;
+
+        // World-forward reference kept only for monitoring / static guards.
+        const double yaw = (state_yaw_.ready() && std::isfinite(*state_yaw_)) ? *state_yaw_ : 0.0;
+        com_x_reference_ += velocity_command_ref * std::cos(yaw) * dt_;
 
         // Optional coupling of the leg length with forward speed.
         leg_length_command =
@@ -144,18 +178,20 @@ public:
 
         auto target = solve_target_(velocity_command, leg_length_command);
 
-        // Acceleration posture (gait): d_ref = a*h/g realised as a leg-length
-        // offset (dd/dL0 ~ -1.1), applied as a DIRECT additive delta on the
-        // published joint references rather than through the plan. This keeps
-        // the plan target (and therefore the start_plan_ trigger) based on the
-        // nominal leg length, so a continuously varying acceleration does not
-        // re-plan every step. The posture is what realises the acceleration.
+        // Posture (gait): d_ref = a*h/g realised as an *equivalent-leg
+        // inclination* offset (leaning the whole leg), which moves the CoM
+        // offset d efficiently without crouching the leg. The map d -> leg angle
+        // is accel_theta_ff_ (rad per m); a small leg-length term is kept for
+        // extra offset authority.
         gait_dknee_ = 0.0;
         gait_dshank_ = 0.0;
-        if (accel_mode) {
+        gait_dhip_ = 0.0;
+        {
             const double d_ref = a_cmd * com_height_ / gravity_;
             const double d_err = d_ref - state.com_offset;
-            const double gait_dl = accel_leg_ff_ * d_ref + accel_d_kp_ * d_err;
+            gait_dhip_ = posture_gate * (accel_theta_ff_ * d_ref + accel_kv_ * d_err);
+            const double gait_dl =
+                posture_gate * (accel_leg_ff_ * d_ref + accel_d_kp_ * d_err);
             const auto gait_target = solve_target_(
                 velocity_command, std::clamp(leg_length_command + gait_dl, 0.22, 0.45));
             if (std::isfinite(gait_target.beta) && std::isfinite(target.beta)
@@ -174,11 +210,16 @@ public:
             target.feasible = false;
         }
 
+        // Restart the joint plan only when the commanded *equilibrium* changes
+        // (leg length). The joint targets (beta/shank/hip) do not depend on the
+        // velocity command, and the wheel-speed reference follows the S-curve
+        // velocity_ref_, so a continuously varying velocity (e.g. a smoothed
+        // motion-planner command) must NOT restart the plan: restarting resets
+        // elapsed_ to 0 every step, which freezes the pitch reference at the
+        // measured pitch and disables the pitch balance loop.
         const bool command_changed =
             !initialized_
-            || (!guard
-                && (std::abs(velocity_command - planned_velocity_) > velocity_epsilon_
-                    || std::abs(target.leg_length - planned_leg_length_) > leg_length_epsilon_));
+            || (!guard && std::abs(target.leg_length - planned_leg_length_) > leg_length_epsilon_);
 
         if (command_changed) {
             start_plan_(state, target, velocity_command);
@@ -191,6 +232,8 @@ public:
         }
 
         *reference_com_x_ = com_x_reference_;
+        *reference_velocity_ = velocity_command_ref;
+        *reference_distance_ = body_distance_reference_;
 
         publish_reference_(target);
     }
@@ -298,6 +341,11 @@ private:
         leg_motion_coupling_ = node::param_or("leg_motion_coupling", 0.0);
         outer_kx_ = node::param_or("outer_kx", 0.0);
         outer_kv_ = node::param_or("outer_kv", 0.0);
+        yaw_torque_ff_gain_ = node::param_or("yaw_torque_ff", 0.0);
+        // Turning gate scale (rad/s): below it the posture/gait is fully active,
+        // above it the gait is disabled so yaw does not deform the leg.
+        posture_yaw_scale_ = node::param_or("posture_yaw_scale", 0.15);
+        posture_gate_enabled_ = node::param_or("posture_gate_enabled", false);
         // Acceleration mode (gated by the acceleration command): CoM-offset
         // feedforward d* = a*h/g realised via the leg length.
         com_height_ = node::param_or("com_height", 0.26);
@@ -403,7 +451,7 @@ private:
         const double shank_rate = shank_plan_.derivative(elapsed_);
         const double knee_reference = knee_plan_.value(elapsed_);
         const double knee_rate = knee_plan_.derivative(elapsed_);
-        const double velocity_reference = velocity_plan_.value(elapsed_);
+        const double velocity_reference = std::isfinite(velocity_ref_) ? velocity_ref_ : 0.0;
 
         // Leg-motion correction, 执行路线1_数学解析.md §7.5:
         //   x_e = L1 cos(beta+phi) - L2 cos(phi)
@@ -424,8 +472,8 @@ private:
         // §7.4: alpha_ref = pi - theta_ref - beta_ref - phi_ref (+ outer d-loop bias).
         const double alpha_bias =
             (alpha_bias_.ready() && std::isfinite(*alpha_bias_)) ? *alpha_bias_ : 0.0;
-        *reference_hip_angle_ =
-            std::numbers::pi - pitch_reference - knee_published - shank_published + alpha_bias;
+        *reference_hip_angle_ = std::numbers::pi - pitch_reference - knee_published
+                              - shank_published + alpha_bias + gait_dhip_;
 
         *target_leg_length_ = target.leg_length;
         *target_shank_angle_ = target.shank;
@@ -453,8 +501,13 @@ private:
         accel_ref_ = 0.0;
         gait_dknee_ = 0.0;
         gait_dshank_ = 0.0;
+        gait_dhip_ = 0.0;
 
         *reference_com_x_ = kNaN;
+        *reference_velocity_ = kNaN;
+        *reference_distance_ = kNaN;
+        body_distance_reference_ = 0.0;
+        *yaw_torque_ff_ = 0.0;
         *reference_wheel_velocity_ = kNaN;
         *reference_pitch_ = kNaN;
         *reference_shank_angle_ = kNaN;
@@ -502,6 +555,7 @@ private:
     double accel_ref_ = 0.0;
     double gait_dknee_ = 0.0;
     double gait_dshank_ = 0.0;
+    double gait_dhip_ = 0.0;
     double velocity_pitch_kp_;
     double velocity_pitch_limit_;
     double velocity_pitch_bias_ = 0.0;
@@ -535,6 +589,10 @@ private:
     InputInterface<double> alpha_bias_;
     InputInterface<double> acceleration_command_;
     InputInterface<double> state_com_x_;
+    InputInterface<double> state_yaw_;
+    InputInterface<double> state_velocity_;
+    InputInterface<double> state_distance_;
+    InputInterface<double> yaw_rate_command_;
 
     OutputInterface<double> reference_wheel_velocity_;
     OutputInterface<double> reference_pitch_;
@@ -542,6 +600,13 @@ private:
     OutputInterface<double> reference_knee_angle_;
     OutputInterface<double> reference_hip_angle_;
     OutputInterface<double> reference_com_x_;
+    OutputInterface<double> reference_velocity_;
+    OutputInterface<double> reference_distance_;
+    double body_distance_reference_ = 0.0;
+    OutputInterface<double> yaw_torque_ff_;
+    double yaw_torque_ff_gain_ = 0.0;
+    double posture_yaw_scale_ = 0.15;
+    bool posture_gate_enabled_ = false;
     double com_x_reference_ = 0.0;
 
     OutputInterface<double> target_leg_length_;
