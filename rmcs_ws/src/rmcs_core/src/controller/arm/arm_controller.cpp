@@ -104,6 +104,7 @@ public:
         using namespace rmcs_msgs;
 
         static bool initial_check_done{false};
+        static bool collision_apply{false};
         if (!initial_check_done) {
             *is_arm_enable = false;
             if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
@@ -120,6 +121,11 @@ public:
             return;
         } else {
             *is_arm_enable = true;
+        }
+
+        if (!collision_apply) {
+            obstacle_course_.apply_collision();
+            collision_apply = true;
         }
 
         mode_selection();
@@ -211,7 +217,7 @@ private:
                 set_arm_mode(rmcs_msgs::ArmMode::Auto_Spin, false);
             }
             if (keyboard.e && !last_keyboard_.e) {
-                if (!keyboard.shift && !keyboard.ctrl)
+                if (!keyboard.shift && keyboard.ctrl)
                     set_arm_mode(rmcs_msgs::ArmMode::Calibration);
                 else if (keyboard.shift && !keyboard.ctrl) {
                     set_arm_mode(rmcs_msgs::ArmMode::Yaw_Close);
@@ -294,8 +300,6 @@ private:
             last_processed_trigger_ = request_trigger_;
             // obstacle_course_.set_operation(
             //     "energy_unit_left_front", obstacle::CollisionObjectOperation::ADD);
-
-            obstacle_course_.apply_collision();
 
             switch (get_arm_mode()) {
                 using namespace rmcs_msgs;
@@ -534,7 +538,7 @@ private:
                 *gripper_target_theta = NAN;
                 return true;
             } else {
-                *gripper_target_theta = *gripper_angle_ - 40.0;
+                *gripper_target_theta = *gripper_angle_ - gripper_step;
                 return false;
             }
         };

@@ -18,7 +18,7 @@ class ArmSolver final
     , public rclcpp::Node {
 
     static constexpr std::size_t num_axis = 6;
-    using TorqueVec                       = Eigen::Array<double, num_axis, 1>;
+    using TorqueVec = Eigen::Array<double, num_axis, 1>;
 
 public:
     explicit ArmSolver()
@@ -27,10 +27,10 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , joint_angle_pid_controller{
               pid::PidCalculator(1300.0, 0.0, 50.0), // joint_1
-              pid::PidCalculator(300.0, 0.0, 0.0), // joint_2
+              pid::PidCalculator(300.0, 0.0, 3.0), // joint_2
               pid::PidCalculator(500.0, 0.0, 10.0), // joint_3
               pid::PidCalculator(250.0, 0.0, 1.0), // joint_4
-              pid::PidCalculator(80.0, 0.0, 2.0), // joint_5
+              pid::PidCalculator(300.0, 0.0, 8.0), // joint_5
               pid::PidCalculator(this->get_parameter("joint_6_angle_kp").as_double(), this->get_parameter("joint_6_angle_ki").as_double(), this->get_parameter("joint_6_angle_kd").as_double()), // joint_6
           }
         , joint_vel_pid_controller{
@@ -38,7 +38,7 @@ public:
               pid::PidCalculator(3.0, 0.0, 0.0), // joint_2
               pid::PidCalculator(0.7, 0.0, 0.004), // joint_3
               pid::PidCalculator(0.65, 0.0, 0.002), // joint_4
-              pid::PidCalculator(1.6, 0.0, 0.004), // joint_5
+              pid::PidCalculator(0.282, 0.0, 0.004), // joint_5
               pid::PidCalculator(this->get_parameter("joint_6_vel_kp").as_double(), this->get_parameter("joint_6_vel_ki").as_double(), this->get_parameter("joint_6_vel_kd").as_double()), // joint_6
           } {
         for (std::size_t i = 0; i < num_axis; ++i) {
@@ -98,8 +98,8 @@ private:
 
     TorqueVec calculate_pid() {
         auto clamp_target_theta = [this](std::size_t idx, double target_theta) {
-            const double lower_limit    = *joint_lower_limit[idx];
-            const double upper_limit    = *joint_upper_limit[idx];
+            const double lower_limit = *joint_lower_limit[idx];
+            const double upper_limit = *joint_upper_limit[idx];
             const double clamped_target = std::clamp(target_theta, lower_limit, upper_limit);
 
             return clamped_target;
@@ -110,12 +110,12 @@ private:
 
         for (std::size_t i = 0; i < num_axis; ++i) {
             const double current_theta = *joint_theta[i];
-            const double target_theta  = clamp_target_theta(i, *joint_target_theta[i]);
-            const double current_vel   = *joint_velocity[i];
+            const double target_theta = clamp_target_theta(i, *joint_target_theta[i]);
+            const double current_vel = *joint_velocity[i];
 
             const double angle_error = rmcs_utility::normalize_angle(target_theta - current_theta);
-            const double target_vel  = joint_angle_pid_controller[i].update(angle_error);
-            const double vel_error   = target_vel - current_vel;
+            const double target_vel = joint_angle_pid_controller[i].update(angle_error);
+            const double vel_error = target_vel - current_vel;
 
             tau_pid(i) = joint_vel_pid_controller[i].update(vel_error);
         }
@@ -130,7 +130,7 @@ private:
         TorqueVec joint_vel, tau_c;
         for (std::size_t i = 0; i < num_axis; ++i) {
             joint_vel(i) = *joint_velocity[i];
-            tau_c(i)     = *joint_friction[i];
+            tau_c(i) = *joint_friction[i];
         }
 
         TorqueVec speed_threshold;
@@ -148,12 +148,12 @@ private:
 
     TorqueVec calculate_gravity_compensation() {
         // The gravity compensation theoretical calculation for joint1 and joint6 is 0.
-        static constexpr double g       = 9.81;
+        static constexpr double g = 9.81;
         static constexpr double reverse = -1.0;
-        const double theta_1            = -(*joint_theta[1]);
-        const double theta_2            = -*joint_theta[2] + std::numbers::pi / 2.0;
-        const double theta_4            = -*joint_theta[3];
-        const double theta_3            = -*joint_theta[4];
+        const double theta_1 = -(*joint_theta[1]);
+        const double theta_2 = -*joint_theta[2] + std::numbers::pi / 2.0;
+        const double theta_4 = -*joint_theta[3];
+        const double theta_3 = -*joint_theta[4];
 
         const double mass_1 = *link_mass[1];
         const double mass_2 = (*link_mass[3] + *link_mass[2]);
@@ -165,12 +165,12 @@ private:
                           / ((*link_mass[2] + *link_mass[3]));
         constexpr double l_3m = 0.08;
 
-        const double l1  = *link_length[1];
-        const double l2  = *link_length[2];
+        const double l1 = *link_length[1];
+        const double l2 = *link_length[2];
         const double s12 = sin(theta_1 + theta_2);
 
-        const double x     = sin(theta_3) * cos(theta_4);
-        const double phi   = std::asin(std::clamp(x, -1.0, 1.0));
+        const double x = sin(theta_3) * cos(theta_4);
+        const double phi = std::asin(std::clamp(x, -1.0, 1.0));
         const double denom = std::sqrt(std::max(0.0, 1.0 - x * x));
 
         const double k_5 = (denom > 0.0) ? ((cos(theta_3) * cos(theta_4)) / denom) : 0.0;
@@ -181,9 +181,9 @@ private:
         const double joint_4_tau_g = (-mass_3 * l_3m * sin(theta_3) * sin(theta_4) * s12) * g;
         const double joint_3_tau_g = (-l_2m * s12 * mass_2 - (l2 * s12 + k) * mass_3) * g;
 
-        const double k_2          = -l_1m * sin(theta_1) * mass_1;
-        const double j_2          = -l1 * sin(theta_1) - l_2m * s12;
-        const double i_2          = -(l1 * sin(theta_1) + l2 * s12 + k);
+        const double k_2 = -l_1m * sin(theta_1) * mass_1;
+        const double j_2 = -l1 * sin(theta_1) - l_2m * s12;
+        const double i_2 = -(l1 * sin(theta_1) + l2 * s12 + k);
         const double joint2_tau_g = (k_2 + j_2 * mass_2 + i_2 * mass_3) * g;
 
         TorqueVec tau_g;
@@ -206,8 +206,7 @@ private:
         {{"gravity", &ArmSolver::calculate_gravity_compensation},
          {"pid", &ArmSolver::calculate_pid},
          {"friction", &ArmSolver::calculate_friction_compensation},
-         {"zero_torque", &ArmSolver::calculate_zero_torque}}
-    };
+         {"zero_torque", &ArmSolver::calculate_zero_torque}}};
 
     std::vector<controller_type> controller_list;
 

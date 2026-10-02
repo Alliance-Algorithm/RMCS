@@ -58,6 +58,7 @@ public:
             return;
         }
         obstacle->set_operation(operation);
+        planning_scene_.applyCollisionObject(obstacle->export_collision());
     }
 
     void set_pose(const std::string& id, Pose pose) {
@@ -68,6 +69,7 @@ public:
             return;
         }
         obstacle->set_pose(pose);
+        planning_scene_.applyCollisionObject(obstacle->export_collision());
     }
 
     void apply_collision() {

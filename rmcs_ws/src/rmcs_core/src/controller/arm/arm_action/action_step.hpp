@@ -28,8 +28,8 @@ struct NoTarget {};
 using Target = std::variant<NoTarget, PoseTarget, JointTarget, LinearTarget>;
 
 struct MotionParams {
-    double vel = 0.05;
-    double acc = 0.03;
+    double vel = 0.03;
+    double acc = 0.01;
     double tolerance_pos = 0.003;
     double tolerance_ori = 0.2;
 };
@@ -39,13 +39,13 @@ public:
     // ---------- 构造工厂 ----------
     static Step makeJoint(
         const JointTarget& target, const MotionParams& params, const std::string& pipeline = "ompl",
-        const std::string& planner = "APSConfigDefault") {
+        const std::string& planner = "RRTstarkConfigDefault") {
         return Step(MotionType::Joint, pipeline, planner, target, params);
     }
 
     static Step makePose(
         const PoseTarget& target, const MotionParams& params, const std::string& pipeline = "ompl",
-        const std::string& planner = "APSConfigDefault") {
+        const std::string& planner = "RRTstarkConfigDefault") {
         return Step(MotionType::Pose, pipeline, planner, target, params);
     }
 

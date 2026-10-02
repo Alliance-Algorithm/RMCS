@@ -60,7 +60,7 @@
           rgba="0.75294 0.75294 0.75294 1" />
       </material>
     </visual>
-    <!-- <collision>
+    <collision>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
@@ -68,7 +68,7 @@
         <mesh
           filename="package://arm_description/meshes/link_1.STL" />
       </geometry>
-    </collision> -->
+    </collision>
   </link>
   <joint
     name="joint_1"
