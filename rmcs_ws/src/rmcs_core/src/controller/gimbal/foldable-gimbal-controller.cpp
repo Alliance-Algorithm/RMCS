@@ -128,7 +128,6 @@ public:
         fold_velocity_tolerance_ =
             std::max(get_parameter_or("fold_velocity_tolerance", 0.05), 1e-6);
         fold_angle_tolerance_ = std::max(get_parameter_or("fold_angle_tolerance", 0.05), 1e-6);
-        bench_mode_ = get_parameter_or("bench_mode", false);
     }
 
     auto before_updating() -> void override {
@@ -379,8 +378,6 @@ private:
     double fold_velocity_tolerance_ = 0.05;
     double fold_angle_tolerance_ = 0.05;
 
-    bool bench_mode_ = false;
-
     std::chrono::steady_clock::time_point last_update_timestamp_{};
 
     static constexpr auto limit_rad(double angle) -> double {
@@ -441,9 +438,6 @@ private:
     }
 
     auto current_barrel_yaw_pitch() const -> std::pair<double, double> {
-        if (bench_mode_)
-            return {*input_.bottom_yaw_angle, limit_rad(*input_.pitch_angle)};
-
         auto direction = fast_tf::cast<OdomGimbalImu>(
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
@@ -456,9 +450,6 @@ private:
     }
 
     auto current_bottom_world_yaw() const -> double {
-        if (bench_mode_)
-            return *input_.bottom_yaw_angle;
-
         auto direction = fast_tf::cast<OdomGimbalImu>(
             BottomYawLink::DirectionVector{Eigen::Vector3d::UnitX()}, *input_.tf);
         Eigen::Vector3d vector = *direction;
@@ -501,7 +492,7 @@ private:
     }
 
     auto update_normal_gimbal_control() -> void {
-        if (!bench_mode_ && input_.enable_autoaim()) {
+        if (input_.enable_autoaim()) {
             const auto error = solver_.update(
                 FoldableDualYawSolver::AutoAim{
                     *input_.tf,
@@ -546,7 +537,7 @@ private:
         const auto [_, current_pitch] = current_barrel_yaw_pitch();
         apply_control(
             limit_rad(stored_bottom_yaw_target_ - current_bottom_world_yaw()),
-            limit_rad(stored_bottom_yaw_target_ - *input_.top_yaw_angle),
+            limit_rad(- *input_.top_yaw_angle),
             limit_rad(stored_pitch_target_ - current_pitch));
     }
 
