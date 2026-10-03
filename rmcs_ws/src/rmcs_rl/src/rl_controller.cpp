@@ -95,6 +95,7 @@ void RlController::enter_(State next) {
         recovery_interval_.reset();
         recovery_actuation_interval_.reset();
         last_pd_tick_.reset();
+        motor_control_started_ = false;
         motor_feedback_initialized_ = false;
         recovery_sensor_guard_.reset();
         if (recovery_observer_)
@@ -346,7 +347,7 @@ void RlController::update() {
     if (state_ == State::kPrepare) {
         if (!dm_control_ready_.ready() || !*dm_control_ready_) {
             clear_outputs_();
-            if (recovery_started_) {
+            if (motor_control_started_ || recovery_started_) {
                 latch_fault_(RecoveryFailure::kInvalidFeedback);
                 update_state_output_();
                 return;
@@ -400,6 +401,7 @@ void RlController::update() {
             return;
         }
         const auto pd_start = Clock::now();
+        motor_control_started_ = true;
         compute_motor_torques_();
         if (state_ == State::kPrepare || state_ == State::kRl)
             *pd_time_us_ =
