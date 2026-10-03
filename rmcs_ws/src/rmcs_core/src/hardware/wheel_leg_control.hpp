@@ -26,9 +26,12 @@ bool wheel_leg_feedback_fresh(Now read_now, std::int64_t timeout_ns, const Stamp
 
 constexpr bool wheel_leg_drive_allowed(
     bool dr16_fresh, rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool require_request,
-    bool requested) noexcept {
-    return dr16_fresh && left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::MIDDLE
-        && (!require_request || requested);
+    bool requested, bool allow_spin_switch = false) noexcept {
+    const bool middle = left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::MIDDLE;
+    // The production RL graph opts in and supplies proof of its armed session.
+    const bool spin = allow_spin_switch && require_request && requested
+                   && left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::DOWN;
+    return dr16_fresh && (middle || spin) && (!require_request || requested);
 }
 
 class WheelLegDmCommandScheduler {
@@ -147,9 +150,10 @@ constexpr bool wheel_leg_dm_pair_safe_for_request(
 // Nonzero torque remains guarded by confirmed enabled feedback and first MIT.
 constexpr bool wheel_leg_normal_enable_request(
     bool dr16_fresh, rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool require_request,
-    bool requested, bool feedback_fresh,
-    const std::array<WheelLegDmPairFeedback, 2>& pairs) noexcept {
-    return wheel_leg_drive_allowed(dr16_fresh, left, right, require_request, requested)
+    bool requested, bool feedback_fresh, const std::array<WheelLegDmPairFeedback, 2>& pairs,
+    bool allow_spin_switch = false) noexcept {
+    return wheel_leg_drive_allowed(
+               dr16_fresh, left, right, require_request, requested, allow_spin_switch)
         && feedback_fresh && pairs[0].fresh && pairs[1].fresh;
 }
 

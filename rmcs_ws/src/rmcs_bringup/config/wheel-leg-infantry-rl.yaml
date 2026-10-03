@@ -88,6 +88,7 @@ wheel_leg:
     board_serial: ""
     joint_control_mode: "torque"
     require_enable_request: true
+    allow_spin_switch: true
     # The DM drives were already internally zeroed at the 105-degree reference.
     allow_set_zero: false
     # 电机反馈 Master ID，按左髋/右髋/左膝/右膝顺序。
@@ -175,17 +176,16 @@ rl_controller:
 
 wheel_leg_chassis_controller:
   ros__parameters:
-    vx_max: 2.5
-    yaw_rate_max: 3.0
+    vx_max: 0.5
+    vy_max: 0.0
+    yaw_rate_max: 1.0
+    spin_yaw_rate: 1.0
     deadzone: 0.08
-    # This candidate's locomotion/turning evaluations used nominal 0.305m.
-    # Height/jump/lateral commands require a separately validated model.
+    # Keep the legacy V5 domain until the next V6 policy integration commit.
     command_height_min: 0.305
     command_height_max: 0.305
     default_command_height: 0.305
-    height_range: 0.0
     height_step: 0.0
-    angular_z_invert: false                 # 自动对齐转向；若转向相反改 true
-    heading_kp: 3.0                         # 目标航向误差 -> 转向角速度 的比例增益
-    height_invert: false                    # 前推左杆应为升高；若相反改 true
-    # V held = jump request; Shift+V selects 0.10m instead of 0.06m apex.
+    angular_z_invert: false
+    height_invert: false
+    jump_enabled: false
