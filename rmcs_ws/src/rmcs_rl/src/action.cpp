@@ -93,6 +93,8 @@ void RlController::compute_motor_torques_() {
     }
     const bool scripted = state_ == State::kPrepare && recovery_started_;
     const bool blending = scripted && recovery_command_.phase == RecoveryPhase::kBlend;
+    const bool v6_takeover =
+        state_ == State::kRl && !recovery_started_ && policy_profile_.name == kV6PolicyProfile.name;
     Eigen::Vector4d tau = Eigen::Vector4d::Zero();
     Eigen::Vector2d wheel_tau = Eigen::Vector2d::Zero();
     if (scripted) {
@@ -110,19 +112,42 @@ void RlController::compute_motor_torques_() {
             return;
         }
         Eigen::Vector4d policy_tau;
-        for (int i = 0; i < 4; ++i)
-            policy_tau[i] = std::clamp(
-                policy_profile_.leg_kp * (policy_targets_[i] - q_[i])
-                    - policy_profile_.leg_kd * dq_[i],
-                -DeployedPolicyContract::kLegTorqueLimit, DeployedPolicyContract::kLegTorqueLimit);
+        for (int i = 0; i < 4; ++i) {
+            policy_tau[i] = policy_profile_.leg_kp * (policy_targets_[i] - q_[i])
+                          - policy_profile_.leg_kd * dq_[i];
+            if (!v6_takeover)
+                policy_tau[i] = std::clamp(
+                    policy_tau[i], -DeployedPolicyContract::kLegTorqueLimit,
+                    DeployedPolicyContract::kLegTorqueLimit);
+        }
         Eigen::Vector2d policy_wheel =
             policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>());
         // V6 clips each native PD output. The historical V5 recovery blend
         // clips only its final API output; retain that regression contract.
-        if (policy_profile_.name == kV6PolicyProfile.name)
+        if (policy_profile_.name == kV6PolicyProfile.name && !v6_takeover)
             policy_wheel = policy_wheel.cwiseMax(-policy_profile_.wheel_torque_limit)
                                .cwiseMin(policy_profile_.wheel_torque_limit);
-        if (blending) {
+        if (v6_takeover) {
+            // The actor runs from the first RL tick even when alpha is zero;
+            // only physical effort is blended. Both PDs use current feedback,
+            // and the six-axis mix precedes native clipping and API mapping.
+            const double elapsed = std::chrono::duration<double>(*timestamp_ - rl_start_).count();
+            const double t = v6_takeover_blend_seconds_ > 0.0
+                               ? std::clamp(elapsed / v6_takeover_blend_seconds_, 0.0, 1.0)
+                               : 1.0;
+            const double alpha = t * t * (3.0 - 2.0 * t);
+            const Eigen::Vector4d prepare_tau =
+                prepare_kp_ * (v6_takeover_targets_.head<4>() - q_.head<4>())
+                - prepare_kd_ * dq_.head<4>();
+            const Eigen::Vector2d prepare_wheel = -0.2 * dq_.tail<2>();
+            tau = ((1.0 - alpha) * prepare_tau + alpha * policy_tau)
+                      .cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
+                      .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
+            wheel_tau = ((1.0 - alpha) * prepare_wheel + alpha * policy_wheel)
+                            .cwiseMax(-policy_profile_.wheel_torque_limit)
+                            .cwiseMin(policy_profile_.wheel_torque_limit);
+            v6_takeover_blend_fraction_ = alpha;
+        } else if (blending) {
             tau = (1.0 - recovery_command_.blend) * tau + recovery_command_.blend * policy_tau;
             wheel_tau = (1.0 - recovery_command_.blend) * wheel_tau
                       + recovery_command_.blend * policy_wheel;
