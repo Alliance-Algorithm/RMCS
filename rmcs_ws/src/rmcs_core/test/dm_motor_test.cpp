@@ -117,6 +117,43 @@ TEST(WheelLegEnableGate, OnlyFreshDoubleMiddleCanRequestTorque) {
     EXPECT_TRUE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::MIDDLE, false, false));
 }
 
+TEST(WheelLegEnableGate, SpinSwitchRequiresExplicitOptInAndAControllerRequest) {
+    using rmcs_core::hardware::wheel_leg_drive_allowed;
+    using rmcs_msgs::Switch;
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::DOWN, true, true));
+    EXPECT_TRUE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::DOWN, true, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::DOWN, true, false, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::MIDDLE, Switch::DOWN, false, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(false, Switch::MIDDLE, Switch::DOWN, true, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::DOWN, Switch::DOWN, true, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::DOWN, Switch::MIDDLE, true, true, true));
+    EXPECT_FALSE(wheel_leg_drive_allowed(true, Switch::UP, Switch::DOWN, true, true, true));
+}
+
+TEST(WheelLegEnableGate, SpinOptInKeepsFeedbackAndIdentificationGates) {
+    using rmcs_core::hardware::wheel_leg_normal_enable_request;
+    using rmcs_core::hardware::wheel_leg_selected_pair_clear_allowed;
+    using rmcs_core::hardware::wheel_leg_wheel_only_allowed;
+    using rmcs_core::hardware::WheelLegDmPairFeedback;
+    using rmcs_msgs::Switch;
+    std::array pairs{
+        WheelLegDmPairFeedback{0, 0, 0, 0, true}, WheelLegDmPairFeedback{0, 0, 0, 0, true}};
+    EXPECT_FALSE(wheel_leg_normal_enable_request(
+        true, Switch::MIDDLE, Switch::DOWN, true, true, true, pairs));
+    EXPECT_TRUE(wheel_leg_normal_enable_request(
+        true, Switch::MIDDLE, Switch::DOWN, true, true, true, pairs, true));
+    EXPECT_FALSE(wheel_leg_normal_enable_request(
+        true, Switch::MIDDLE, Switch::DOWN, true, true, false, pairs, true));
+    EXPECT_FALSE(
+        wheel_leg_wheel_only_allowed(true, Switch::MIDDLE, Switch::DOWN, true, true, pairs));
+    pairs[0] = {8, 0, 8, 0, true};
+    EXPECT_FALSE(wheel_leg_selected_pair_clear_allowed(
+        true, Switch::MIDDLE, Switch::DOWN, true, true, 0, pairs));
+    pairs[1].fresh = false;
+    EXPECT_FALSE(wheel_leg_normal_enable_request(
+        true, Switch::MIDDLE, Switch::DOWN, true, true, true, pairs, true));
+}
+
 TEST(WheelLegFeedbackFreshness, CallbackDuringClockReadCannotCreateFalseFutureFeedback) {
     using rmcs_core::hardware::wheel_leg_feedback_fresh;
     std::atomic<std::int64_t> hip{99}, knee{99}, imu{99};
@@ -196,6 +233,31 @@ TEST(WheelLegEnableGate, DoubleDownThenBothMiddleIsTheOnlyArmingSequence) {
     EXPECT_FALSE(arm.update(Switch::DOWN, Switch::DOWN));
     EXPECT_FALSE(arm.update(Switch::UNKNOWN, Switch::MIDDLE));
     EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::MIDDLE));
+}
+
+TEST(WheelLegEnableGate, SpinCombinationOnlyContinuesAnArmedSession) {
+    using rmcs_core::controller::chassis::WheelLegArmSequence;
+    using rmcs_msgs::Switch;
+    WheelLegArmSequence arm;
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::DOWN, true));
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
+    EXPECT_FALSE(arm.update(Switch::DOWN, Switch::DOWN, true));
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::DOWN, true));
+    EXPECT_TRUE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
+    EXPECT_TRUE(arm.update(Switch::MIDDLE, Switch::DOWN, true));
+    EXPECT_TRUE(arm.update(Switch::MIDDLE, Switch::DOWN, true));
+    EXPECT_TRUE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
+    EXPECT_FALSE(arm.update(Switch::DOWN, Switch::MIDDLE, true));
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::DOWN, true));
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
+    EXPECT_FALSE(arm.update(Switch::DOWN, Switch::DOWN, true));
+    EXPECT_TRUE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::DOWN));   // Default graphs do not opt in.
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
+    EXPECT_FALSE(arm.update(Switch::DOWN, Switch::DOWN, true));
+    EXPECT_TRUE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
+    EXPECT_FALSE(arm.update(Switch::UNKNOWN, Switch::DOWN, true));
+    EXPECT_FALSE(arm.update(Switch::MIDDLE, Switch::MIDDLE, true));
 }
 
 TEST(WheelLegDmCommandScheduler, RepeatsSystemCommandsOnStartupAndTransitions) {
