@@ -6,15 +6,22 @@ set -euo pipefail
 remote_root="/root/identification_bags"
 
 usage() {
-    printf 'Usage: %s <start-pd-loaded|record-pd-loaded|start-wheels|stop|status>\n' "$0" >&2
+    printf 'Usage: %s <start-pd-loaded|record-pd-loaded|start-wheels|start-v6 RUN|record-v6 RUN|stop|status>\n' "$0" >&2
     exit 2
 }
 
-[[ $# -eq 1 ]] || usage
+[[ $# -ge 1 && $# -le 2 ]] || usage
+if [[ "$1" != start-v6 && "$1" != record-v6 && $# -ne 1 ]]; then usage; fi
 case "$1" in
-start-pd-loaded|record-pd-loaded|start-wheels)
+start-pd-loaded|record-pd-loaded|start-wheels|start-v6|record-v6)
     launch_action="$1"
-    if [[ "$1" == start-wheels ]]; then
+    if [[ "$1" == start-v6 || "$1" == record-v6 ]]; then
+        [[ $# -eq 2 ]] || usage
+        case "$2" in L01|L02|L03|LJ01|LJ02|R01|R02|R03|RJ01|RJ02) ;; *) usage ;; esac
+        robot="wheel-leg-infantry-v6-$2-identification"
+        run_prefix="v6-$2"
+        [[ "$1" != record-v6 ]] || launch_action=record
+    elif [[ "$1" == start-wheels ]]; then
         robot=wheel-leg-infantry-wheel-identification
         run_prefix=wheels
     else
@@ -40,6 +47,15 @@ start-pd-loaded|record-pd-loaded|start-wheels)
         printf 'Remote rmcs_core library differs from local build; sync before starting.\n' >&2
         exit 1
     fi
+
+    for schema in WheelLegIdentificationSample.msg WheelLegIdentificationSample.idl; do
+        local_schema="$(sha256sum "/workspaces/RMCS/rmcs_ws/install/share/rmcs_msgs/msg/$schema")"
+        remote_schema="$(ssh -o BatchMode=yes -o ConnectTimeout=8 remote sha256sum "/rmcs_install/share/rmcs_msgs/msg/$schema")"
+        if [[ "${local_schema%% *}" != "${remote_schema%% *}" ]]; then
+            printf 'Remote rmcs_msgs schema differs from the local build; sync before starting.\n' >&2
+            exit 1
+        fi
+    done
 
     # Preserve the exact uncommitted controller/planner/driver sources used by
     # this run, so later fixed-base replay can reproduce the PC cascade too.
@@ -80,6 +96,22 @@ if [[ "$launch_mode" != record && ! -x /usr/local/bin/set-robot ]]; then
     printf 'Cannot persist selected profile: /usr/local/bin/set-robot is missing.\n' >&2
     exit 1
 fi
+test -d /root
+mkdir -p "$root"
+run="$root/$run_prefix-$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir "$run"
+cp "/rmcs_install/share/rmcs_bringup/config/$robot.yaml" "$run/profile.yaml"
+cp "$source_archive" "$run/controller-source.tar.gz"
+printf '%s  controller-source.tar.gz\n' "$source_sha" > "$run/source.sha256"
+printf '%s\n' "$source_head" > "$run/rmcs-head.txt"
+cp /rmcs_install/lib/librmcs_core.so "$run/librmcs_core.so"
+sha256sum "$run/profile.yaml" > "$run/profile.sha256"
+cp /rmcs_install/share/rmcs_msgs/msg/WheelLegIdentificationSample.msg "$run/"
+cp /rmcs_install/share/rmcs_msgs/msg/WheelLegIdentificationSample.idl "$run/"
+sha256sum "$run/WheelLegIdentificationSample.msg" "$run/WheelLegIdentificationSample.idl" \
+    /rmcs_install/lib/librmcs_core.so > "$run/runtime.sha256"
+printf 'ROS_DISTRO=%s\nROS_VERSION=%s\n' "${ROS_DISTRO:-unknown}" "${ROS_VERSION:-unknown}" \
+    > "$run/ros-environment.txt"
 response="No executor before launch"
 if [[ "$launch_mode" == record ]]; then
     # Record an already loaded pair controller without restarting or enabling it.
@@ -134,7 +166,7 @@ fi
 # Ordinary rmcs-cli/service restarts read these defaults. Keep them aligned
 # with the explicitly selected experiment so a restart cannot revert to v1.
 /usr/local/bin/set-robot "$robot"
-screen -dmS rmcs bash -lc \
+screen -L -Logfile "$run/controller.log" -dmS rmcs bash -lc \
     "source /opt/ros/jazzy/setup.bash; source /rmcs_install/local_setup.bash; exec ros2 launch rmcs_bringup rmcs.launch.py robot:=$robot"
 fi
 ready=0
@@ -150,22 +182,6 @@ if (( ! ready )); then
     printf 'Recorder topic did not appear; no recording started.\n' >&2
     exit 1
 fi
-test -d /root
-mkdir -p "$root"
-run="$root/$run_prefix-$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir "$run"
-cp "/rmcs_install/share/rmcs_bringup/config/$robot.yaml" "$run/profile.yaml"
-cp "$source_archive" "$run/controller-source.tar.gz"
-printf '%s  controller-source.tar.gz\n' "$source_sha" > "$run/source.sha256"
-printf '%s\n' "$source_head" > "$run/rmcs-head.txt"
-cp /rmcs_install/lib/librmcs_core.so "$run/librmcs_core.so"
-sha256sum "$run/profile.yaml" > "$run/profile.sha256"
-cp /rmcs_install/share/rmcs_msgs/msg/WheelLegIdentificationSample.msg "$run/"
-cp /rmcs_install/share/rmcs_msgs/msg/WheelLegIdentificationSample.idl "$run/"
-sha256sum "$run/WheelLegIdentificationSample.msg" "$run/WheelLegIdentificationSample.idl" \
-    /rmcs_install/lib/librmcs_core.so > "$run/runtime.sha256"
-printf 'ROS_DISTRO=%s\nROS_VERSION=%s\n' "${ROS_DISTRO:-unknown}" "${ROS_VERSION:-unknown}" \
-    > "$run/ros-environment.txt"
 printf '%s\n' "$response" > "$run/status-before-launch.txt"
 printf '%s\n' "$run" > "$root/.active_run"
 screen -L -Logfile "$run/recorder.log" -dmS wheel-leg-bag bash -lc \
@@ -189,8 +205,9 @@ profile = yaml.safe_load(Path(sys.argv[1], "profile.yaml").read_text())
 wheel = "wheel_leg_wheel_identification_controller" in profile
 controller_name = "wheel_leg_wheel_identification_controller" if wheel else "wheel_leg_pair_identification_controller"
 expected = profile.get(controller_name, {}).get("ros__parameters")
+calibrated = bool(expected and expected.get("probe_pattern") == "calibrated_recording")
 parameter_client = node.create_client(GetParameters, "/" + controller_name + "/get_parameters") if expected else None
-recorder_client = node.create_client(GetParameters, "/wheel_leg_identification_recorder/get_parameters") if wheel else None
+recorder_client = node.create_client(GetParameters, "/wheel_leg_identification_recorder/get_parameters") if wheel or calibrated else None
 runtime_parameters = None
 runtime_recorder_parameters = None
 
@@ -201,14 +218,14 @@ def field_for(value):
     if isinstance(value, str):
         return "string_value"
     if isinstance(value, list):
-        return "double_array_value"
+        return "bool_array_value" if value and isinstance(value[0], bool) else "double_array_value"
     return "integer_value" if isinstance(value, int) else "double_value"
 
 
 def read_values(values, fields):
     result = {}
     types = {"bool_value": 1, "integer_value": 2, "double_value": 3,
-             "string_value": 4, "double_array_value": 8}
+             "string_value": 4, "bool_array_value": 6, "double_array_value": 8}
     for value, (key, field) in zip(values, fields.items()):
         if value.type != types[field]:
             raise SystemExit("Running controller parameters disagree with archived profile: undeclared/wrong type " + key)
@@ -229,9 +246,10 @@ try:
         if expected and runtime_parameters is None:
             if not parameter_client.service_is_ready():
                 continue
-            if wheel:
+            if wheel or calibrated:
                 fields = {key: field_for(value) for key, value in expected.items()}
-                fields["wheel_trajectory_manifest_json"] = "string_value"
+                manifest_key = "recording_manifest_json" if calibrated else "wheel_trajectory_manifest_json"
+                fields[manifest_key] = "string_value"
                 names = list(fields)
             else:
                 names = ["probe_pattern", "control_frequency_hz", "side", "max_tick_gap_s", "probe_measured_delta_policy"]
@@ -255,15 +273,22 @@ try:
             values = parameters_future.result().values
             if len(values) != len(names):
                 raise SystemExit("Running controller did not return its experiment contract")
-            if wheel:
+            if wheel or calibrated:
                 runtime_parameters = read_values(values, fields)
-                manifest = json.loads(runtime_parameters.pop("wheel_trajectory_manifest_json"))
+                manifest = json.loads(runtime_parameters.pop(manifest_key))
                 if (manifest.get("revision") != expected["trajectory_revision"]
                         or manifest.get("reference_frequency_hz") != expected["reference_frequency_hz"]
                         or not manifest.get("segments")):
-                    raise SystemExit("Running wheel trajectory manifest disagrees with archived profile")
+                    raise SystemExit("Running trajectory manifest disagrees with archived profile")
+                if calibrated and manifest.get("run") != expected["recording_run"]:
+                    raise SystemExit("Running V6 run disagrees with archived profile")
                 if runtime_parameters != expected:
                     raise SystemExit("Running controller parameters disagree with archived profile: " + str(runtime_parameters))
+                if calibrated:
+                    manifest.update(calibration_sha256=expected["calibration_sha256"],
+                                    asset_manifest_sha256=expected["asset_manifest_sha256"],
+                                    coordinate_schema="v6_download_link_frames_v1")
+                    Path(sys.argv[1], "calibration.json").write_text(expected["calibration_binding_json"])
                 Path(sys.argv[1], "trajectory-plan.json").write_text(json.dumps(manifest, indent=2) + "\n")
             else:
                 runtime_parameters = {"probe_pattern": values[0].string_value,
@@ -279,12 +304,14 @@ try:
                 expected_parameters["probe_measured_delta_policy"] = expected.get("probe_measured_delta_policy", "stop")
                 if runtime_parameters != expected_parameters:
                     raise SystemExit("Running controller parameters disagree with archived profile: " + str(runtime_parameters))
-        if wheel and runtime_recorder_parameters is None:
+        if (wheel or calibrated) and runtime_recorder_parameters is None:
             if not recorder_client.service_is_ready():
                 continue
             record_expected = profile["wheel_leg_identification_recorder"]["ros__parameters"]
             keys = ("experiment_kind", "record_on_double_middle", "trajectory_revision", "control_frequency_hz",
                     "reference_frequency_hz", "sample_frequency_hz", "wheel_reduction_ratio", "wheels_off_ground")
+            if calibrated:
+                keys = tuple(record_expected)
             record_fields = {key: field_for(record_expected[key]) for key in keys}
             result = recorder_client.call_async(GetParameters.Request(names=list(record_fields)))
             rclpy.spin_until_future_complete(node, result, timeout_sec=1)

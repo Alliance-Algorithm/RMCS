@@ -102,7 +102,8 @@ int32 segment_id
 uint8 segment_role
 # 0=dwell, 1=slow move, 2=two-tone, 3=bounded step,
 # 4=rounded triangle, 5=two-tone validation, 6=linear chirp, 7=full-turn grid,
-# 8=paired multisine (check segment_role for its train/validation assignment).
+# 8=paired multisine (check segment_role for its train/validation assignment),
+# 9=50 Hz held small edge (derivative undefined at the update).
 # Chirp validation is labeled by segment_role=1; wheel stages may use 0/1/5.
 uint8 segment_waveform
 # Wheel stage only: 0=inactive, 1=velocity loop, 2=enabled zero-current coast.
@@ -123,3 +124,30 @@ float64[3] imu_acceleration_mps2
 uint64 imu_acceleration_steady_ns
 # Raw board quarter-microsecond ticks [accelerometer, gyroscope], wrap at 2^32.
 uint32[2] imu_board_timestamp_quarter_us
+
+# Version 1: calibrated V6 single-side recording. Version 0: legacy/wheel run.
+# Geometry-derived beta is an FK estimate, not an independent knee sensor.
+# The exact mapping, calibration provenance and run identity live in profile.yaml.
+uint32 recording_protocol_version
+float64[4] q_unwrapped_model
+float64 inner_knee_fk_deg
+float64 inner_knee_requested_deg
+float64 inner_knee_reference_deg
+float64 thigh_orientation_fk_deg
+# Metadata belongs to the currently held 50 Hz reference. Tick names its most
+# recent executor update; segment time is actual local elapsed time at that update.
+uint64 reference_update_tick
+float64 segment_elapsed_s
+float64 reference_center_delta_rad
+# -1=not applicable, 0=awaiting arrival, 1=qualified group,
+# 3=transition rebased after skipping an uncovered group (actual refs recorded).
+# A latched skipped_arrival_segment identifies an uncovered group after timeout.
+int32 configuration_admission
+int32 skipped_arrival_segment
+int32 jump_cycle_id
+# 0=none, 1=compress, 2=loaded, 3=extend, 4=tuck, 5=reach,
+# 6=airborne buffer shape, 7=settle, 8=gap. No label implies measured contact.
+int32 jump_phase
+
+# Latched last qualified hold, including static holds immediately followed by a new group.
+int32 qualified_arrival_segment

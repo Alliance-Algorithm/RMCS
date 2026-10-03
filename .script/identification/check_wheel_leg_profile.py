@@ -13,6 +13,8 @@ from pathlib import Path
 
 import yaml
 
+from v6_pair_recording import check_recording_profile
+
 
 ARRAY_SIZES = {
     **{key: 4 for key in (
@@ -175,6 +177,8 @@ def check(profile: dict) -> list[str]:
             errors.append("passive recording requires record_on_double_middle: true")
     elif controller.get("side") not in ("left", "right") or recorder.get("side") != controller.get("side"):
         errors.append("controller and recorder must select the same left/right side")
+    if controller.get("probe_pattern") == "calibrated_recording":
+        return errors + check_recording_profile(profile)
     stage = controller.get("experiment_stage", "hold")
     if stage not in ("hold", "probe", "trajectory"):
         errors.append("experiment_stage must be hold, probe or trajectory")

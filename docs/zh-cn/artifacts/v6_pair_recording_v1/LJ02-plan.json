@@ -1,0 +1,5923 @@
+{
+  "revision": "pair_v6_recording_v1",
+  "run": "LJ02",
+  "boundary_condition": "fixed_base_airborne_installed_springs",
+  "reference_frequency_hz": 50,
+  "control_frequency_hz": 1000,
+  "beta_source": "calibrated_FK_estimate",
+  "duration_s": 212.84000000000012,
+  "arrival_waits_extend_duration": true,
+  "entry_initial_pose": "fresh_feedback_at_arm",
+  "entry_from_is_placeholder": true,
+  "budget_check_grid_s": 0.001,
+  "uncovered_transition": "bounded quintic from last reference; admission=3",
+  "held_edge_derivative": "undefined at update; zero between updates",
+  "multisine_common_hz": [
+    0.17,
+    0.43,
+    0.79,
+    1.31,
+    2.17,
+    3.73
+  ],
+  "multisine_beta_hz": [
+    0.23,
+    0.61,
+    1.07,
+    1.73,
+    2.41,
+    3.91
+  ],
+  "multisine_phase_rad": "pi*i*(i+1)/6; beta adds 0.47",
+  "chirp_beta_phase_rad": 1.0471975511965976,
+  "multisine_normalization": "sum of component amplitude bounds = 1",
+  "hip_map": [
+    -1.0,
+    -1.5707963267948966
+  ],
+  "admitted_beta_rad": [
+    1.1344640137963142,
+    1.7453292519943295
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "name": "entry_from_feedback",
+      "start_s": 0,
+      "duration_s": 8,
+      "requested_s": 8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 0,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 1,
+      "name": "baseline/start/move",
+      "start_s": 8,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 1,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "name": "baseline/start/arrival",
+      "start_s": 10,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 1,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 3,
+      "name": "baseline/start/sample",
+      "start_s": 14,
+      "duration_s": 30,
+      "requested_s": 30,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 1,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 4,
+      "name": "jump/ready/move",
+      "start_s": 44,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 2,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 5,
+      "name": "jump/ready/arrival",
+      "start_s": 46,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 2,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.5707963267948966
+      ],
+      "to": [
+        3.141592653589793,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 6,
+      "name": "jump/cycle0/compress",
+      "start_s": 50,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.5707963267948966
+      ],
+      "to": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 7,
+      "name": "jump/cycle0/loaded",
+      "start_s": 50.8,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 8,
+      "name": "jump/cycle0/extend",
+      "start_s": 51.4,
+      "duration_s": 0.66,
+      "requested_s": 0.6599999999999999,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 9,
+      "name": "jump/cycle0/tuck",
+      "start_s": 52.059999999999995,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "to": [
+        2.9670597283903604,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 10,
+      "name": "jump/cycle0/reach",
+      "start_s": 52.35999999999999,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        2.9670597283903604,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 11,
+      "name": "jump/cycle0/buffer",
+      "start_s": 52.65999999999999,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 12,
+      "name": "jump/cycle0/settle",
+      "start_s": 52.95999999999999,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 13,
+      "name": "jump/cycle0/gap",
+      "start_s": 53.759999999999984,
+      "duration_s": 3,
+      "requested_s": 3,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": 0,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 14,
+      "name": "jump/cycle1/compress",
+      "start_s": 56.759999999999984,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 15,
+      "name": "jump/cycle1/loaded",
+      "start_s": 57.55999999999998,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 16,
+      "name": "jump/cycle1/extend",
+      "start_s": 58.15999999999998,
+      "duration_s": 0.66,
+      "requested_s": 0.6599999999999999,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 17,
+      "name": "jump/cycle1/tuck",
+      "start_s": 58.81999999999998,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "to": [
+        2.9670597283903604,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 18,
+      "name": "jump/cycle1/reach",
+      "start_s": 59.119999999999976,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        2.9670597283903604,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 19,
+      "name": "jump/cycle1/buffer",
+      "start_s": 59.41999999999997,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 20,
+      "name": "jump/cycle1/settle",
+      "start_s": 59.71999999999997,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 21,
+      "name": "jump/cycle1/gap",
+      "start_s": 60.51999999999997,
+      "duration_s": 1.5,
+      "requested_s": 1.5,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": 1,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 22,
+      "name": "jump/cycle2/compress",
+      "start_s": 62.01999999999997,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 23,
+      "name": "jump/cycle2/loaded",
+      "start_s": 62.819999999999965,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 24,
+      "name": "jump/cycle2/extend",
+      "start_s": 63.419999999999966,
+      "duration_s": 0.66,
+      "requested_s": 0.6599999999999999,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 25,
+      "name": "jump/cycle2/tuck",
+      "start_s": 64.07999999999997,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "to": [
+        2.9670597283903604,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 26,
+      "name": "jump/cycle2/reach",
+      "start_s": 64.37999999999997,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        2.9670597283903604,
+        1.3439035240356338
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 27,
+      "name": "jump/cycle2/buffer",
+      "start_s": 64.67999999999996,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 28,
+      "name": "jump/cycle2/settle",
+      "start_s": 64.97999999999996,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 29,
+      "name": "jump/cycle2/gap",
+      "start_s": 65.77999999999996,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": 2,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 30,
+      "name": "jump/ready/move",
+      "start_s": 66.77999999999996,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 6,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 31,
+      "name": "jump/ready/arrival",
+      "start_s": 68.77999999999996,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 6,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.5235987755982988,
+        1.5707963267948966
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 32,
+      "name": "jump/cycle3/compress",
+      "start_s": 72.77999999999996,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.5707963267948966
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 33,
+      "name": "jump/cycle3/loaded",
+      "start_s": 73.57999999999996,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 34,
+      "name": "jump/cycle3/extend",
+      "start_s": 74.17999999999995,
+      "duration_s": 0.42,
+      "requested_s": 0.41,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 35,
+      "name": "jump/cycle3/tuck",
+      "start_s": 74.59999999999995,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.710422666954443
+      ],
+      "to": [
+        -0.6981317007977318,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 36,
+      "name": "jump/cycle3/reach",
+      "start_s": 74.89999999999995,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.6981317007977318,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 37,
+      "name": "jump/cycle3/buffer",
+      "start_s": 75.19999999999995,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.6580627893946132
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 38,
+      "name": "jump/cycle3/settle",
+      "start_s": 75.49999999999994,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.2566370614359172
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 39,
+      "name": "jump/cycle3/gap",
+      "start_s": 76.29999999999994,
+      "duration_s": 3,
+      "requested_s": 3,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": 3,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 40,
+      "name": "jump/cycle4/compress",
+      "start_s": 79.29999999999994,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 41,
+      "name": "jump/cycle4/loaded",
+      "start_s": 80.09999999999994,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 42,
+      "name": "jump/cycle4/extend",
+      "start_s": 80.69999999999993,
+      "duration_s": 0.42,
+      "requested_s": 0.41,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 43,
+      "name": "jump/cycle4/tuck",
+      "start_s": 81.11999999999993,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.710422666954443
+      ],
+      "to": [
+        -0.6981317007977318,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 44,
+      "name": "jump/cycle4/reach",
+      "start_s": 81.41999999999993,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.6981317007977318,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 45,
+      "name": "jump/cycle4/buffer",
+      "start_s": 81.71999999999993,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.6580627893946132
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 46,
+      "name": "jump/cycle4/settle",
+      "start_s": 82.01999999999992,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.2566370614359172
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 47,
+      "name": "jump/cycle4/gap",
+      "start_s": 82.81999999999992,
+      "duration_s": 1.5,
+      "requested_s": 1.5,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": 4,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 48,
+      "name": "jump/cycle5/compress",
+      "start_s": 84.31999999999992,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 49,
+      "name": "jump/cycle5/loaded",
+      "start_s": 85.11999999999992,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 50,
+      "name": "jump/cycle5/extend",
+      "start_s": 85.71999999999991,
+      "duration_s": 0.42,
+      "requested_s": 0.41,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 51,
+      "name": "jump/cycle5/tuck",
+      "start_s": 86.13999999999992,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.710422666954443
+      ],
+      "to": [
+        -0.6981317007977318,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 52,
+      "name": "jump/cycle5/reach",
+      "start_s": 86.43999999999991,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.6981317007977318,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 53,
+      "name": "jump/cycle5/buffer",
+      "start_s": 86.73999999999991,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.6580627893946132
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 54,
+      "name": "jump/cycle5/settle",
+      "start_s": 87.0399999999999,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.2566370614359172
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 55,
+      "name": "jump/cycle5/gap",
+      "start_s": 87.8399999999999,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": 5,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 56,
+      "name": "jump/ready/move",
+      "start_s": 88.8399999999999,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 10,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        0.5235987755982988,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 57,
+      "name": "jump/ready/arrival",
+      "start_s": 90.8399999999999,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 10,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.5235987755982988,
+        1.5707963267948966
+      ],
+      "to": [
+        0.5235987755982988,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 58,
+      "name": "jump/cycle6/compress",
+      "start_s": 94.8399999999999,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.5707963267948966
+      ],
+      "to": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 59,
+      "name": "jump/cycle6/loaded",
+      "start_s": 95.6399999999999,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 60,
+      "name": "jump/cycle6/extend",
+      "start_s": 96.2399999999999,
+      "duration_s": 0.26,
+      "requested_s": 0.26,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        0.5235987755982988,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 61,
+      "name": "jump/cycle6/tuck",
+      "start_s": 96.4999999999999,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.710422666954443
+      ],
+      "to": [
+        0.34906585039886584,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 62,
+      "name": "jump/cycle6/reach",
+      "start_s": 96.7999999999999,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        0.34906585039886584,
+        1.3439035240356338
+      ],
+      "to": [
+        0.5235987755982988,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 63,
+      "name": "jump/cycle6/buffer",
+      "start_s": 97.0999999999999,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.6580627893946132
+      ],
+      "to": [
+        0.5235987755982988,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 64,
+      "name": "jump/cycle6/settle",
+      "start_s": 97.39999999999989,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.2566370614359172
+      ],
+      "to": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 65,
+      "name": "jump/cycle6/gap",
+      "start_s": 98.19999999999989,
+      "duration_s": 3,
+      "requested_s": 3,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": 6,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 66,
+      "name": "jump/cycle7/compress",
+      "start_s": 101.19999999999989,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 67,
+      "name": "jump/cycle7/loaded",
+      "start_s": 101.99999999999989,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 68,
+      "name": "jump/cycle7/extend",
+      "start_s": 102.59999999999988,
+      "duration_s": 0.26,
+      "requested_s": 0.26,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        0.5235987755982988,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 69,
+      "name": "jump/cycle7/tuck",
+      "start_s": 102.85999999999989,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.710422666954443
+      ],
+      "to": [
+        0.34906585039886584,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 70,
+      "name": "jump/cycle7/reach",
+      "start_s": 103.15999999999988,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        0.34906585039886584,
+        1.3439035240356338
+      ],
+      "to": [
+        0.5235987755982988,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 71,
+      "name": "jump/cycle7/buffer",
+      "start_s": 103.45999999999988,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.6580627893946132
+      ],
+      "to": [
+        0.5235987755982988,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 72,
+      "name": "jump/cycle7/settle",
+      "start_s": 103.75999999999988,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.2566370614359172
+      ],
+      "to": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 73,
+      "name": "jump/cycle7/gap",
+      "start_s": 104.55999999999987,
+      "duration_s": 1.5,
+      "requested_s": 1.5,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": 7,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 74,
+      "name": "jump/cycle8/compress",
+      "start_s": 106.05999999999987,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 75,
+      "name": "jump/cycle8/loaded",
+      "start_s": 106.85999999999987,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 76,
+      "name": "jump/cycle8/extend",
+      "start_s": 107.45999999999987,
+      "duration_s": 0.26,
+      "requested_s": 0.26,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.1693705988362009
+      ],
+      "to": [
+        0.5235987755982988,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 77,
+      "name": "jump/cycle8/tuck",
+      "start_s": 107.71999999999987,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.710422666954443
+      ],
+      "to": [
+        0.34906585039886584,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 78,
+      "name": "jump/cycle8/reach",
+      "start_s": 108.01999999999987,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        0.34906585039886584,
+        1.3439035240356338
+      ],
+      "to": [
+        0.5235987755982988,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 79,
+      "name": "jump/cycle8/buffer",
+      "start_s": 108.31999999999987,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.6580627893946132
+      ],
+      "to": [
+        0.5235987755982988,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 80,
+      "name": "jump/cycle8/settle",
+      "start_s": 108.61999999999986,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.2566370614359172
+      ],
+      "to": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 81,
+      "name": "jump/cycle8/gap",
+      "start_s": 109.41999999999986,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": 8,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 82,
+      "name": "jump/ready/move",
+      "start_s": 110.41999999999986,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 14,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0.5235987755982988,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 83,
+      "name": "jump/ready/arrival",
+      "start_s": 112.41999999999986,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 14,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.2617993877991494,
+        1.5707963267948966
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 84,
+      "name": "jump/cycle9/compress",
+      "start_s": 116.41999999999986,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.5707963267948966
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 85,
+      "name": "jump/cycle9/loaded",
+      "start_s": 117.21999999999986,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 86,
+      "name": "jump/cycle9/extend",
+      "start_s": 117.81999999999985,
+      "duration_s": 0.66,
+      "requested_s": 0.6599999999999999,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 87,
+      "name": "jump/cycle9/tuck",
+      "start_s": 118.47999999999985,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.710422666954443
+      ],
+      "to": [
+        -0.43633231299858233,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 88,
+      "name": "jump/cycle9/reach",
+      "start_s": 118.77999999999984,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.43633231299858233,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 89,
+      "name": "jump/cycle9/buffer",
+      "start_s": 119.07999999999984,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.6580627893946132
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 90,
+      "name": "jump/cycle9/settle",
+      "start_s": 119.37999999999984,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.2566370614359172
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 91,
+      "name": "jump/cycle9/gap",
+      "start_s": 120.17999999999984,
+      "duration_s": 3,
+      "requested_s": 3,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": 9,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 92,
+      "name": "jump/cycle10/compress",
+      "start_s": 123.17999999999984,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 93,
+      "name": "jump/cycle10/loaded",
+      "start_s": 123.97999999999983,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 94,
+      "name": "jump/cycle10/extend",
+      "start_s": 124.57999999999983,
+      "duration_s": 0.66,
+      "requested_s": 0.6599999999999999,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 95,
+      "name": "jump/cycle10/tuck",
+      "start_s": 125.23999999999982,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.710422666954443
+      ],
+      "to": [
+        -0.43633231299858233,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 96,
+      "name": "jump/cycle10/reach",
+      "start_s": 125.53999999999982,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.43633231299858233,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 97,
+      "name": "jump/cycle10/buffer",
+      "start_s": 125.83999999999982,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.6580627893946132
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 98,
+      "name": "jump/cycle10/settle",
+      "start_s": 126.13999999999982,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.2566370614359172
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 99,
+      "name": "jump/cycle10/gap",
+      "start_s": 126.93999999999981,
+      "duration_s": 1.5,
+      "requested_s": 1.5,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": 10,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 100,
+      "name": "jump/cycle11/compress",
+      "start_s": 128.43999999999983,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 101,
+      "name": "jump/cycle11/loaded",
+      "start_s": 129.23999999999984,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 102,
+      "name": "jump/cycle11/extend",
+      "start_s": 129.83999999999983,
+      "duration_s": 0.66,
+      "requested_s": 0.6599999999999999,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 103,
+      "name": "jump/cycle11/tuck",
+      "start_s": 130.49999999999983,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.710422666954443
+      ],
+      "to": [
+        -0.43633231299858233,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 104,
+      "name": "jump/cycle11/reach",
+      "start_s": 130.79999999999984,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.43633231299858233,
+        1.3439035240356338
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 105,
+      "name": "jump/cycle11/buffer",
+      "start_s": 131.09999999999985,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.6580627893946132
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 106,
+      "name": "jump/cycle11/settle",
+      "start_s": 131.39999999999986,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.2566370614359172
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 107,
+      "name": "jump/cycle11/gap",
+      "start_s": 132.19999999999987,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": 11,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 108,
+      "name": "jump/ready/move",
+      "start_s": 133.19999999999987,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 18,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        0.2617993877991494,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 109,
+      "name": "jump/ready/arrival",
+      "start_s": 135.19999999999987,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 18,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.2617993877991494,
+        1.5707963267948966
+      ],
+      "to": [
+        0.2617993877991494,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 110,
+      "name": "jump/cycle12/compress",
+      "start_s": 139.19999999999987,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.5707963267948966
+      ],
+      "to": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 111,
+      "name": "jump/cycle12/loaded",
+      "start_s": 139.9999999999999,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "to": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 112,
+      "name": "jump/cycle12/extend",
+      "start_s": 140.59999999999988,
+      "duration_s": 0.42,
+      "requested_s": 0.41,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "to": [
+        0.2617993877991494,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 113,
+      "name": "jump/cycle12/tuck",
+      "start_s": 141.01999999999987,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.710422666954443
+      ],
+      "to": [
+        0.08726646259971646,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 114,
+      "name": "jump/cycle12/reach",
+      "start_s": 141.31999999999988,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        0.08726646259971646,
+        1.3439035240356338
+      ],
+      "to": [
+        0.2617993877991494,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 115,
+      "name": "jump/cycle12/buffer",
+      "start_s": 141.6199999999999,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.6580627893946132
+      ],
+      "to": [
+        0.2617993877991494,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 116,
+      "name": "jump/cycle12/settle",
+      "start_s": 141.9199999999999,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.2566370614359172
+      ],
+      "to": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 117,
+      "name": "jump/cycle12/gap",
+      "start_s": 142.7199999999999,
+      "duration_s": 3,
+      "requested_s": 3,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": 12,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 118,
+      "name": "jump/cycle13/compress",
+      "start_s": 145.7199999999999,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 119,
+      "name": "jump/cycle13/loaded",
+      "start_s": 146.51999999999992,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "to": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 120,
+      "name": "jump/cycle13/extend",
+      "start_s": 147.11999999999992,
+      "duration_s": 0.42,
+      "requested_s": 0.41,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "to": [
+        0.2617993877991494,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 121,
+      "name": "jump/cycle13/tuck",
+      "start_s": 147.5399999999999,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.710422666954443
+      ],
+      "to": [
+        0.08726646259971646,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 122,
+      "name": "jump/cycle13/reach",
+      "start_s": 147.83999999999992,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        0.08726646259971646,
+        1.3439035240356338
+      ],
+      "to": [
+        0.2617993877991494,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 123,
+      "name": "jump/cycle13/buffer",
+      "start_s": 148.13999999999993,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.6580627893946132
+      ],
+      "to": [
+        0.2617993877991494,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 124,
+      "name": "jump/cycle13/settle",
+      "start_s": 148.43999999999994,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.2566370614359172
+      ],
+      "to": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 125,
+      "name": "jump/cycle13/gap",
+      "start_s": 149.23999999999995,
+      "duration_s": 1.5,
+      "requested_s": 1.5,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": 13,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 126,
+      "name": "jump/cycle14/compress",
+      "start_s": 150.73999999999995,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 127,
+      "name": "jump/cycle14/loaded",
+      "start_s": 151.53999999999996,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "to": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 128,
+      "name": "jump/cycle14/extend",
+      "start_s": 152.13999999999996,
+      "duration_s": 0.42,
+      "requested_s": 0.41,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.1693705988362009
+      ],
+      "to": [
+        0.2617993877991494,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 129,
+      "name": "jump/cycle14/tuck",
+      "start_s": 152.55999999999995,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.710422666954443
+      ],
+      "to": [
+        0.08726646259971646,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 130,
+      "name": "jump/cycle14/reach",
+      "start_s": 152.85999999999996,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        0.08726646259971646,
+        1.3439035240356338
+      ],
+      "to": [
+        0.2617993877991494,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 131,
+      "name": "jump/cycle14/buffer",
+      "start_s": 153.15999999999997,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.6580627893946132
+      ],
+      "to": [
+        0.2617993877991494,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 132,
+      "name": "jump/cycle14/settle",
+      "start_s": 153.45999999999998,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.2566370614359172
+      ],
+      "to": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 133,
+      "name": "jump/cycle14/gap",
+      "start_s": 154.26,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": 14,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 134,
+      "name": "jump/ready/move",
+      "start_s": 155.26,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 22,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0.2617993877991494,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 135,
+      "name": "jump/ready/arrival",
+      "start_s": 157.26,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 22,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.5707963267948966
+      ],
+      "to": [
+        0,
+        1.5707963267948966
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 136,
+      "name": "jump/cycle15/compress",
+      "start_s": 161.26,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.5707963267948966
+      ],
+      "to": [
+        0,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 137,
+      "name": "jump/cycle15/loaded",
+      "start_s": 162.06,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.1693705988362009
+      ],
+      "to": [
+        0,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 138,
+      "name": "jump/cycle15/extend",
+      "start_s": 162.66,
+      "duration_s": 0.26,
+      "requested_s": 0.26,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1693705988362009
+      ],
+      "to": [
+        0,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 139,
+      "name": "jump/cycle15/tuck",
+      "start_s": 162.92,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.710422666954443
+      ],
+      "to": [
+        -0.17453292519943295,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 140,
+      "name": "jump/cycle15/reach",
+      "start_s": 163.22,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.17453292519943295,
+        1.3439035240356338
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 141,
+      "name": "jump/cycle15/buffer",
+      "start_s": 163.52,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 142,
+      "name": "jump/cycle15/settle",
+      "start_s": 163.82000000000002,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.2566370614359172
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 143,
+      "name": "jump/cycle15/gap",
+      "start_s": 164.62000000000003,
+      "duration_s": 3,
+      "requested_s": 3,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": 15,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 144,
+      "name": "jump/cycle16/compress",
+      "start_s": 167.62000000000003,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 145,
+      "name": "jump/cycle16/loaded",
+      "start_s": 168.42000000000004,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.1693705988362009
+      ],
+      "to": [
+        0,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 146,
+      "name": "jump/cycle16/extend",
+      "start_s": 169.02000000000004,
+      "duration_s": 0.26,
+      "requested_s": 0.26,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1693705988362009
+      ],
+      "to": [
+        0,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 147,
+      "name": "jump/cycle16/tuck",
+      "start_s": 169.28000000000003,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.710422666954443
+      ],
+      "to": [
+        -0.17453292519943295,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 148,
+      "name": "jump/cycle16/reach",
+      "start_s": 169.58000000000004,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.17453292519943295,
+        1.3439035240356338
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 149,
+      "name": "jump/cycle16/buffer",
+      "start_s": 169.88000000000005,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 150,
+      "name": "jump/cycle16/settle",
+      "start_s": 170.18000000000006,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.2566370614359172
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 151,
+      "name": "jump/cycle16/gap",
+      "start_s": 170.98000000000008,
+      "duration_s": 1.5,
+      "requested_s": 1.5,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": 16,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 152,
+      "name": "jump/cycle17/compress",
+      "start_s": 172.48000000000008,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 1,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 153,
+      "name": "jump/cycle17/loaded",
+      "start_s": 173.2800000000001,
+      "duration_s": 0.6,
+      "requested_s": 0.6,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 2,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.1693705988362009
+      ],
+      "to": [
+        0,
+        1.1693705988362009
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 154,
+      "name": "jump/cycle17/extend",
+      "start_s": 173.88000000000008,
+      "duration_s": 0.26,
+      "requested_s": 0.26,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 3,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1693705988362009
+      ],
+      "to": [
+        0,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 155,
+      "name": "jump/cycle17/tuck",
+      "start_s": 174.14000000000007,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 4,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.710422666954443
+      ],
+      "to": [
+        -0.17453292519943295,
+        1.3439035240356338
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 156,
+      "name": "jump/cycle17/reach",
+      "start_s": 174.44000000000008,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 5,
+      "arrival_stable_s": 0,
+      "from": [
+        -0.17453292519943295,
+        1.3439035240356338
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 157,
+      "name": "jump/cycle17/buffer",
+      "start_s": 174.7400000000001,
+      "duration_s": 0.3,
+      "requested_s": 0.3,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 6,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 158,
+      "name": "jump/cycle17/settle",
+      "start_s": 175.0400000000001,
+      "duration_s": 0.8,
+      "requested_s": 0.8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 7,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.2566370614359172
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 159,
+      "name": "jump/cycle17/gap",
+      "start_s": 175.84000000000012,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": 17,
+      "jump_phase": 8,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 160,
+      "name": "baseline/end/move",
+      "start_s": 176.84000000000012,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 26,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 161,
+      "name": "baseline/end/arrival",
+      "start_s": 178.84000000000012,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": true,
+      "group": 26,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 162,
+      "name": "baseline/end/sample",
+      "start_s": 182.84000000000012,
+      "duration_s": 30,
+      "requested_s": 30,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 1,
+      "arrival_required": false,
+      "group": 26,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    }
+  ],
+  "calibration_sha256": "da5cffb42b4760eb7bd858a7c294305469539862bd288c611666905c42684e35",
+  "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+  "coordinate_schema": "v6_download_link_frames_v1",
+  "admitted_beta_deg": [
+    65.0,
+    100.0
+  ],
+  "reference_preview": "nominal; arrival waits, skips and center corrections depend on feedback",
+  "control_law": "tau=clip(160*(q_held-q)-2.5*dq, -40, 40); no I or feedforward",
+  "preview_binary_sha256": "12e93f8656c37f128df39ce4da41fdaa1729d654d65bbe00d6413d2a8b7df4b0",
+  "capacity_status": "kinematic budgets checked; torque/load and physical clearance require rig verification"
+}

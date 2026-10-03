@@ -160,3 +160,71 @@ def test_wheel_readiness_checks_full_controller_and_recorder_contract(tmp_path, 
         assert saved["runtime_parameters"] == profile["wheel_leg_wheel_identification_controller"]["ros__parameters"]
         assert saved["runtime_recorder_parameters"]["sample_frequency_hz"] == 1000.
         assert json.loads((tmp_path / "trajectory-plan.json").read_text())["revision"] == "wheel_multiband_v2"
+
+@pytest.mark.parametrize("mismatch", [None, "recording_run", "recording_delta_rad", "calibration_sha256",
+    "model_sign", "pd_kp", "recorder_asset", "recorder_gate", "recorder_undeclared", "manifest_run"])
+def test_v6_readiness_checks_mapping_run_and_recorder(tmp_path, monkeypatch, mismatch):
+    import copy
+    import json
+    from v6_pair_recording import generate_profile
+    profile = generate_profile("LJ01")
+    controller = copy.deepcopy(profile["wheel_leg_pair_identification_controller"]["ros__parameters"])
+    recorder = copy.deepcopy(profile["wheel_leg_identification_recorder"]["ros__parameters"])
+    manifest = {"revision": controller["trajectory_revision"], "run": "LJ01",
+                "reference_frequency_hz": 50., "segments": [{"id": 0}]}
+    if mismatch in ("recording_run", "calibration_sha256"):
+        controller[mismatch] = "wrong"
+    elif mismatch in ("recording_delta_rad", "model_sign", "pd_kp"):
+        controller[mismatch][0] += 1
+    elif mismatch == "recorder_asset": recorder["asset_manifest_sha256"] = "v5"
+    elif mismatch == "recorder_gate": recorder["record_on_double_middle"] = False
+    elif mismatch == "manifest_run": manifest["run"] = "LJ02"
+    controller["recording_manifest_json"] = json.dumps(manifest)
+    (tmp_path / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
+
+    def value(key, data):
+        field, kind = ("bool_value", 1) if isinstance(data, bool) else ("string_value", 4) if isinstance(data, str) \
+            else ("bool_array_value", 6) if isinstance(data, list) and isinstance(data[0], bool) \
+            else ("double_array_value", 8) if isinstance(data, list) else ("integer_value", 2) if isinstance(data, int) \
+            else ("double_value", 3)
+        if mismatch == "recorder_undeclared" and key == "api_motor_reversed": kind = 0
+        return SimpleNamespace(type=kind, **{field: data})
+
+    class Client:
+        def __init__(self, path): self.path = path
+        def service_is_ready(self): return True
+        def call_async(self, request):
+            if self.path.endswith("get_parameters"):
+                data = recorder if "recorder/" in self.path else controller
+                result = SimpleNamespace(values=[value(k, data[k]) for k in request.names])
+            else: result = SimpleNamespace(paused=False)
+            return SimpleNamespace(done=lambda: True, result=lambda: result)
+    node = SimpleNamespace(create_client=lambda service, path: Client(path),
+        get_publishers_info_by_topic=lambda topic: [SimpleNamespace(node_name="wheel_leg_identification_recorder")],
+        get_subscriptions_info_by_topic=lambda topic: [SimpleNamespace(node_name="rosbag2_recorder")],
+        destroy_node=lambda: None)
+    ros = ModuleType("rclpy")
+    ros.init = lambda: None
+    ros.shutdown = lambda: None
+    ros.create_node = lambda name: node
+    ros.spin_once = lambda *a, **kw: None
+    ros.spin_until_future_complete = lambda *a, **kw: None
+    monkeypatch.setitem(sys.modules, "rclpy", ros)
+    for package, name in (("rosbag2_interfaces", "IsPaused"), ("rcl_interfaces", "GetParameters")):
+        parent = ModuleType(package)
+        service = ModuleType(package + ".srv")
+        setattr(service, name, SimpleNamespace(Request=SimpleNamespace))
+        parent.srv = service
+        monkeypatch.setitem(sys.modules, package, parent)
+        monkeypatch.setitem(sys.modules, package + ".srv", service)
+    monkeypatch.setattr(sys, "argv", ["readiness", str(tmp_path)])
+    launcher = Path(__file__).with_name("remote-wheel-leg-identify").read_text()
+    source = launcher.split("<<'PY_READY'\n", 1)[1].split("\nPY_READY", 1)[0]
+    if mismatch:
+        with pytest.raises(SystemExit, match="disagree"):
+            exec(compile(source, "v6-readiness", "exec"), {})
+        assert not (tmp_path / "recording-ready.json").exists()
+    else:
+        exec(compile(source, "v6-readiness", "exec"), {})
+        assert json.loads((tmp_path / "trajectory-plan.json").read_text())["run"] == "LJ01"
+        assert (tmp_path / "calibration.json").read_text() == controller["calibration_binding_json"]

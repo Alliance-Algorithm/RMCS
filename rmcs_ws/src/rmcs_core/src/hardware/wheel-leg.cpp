@@ -26,12 +26,12 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "hardware/device/bmi088_ekf.hpp"
-#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "hardware/device/wheel_leg_sensor_snapshot.hpp"
 #include "hardware/wheel_leg_control.hpp"
 
 namespace rmcs_core::hardware {
@@ -86,6 +86,11 @@ private:
         using Action = WheelLegDmCommandScheduler::Action;
         using JointActions = std::array<Action, 2>;
 
+        struct WheelSubmission {
+            std::array<double, 2> torque_api{};
+            std::array<std::uint8_t, 2> kind{};
+        };
+
         struct CommandCycle {
             bool side_bound;
             int selected_side;
@@ -113,14 +118,13 @@ private:
                   {status, command, "/wheel_leg/right_hip_joint"})
             , knee_motors_(
                   {status, command, "/wheel_leg/left_knee_joint"},
-                  {status, command, "/wheel_leg/right_knee_joint"}) {
+                  {status, command, "/wheel_leg/right_knee_joint"})
+            // Confirmed installed frame: BMI088 +X forward, +Y left, +Z up.
+            , bmi088_(device::Bmi088Ekf::Config{.body_to_sensor = Eigen::Matrix3d::Identity()}) {
 
             register_telemetry(status, command);
             configure_control(status, command);
             configure_motors(status);
-
-            for (auto& packet : motor_frame_)
-                packet.store(device::CanPacket8{std::uint64_t{0}}, std::memory_order_relaxed);
 
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = false;
@@ -130,6 +134,7 @@ private:
         }
 
         void update() {
+            publish_last_wheel_submission();
             update_motor_status();
             publish_motor_feedback();
             publish_imu_feedback();
@@ -140,11 +145,23 @@ private:
         void command_update() {
             reset_command_telemetry();
             const auto cycle = evaluate_drive_request();
-            auto builder = board_->start_transmit();
-            queue_wheel_commands(builder, cycle.wheel_torque_allowed);
-            const auto actions = schedule_joint_commands(cycle);
-            queue_joint_commands(builder, cycle, actions);
-            commit_drive_request(cycle, actions);
+            {
+                auto builder = board_->start_transmit();
+                queue_wheel_commands(builder, cycle.wheel_torque_allowed);
+                const auto actions = schedule_joint_commands(cycle);
+                queue_joint_commands(builder, cycle, actions);
+                commit_drive_request(cycle, actions);
+            }
+            // The builder submits on destruction. Transfer one complete previous submission to
+            // the status component so observers can read it without a command -> controller cycle.
+            // Torque is the encoded current expressed in API wheel Nm; time is the host queue
+            // time. The SDK does not expose a transport-success or CAN-delivery acknowledgement.
+            wheel_submission_.publish(
+                WheelSubmission{
+                    {*frame_torque_outputs_[4], *frame_torque_outputs_[5]},
+                    {*tx_kind_outputs_[4], *tx_kind_outputs_[5]},
+                },
+                *tx_ns_outputs_[4]);
         }
 
         void calibrate() {
@@ -244,6 +261,11 @@ private:
             status.register_output(
                 "/wheel_leg/imu/last_steady_ns", imu_last_output_, std::uint64_t{0});
             status.register_output(
+                "/wheel_leg/imu/sequence", imu_sequence_output_, std::uint64_t{0});
+            status.register_output(
+                "/wheel_leg/imu/acceleration_sequence", acceleration_sequence_output_,
+                std::uint64_t{0});
+            status.register_output(
                 "/wheel_leg/imu/accelerometer_board_quarter_us", accel_board_ticks_output_,
                 std::uint32_t{0});
             status.register_output(
@@ -266,6 +288,17 @@ private:
                 status.register_output(
                     prefix + "/feedback_frame_bytes", feedback_frame_outputs_[i],
                     std::array<std::uint8_t, 8>{});
+                if (i >= 4) {
+                    status.register_output(
+                        prefix + "/last_submitted_torque", wheel_submitted_torque_outputs_[i - 4],
+                        std::numeric_limits<double>::quiet_NaN());
+                    status.register_output(
+                        prefix + "/last_submitted_kind", wheel_submitted_kind_outputs_[i - 4],
+                        std::uint8_t{0});
+                    status.register_output(
+                        prefix + "/last_submitted_steady_ns", wheel_submitted_ns_outputs_[i - 4],
+                        std::uint64_t{0});
+                }
                 command.register_output(
                     prefix + "/tau_frame_api", frame_torque_outputs_[i],
                     std::numeric_limits<double>::quiet_NaN());
@@ -365,30 +398,48 @@ private:
         }
 
         void update_motor_status() {
-            for (auto& motor : wheel_motors_)
-                motor.update_status();
-            for (auto& motor : hip_motors_)
-                motor.update_status();
-            for (auto& motor : knee_motors_)
-                motor.update_status();
+            const auto update = [&](auto& motors, std::size_t offset) {
+                for (std::size_t side = 0; side < std::size(motors); ++side) {
+                    const auto index = offset + side;
+                    auto& buffer = motor_feedback_[index];
+                    const auto previous_sequence = buffer.latest().sequence;
+                    const auto& snapshot = buffer.read();
+                    if (snapshot.sequence != previous_sequence) {
+                        motors[side].update_status(snapshot.value);
+                        motor_last_ns_[index].store(
+                            static_cast<std::int64_t>(snapshot.steady_ns),
+                            std::memory_order_relaxed);
+                    }
+                }
+            };
+            update(wheel_motors_, 0);
+            update(hip_motors_, 2);
+            update(knee_motors_, 4);
+        }
+
+        void publish_last_wheel_submission() {
+            const auto& snapshot = wheel_submission_.read();
+            if (snapshot.sequence == 0)
+                return;
+            for (std::size_t side = 0; side < 2; ++side) {
+                *wheel_submitted_torque_outputs_[side] = snapshot.value.torque_api[side];
+                *wheel_submitted_kind_outputs_[side] = snapshot.value.kind[side];
+                *wheel_submitted_ns_outputs_[side] = snapshot.steady_ns;
+            }
         }
 
         void publish_motor_feedback() {
-            // CAN callbacks alone advance these counters; re-decoding a cached frame does not.
+            // Publish exactly the sample decoded above. A callback may already have received a
+            // newer frame, which remains in the mailbox until the next executor update.
             constexpr std::array kReceiveIndex{2, 4, 3, 5, 0, 1};
             for (std::size_t i = 0; i < kReceiveIndex.size(); ++i) {
-                const auto index = kReceiveIndex[i];
-                *feedback_sequence_outputs_[i] =
-                    motor_receive_count_[index].load(std::memory_order_acquire);
-                *feedback_ns_outputs_[i] =
-                    *feedback_sequence_outputs_[i] == 0
-                        ? 0
-                        : static_cast<std::uint64_t>(
-                              motor_last_ns_[index].load(std::memory_order_relaxed));
+                const auto& snapshot = motor_feedback_[kReceiveIndex[i]].latest();
+                *feedback_sequence_outputs_[i] = snapshot.sequence;
+                *feedback_ns_outputs_[i] = snapshot.steady_ns;
                 auto& frame = *feedback_frame_outputs_[i];
                 frame.fill(0);
-                if (*feedback_sequence_outputs_[i] != 0) {
-                    auto packet = motor_frame_[index].load(std::memory_order_relaxed);
+                if (snapshot.sequence != 0) {
+                    auto packet = snapshot.value;
                     std::ranges::transform(packet.as_bytes(), frame.begin(), [](std::byte byte) {
                         return static_cast<std::uint8_t>(byte);
                     });
@@ -397,26 +448,27 @@ private:
         }
 
         void publish_imu_feedback() {
-            *imu_last_output_ =
-                static_cast<std::uint64_t>(imu_last_ns_.load(std::memory_order_relaxed));
-            *accel_board_ticks_output_ = accel_board_ticks_.load(std::memory_order_relaxed);
-            *gyro_board_ticks_output_ = gyro_board_ticks_.load(std::memory_order_relaxed);
-
-            if (const auto snapshot = bmi088_.snapshot()) {
-                *imu_quaternion_ = snapshot->orientation.normalized();
-                *imu_angular_velocity_ = snapshot->gyro_body;
+            const auto& imu = imu_feedback_.read();
+            *imu_sequence_output_ = imu.sequence;
+            *imu_last_output_ = imu.steady_ns;
+            *gyro_board_ticks_output_ = imu.board_quarter_us;
+            imu_last_ns_.store(static_cast<std::int64_t>(imu.steady_ns), std::memory_order_relaxed);
+            if (imu.sequence != 0) {
+                *imu_quaternion_ = imu.value.orientation.normalized();
+                *imu_angular_velocity_ = imu.value.gyro_body;
                 const Eigen::Vector3d gravity =
                     imu_quaternion_->conjugate() * -Eigen::Vector3d::UnitZ();
                 for (int i = 0; i < 3; ++i) {
                     *gravity_outputs_[i] = gravity[i];
-                    *gyro_outputs_[i] = snapshot->gyro_body[i];
+                    *gyro_outputs_[i] = imu.value.gyro_body[i];
                 }
             }
-            if (const auto acceleration = bmi088_.acceleration_snapshot()) {
-                *imu_acceleration_ = acceleration->specific_force_body_mps2;
-                *acceleration_last_output_ = static_cast<std::uint64_t>(
-                    acceleration_last_ns_.load(std::memory_order_acquire));
-            }
+            const auto& acceleration = acceleration_feedback_.read();
+            *acceleration_sequence_output_ = acceleration.sequence;
+            *acceleration_last_output_ = acceleration.steady_ns;
+            *accel_board_ticks_output_ = acceleration.board_quarter_us;
+            if (acceleration.sequence != 0)
+                *imu_acceleration_ = acceleration.value.specific_force_body_mps2;
         }
 
         void publish_drive_readiness() {
@@ -756,13 +808,11 @@ private:
         template <typename Motor, std::size_t N>
         void store_motor_feedback(Motor (&motors)[N], std::size_t offset, const View::Can& data) {
             for (std::size_t side = 0; side < N; ++side) {
-                if (!motors[side].match_then_store_status(data.can_id, data.can_data))
+                if (!motors[side].matches_feedback(data.can_id, data.can_data))
                     continue;
                 const auto index = offset + side;
-                motor_frame_[index].store(
-                    device::CanPacket8{data.can_data}, std::memory_order_relaxed);
-                motor_last_ns_[index].store(now_ns(), std::memory_order_relaxed);
-                motor_receive_count_[index].fetch_add(1, std::memory_order_release);
+                motor_feedback_[index].publish(
+                    device::CanPacket8{data.can_data}, static_cast<std::uint64_t>(now_ns()));
                 return;
             }
         }
@@ -775,21 +825,23 @@ private:
         }
 
         void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
-            const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
-            if (bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp)) {
-                accel_board_ticks_.store(data.timestamp_quarter_us, std::memory_order_relaxed);
-                acceleration_last_ns_.store(now_ns(), std::memory_order_release);
-            }
+            const auto timestamp = imu_sample_clock_.accelerometer_time(data.timestamp_quarter_us);
+            if (!timestamp
+                || !bmi088_.push_accelerometer_sample(data.x, data.y, data.z, *timestamp))
+                return;
+            if (const auto acceleration = bmi088_.acceleration_snapshot())
+                acceleration_feedback_.publish(
+                    *acceleration, static_cast<std::uint64_t>(now_ns()), data.timestamp_quarter_us);
         }
 
         void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
-            const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+            const auto timestamp = imu_sample_clock_.gyroscope_time(data.timestamp_quarter_us);
             if (!timestamp.has_value())
                 return;
-            if (bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp)) {
-                gyro_board_ticks_.store(data.timestamp_quarter_us, std::memory_order_relaxed);
-                imu_last_ns_.store(now_ns(), std::memory_order_relaxed);
-            }
+            if (const auto snapshot =
+                    bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp))
+                imu_feedback_.publish(
+                    *snapshot, static_cast<std::uint64_t>(now_ns()), data.timestamp_quarter_us);
         }
 
         WheelLeg& status_;
@@ -798,6 +850,7 @@ private:
         OutputInterface<Eigen::Vector3d> imu_acceleration_;
         OutputInterface<std::uint64_t> acceleration_last_output_;
         OutputInterface<std::uint64_t> imu_last_output_;
+        OutputInterface<std::uint64_t> imu_sequence_output_, acceleration_sequence_output_;
         OutputInterface<std::uint32_t> accel_board_ticks_output_, gyro_board_ticks_output_;
         OutputInterface<bool> feedback_fresh_output_;
         OutputInterface<bool> dm_feedback_fresh_output_;
@@ -813,6 +866,9 @@ private:
         std::array<OutputInterface<std::array<std::uint8_t, 8>>, 6> tx_frame_outputs_;
         std::array<OutputInterface<std::uint32_t>, 6> tx_can_id_outputs_;
         std::array<OutputInterface<std::uint8_t>, 6> tx_can_bus_outputs_;
+        std::array<OutputInterface<double>, 2> wheel_submitted_torque_outputs_;
+        std::array<OutputInterface<std::uint8_t>, 2> wheel_submitted_kind_outputs_;
+        std::array<OutputInterface<std::uint64_t>, 2> wheel_submitted_ns_outputs_;
         OutputInterface<bool> enable_requested_output_;
         rmcs_executor::Component::InputInterface<bool> enable_request_;
         rmcs_executor::Component::InputInterface<bool> clear_error_request_;
@@ -824,15 +880,16 @@ private:
         device::DmMotor knee_motors_[2];
         device::Dr16 dr16_;
         device::Bmi088Ekf bmi088_;
-        device::BoardClockLifter board_clock_lifter_;
+        device::WheelLegImuSampleClock imu_sample_clock_;
+        std::array<device::WheelLegSensorMailbox<device::CanPacket8>, 6> motor_feedback_;
+        device::WheelLegSensorMailbox<device::Bmi088Ekf::Snapshot> imu_feedback_;
+        device::WheelLegSensorMailbox<device::Bmi088Ekf::AccelerationSnapshot>
+            acceleration_feedback_;
+        device::WheelLegSensorMailbox<WheelSubmission> wheel_submission_;
         std::array<std::atomic<std::int64_t>, 6> motor_last_ns_{};
-        std::array<std::atomic<std::uint64_t>, 6> motor_receive_count_{};
-        std::array<std::atomic<device::CanPacket8>, 6> motor_frame_{};
         std::array<std::atomic<std::uint8_t>, 4> last_system_command_{};
         std::array<std::atomic<std::int64_t>, 4> last_system_ns_{};
         std::atomic<std::int64_t> imu_last_ns_{0};
-        std::atomic<std::int64_t> acceleration_last_ns_{0};
-        std::atomic<std::uint32_t> accel_board_ticks_{0}, gyro_board_ticks_{0};
         std::atomic<std::int64_t> dr16_last_ns_{0};
         std::atomic<std::int64_t> last_pd_ns_{0};
         std::atomic<std::uint8_t> observed_left_switch_{0};

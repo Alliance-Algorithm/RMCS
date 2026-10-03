@@ -634,5 +634,80 @@ INSTANTIATE_TEST_SUITE_P(
         PairClockFault{1, 21, "LongInterval"}),
     [](const ::testing::TestParamInfo<PairClockFault>& info) { return info.param.name; });
 
+class V6PairControllerTest : public PairControllerTest {
+    const char* profile_path() const override { return V6_CONTROLLER_TEST_PROFILE; }
+    std::vector<std::string> extra_parameters() const override {
+        return {
+            "probe_pattern:=calibrated_recording",
+            "pd_kp:=[160.0,160.0,160.0,160.0]",
+            "pd_kd:=[2.5,2.5,2.5,2.5]",
+            "ready_timeout_s:=20.0",
+            "recording_run:=L02",
+            "recording_hip_sign:=1.0",
+            "recording_hip_zero:=0.0"};
+    }
+};
+
+TEST_F(V6PairControllerTest, RecordsFkAndHoldsTargetsWhilePdUsesFreshFeedback) {
+    start_running();
+    ASSERT_EQ(phase(), 2);
+    EXPECT_EQ(output<std::uint32_t>("identification/recording/protocol_version"), 1u);
+    EXPECT_TRUE(std::isfinite(output<double>("identification/selected/inner_knee_measured_deg")));
+    const auto q = output<Eigen::Vector4d>("identification/reference_model");
+    const auto reference_tick = output<std::uint64_t>("identification/recording/reference_tick");
+    angle_[0] += .01;
+    step();
+    EXPECT_EQ(output<std::uint64_t>("identification/recording/reference_tick"), reference_tick);
+    EXPECT_EQ(output<Eigen::Vector4d>("identification/reference_model"), q);
+    EXPECT_NEAR(output<double>("left_hip_joint/control_torque"), -1.6, 1e-10);
+    EXPECT_TRUE(std::isnan(output<double>("right_hip_joint/control_torque")) == false);
+    EXPECT_EQ(output<double>("right_hip_joint/control_torque"), 0);
+    EXPECT_EQ(output<double>("left_wheel/control_torque"), 0);
+    left_ = right_ = Switch::DOWN;
+    step(false);
+    expect_down_reset();
+}
+
+class V6CalibratedZeroControllerTest : public V6PairControllerTest {
+    std::vector<std::string> extra_parameters() const override {
+        return {
+            "probe_pattern:=calibrated_recording",
+            "pd_kp:=[160.0,160.0,160.0,160.0]",
+            "pd_kd:=[2.5,2.5,2.5,2.5]",
+            "ready_timeout_s:=20.0",
+            "model_sign:=[-1.0,-1.0,-1.0,-1.0]",
+            "model_offset:=[1.6,2.93,-1.6,-2.93]",
+            "spring_delta_min:=[-0.474,-1.625]",
+            "spring_delta_max:=[1.625,0.474]"};
+    }
+};
+
+TEST_F(V6CalibratedZeroControllerTest, ExistingEncoderZeroStartsWithZeroPdErrorInV6) {
+    angle_.fill(0.0);
+    start_running();
+    EXPECT_NEAR(output<double>("identification/selected/inner_knee_measured_deg"), 105.021, .005);
+    EXPECT_NEAR(output<Eigen::Vector4d>("identification/reference_model")[0], 1.6, 1e-12);
+    EXPECT_NEAR(output<Eigen::Vector4d>("identification/reference_model")[1], 2.93, 1e-12);
+    EXPECT_NEAR(output<double>("left_hip_joint/control_torque"), 0, 1e-12);
+    EXPECT_NEAR(output<double>("left_knee_joint/control_torque"), 0, 1e-10);
+}
+
+TEST_F(V6PairControllerTest, ManifestUsesNewRunIdentityAndFailureLatches) {
+    const auto changed =
+        controller_->set_parameters({rclcpp::Parameter("pd_kp", std::vector<double>(4, 170.))});
+    ASSERT_EQ(changed.size(), 1u);
+    EXPECT_FALSE(changed[0].successful);
+    const auto manifest = controller_->get_parameter("recording_manifest_json").as_string();
+    EXPECT_NE(manifest.find("pair_v6_recording_v1"), std::string::npos);
+    EXPECT_NE(manifest.find("L02"), std::string::npos);
+    start_running();
+    feedback_ns_[0] = 0;
+    step(false);
+    EXPECT_EQ(phase(), -1);
+    EXPECT_FALSE(enabled());
+    step();
+    EXPECT_EQ(phase(), -1);
+}
+
 } // namespace
 } // namespace rmcs_core::controller::identification

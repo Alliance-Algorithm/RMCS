@@ -1,0 +1,8371 @@
+{
+  "revision": "pair_v6_recording_v1",
+  "run": "R01",
+  "boundary_condition": "fixed_base_airborne_installed_springs",
+  "reference_frequency_hz": 50,
+  "control_frequency_hz": 1000,
+  "beta_source": "calibrated_FK_estimate",
+  "duration_s": 798.8599999999998,
+  "arrival_waits_extend_duration": true,
+  "entry_initial_pose": "fresh_feedback_at_arm",
+  "entry_from_is_placeholder": true,
+  "budget_check_grid_s": 0.001,
+  "uncovered_transition": "bounded quintic from last reference; admission=3",
+  "held_edge_derivative": "undefined at update; zero between updates",
+  "multisine_common_hz": [
+    0.17,
+    0.43,
+    0.79,
+    1.31,
+    2.17,
+    3.73
+  ],
+  "multisine_beta_hz": [
+    0.23,
+    0.61,
+    1.07,
+    1.73,
+    2.41,
+    3.91
+  ],
+  "multisine_phase_rad": "pi*i*(i+1)/6; beta adds 0.47",
+  "chirp_beta_phase_rad": 1.0471975511965976,
+  "multisine_normalization": "sum of component amplitude bounds = 1",
+  "hip_map": [
+    1.0,
+    1.5707963267948966
+  ],
+  "admitted_beta_rad": [
+    1.1344640137963142,
+    1.7453292519943295
+  ],
+  "segments": [
+    {
+      "id": 0,
+      "name": "entry_from_feedback",
+      "start_s": 0,
+      "duration_s": 8,
+      "requested_s": 8,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 0,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 1,
+      "name": "baseline/start/move",
+      "start_s": 8,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 1,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "name": "baseline/start/arrival",
+      "start_s": 10,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 1,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 3,
+      "name": "baseline/start/sample",
+      "start_s": 14,
+      "duration_s": 30,
+      "requested_s": 30,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 1,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 4,
+      "name": "static/b85/t0/d-1/approach",
+      "start_s": 44,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 2,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4311699866353502
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 5,
+      "name": "static/b85/t0/d-1/target",
+      "start_s": 45,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 2,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4311699866353502
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 6,
+      "name": "static/b85/t0/d-1/arrival",
+      "start_s": 46,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 2,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 7,
+      "name": "static/b85/t0/d1/approach",
+      "start_s": 50,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.53588974175501
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 8,
+      "name": "static/b85/t0/d1/target",
+      "start_s": 51,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 3,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.53588974175501
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 9,
+      "name": "static/b85/t0/d1/arrival",
+      "start_s": 52,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 3,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 10,
+      "name": "static/b85/t90/d-1/approach",
+      "start_s": 56,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        1.5707963267948966,
+        1.4311699866353502
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 11,
+      "name": "static/b85/t90/d-1/target",
+      "start_s": 57,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 4,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.4311699866353502
+      ],
+      "to": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 12,
+      "name": "static/b85/t90/d-1/arrival",
+      "start_s": 58,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 4,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "to": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 13,
+      "name": "static/b85/t90/d1/approach",
+      "start_s": 62,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "to": [
+        1.5707963267948966,
+        1.53588974175501
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 14,
+      "name": "static/b85/t90/d1/target",
+      "start_s": 63,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 5,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.53588974175501
+      ],
+      "to": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 15,
+      "name": "static/b85/t90/d1/arrival",
+      "start_s": 64,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 5,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "to": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 16,
+      "name": "static/b85/t180/d-1/approach",
+      "start_s": 68,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 6,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.4311699866353502
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 17,
+      "name": "static/b85/t180/d-1/target",
+      "start_s": 69,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 6,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.4311699866353502
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 18,
+      "name": "static/b85/t180/d-1/arrival",
+      "start_s": 70,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 6,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 19,
+      "name": "static/b85/t180/d1/approach",
+      "start_s": 74,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.53588974175501
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 20,
+      "name": "static/b85/t180/d1/target",
+      "start_s": 75,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 7,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.53588974175501
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 21,
+      "name": "static/b85/t180/d1/arrival",
+      "start_s": 76,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 7,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 22,
+      "name": "static/b85/t270/d-1/approach",
+      "start_s": 80,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.4835298641951802
+      ],
+      "to": [
+        4.71238898038469,
+        1.4311699866353502
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 23,
+      "name": "static/b85/t270/d-1/target",
+      "start_s": 81,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 8,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.4311699866353502
+      ],
+      "to": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 24,
+      "name": "static/b85/t270/d-1/arrival",
+      "start_s": 82,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 8,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "to": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 25,
+      "name": "static/b85/t270/d1/approach",
+      "start_s": 86,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "to": [
+        4.71238898038469,
+        1.53588974175501
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 26,
+      "name": "static/b85/t270/d1/target",
+      "start_s": 87,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 9,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.53588974175501
+      ],
+      "to": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 27,
+      "name": "static/b85/t270/d1/arrival",
+      "start_s": 88,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 9,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "to": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 28,
+      "name": "static/b75/t0/d-1/approach",
+      "start_s": 92,
+      "duration_s": 1.54,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 10,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 29,
+      "name": "static/b75/t0/d-1/target",
+      "start_s": 93.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 10,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.2566370614359172
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 30,
+      "name": "static/b75/t0/d-1/arrival",
+      "start_s": 94.54,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 10,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 31,
+      "name": "static/b75/t0/d1/approach",
+      "start_s": 98.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.361356816555577
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 32,
+      "name": "static/b75/t0/d1/target",
+      "start_s": 99.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 11,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.361356816555577
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 33,
+      "name": "static/b75/t0/d1/arrival",
+      "start_s": 100.54,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 11,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 34,
+      "name": "static/b75/t90/d-1/approach",
+      "start_s": 104.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 35,
+      "name": "static/b75/t90/d-1/target",
+      "start_s": 105.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 12,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.2566370614359172
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 36,
+      "name": "static/b75/t90/d-1/arrival",
+      "start_s": 106.54,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 12,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 37,
+      "name": "static/b75/t90/d1/approach",
+      "start_s": 110.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.361356816555577
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 38,
+      "name": "static/b75/t90/d1/target",
+      "start_s": 111.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 13,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.361356816555577
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 39,
+      "name": "static/b75/t90/d1/arrival",
+      "start_s": 112.54,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 13,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 40,
+      "name": "static/b75/t180/d-1/approach",
+      "start_s": 116.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 14,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 41,
+      "name": "static/b75/t180/d-1/target",
+      "start_s": 117.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 14,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.2566370614359172
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 42,
+      "name": "static/b75/t180/d-1/arrival",
+      "start_s": 118.54,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 14,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 43,
+      "name": "static/b75/t180/d1/approach",
+      "start_s": 122.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.361356816555577
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 44,
+      "name": "static/b75/t180/d1/target",
+      "start_s": 123.54,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 15,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.361356816555577
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 45,
+      "name": "static/b75/t180/d1/arrival",
+      "start_s": 124.54,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 15,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 46,
+      "name": "static/b75/t270/d-1/approach",
+      "start_s": 128.54000000000002,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.2566370614359172
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 47,
+      "name": "static/b75/t270/d-1/target",
+      "start_s": 129.54000000000002,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 16,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.2566370614359172
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 48,
+      "name": "static/b75/t270/d-1/arrival",
+      "start_s": 130.54000000000002,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 16,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 49,
+      "name": "static/b75/t270/d1/approach",
+      "start_s": 134.54000000000002,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.361356816555577
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 50,
+      "name": "static/b75/t270/d1/target",
+      "start_s": 135.54000000000002,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 17,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.361356816555577
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 51,
+      "name": "static/b75/t270/d1/arrival",
+      "start_s": 136.54000000000002,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 17,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 52,
+      "name": "static/b65/t0/d-1/approach",
+      "start_s": 140.54000000000002,
+      "duration_s": 1.54,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 18,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 53,
+      "name": "static/b65/t0/d-1/target",
+      "start_s": 142.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 18,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 54,
+      "name": "static/b65/t0/d-1/arrival",
+      "start_s": 143.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 18,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 55,
+      "name": "static/b65/t0/d1/approach",
+      "start_s": 147.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1868238913561442
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 56,
+      "name": "static/b65/t0/d1/target",
+      "start_s": 148.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 19,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1868238913561442
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 57,
+      "name": "static/b65/t0/d1/arrival",
+      "start_s": 149.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 19,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 58,
+      "name": "static/b65/t90/d-1/approach",
+      "start_s": 153.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 59,
+      "name": "static/b65/t90/d-1/target",
+      "start_s": 154.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 20,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "to": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 60,
+      "name": "static/b65/t90/d-1/arrival",
+      "start_s": 155.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 20,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "to": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 61,
+      "name": "static/b65/t90/d1/approach",
+      "start_s": 159.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "to": [
+        1.5707963267948966,
+        1.1868238913561442
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 62,
+      "name": "static/b65/t90/d1/target",
+      "start_s": 160.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 21,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.1868238913561442
+      ],
+      "to": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 63,
+      "name": "static/b65/t90/d1/arrival",
+      "start_s": 161.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 21,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "to": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 64,
+      "name": "static/b65/t180/d-1/approach",
+      "start_s": 165.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 22,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 65,
+      "name": "static/b65/t180/d-1/target",
+      "start_s": 166.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 22,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 66,
+      "name": "static/b65/t180/d-1/arrival",
+      "start_s": 167.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 22,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 67,
+      "name": "static/b65/t180/d1/approach",
+      "start_s": 171.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1868238913561442
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 68,
+      "name": "static/b65/t180/d1/target",
+      "start_s": 172.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 23,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1868238913561442
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 69,
+      "name": "static/b65/t180/d1/arrival",
+      "start_s": 173.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 23,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 70,
+      "name": "static/b65/t270/d-1/approach",
+      "start_s": 177.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 71,
+      "name": "static/b65/t270/d-1/target",
+      "start_s": 178.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 24,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "to": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 72,
+      "name": "static/b65/t270/d-1/arrival",
+      "start_s": 179.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 24,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "to": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 73,
+      "name": "static/b65/t270/d1/approach",
+      "start_s": 183.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "to": [
+        4.71238898038469,
+        1.1868238913561442
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 74,
+      "name": "static/b65/t270/d1/target",
+      "start_s": 184.08,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 25,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.1868238913561442
+      ],
+      "to": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 75,
+      "name": "static/b65/t270/d1/arrival",
+      "start_s": 185.08,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 25,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "to": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 76,
+      "name": "static/b95/t0/d-1/approach",
+      "start_s": 189.08,
+      "duration_s": 1.76,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 26,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.6057029118347832
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 77,
+      "name": "static/b95/t0/d-1/target",
+      "start_s": 190.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 26,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6057029118347832
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 78,
+      "name": "static/b95/t0/d-1/arrival",
+      "start_s": 191.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 26,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 79,
+      "name": "static/b95/t0/d1/approach",
+      "start_s": 195.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 27,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 80,
+      "name": "static/b95/t0/d1/target",
+      "start_s": 196.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 27,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.710422666954443
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 81,
+      "name": "static/b95/t0/d1/arrival",
+      "start_s": 197.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 27,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 82,
+      "name": "static/b95/t90/d-1/approach",
+      "start_s": 201.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 28,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6057029118347832
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 83,
+      "name": "static/b95/t90/d-1/target",
+      "start_s": 202.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 28,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.6057029118347832
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 84,
+      "name": "static/b95/t90/d-1/arrival",
+      "start_s": 203.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 28,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 85,
+      "name": "static/b95/t90/d1/approach",
+      "start_s": 207.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 29,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 86,
+      "name": "static/b95/t90/d1/target",
+      "start_s": 208.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 29,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.710422666954443
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 87,
+      "name": "static/b95/t90/d1/arrival",
+      "start_s": 209.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 29,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 88,
+      "name": "static/b95/t180/d-1/approach",
+      "start_s": 213.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 30,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.6057029118347832
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 89,
+      "name": "static/b95/t180/d-1/target",
+      "start_s": 214.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 30,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6057029118347832
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 90,
+      "name": "static/b95/t180/d-1/arrival",
+      "start_s": 215.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 30,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 91,
+      "name": "static/b95/t180/d1/approach",
+      "start_s": 219.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 31,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 92,
+      "name": "static/b95/t180/d1/target",
+      "start_s": 220.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 31,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.710422666954443
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 93,
+      "name": "static/b95/t180/d1/arrival",
+      "start_s": 221.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 31,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 94,
+      "name": "static/b95/t270/d-1/approach",
+      "start_s": 225.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 32,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.6057029118347832
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 95,
+      "name": "static/b95/t270/d-1/target",
+      "start_s": 226.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 32,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.6057029118347832
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 96,
+      "name": "static/b95/t270/d-1/arrival",
+      "start_s": 227.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 32,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 97,
+      "name": "static/b95/t270/d1/approach",
+      "start_s": 231.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 33,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.710422666954443
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 98,
+      "name": "static/b95/t270/d1/target",
+      "start_s": 232.84,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 33,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.710422666954443
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 99,
+      "name": "static/b95/t270/d1/arrival",
+      "start_s": 233.84,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 33,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 100,
+      "name": "static/b100/t0/d-1/approach",
+      "start_s": 237.84,
+      "duration_s": 1.54,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 34,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.6929693744344996
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 101,
+      "name": "static/b100/t0/d-1/target",
+      "start_s": 239.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 34,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6929693744344996
+      ],
+      "to": [
+        0,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 102,
+      "name": "static/b100/t0/d-1/arrival",
+      "start_s": 240.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 34,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.7453292519943295
+      ],
+      "to": [
+        0,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 103,
+      "name": "static/b100/t0/d1/approach",
+      "start_s": 244.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 35,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.7453292519943295
+      ],
+      "to": [
+        0,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 104,
+      "name": "static/b100/t0/d1/target",
+      "start_s": 245.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 35,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.7453292519943295
+      ],
+      "to": [
+        0,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 105,
+      "name": "static/b100/t0/d1/arrival",
+      "start_s": 246.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 35,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        0,
+        1.7453292519943295
+      ],
+      "to": [
+        0,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 106,
+      "name": "static/b100/t90/d-1/approach",
+      "start_s": 250.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 36,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.7453292519943295
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6929693744344996
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 107,
+      "name": "static/b100/t90/d-1/target",
+      "start_s": 251.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 36,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.6929693744344996
+      ],
+      "to": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 108,
+      "name": "static/b100/t90/d-1/arrival",
+      "start_s": 252.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 36,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "to": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 109,
+      "name": "static/b100/t90/d1/approach",
+      "start_s": 256.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 37,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "to": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 110,
+      "name": "static/b100/t90/d1/target",
+      "start_s": 257.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 37,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "to": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 111,
+      "name": "static/b100/t90/d1/arrival",
+      "start_s": 258.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 37,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "to": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 112,
+      "name": "static/b100/t180/d-1/approach",
+      "start_s": 262.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 38,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.7453292519943295
+      ],
+      "to": [
+        3.141592653589793,
+        1.6929693744344996
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 113,
+      "name": "static/b100/t180/d-1/target",
+      "start_s": 263.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 38,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6929693744344996
+      ],
+      "to": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 114,
+      "name": "static/b100/t180/d-1/arrival",
+      "start_s": 264.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 38,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "to": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 115,
+      "name": "static/b100/t180/d1/approach",
+      "start_s": 268.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 39,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "to": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 116,
+      "name": "static/b100/t180/d1/target",
+      "start_s": 269.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 39,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "to": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 117,
+      "name": "static/b100/t180/d1/arrival",
+      "start_s": 270.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 39,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "to": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 118,
+      "name": "static/b100/t270/d-1/approach",
+      "start_s": 274.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 40,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.7453292519943295
+      ],
+      "to": [
+        4.71238898038469,
+        1.6929693744344996
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 119,
+      "name": "static/b100/t270/d-1/target",
+      "start_s": 275.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 40,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.6929693744344996
+      ],
+      "to": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 120,
+      "name": "static/b100/t270/d-1/arrival",
+      "start_s": 276.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 40,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "to": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 121,
+      "name": "static/b100/t270/d1/approach",
+      "start_s": 280.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 41,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "to": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 122,
+      "name": "static/b100/t270/d1/target",
+      "start_s": 281.38,
+      "duration_s": 1,
+      "requested_s": 1,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 41,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "to": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 123,
+      "name": "static/b100/t270/d1/arrival",
+      "start_s": 282.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 41,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 2,
+      "from": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "to": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 124,
+      "name": "slow/anchor/move",
+      "start_s": 286.38,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 42,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.7453292519943295
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 125,
+      "name": "slow/anchor/arrival",
+      "start_s": 288.38,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 42,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 126,
+      "name": "slow/extend",
+      "start_s": 292.38,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 42,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 127,
+      "name": "slow/flex",
+      "start_s": 311.14,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 42,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 128,
+      "name": "slow/extend",
+      "start_s": 329.9,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 42,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 129,
+      "name": "slow/flex",
+      "start_s": 348.65999999999997,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 42,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 130,
+      "name": "slow/anchor/move",
+      "start_s": 367.41999999999996,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 43,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 131,
+      "name": "slow/anchor/arrival",
+      "start_s": 369.41999999999996,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 43,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 132,
+      "name": "slow/extend",
+      "start_s": 373.41999999999996,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 43,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 133,
+      "name": "slow/flex",
+      "start_s": 380.46,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 43,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 134,
+      "name": "slow/extend",
+      "start_s": 387.5,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 43,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 135,
+      "name": "slow/flex",
+      "start_s": 394.54,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 43,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 136,
+      "name": "slow/anchor/move",
+      "start_s": 401.58000000000004,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 44,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 137,
+      "name": "slow/anchor/arrival",
+      "start_s": 403.58000000000004,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 44,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 138,
+      "name": "slow/extend",
+      "start_s": 407.58000000000004,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 44,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 139,
+      "name": "slow/flex",
+      "start_s": 411.34000000000003,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 44,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 140,
+      "name": "slow/extend",
+      "start_s": 415.1,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 44,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 141,
+      "name": "slow/flex",
+      "start_s": 418.86,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 44,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 142,
+      "name": "slow/anchor/move",
+      "start_s": 422.62,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 45,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 143,
+      "name": "slow/anchor/arrival",
+      "start_s": 424.62,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 45,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 144,
+      "name": "slow/extend",
+      "start_s": 428.62,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 45,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 145,
+      "name": "slow/flex",
+      "start_s": 447.38,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 45,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 146,
+      "name": "slow/extend",
+      "start_s": 466.14,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 45,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 147,
+      "name": "slow/flex",
+      "start_s": 484.9,
+      "duration_s": 18.76,
+      "requested_s": 18.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 45,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 148,
+      "name": "slow/anchor/move",
+      "start_s": 503.65999999999997,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 46,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 149,
+      "name": "slow/anchor/arrival",
+      "start_s": 505.65999999999997,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 46,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 150,
+      "name": "slow/extend",
+      "start_s": 509.65999999999997,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 46,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 151,
+      "name": "slow/flex",
+      "start_s": 516.6999999999999,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 46,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 152,
+      "name": "slow/extend",
+      "start_s": 523.7399999999999,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 46,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 153,
+      "name": "slow/flex",
+      "start_s": 530.7799999999999,
+      "duration_s": 7.04,
+      "requested_s": 7.03125,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 46,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 154,
+      "name": "slow/anchor/move",
+      "start_s": 537.8199999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 47,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 155,
+      "name": "slow/anchor/arrival",
+      "start_s": 539.8199999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 47,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 156,
+      "name": "slow/extend",
+      "start_s": 543.8199999999998,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 47,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 157,
+      "name": "slow/flex",
+      "start_s": 547.5799999999998,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 47,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 158,
+      "name": "slow/extend",
+      "start_s": 551.3399999999998,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 47,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 159,
+      "name": "slow/flex",
+      "start_s": 555.0999999999998,
+      "duration_s": 3.76,
+      "requested_s": 3.75,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 47,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 160,
+      "name": "orientation/anchor/move",
+      "start_s": 558.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.1344640137963142
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 161,
+      "name": "orientation/anchor/arrival",
+      "start_s": 560.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 162,
+      "name": "orientation/out",
+      "start_s": 564.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 163,
+      "name": "orientation/out/dwell",
+      "start_s": 566.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "to": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 164,
+      "name": "orientation/out",
+      "start_s": 570.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 165,
+      "name": "orientation/out/dwell",
+      "start_s": 572.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 166,
+      "name": "orientation/out",
+      "start_s": 576.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 167,
+      "name": "orientation/out/dwell",
+      "start_s": 578.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "to": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 168,
+      "name": "orientation/out",
+      "start_s": 582.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 169,
+      "name": "orientation/out/dwell",
+      "start_s": 584.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 170,
+      "name": "orientation/out",
+      "start_s": 588.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 171,
+      "name": "orientation/out/dwell",
+      "start_s": 590.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "to": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 172,
+      "name": "orientation/out",
+      "start_s": 594.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 173,
+      "name": "orientation/out/dwell",
+      "start_s": 596.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 174,
+      "name": "orientation/out",
+      "start_s": 600.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 175,
+      "name": "orientation/out/dwell",
+      "start_s": 602.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "to": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 176,
+      "name": "orientation/out",
+      "start_s": 606.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "to": [
+        6.283185307179586,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 177,
+      "name": "orientation/out/dwell",
+      "start_s": 608.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        6.283185307179586,
+        1.3089969389957472
+      ],
+      "to": [
+        6.283185307179586,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 178,
+      "name": "orientation/return",
+      "start_s": 612.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        6.283185307179586,
+        1.3089969389957472
+      ],
+      "to": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 179,
+      "name": "orientation/return/dwell",
+      "start_s": 614.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "to": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 180,
+      "name": "orientation/return",
+      "start_s": 618.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        5.497787143782138,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 181,
+      "name": "orientation/return/dwell",
+      "start_s": 620.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 182,
+      "name": "orientation/return",
+      "start_s": 624.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.3089969389957472
+      ],
+      "to": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 183,
+      "name": "orientation/return/dwell",
+      "start_s": 626.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "to": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 184,
+      "name": "orientation/return",
+      "start_s": 630.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.9269908169872414,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 185,
+      "name": "orientation/return/dwell",
+      "start_s": 632.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 186,
+      "name": "orientation/return",
+      "start_s": 636.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.3089969389957472
+      ],
+      "to": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 187,
+      "name": "orientation/return/dwell",
+      "start_s": 638.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "to": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 188,
+      "name": "orientation/return",
+      "start_s": 642.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        2.356194490192345,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 189,
+      "name": "orientation/return/dwell",
+      "start_s": 644.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 190,
+      "name": "orientation/return",
+      "start_s": 648.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.3089969389957472
+      ],
+      "to": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 191,
+      "name": "orientation/return/dwell",
+      "start_s": 650.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "to": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 192,
+      "name": "orientation/return",
+      "start_s": 654.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0.7853981633974483,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 193,
+      "name": "orientation/return/dwell",
+      "start_s": 656.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 48,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.3089969389957472
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 194,
+      "name": "orientation/anchor/move",
+      "start_s": 660.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.3089969389957472
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 195,
+      "name": "orientation/anchor/arrival",
+      "start_s": 662.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 196,
+      "name": "orientation/out",
+      "start_s": 666.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 197,
+      "name": "orientation/out/dwell",
+      "start_s": 668.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "to": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 198,
+      "name": "orientation/out",
+      "start_s": 672.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 199,
+      "name": "orientation/out/dwell",
+      "start_s": 674.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 200,
+      "name": "orientation/out",
+      "start_s": 678.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 201,
+      "name": "orientation/out/dwell",
+      "start_s": 680.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "to": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 202,
+      "name": "orientation/out",
+      "start_s": 684.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 203,
+      "name": "orientation/out/dwell",
+      "start_s": 686.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 204,
+      "name": "orientation/out",
+      "start_s": 690.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 205,
+      "name": "orientation/out/dwell",
+      "start_s": 692.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "to": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 206,
+      "name": "orientation/out",
+      "start_s": 696.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 207,
+      "name": "orientation/out/dwell",
+      "start_s": 698.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 208,
+      "name": "orientation/out",
+      "start_s": 702.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 209,
+      "name": "orientation/out/dwell",
+      "start_s": 704.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "to": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 210,
+      "name": "orientation/out",
+      "start_s": 708.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "to": [
+        6.283185307179586,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 211,
+      "name": "orientation/out/dwell",
+      "start_s": 710.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        6.283185307179586,
+        1.6580627893946132
+      ],
+      "to": [
+        6.283185307179586,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 212,
+      "name": "orientation/return",
+      "start_s": 714.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        6.283185307179586,
+        1.6580627893946132
+      ],
+      "to": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 213,
+      "name": "orientation/return/dwell",
+      "start_s": 716.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "to": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 214,
+      "name": "orientation/return",
+      "start_s": 720.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        5.497787143782138,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 215,
+      "name": "orientation/return/dwell",
+      "start_s": 722.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 216,
+      "name": "orientation/return",
+      "start_s": 726.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        4.71238898038469,
+        1.6580627893946132
+      ],
+      "to": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 217,
+      "name": "orientation/return/dwell",
+      "start_s": 728.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "to": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 218,
+      "name": "orientation/return",
+      "start_s": 732.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.9269908169872414,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 219,
+      "name": "orientation/return/dwell",
+      "start_s": 734.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 220,
+      "name": "orientation/return",
+      "start_s": 738.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        3.141592653589793,
+        1.6580627893946132
+      ],
+      "to": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 221,
+      "name": "orientation/return/dwell",
+      "start_s": 740.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "to": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 222,
+      "name": "orientation/return",
+      "start_s": 744.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        2.356194490192345,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 223,
+      "name": "orientation/return/dwell",
+      "start_s": 746.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 224,
+      "name": "orientation/return",
+      "start_s": 750.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        1.5707963267948966,
+        1.6580627893946132
+      ],
+      "to": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 225,
+      "name": "orientation/return/dwell",
+      "start_s": 752.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "to": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 226,
+      "name": "orientation/return",
+      "start_s": 756.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0.7853981633974483,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 227,
+      "name": "orientation/return/dwell",
+      "start_s": 758.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 49,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.6580627893946132
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 228,
+      "name": "baseline/end/move",
+      "start_s": 762.8599999999998,
+      "duration_s": 2,
+      "requested_s": 2,
+      "kind": 0,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 50,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0,
+      "from": [
+        0,
+        1.6580627893946132
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 229,
+      "name": "baseline/end/arrival",
+      "start_s": 764.8599999999998,
+      "duration_s": 4,
+      "requested_s": 4,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": true,
+      "group": 50,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": 230,
+      "name": "baseline/end/sample",
+      "start_s": 768.8599999999998,
+      "duration_s": 30,
+      "requested_s": 30,
+      "kind": 1,
+      "coordinates": 0,
+      "role": 0,
+      "arrival_required": false,
+      "group": 50,
+      "cycle": -1,
+      "jump_phase": 0,
+      "arrival_stable_s": 0.5,
+      "from": [
+        0,
+        1.4835298641951802
+      ],
+      "to": [
+        0,
+        1.4835298641951802
+      ],
+      "requested_amplitude": [
+        0,
+        0
+      ],
+      "amplitude_scale": 1,
+      "theta_hz": [
+        0,
+        0
+      ],
+      "beta_hz": [
+        0,
+        0
+      ]
+    }
+  ],
+  "calibration_sha256": "da5cffb42b4760eb7bd858a7c294305469539862bd288c611666905c42684e35",
+  "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+  "coordinate_schema": "v6_download_link_frames_v1",
+  "admitted_beta_deg": [
+    65.0,
+    100.0
+  ],
+  "reference_preview": "nominal; arrival waits, skips and center corrections depend on feedback",
+  "control_law": "tau=clip(160*(q_held-q)-2.5*dq, -40, 40); no I or feedforward",
+  "preview_binary_sha256": "12e93f8656c37f128df39ce4da41fdaa1729d654d65bbe00d6413d2a8b7df4b0",
+  "capacity_status": "kinematic budgets checked; torque/load and physical clearance require rig verification"
+}
