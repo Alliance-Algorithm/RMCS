@@ -27,49 +27,68 @@ bool RlController::read_model_state_() {
                 return feedback_valid_ = false;
             motor_q[i] = *angle_inputs_[i];
             motor_dq[i] = *velocity_inputs_[i];
+            if (strict_feedback_ && std::abs(motor_q[i]) >= dm_feedback_position_max_[i] - 0.1)
+                return feedback_valid_ = false;
         }
     }
+    if (strict_feedback_ && (!acceleration_.ready() || !acceleration_->allFinite()))
+        return feedback_valid_ = false;
+    const bool awaiting_initial_drives = !motor_control_started_ && !recovery_started_
+                                      && state_ != State::kRl
+                                      && (!dm_control_ready_.ready() || !*dm_control_ready_);
     if (strict_feedback_) {
-        const auto now = Clock::now();
-        const auto now_ns =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-        std::array<RecoverySampleStamp, 8> samples{};
-        for (std::size_t i = 0; i < 6; ++i)
-            if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
-                samples[i] = {*motor_feedback_sequences_[i], *motor_feedback_ns_[i]};
-        if (imu_sequence_.ready() && imu_ns_.ready())
-            samples[6] = {*imu_sequence_, *imu_ns_};
-        if (acceleration_sequence_.ready() && acceleration_ns_.ready())
-            samples[7] = {*acceleration_sequence_, *acceleration_ns_};
-        recovery_sensor_status_ = recovery_sensor_guard_.update(
-            now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
-        if (!recovery_sensor_status_.valid || !acceleration_.ready() || !acceleration_->allFinite())
-            return feedback_valid_ = false;
-        for (int i = 0; i < 4; ++i) {
-            const auto sequence = *motor_feedback_sequences_[i];
-            const auto stamp = *motor_feedback_ns_[i];
-            if (std::abs(motor_q[i]) >= dm_feedback_position_max_[i] - 0.1)
-                return feedback_valid_ = false;
-            if (motor_feedback_initialized_) {
-                if (sequence < previous_motor_sequence_[i]
-                    || (sequence == previous_motor_sequence_[i]
-                        && stamp != previous_motor_sample_ns_[i]))
-                    return feedback_valid_ = false;
-                if (sequence != previous_motor_sequence_[i]) {
-                    if (stamp <= previous_motor_sample_ns_[i])
-                        return feedback_valid_ = false;
-                    const double dt = (stamp - previous_motor_sample_ns_[i]) * 1e-9;
-                    if (dt > 0.05
-                        || std::abs(motor_q[i] - previous_motor_angle_[i]) > 45.0 * dt + 0.15)
-                        // MIT P_MAX is a quantization bound, not proof of wrapping.
-                        return feedback_valid_ = false;
+        const bool samples_valid = [&] {
+            const auto now = Clock::now();
+            const auto now_ns =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch())
+                    .count();
+            std::array<RecoverySampleStamp, 8> samples{};
+            for (std::size_t i = 0; i < 6; ++i)
+                if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
+                    samples[i] = {*motor_feedback_sequences_[i], *motor_feedback_ns_[i]};
+            if (imu_sequence_.ready() && imu_ns_.ready())
+                samples[6] = {*imu_sequence_, *imu_ns_};
+            if (acceleration_sequence_.ready() && acceleration_ns_.ready())
+                samples[7] = {*acceleration_sequence_, *acceleration_ns_};
+            recovery_sensor_status_ = recovery_sensor_guard_.update(
+                now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
+            if (!recovery_sensor_status_.valid)
+                return false;
+            for (int i = 0; i < 4; ++i) {
+                const auto sequence = *motor_feedback_sequences_[i];
+                const auto stamp = *motor_feedback_ns_[i];
+                if (motor_feedback_initialized_) {
+                    if (sequence < previous_motor_sequence_[i]
+                        || (sequence == previous_motor_sequence_[i]
+                            && stamp != previous_motor_sample_ns_[i]))
+                        return false;
+                    if (sequence != previous_motor_sequence_[i]) {
+                        if (stamp <= previous_motor_sample_ns_[i])
+                            return false;
+                        const double dt = (stamp - previous_motor_sample_ns_[i]) * 1e-9;
+                        if (dt > 0.05
+                            || std::abs(motor_q[i] - previous_motor_angle_[i]) > 45.0 * dt + 0.15)
+                            // MIT P_MAX is a quantization bound, not proof of wrapping.
+                            return false;
+                    }
                 }
+                previous_motor_sequence_[i] = sequence;
+                previous_motor_sample_ns_[i] = stamp;
+                previous_motor_angle_[i] = motor_q[i];
             }
-            previous_motor_sequence_[i] = sequence;
-            previous_motor_sample_ns_[i] = stamp;
-            previous_motor_angle_[i] = motor_q[i];
+            motor_feedback_initialized_ = true;
+            return true;
+        }();
+        if (!samples_valid) {
+            if (!awaiting_initial_drives)
+                return feedback_valid_ = false;
+            // FC/neutral-MIT handshaking can refresh the paired buses at
+            // different times. Preserve hardware freshness and zero torque;
+            // the first ready snapshot must pass the complete sample guard.
+            recovery_sensor_guard_.reset();
+            recovery_sensor_status_ = {};
+            motor_feedback_initialized_ = false;
         }
-        motor_feedback_initialized_ = true;
     }
     if (!gyro_->allFinite() || !orientation_->coeffs().allFinite()
         || orientation_->squaredNorm() < 0.5 || orientation_->squaredNorm() > 1.5)

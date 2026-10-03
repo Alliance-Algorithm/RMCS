@@ -153,6 +153,7 @@ private:
     bool recovery_started_ = false;
     bool strict_feedback_ = true;
     bool policy_targets_valid_ = false;
+    bool motor_control_started_ = false;
     bool motor_feedback_initialized_ = false;
     // IMU body axes -> frozen policy base_link. The source CAD's +90 degree
     // yaw was already applied when exporting the X-forward training asset.
