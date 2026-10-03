@@ -1,0 +1,208 @@
+{
+  "schema": "rmcs-v6-cpp-isaac-summary-v1",
+  "generated_at": "2026-10-03T02:23:56.443316+00:00",
+  "source_directory": "/home/yukikaze/Documents/workspace/RMCS/docs/zh-cn/artifacts/v6_cpp_sim_20261003/height_high_margin_zero",
+  "source_report_sha256": "e7d8608b7e5d2b871edada97c6a162d9f7d6b0f04b7d823ea9e7c3e860900c63",
+  "summarizer_sha256": "ec5366b1875b44257a547fa06d94d6a4b5b8e8b4f43db4fbdd22e9a6aaf48cba",
+  "source_status": "complete",
+  "source_error": null,
+  "policy_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+  "contract_sha256": "666f7bdbba8c305d4bedc464fd1a42ea8725245461c49d186b75ed37fe58aae7",
+  "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+  "timing_scope": "logical simulation ticks with real steady-clock freshness; paced socket loop",
+  "sensor_source": "ideal base IMU and output-axis encoders",
+  "physics_dt_s": 0.005,
+  "executor_rate_hz": 1000,
+  "policy_rate_hz": 50,
+  "pd_rate_hz": 200,
+  "case_count": 1,
+  "passed_cases": 0,
+  "complete": true,
+  "hardware_ready": false,
+  "domain_qualified": null,
+  "cases": [
+    {
+      "case": "height_high",
+      "outcome": "FAIL",
+      "passed": false,
+      "reason": "reported_checks_failed",
+      "reported_passed": false,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 22.0,
+      "observed_simulated_seconds": 22.0,
+      "trace_samples": 4400,
+      "source_report": {
+        "case": "height_high",
+        "completed": true,
+        "samples": 4400,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.02,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 0.928305855302751,
+          "planar_speed_peak_first_2s_m_s": 0.02700967526059201,
+          "entry_effort_jump_max_nm": 20.02384065061808,
+          "effort_step_peak_first_2s_nm": 20.02384065061808
+        },
+        "vx_mae_m_s": 0.0010287505985683276,
+        "yaw_mae_rad_s": 0.0023125470079001093,
+        "height_mae_m": 0.005237835329928926,
+        "planar_speed_mean_m_s": 0.0011277204350830551,
+        "tilt_max_deg": 0.7016503021699302,
+        "drift_max_m": 0.009688596418381643,
+        "final_height_m": 0.4247458875179291,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": false,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": false,
+        "command_case": "height_high",
+        "initial_profile": "nominal",
+        "expected_duration_s": 22.0,
+        "requested_duration_s": 22.0
+      },
+      "failed_checks": [
+        "height_tracking"
+      ],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "PREPARE": 2,
+        "RL": 4397
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 2,
+          "name": "PREPARE"
+        },
+        {
+          "time_s": 0.02,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 34.82867364199956,
+        "simulation_to_wall_ratio": 0.6316634456464174,
+        "simulation_sample_interval_ms": {
+          "count": 4399,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000002558,
+          "p99": 5.000000000002558,
+          "max": 5.000000000002558
+        },
+        "wall_sample_interval_ms": {
+          "count": 4399,
+          "min": 7.209289,
+          "mean": 7.915632137303932,
+          "median": 7.7571,
+          "p95": 9.2538363,
+          "p99": 10.152518059999998,
+          "max": 13.164617
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 4400,
+          "min": 5.005636,
+          "mean": 5.061921673181819,
+          "median": 5.065573499999999,
+          "p95": 5.0785716,
+          "p99": 5.10000958,
+          "max": 5.19172
+        },
+        "distinct_sensor_timestamps": 4400,
+        "distinct_sensor_sequences": 4400,
+        "inference_us": {
+          "count": 4397,
+          "min": 23.708,
+          "mean": 59.735193086195125,
+          "median": 59.395,
+          "p95": 84.88119999999998,
+          "p99": 100.71383999999999,
+          "max": 138.845
+        },
+        "pd_us": {
+          "count": 4399,
+          "min": 0.116,
+          "mean": 2.3156499204364627,
+          "median": 1.354,
+          "p95": 5.625,
+          "p99": 6.615099999999998,
+          "max": 35.704
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 4399
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 4400,
+          "min": -1.0,
+          "mean": 5.059451846136363,
+          "median": 5.064158,
+          "p95": 5.0762589,
+          "p99": 5.09587595,
+          "max": 5.191117
+        },
+        "imu_age_ms": {
+          "count": 4400,
+          "min": -1.0,
+          "mean": 5.059451846136363,
+          "median": 5.064158,
+          "p95": 5.0762589,
+          "p99": 5.09587595,
+          "max": 5.191117
+        },
+        "acceleration_age_ms": {
+          "count": 4400,
+          "min": -1.0,
+          "mean": 5.059451846136363,
+          "median": 5.064158,
+          "p95": 5.0762589,
+          "p99": 5.09587595,
+          "max": 5.191117
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    }
+  ],
+  "source_trace_sha256": {
+    "height_high": "7614ac316b3fb17a817b77ba274bd9df48cb5df930665429e2d7972f772e04fe"
+  },
+  "artifacts": {
+    "trajectory": "trajectory.png",
+    "summary": "summary.json"
+  },
+  "passed": false
+}
