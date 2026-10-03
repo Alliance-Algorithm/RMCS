@@ -5,7 +5,6 @@
 #include "obstacle_coordinates_map.hpp"
 #include <memory>
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
-#include <numbers>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <string>
