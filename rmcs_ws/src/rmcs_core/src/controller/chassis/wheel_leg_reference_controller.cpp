@@ -3,7 +3,6 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -33,8 +32,6 @@ public:
             register_input(prefix + "/max_torque", max_torque_[i]);
             register_input(prefix + "/status_code", status_[i]);
             register_input(prefix + "/fault_code", fault_[i]);
-            register_input(prefix + "/feedback_steady_ns", feedback_ns_[i]);
-            register_input(prefix + "/feedback_sequence", sequence_[i]);
             register_output(prefix + "/control_torque", torque_[i], 0.0);
             register_output(prefix + "/control_angle", angle_target_[i], kNaN);
             register_output(prefix + "/reference/error", error_[i], kNaN);
@@ -42,7 +39,6 @@ public:
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/wheel_leg/dr16_fresh", dr16_fresh_);
-        register_input("/wheel_leg/feedback_fresh", feedback_fresh_);
         register_input("/wheel_leg/dm_control_ready", drives_ready_);
         register_input("/predefined/update_rate", update_rate_);
         register_output("/wheel_leg/left_wheel/control_torque", wheel_torque_[0], 0.0);
@@ -112,9 +108,7 @@ public:
         }
 
         const auto now = Clock::now();
-        const auto now_ns = static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
-        if (const auto failure = read_feedback_(now_ns); failure != kNone) {
+        if (const auto failure = read_feedback_(); failure != kNone) {
             fail_(failure);
             return;
         }
@@ -216,7 +210,7 @@ private:
     }
 
     void reset_session_() {
-        active_ = pd_started_ = feedback_seen_ = settling_ = false;
+        active_ = pd_started_ = settling_ = false;
         ramp_elapsed_ = stable_elapsed_ = 0.0;
         held_torque_.setZero();
     }
@@ -230,41 +224,17 @@ private:
         node::error("Reference hold disabled, failure {}", static_cast<int>(failure));
     }
 
-    Failure read_feedback_(std::uint64_t now_ns) {
-        if (!*feedback_fresh_)
-            return kInvalidFeedback;
-        std::uint64_t oldest = now_ns, newest = 0;
+    Failure read_feedback_() {
         for (std::size_t i = 0; i < kJointNames.size(); ++i) {
-            const auto stamp = *feedback_ns_[i], sequence = *sequence_[i];
             q_[i] = *angle_[i];
             dq_[i] = *velocity_[i];
             if (!std::isfinite(q_[i]) || !std::isfinite(dq_[i]) || !std::isfinite(*max_torque_[i])
                 || *max_torque_[i] <= 0.0 || std::abs(q_[i]) > kPositionMax
-                || std::abs(dq_[i]) > 45.0 || stamp == 0 || stamp > now_ns
-                || now_ns - stamp > 20'000'000 || sequence == 0)
+                || std::abs(dq_[i]) > 45.0)
                 return kInvalidFeedback;
             if (*fault_[i] != 0 || (*status_[i] != 0 && *status_[i] != 1))
                 return kMotorFault;
-            if (feedback_seen_) {
-                if (stamp < last_ns_[i] || sequence < last_sequence_[i]
-                    || (sequence == last_sequence_[i] && stamp != last_ns_[i])
-                    || (sequence > last_sequence_[i] && stamp <= last_ns_[i]))
-                    return kInvalidFeedback;
-                const double dt = static_cast<double>(stamp - last_ns_[i]) * 1e-9;
-                if (std::abs(q_[i] - last_q_[i]) > 45.0 * dt + 0.15)
-                    return kInvalidFeedback;
-            }
-            oldest = std::min(oldest, stamp);
-            newest = std::max(newest, stamp);
         }
-        if (newest - oldest > 10'000'000)
-            return kInvalidFeedback;
-        for (std::size_t i = 0; i < kJointNames.size(); ++i) {
-            last_ns_[i] = *feedback_ns_[i];
-            last_sequence_[i] = *sequence_[i];
-        }
-        last_q_ = q_;
-        feedback_seen_ = true;
         return kNone;
     }
 
@@ -277,23 +247,21 @@ private:
 
     std::array<InputInterface<double>, 4> angle_, velocity_, max_torque_;
     std::array<InputInterface<int>, 4> status_, fault_;
-    std::array<InputInterface<std::uint64_t>, 4> feedback_ns_, sequence_;
     std::array<OutputInterface<double>, 4> torque_, angle_target_, error_;
     std::array<OutputInterface<double>, 2> wheel_torque_;
     InputInterface<rmcs_msgs::Switch> switch_left_, switch_right_;
-    InputInterface<bool> dr16_fresh_, feedback_fresh_, drives_ready_;
+    InputInterface<bool> dr16_fresh_, drives_ready_;
     InputInterface<double> update_rate_;
     OutputInterface<bool> enable_request_, ready_;
     OutputInterface<int> state_, failure_;
     WheelLegArmSequence arm_;
-    Eigen::Vector4d reference_, captured_, target_, q_, dq_, last_q_, held_torque_;
-    std::array<std::uint64_t, 4> last_ns_{}, last_sequence_{};
+    Eigen::Vector4d reference_, captured_, target_, q_, dq_, held_torque_;
     Clock::time_point enable_started_{}, last_pd_time_{}, stable_started_{};
     std::size_t tick_ = 0, last_pd_tick_ = 0, divisor_ = 0;
     double kp_, kd_, ramp_velocity_, torque_limit_, frequency_, position_tolerance_;
     double velocity_tolerance_, stable_seconds_, following_error_max_;
     double period_ = 0.005, ramp_duration_ = 0.0, ramp_elapsed_ = 0.0, stable_elapsed_ = 0.0;
-    bool active_ = false, pd_started_ = false, feedback_seen_ = false, settling_ = false;
+    bool active_ = false, pd_started_ = false, settling_ = false;
 };
 
 } // namespace rmcs_core::controller::chassis
