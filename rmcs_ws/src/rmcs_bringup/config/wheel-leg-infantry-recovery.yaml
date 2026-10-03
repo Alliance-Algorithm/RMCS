@@ -1,3 +1,7 @@
+# Supervised V6 real-robot recovery commissioning.
+# Fresh double DOWN -> double MIDDLE starts the native script, then RL takeover.
+# Uses the user-confirmed dev/rmcs_rl wiring/zeros and the 107..108-degree stop.
+# This enables the current ground test; it is not qualification of every fallen pose.
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
@@ -142,17 +146,16 @@ wheel_leg:
 
 rl_controller:
   ros__parameters:
-    # Frozen V6 flat candidate; six-axis verification and mechanism limits remain pending.
+    # Frozen V6 flat candidate, with user-confirmed reference hardware mapping.
     policy_profile: "v6_flat_14020"
     rl_model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
-    # Frozen V6 references/geometry are runtime candidates; these files do not
-    # grant motor calibration or real-robot recovery readiness.
+    # Keep the frozen native references and 40..105-degree geometry unchanged.
     v6_recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
     v6_height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
-    recovery_enabled: false
-    recovery_profile_ready: false
+    recovery_enabled: true
+    recovery_profile_ready: true
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
     recovery_motor_age_s: 0.02
     recovery_imu_age_s: 0.02
@@ -161,8 +164,7 @@ rl_controller:
     # V6 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
     # and its encoder/gyro response thresholds. It is a conditional support
     # estimate; queued CAN torque and motor-current truth are not substituted
-    # for measured contact. Hardware readiness stays false pending validation.
-    # See docs/zh-cn/wheel_leg_v6_recovery_alignment_20261003.md.
+    # for measured contact. Validate support and takeover in this ground test.
     height_transition_seconds: 6.0
     wheel_radius: 0.06
     wheel_track: 0.4373
@@ -174,9 +176,9 @@ rl_controller:
     # Leg P order: left_hip, left_knee-drive, right_hip, right_knee-drive.
     # q_model = leg_motor_to_model(4x4 row-major) * q_api + leg_model_offsets;
     # tau_motor = leg_motor_to_model^T * tau_model.
-    # The physical 105-degree zero and IMU mounting were confirmed. V6 six-axis
-    # mapping and multipoint mechanism verification have not yet been completed.
-    calibration_ready: false
+    # Reuse the confirmed reference signs/offsets and BMI088 mounting. The motor
+    # zero hold has been exercised; full multipoint geometry metrology is pending.
+    calibration_ready: true
     # Reference: frozen V6 deployment/v6_pair_from_dev_rmcs_rl.json.
     # Driver API already applies reversed with bias=0. V6 axes invert the V5
     # model axes, hence q_v6 = -q_api + offset. Never reverse the raw angle twice.
@@ -192,12 +194,12 @@ rl_controller:
     # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
     # The user-confirmed physical upper stop is 107..108 degrees. Interpolating
     # the upstream G0 105/110-degree samples gives d(108)=1.3889088544 rad.
-    # These measured-feedback guards are separate from the frozen V6 40..105
+    # These physical feedback guards are separate from the frozen V6 40..105
     # geometry/target domain. Do not change the motor zero or extend that LUT:
     # an initially extended leg may fold inward without inventing support.
-    # This default profile stays disarmed; use the recovery commissioning profile
-    # for the explicitly enabled, supervised real-robot test.
-    soft_limits_ready: false
+    # The enabled guard admits the confirmed extended start and rejects feedback
+    # beyond the physical range plus the existing 0.03-rad guard band.
+    soft_limits_ready: true
     hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
     hinge_bias: [0.0, 0.0]
     hinge_min: [-0.140638855, -0.140638855]
@@ -247,8 +249,9 @@ wheel_leg_chassis_controller:
     yaw_rate_max: 1.0
     spin_yaw_rate: 1.0
     deadzone: 0.08
-    command_height_min: 0.23
-    command_height_max: 0.43
+    # Keep height fixed during the first recovery/balance commissioning run.
+    command_height_min: 0.305
+    command_height_max: 0.305
     default_command_height: 0.305
     height_step: 0.01
     angular_z_invert: false
