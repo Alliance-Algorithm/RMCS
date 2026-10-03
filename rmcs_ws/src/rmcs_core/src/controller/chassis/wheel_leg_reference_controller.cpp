@@ -79,15 +79,15 @@ public:
             throw std::invalid_argument("Invalid reference damping or following-error bound");
     }
 
-    void before_updating() override {
-        const double ratio = *update_rate_ / frequency_;
-        if (!std::isfinite(ratio) || ratio < 1.0 || std::abs(ratio - std::round(ratio)) > 1e-6)
-            throw std::invalid_argument("Reference PD frequency must divide executor rate");
-        divisor_ = static_cast<std::size_t>(std::llround(ratio));
-        period_ = 1.0 / frequency_;
-    }
-
     void update() override {
+        // Executor publishes the update rate after before_updating().
+        if (divisor_ == 0) {
+            const double ratio = *update_rate_ / frequency_;
+            if (!std::isfinite(ratio) || ratio < 1.0 || std::abs(ratio - std::round(ratio)) > 1e-6)
+                throw std::invalid_argument("Reference PD frequency must divide executor rate");
+            divisor_ = static_cast<std::size_t>(std::llround(ratio));
+            period_ = 1.0 / frequency_;
+        }
         ++tick_;
         stop_outputs_();
         using rmcs_msgs::Switch;
@@ -289,7 +289,7 @@ private:
     Eigen::Vector4d reference_, captured_, target_, q_, dq_, last_q_, held_torque_;
     std::array<std::uint64_t, 4> last_ns_{}, last_sequence_{};
     Clock::time_point enable_started_{}, last_pd_time_{}, stable_started_{};
-    std::size_t tick_ = 0, last_pd_tick_ = 0, divisor_ = 1;
+    std::size_t tick_ = 0, last_pd_tick_ = 0, divisor_ = 0;
     double kp_, kd_, ramp_velocity_, torque_limit_, frequency_, position_tolerance_;
     double velocity_tolerance_, stable_seconds_, following_error_max_;
     double period_ = 0.005, ramp_duration_ = 0.0, ramp_elapsed_ = 0.0, stable_elapsed_ = 0.0;
