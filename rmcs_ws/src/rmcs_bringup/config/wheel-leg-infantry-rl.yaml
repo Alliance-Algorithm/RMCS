@@ -30,6 +30,7 @@ wheel_leg_state_broadcaster:
 value_broadcaster:
   ros__parameters:
     forward_list:
+      - /remote/rotary_knob
       # 四个关节电机（DM）：反馈角度 / 目标角度 / 输出力矩 / 反馈速度
       - /wheel_leg/left_hip_joint/angle
       - /wheel_leg/left_hip_joint/control_angle
@@ -76,8 +77,8 @@ wheel_leg_chassis_controller:
     command_height_min: 0.26
     command_height_max: 0.28
     default_command_height: 0.27
-    height_range: 0.01
-    height_step: 0.01
+    keyboard_keyboard_height_step: 0.01
+    switch_height_rate: 0.05
     angular_z_invert: false
     heading_kp: 3.0
     height_invert: false

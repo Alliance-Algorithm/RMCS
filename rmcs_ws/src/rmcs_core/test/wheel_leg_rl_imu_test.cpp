@@ -137,7 +137,8 @@ TEST_F(WheelLegRlImuTest, RawBoardSamplesStayInBodyIncludingThePolicyBranch) {
 class RemoteSource : public Component {
 public:
     RemoteSource() {
-        register_output("/remote/joystick/right", right_stick, Eigen::Vector2d{0.0, 1.0});
+        // Remote convention: x = vertical stick (+forward), y = horizontal stick (+left).
+        register_output("/remote/joystick/right", right_stick, Eigen::Vector2d{1.0, 0.0});
         register_output("/remote/joystick/left", left_stick, Eigen::Vector2d::Zero());
         register_output("/remote/switch/right", right_switch, rmcs_msgs::Switch::MIDDLE);
         register_output("/remote/switch/left", left_switch, rmcs_msgs::Switch::MIDDLE);
@@ -154,10 +155,14 @@ public:
 
 class ChassisCommandSink : public Component {
 public:
-    ChassisCommandSink() { register_input("/chassis/control_velocity", velocity); }
+    ChassisCommandSink() {
+        register_input("/chassis/control_velocity", velocity);
+        register_input("/chassis/control_height", height);
+    }
     void update() override {}
 
     InputInterface<rmcs_description::BaseLink::DirectionVector> velocity;
+    InputInterface<double> height;
 };
 
 class WheelLegChassisImuTest : public WheelLegRlImuTest {
@@ -210,6 +215,96 @@ TEST_F(WheelLegChassisImuTest, HeadingAndPolicyBothUseBodyAxes) {
     chassis.update();
     EXPECT_NEAR(commands.velocity->vector.x(), 2.5, 1e-12);
     EXPECT_NEAR(commands.velocity->vector.z(), 0.0, 1e-12);
+}
+
+TEST_F(WheelLegChassisImuTest, RightStickCommandsForwardReverseAndTurns) {
+    Component::initializing_component_name = "wheel_leg_chassis_stick_test";
+    auto chassis_owner =
+        loader_.createSharedInstance("rmcs_core::controller::chassis::WheelLegChassisController");
+    auto& chassis = *chassis_owner;
+    RemoteSource remote;
+    ChassisCommandSink commands;
+    std::array<Component*, 4> components{&source, &remote, &chassis, &commands};
+    rmcs_executor::Executor::pair(components);
+    chassis.before_updating();
+
+    // Switch activity from UNKNOWN to MIDDLE/MIDDLE enters RL.
+    chassis.update();
+
+    const auto drive = [&](const Eigen::Vector2d& stick) {
+        *remote.right_stick = stick;
+        chassis.update();
+        return commands.velocity->vector;
+    };
+
+    auto command = drive({1.0, 0.0});
+    EXPECT_NEAR(command.x(), 2.5, 1e-12);
+    EXPECT_NEAR(command.y(), 0.0, 1e-12);
+    EXPECT_NEAR(command.z(), 0.0, 1e-12);
+
+    // A backward stick drives straight in reverse instead of turning the body around.
+    command = drive({-1.0, 0.0});
+    EXPECT_NEAR(command.x(), -2.5, 1e-12);
+    EXPECT_NEAR(command.z(), 0.0, 1e-12);
+
+    // Rightward stick: clockwise at the yaw-rate limit without translation.
+    command = drive({0.0, -1.0});
+    EXPECT_NEAR(command.x(), 0.0, 1e-9);
+    EXPECT_NEAR(command.z(), -3.0, 1e-12);
+
+    // Leftward stick: counter-clockwise at the yaw-rate limit.
+    command = drive({0.0, 1.0});
+    EXPECT_NEAR(command.x(), 0.0, 1e-9);
+    EXPECT_NEAR(command.z(), 3.0, 1e-12);
+
+    command = drive({0.0, 0.0});
+    EXPECT_TRUE(command.isZero());
+}
+
+TEST_F(WheelLegChassisImuTest, KnobRampsHeightAtFixedRateAndLeftStickIsIgnored) {
+    Component::initializing_component_name = "wheel_leg_chassis_height_test";
+    auto chassis_owner =
+        loader_.createSharedInstance("rmcs_core::controller::chassis::WheelLegChassisController");
+    auto& chassis = *chassis_owner;
+    RemoteSource remote;
+    ChassisCommandSink commands;
+    std::array<Component*, 4> components{&source, &remote, &chassis, &commands};
+    rmcs_executor::Executor::pair(components);
+    chassis.before_updating();
+
+    chassis.update();
+    const double start = *commands.height;
+    EXPECT_NEAR(start, 0.22, 1e-12);
+
+    // Unbound update rate falls back to the 1 ms default, so ten held-knob cycles
+    // move height by switch_height_rate(0.05) * 1.0 * 10 * 0.001 = 5e-4.
+    *remote.knob = 1.0;
+    for (int i = 0; i < 10; ++i)
+        chassis.update();
+    EXPECT_NEAR(*commands.height, start + 5e-4, 1e-12);
+
+    *remote.knob = -1.0;
+    for (int i = 0; i < 10; ++i)
+        chassis.update();
+    EXPECT_NEAR(*commands.height, start, 1e-12);
+
+    // Below the deadband the knob must not drift the height.
+    *remote.knob = 0.05;
+    for (int i = 0; i < 10; ++i)
+        chassis.update();
+    EXPECT_NEAR(*commands.height, start, 1e-12);
+
+    // The left stick has no height channel anymore.
+    *remote.knob = 0.0;
+    *remote.left_stick = Eigen::Vector2d{1.0, 1.0};
+    chassis.update();
+    EXPECT_NEAR(*commands.height, start, 1e-12);
+
+    // A held knob saturates at command_height_max instead of running away.
+    *remote.knob = 1.0;
+    for (int i = 0; i < 5000; ++i)
+        chassis.update();
+    EXPECT_NEAR(*commands.height, 0.42, 1e-12);
 }
 
 TEST_F(WheelLegRlImuTest, QuaternionSignAndNormalizationDoNotChangeGravity) {
