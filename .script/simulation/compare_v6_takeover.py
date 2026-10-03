@@ -250,6 +250,10 @@ def analyze_case(run, key, entry):
         end_effort_api_nm=rows[-1].get("torque_api") if rows else None,
         steady_samples=entry.get("steady_samples"), source_steady_checks=checks,
         source_steady_checks_all_pass=checks_valid, reported_takeover=reported_metrics,
+        source_steady_metrics={name: entry[name] for name in (
+            "vx_mae_m_s", "yaw_mae_rad_s", "height_mae_m", "planar_speed_mean_m_s",
+            "tilt_max_deg", "drift_max_m", "final_height_m", "steady_command",
+            "stop_speed_mean_m_s") if name in entry},
         recomputed_takeover=metrics, takeover_metric_agreement=metric_agreement,
         observed_failure_samples=len(faults), first_failure_time_s=faults[0].get("time_s") if faults else None,
         errors=errors, trace_sha256=digest(path) if path.is_file() and Path(key).name == key else None)
@@ -403,6 +407,7 @@ def main():
         validation=dict(metadata_matches=not metadata_errors, trace_evidence_valid=not trace_errors,
                         metadata_errors=metadata_errors, trace_errors=trace_errors),
         scope="Engineering endpoint/reset stress comparing normal upright C++ capture; no full fallen-pose recovery executed",
+        source_hash_scope="Exact equality of recorded source_sha256; source metadata is not a loaded-binary attestation",
         full_recovery_exercised=False, recovery_success_rate=None, hardware_ready=False,
         metric_scope="Early-window metrics are descriptive; full-horizon source steady checks are recorded separately",
         plot=dict(file="takeover_comparison.png", command_case=command_case,

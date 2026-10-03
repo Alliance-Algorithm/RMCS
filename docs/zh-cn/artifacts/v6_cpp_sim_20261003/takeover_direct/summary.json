@@ -1,0 +1,722 @@
+{
+  "schema": "rmcs-v6-cpp-isaac-summary-v1",
+  "generated_at": "2026-10-03T02:14:41.484013+00:00",
+  "source_directory": "/home/yukikaze/Documents/workspace/RMCS/docs/zh-cn/artifacts/v6_cpp_sim_20261003/takeover_direct",
+  "source_report_sha256": "ceb670cb39d9f0f79bfb32d52a658ec006b133aca653c561f074bdd0ec516724",
+  "summarizer_sha256": "ec5366b1875b44257a547fa06d94d6a4b5b8e8b4f43db4fbdd22e9a6aaf48cba",
+  "source_status": "complete",
+  "source_error": null,
+  "policy_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+  "contract_sha256": "666f7bdbba8c305d4bedc464fd1a42ea8725245461c49d186b75ed37fe58aae7",
+  "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+  "timing_scope": "logical simulation ticks with real steady-clock freshness; paced socket loop",
+  "sensor_source": "ideal base IMU and output-axis encoders",
+  "physics_dt_s": 0.005,
+  "executor_rate_hz": 1000,
+  "policy_rate_hz": 50,
+  "pd_rate_hz": 200,
+  "case_count": 4,
+  "passed_cases": 4,
+  "complete": true,
+  "hardware_ready": false,
+  "domain_qualified": null,
+  "cases": [
+    {
+      "case": "stand",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.02,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 0.928305855302751,
+          "planar_speed_peak_first_2s_m_s": 0.02700967526059201,
+          "entry_effort_jump_max_nm": 20.02384065061808,
+          "effort_step_peak_first_2s_nm": 20.02384065061808
+        },
+        "vx_mae_m_s": 0.0054061834235907885,
+        "yaw_mae_rad_s": 0.003262822397690398,
+        "height_mae_m": 0.0003395843213942463,
+        "planar_speed_mean_m_s": 0.0055163433794401615,
+        "tilt_max_deg": 0.31465779040329017,
+        "drift_max_m": 0.05393947672849395,
+        "final_height_m": 0.30465784668922424,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "nominal",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "PREPARE": 2,
+        "RL": 3197
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 2,
+          "name": "PREPARE"
+        },
+        {
+          "time_s": 0.02,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 25.358485375001692,
+        "simulation_to_wall_ratio": 0.6309525101121672,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.213537,
+          "mean": 7.924634521100343,
+          "median": 7.816122,
+          "p95": 9.013739300000001,
+          "p99": 9.826497419999999,
+          "max": 12.197727
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.002884,
+          "mean": 5.0622470615625,
+          "median": 5.065715,
+          "p95": 5.07952455,
+          "p99": 5.10436208,
+          "max": 5.210693
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3197,
+          "min": 22.804,
+          "mean": 60.71860181420081,
+          "median": 59.836,
+          "p95": 86.59559999999996,
+          "p99": 106.8146,
+          "max": 157.284
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.106,
+          "mean": 2.285683025945608,
+          "median": 1.381,
+          "p95": 5.678899999999999,
+          "p99": 6.63662,
+          "max": 31.169
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059232405312501,
+          "median": 5.0643695,
+          "p95": 5.076729899999999,
+          "p99": 5.09925436,
+          "max": 5.2040049999999995
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059232405312501,
+          "median": 5.0643695,
+          "p95": 5.076729899999999,
+          "p99": 5.09925436,
+          "max": 5.2040049999999995
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059232405312501,
+          "median": 5.0643695,
+          "p95": 5.076729899999999,
+          "p99": 5.09925436,
+          "max": 5.2040049999999995
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    },
+    {
+      "case": "stand__native_prepare",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand__native_prepare",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.01,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 0.5154826282316064,
+          "planar_speed_peak_first_2s_m_s": 0.019429398931586617,
+          "entry_effort_jump_max_nm": 10.424758196269366,
+          "effort_step_peak_first_2s_nm": 10.424758196269366
+        },
+        "vx_mae_m_s": 0.005469763977988355,
+        "yaw_mae_rad_s": 0.0036604369306589887,
+        "height_mae_m": 0.00034001543484943585,
+        "planar_speed_mean_m_s": 0.005579067415258189,
+        "tilt_max_deg": 0.31527903204183383,
+        "drift_max_m": 0.05458753004841589,
+        "final_height_m": 0.30465856194496155,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "native_prepare",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "RL": 3199
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 25.642952911000975,
+        "simulation_to_wall_ratio": 0.6239531014829384,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.21033,
+          "mean": 8.01293323663645,
+          "median": 7.841143,
+          "p95": 9.3773451,
+          "p99": 10.39133042,
+          "max": 17.872207
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.009909,
+          "mean": 5.0619404678125,
+          "median": 5.064968,
+          "p95": 5.0789191,
+          "p99": 5.10007226,
+          "max": 5.199179
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3199,
+          "min": 24.1,
+          "mean": 60.06792247577368,
+          "median": 59.201,
+          "p95": 85.0585,
+          "p99": 100.5472,
+          "max": 151.636
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.111,
+          "mean": 2.2775967489840574,
+          "median": 1.401,
+          "p95": 5.6674999999999995,
+          "p99": 6.407,
+          "max": 50.28
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.058921140937501,
+          "median": 5.063268,
+          "p95": 5.0764081999999995,
+          "p99": 5.095631099999999,
+          "max": 5.197075
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.058921140937501,
+          "median": 5.063268,
+          "p95": 5.0764081999999995,
+          "p99": 5.095631099999999,
+          "max": 5.197075
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.058921140937501,
+          "median": 5.063268,
+          "p95": 5.0764081999999995,
+          "p99": 5.095631099999999,
+          "max": 5.197075
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    },
+    {
+      "case": "stand__pitch_forward",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand__pitch_forward",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.02,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 10.008735943186654,
+          "planar_speed_peak_first_2s_m_s": 0.16712806495893928,
+          "entry_effort_jump_max_nm": 15.21088082313538,
+          "effort_step_peak_first_2s_nm": 15.21088082313538
+        },
+        "vx_mae_m_s": 0.0062493070589331005,
+        "yaw_mae_rad_s": 0.0044525088551997365,
+        "height_mae_m": 0.0003507587714292845,
+        "planar_speed_mean_m_s": 0.006348025168329648,
+        "tilt_max_deg": 0.3722031779636669,
+        "drift_max_m": 0.0626219622349219,
+        "final_height_m": 0.3046552538871765,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "pitch_forward",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "PREPARE": 2,
+        "RL": 3197
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 2,
+          "name": "PREPARE"
+        },
+        {
+          "time_s": 0.02,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 25.34769382200102,
+        "simulation_to_wall_ratio": 0.6312211324768524,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.022922,
+          "mean": 7.92044136073773,
+          "median": 7.779746,
+          "p95": 9.246504199999999,
+          "p99": 9.90231244,
+          "max": 11.783882
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.003115,
+          "mean": 5.0621345371875,
+          "median": 5.065777000000001,
+          "p95": 5.07860885,
+          "p99": 5.10146347,
+          "max": 5.217816
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3197,
+          "min": 21.278,
+          "mean": 60.74796496715671,
+          "median": 59.988,
+          "p95": 88.01719999999992,
+          "p99": 104.97979999999998,
+          "max": 143.612
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.109,
+          "mean": 2.2447683651140977,
+          "median": 1.388,
+          "p95": 5.7048999999999985,
+          "p99": 6.53222,
+          "max": 33.7
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0591279084375005,
+          "median": 5.0644195,
+          "p95": 5.0758123500000005,
+          "p99": 5.0959975,
+          "max": 5.216934
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0591279084375005,
+          "median": 5.0644195,
+          "p95": 5.0758123500000005,
+          "p99": 5.0959975,
+          "max": 5.216934
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0591279084375005,
+          "median": 5.0644195,
+          "p95": 5.0758123500000005,
+          "p99": 5.0959975,
+          "max": 5.216934
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    },
+    {
+      "case": "stand__pitch_backward",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand__pitch_backward",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.02,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 9.082227304189733,
+          "planar_speed_peak_first_2s_m_s": 0.20363598277115733,
+          "entry_effort_jump_max_nm": 16.17457589477301,
+          "effort_step_peak_first_2s_nm": 16.17457589477301
+        },
+        "vx_mae_m_s": 0.005406399615861099,
+        "yaw_mae_rad_s": 0.003820039554865098,
+        "height_mae_m": 0.00033853464219522585,
+        "planar_speed_mean_m_s": 0.00551546238553674,
+        "tilt_max_deg": 0.31090427356701644,
+        "drift_max_m": 0.05393494372028782,
+        "final_height_m": 0.3046625256538391,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "pitch_backward",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "PREPARE": 2,
+        "RL": 3197
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 2,
+          "name": "PREPARE"
+        },
+        {
+          "time_s": 0.02,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 25.70668300000034,
+        "simulation_to_wall_ratio": 0.6224062435437426,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.225557,
+          "mean": 8.032705243201,
+          "median": 7.878207,
+          "p95": 9.4358075,
+          "p99": 10.216689679999998,
+          "max": 14.649307
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.0036,
+          "mean": 5.0626318734375,
+          "median": 5.0660425,
+          "p95": 5.0818555,
+          "p99": 5.10493388,
+          "max": 5.225627
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3197,
+          "min": 20.663,
+          "mean": 59.692329371285574,
+          "median": 58.353,
+          "p95": 83.19919999999983,
+          "p99": 97.5109199999999,
+          "max": 131.812
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.108,
+          "mean": 2.420743669896843,
+          "median": 1.411,
+          "p95": 5.7464,
+          "p99": 6.485,
+          "max": 47.22
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0594922753125,
+          "median": 5.0646745,
+          "p95": 5.07836765,
+          "p99": 5.10131368,
+          "max": 5.218808999999999
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0594922753125,
+          "median": 5.0646745,
+          "p95": 5.07836765,
+          "p99": 5.10131368,
+          "max": 5.218808999999999
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0594922753125,
+          "median": 5.0646745,
+          "p95": 5.07836765,
+          "p99": 5.10131368,
+          "max": 5.218808999999999
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    }
+  ],
+  "source_trace_sha256": {
+    "stand": "bfa7d19b92ae7b203ed6cd56f655b0475ef80cfb0e4d88f1a2bd2b2301937ee3",
+    "stand__native_prepare": "81c8e56df51d23f636ce1b2cfc25a7467769ac3b1e174318ae4b169afc5aa9af",
+    "stand__pitch_backward": "6ccd46dd96416ce629d8f668ec02c176ee30a51dcc0f9795098e533ff39f9885",
+    "stand__pitch_forward": "5c98487ad1f2e4ea3c0377fb6dd8cee43f10412f4650e3d1254ebb7e5cf53c0d"
+  },
+  "artifacts": {
+    "trajectory": "trajectory.png",
+    "summary": "summary.json"
+  },
+  "passed": true
+}

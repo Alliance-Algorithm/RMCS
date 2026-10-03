@@ -1,0 +1,14 @@
+# Full 200 Hz sensor/action traces remain locally; commit the compact receipts.
+*/stand.json
+*/stand__*.json
+*/forward_stop.json
+*/backward_stop.json
+*/yaw_positive.json
+*/yaw_negative.json
+*/spin_negative.json
+*/spin_positive.json
+*/height_low.json
+*/height_high.json
+*/disable.json
+*.log
+__pycache__/
