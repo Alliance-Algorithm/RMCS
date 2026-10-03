@@ -67,13 +67,10 @@ public:
 
         using namespace rmcs_description::tunnel_sentry;
 
-        // 占位
-        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.0, 0.0, 0.0});
-
-        // 占位
-        tf_->set_transform<BottomYawLink, RollLink>(Eigen::Translation3d{0.0, 0.0, 0.0});
-        tf_->set_transform<RollLink, TopYawLink>(Eigen::Translation3d{0.0, 0.0, 0.0});
-        tf_->set_transform<TopYawLink, PitchLink>(Eigen::Translation3d{0.0, 0.0, 0.0});
+        tf_->set_transform<PitchLink, CameraLink>(Eigen::Translation3d{0.150, 0.0, 0.0415});
+        tf_->set_transform<BottomYawLink, RollLink>(Eigen::Translation3d{0.105, 0.020, 0.085});
+        tf_->set_transform<RollLink, TopYawLink>(Eigen::Translation3d{0.048, 0.0, 0.076});
+        tf_->set_transform<TopYawLink, PitchLink>(Eigen::Translation3d{0.0, 0.0, 0.125});
 
         using Srv = std_srvs::srv::Trigger;
         status_service_ = create_service<Srv>(
@@ -149,8 +146,6 @@ private:
                 DjiMotor::Config{DjiMotor::Type::kM2006, 4}
                     .set_reduction_ratio(1.0)
                     .set_reversed());
-
-            // bmi088_.configure{};
 
             sentry.register_output("/gimbal/yaw/velocity_imu", gimbal_yaw_velocity_bmi088_, 0.0);
             sentry.register_output(
@@ -377,6 +372,10 @@ private:
             FoldableSentry& sentry, rmcs_executor::Component& sentry_command,
             std::string_view board_serial = {})
             : tf_(sentry.tf_)
+            , bmi088_{device::Bmi088Ekf::Config{
+                  .body_to_sensor =
+                      Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
+                          .toRotationMatrix()}}
             , dr16_{}
             , gimbal_bottom_yaw_motor_(sentry, sentry_command, "/gimbal/bottom_yaw")
             , chassis_wheel_motors_(
@@ -544,6 +543,7 @@ private:
         OutputInterface<rmcs_description::tunnel_sentry::Tf>& tf_;
 
         device::Bmi088Ekf bmi088_;
+
         device::BoardClockLifter board_clock_lifter_;
         device::Dr16 dr16_;
         device::LkMotor gimbal_bottom_yaw_motor_;

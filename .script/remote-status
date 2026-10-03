@@ -7,8 +7,9 @@ services=(
     "/rmcs/service/robot_status"
 )
 
-# 使用 bash 远程执行，并传递服务列表作为参数
-ssh remote bash -s -- "${services[@]}" <<'EOF'
+# 查询逻辑：远程与本机共用同一段脚本，通过 stdin 传给 bash 执行
+status_script="$(
+    cat <<'EOF'
 set -euo pipefail
 
 # 1. 环境准备
@@ -63,3 +64,12 @@ for i in "${!input_services[@]}"; do
     fi
 done
 EOF
+)"
+
+# 远程可达则通过 ssh 执行，否则回退到本机执行
+if ssh -o BatchMode=yes -o ConnectTimeout=5 remote true 2>/dev/null; then
+    printf '%s\n' "${status_script}" | ssh remote bash -s -- "${services[@]}"
+else
+    printf '[warn] ssh remote unavailable, falling back to local execution\n' >&2
+    printf '%s\n' "${status_script}" | bash -s -- "${services[@]}"
+fi
