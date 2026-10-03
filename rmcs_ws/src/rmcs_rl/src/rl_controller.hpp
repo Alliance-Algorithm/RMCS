@@ -108,6 +108,7 @@ private:
     OutputInterface<int> recovery_sensor_issue_output_, recovery_sensor_mask_output_;
     OutputInterface<double> recovery_motor_age_output_, recovery_imu_age_output_;
     OutputInterface<double> recovery_acceleration_age_output_, recovery_blend_output_;
+    OutputInterface<double> v6_takeover_blend_output_;
     OutputInterface<double> recovery_height_output_;
     OutputInterface<double> inference_time_us_;
     OutputInterface<double> pd_time_us_;
@@ -153,6 +154,7 @@ private:
     std::array<double, 4> dm_feedback_position_max_{};
     Vector6 targets_ = Vector6::Zero();
     Vector6 policy_targets_ = Vector6::Zero();
+    Vector6 v6_takeover_targets_ = Vector6::Zero();
     RecoveryController recovery_;
     RecoveryPeakBudget recovery_peak_budget_;
     RecoveryCommand recovery_command_;
@@ -198,6 +200,12 @@ private:
     double prepare_max_angular_velocity_ = 0.35;
     double prepare_max_joint_velocity_ = 0.5;
     double prepare_stable_seconds_ = 0.25;
+    double v6_capture_max_leg_error_rad_ = 0.15;
+    double v6_capture_max_angular_velocity_ = 1.0;
+    double v6_capture_max_leg_velocity_ = 2.0;
+    double v6_capture_max_wheel_velocity_ = 5.0;
+    double v6_takeover_blend_seconds_ = 0.0;
+    double v6_takeover_blend_fraction_ = 0.0;
     double hinge_margin_ = 0.03;
     double recovery_dm_rated_output_rpm_ = 100.0;
     double recovery_dm_rated_torque_nm_ = 20.0;
