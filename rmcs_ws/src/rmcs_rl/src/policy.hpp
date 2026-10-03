@@ -78,7 +78,7 @@ inline constexpr PolicyProfile kV6PolicyProfile{
     0.5,
     1.0,
     1.0,
-    false};
+    true};
 
 inline constexpr PolicyProfile kV5PolicyProfile{
     LegacyPolicyContract::kName,

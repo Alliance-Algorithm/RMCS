@@ -72,6 +72,7 @@ void RlController::enter_(State next) {
         *inference_time_us_ = 0.0;
         *pd_time_us_ = 0.0;
         previous_action_.fill(0);
+        policy_action_.fill(0);
         for (auto& output : observation_outputs_)
             *output = 0.0;
         for (auto& output : action_outputs_)
@@ -80,6 +81,8 @@ void RlController::enter_(State next) {
     if (next == State::kIdle || next == State::kInit) {
         *enable_request_ = false;
         recovery_.reset();
+        if (v6_recovery_)
+            v6_recovery_->reset(q_, false);
         recovery_peak_budget_.reset();
         recovery_interval_.reset();
         recovery_actuation_interval_.reset();
@@ -88,6 +91,8 @@ void RlController::enter_(State next) {
         recovery_sensor_guard_.reset();
         if (recovery_observer_)
             recovery_observer_->reset();
+        if (v6_recovery_observer_)
+            v6_recovery_observer_->reset();
         recovery_started_ = false;
         recovery_upright_seconds_ = 0.0;
         policy_targets_valid_ = false;
@@ -97,6 +102,10 @@ void RlController::enter_(State next) {
         height_start_ = *timestamp_;
     } else if (next == State::kPrepare) {
         recovery_.reset();
+        if (v6_recovery_)
+            v6_recovery_->reset(q_, false);
+        if (v6_recovery_observer_)
+            v6_recovery_observer_->reset();
         recovery_started_ = false;
         recovery_upright_seconds_ = 0.0;
         motor_feedback_initialized_ = false;
@@ -132,26 +141,44 @@ void RlController::update_state_output_() {
     *recovery_motor_age_output_ = recovery_sensor_status_.maximum_motor_age_ms;
     *recovery_imu_age_output_ = recovery_sensor_status_.imu_age_ms;
     *recovery_acceleration_age_output_ = recovery_sensor_status_.acceleration_age_ms;
-    *recovery_contact_output_ = recovery_started_ && last_recovery_feedback_.contact_candidate;
-    *recovery_height_output_ = recovery_started_ && last_recovery_feedback_.geometry_valid
+    const bool native = policy_profile_.name == kV6PolicyProfile.name && v6_recovery_;
+    *recovery_native_phase_output_ =
+        native && recovery_started_ ? std::to_underlying(v6_recovery_->command().phase)
+        : native && v6_recovery_failure_latched_ != 0 ? std::to_underlying(V6RecoveryPhase::kFailed)
+                                                      : -1;
+    *recovery_native_route_output_ =
+        native && recovery_started_ ? std::to_underlying(v6_recovery_->command().route) : -1;
+    *recovery_native_failure_output_ = v6_recovery_failure_latched_;
+    *recovery_native_motion_released_output_ =
+        native && recovery_started_ && v6_recovery_->command().motion_released;
+    *recovery_contact_output_ = recovery_started_
+                             && (native ? v6_recovery_feedback_data_.support
+                                        : last_recovery_feedback_.contact_candidate);
+    *recovery_height_output_ = !recovery_started_ ? 0.0
+                             : native             ? v6_recovery_feedback_data_.estimated_height
+                             : last_recovery_feedback_.geometry_valid
                                  ? last_recovery_feedback_.height_if_grounded
                                  : 0.0;
-    *recovery_blend_output_ =
-        recovery_started_ ? (state_ == State::kRl ? 1.0 : recovery_command_.blend) : 0.0;
+    *recovery_blend_output_ = !recovery_started_   ? 0.0
+                            : native               ? v6_recovery_->command().blend
+                            : state_ == State::kRl ? 1.0
+                                                   : recovery_command_.blend;
     *v6_takeover_blend_output_ = v6_takeover_blend_fraction_;
     *state_output_ = std::to_underlying(state_);
-    *recovery_phase_output_ = std::to_underlying(recovery_.phase());
+    *recovery_phase_output_ = std::to_underlying(recovery_phase_());
     *recovery_failure_output_ = std::to_underlying(recovery_failure_latched_);
-    *recovery_support_output_ = recovery_started_ && last_recovery_feedback_.support_confirmed;
-    *recovery_geometry_output_ = recovery_started_ && last_recovery_feedback_.geometry_valid;
-    *recovery_motion_hold_output_ = hold_recovery_command(
-        recovery_started_, state_ == State::kPrepare,
-        std::chrono::duration<double>(recovery_update_time_ - recovery_rl_start_).count(),
-        recovery_upright_seconds_);
+    *recovery_support_output_ = recovery_started_
+                             && (native ? v6_recovery_observer_->support_confirmed()
+                                        : last_recovery_feedback_.support_confirmed);
+    *recovery_geometry_output_ = recovery_started_
+                              && (native ? v6_recovery_observer_->geometry_valid()
+                                         : last_recovery_feedback_.geometry_valid);
+    *recovery_motion_hold_output_ = recovery_motion_hold_();
 }
 
 bool RlController::evaluate_policy_(std::size_t tick, bool recovering) {
-    const bool shadow = recovering && recovery_command_.phase != RecoveryPhase::kBlend;
+    const bool native = policy_profile_.name == kV6PolicyProfile.name;
+    const bool shadow = recovering && (native || recovery_command_.phase != RecoveryPhase::kBlend);
     if (!assemble_observation_(recovering)) {
         return false;
     }
@@ -169,9 +196,9 @@ bool RlController::evaluate_policy_(std::size_t tick, bool recovering) {
     last_policy_tick_ = tick;
     for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
         *observation_outputs_[i] = observation_[i];
-    if (!shadow)
+    if (!shadow || native)
         for (std::size_t i = 0; i < action_outputs_.size(); ++i)
-            *action_outputs_[i] = previous_action_[i];
+            *action_outputs_[i] = native ? policy_action_[i] : previous_action_[i];
     return true;
 }
 
@@ -194,6 +221,7 @@ void RlController::update() {
     if (reset) {
         fault_latched_ = false;
         recovery_failure_latched_ = RecoveryFailure::kNone;
+        v6_recovery_failure_latched_ = 0;
         enter_(State::kIdle);
     }
     if (requested == 0) {
@@ -223,7 +251,12 @@ void RlController::update() {
             "Requested motion exceeds the active policy capability profile");
     if ((requested != 2 && requested != 3 && !automatic) || unsupported_command || fault_latched_
         || !policy_ready_ || !calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_
-        || (recovery_enabled_ && !recovery_profile_ready_) || !read_model_state_()) {
+        || (policy_profile_.name == kV6PolicyProfile.name && !v6_native_profile_ready_)
+        || (recovery_enabled_
+            && (!recovery_profile_ready_
+                || (policy_profile_.name == kV6PolicyProfile.name
+                    && (!v6_recovery_ || !v6_recovery_observer_))))
+        || !read_model_state_()) {
         if (requested >= 2 && calibration_ready_ && soft_limits_ready_ && policy_ready_
             && imu_alignment_ready_)
             fault_latched_ = true;
@@ -258,7 +291,8 @@ void RlController::update() {
         recovery_dt_ = *elapsed;
     }
     if ((state_ == State::kRl && recovery_started_)
-        || policy_profile_.name == kV6PolicyProfile.name) {
+        || (policy_profile_.name == kV6PolicyProfile.name
+            && !(recovery_enabled_ && requested == 3 && state_ != State::kRl))) {
         const Eigen::Quaterniond world_base = world_base_orientation_();
         const Eigen::Vector3d gravity = world_base.conjugate() * -Eigen::Vector3d::UnitZ();
         if (-gravity.z() < std::cos(45.0 * std::numbers::pi / 180.0)) {
@@ -267,15 +301,25 @@ void RlController::update() {
             return;
         }
         if (pd_due && recovery_started_) {
-            const auto feedback = observe_recovery_();
-            if (!feedback || !feedback->geometry_valid || !feedback->spring_compensation_valid) {
-                latch_fault_(RecoveryFailure::kInvalidFeedback);
-                update_state_output_();
-                return;
+            if (policy_profile_.name == kV6PolicyProfile.name) {
+                if (!advance_recovery_()) {
+                    latch_fault_(RecoveryFailure::kInvalidFeedback);
+                    update_state_output_();
+                    return;
+                }
+            } else {
+                const auto feedback = observe_recovery_();
+                if (!feedback || !feedback->geometry_valid
+                    || !feedback->spring_compensation_valid) {
+                    latch_fault_(RecoveryFailure::kInvalidFeedback);
+                    update_state_output_();
+                    return;
+                }
+                recovery_upright_seconds_ =
+                    recovery_upright_for_motion(*feedback)
+                        ? std::min(1.0, recovery_upright_seconds_ + recovery_dt_)
+                        : 0.0;
             }
-            recovery_upright_seconds_ = recovery_upright_for_motion(*feedback)
-                                          ? std::min(1.0, recovery_upright_seconds_ + recovery_dt_)
-                                          : 0.0;
         }
     }
     if (requested == 2 || (state_ != State::kPrepare && state_ != State::kRl))
@@ -341,6 +385,12 @@ void RlController::update() {
         }
     }
     if (pd_due) {
+        if (recovery_started_ && policy_profile_.name == kV6PolicyProfile.name
+            && !advance_v6_recovery_()) {
+            latch_fault_();
+            update_state_output_();
+            return;
+        }
         const auto pd_start = Clock::now();
         compute_motor_torques_();
         if (state_ == State::kPrepare || state_ == State::kRl)

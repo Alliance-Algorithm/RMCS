@@ -117,15 +117,13 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
         || !velocity_command_->vector.allFinite() || *height_command_ < policy_profile_.height_min
         || *height_command_ > policy_profile_.height_max || !std::isfinite(*jump_apex_command_))
         return false;
-    const bool hold_command = hold_recovery_command(
-        recovery_started_, state_ == State::kPrepare,
-        std::chrono::duration<double>(recovery_update_time_ - recovery_rl_start_).count(),
-        recovery_upright_seconds_);
+    const bool hold_command = recovery_motion_hold_();
     if (!shadow_recovery && !hold_command)
         update_command_reference_();
     else if (hold_command)
         vx_reference_ = yaw_reference_ = 0.0;
-    if (!shadow_recovery && std::abs(*height_command_ - height_target_) > 1e-6) {
+    if (!shadow_recovery && (policy_profile_.name != kV6PolicyProfile.name || !hold_command)
+        && std::abs(*height_command_ - height_target_) > 1e-6) {
         height_from_ = height_reference_;
         height_target_ = *height_command_;
         height_start_ = *timestamp_;
@@ -166,7 +164,9 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
     for (int i = 0; i < 6; ++i)
         joint_velocity[i] = dq_[i] * 0.1;
     auto previous_action = observation.subspan<ObservationLayout::kPreviousAction, 6>();
-    std::ranges::copy(previous_action_, previous_action.begin()); // clipped P order
+    // Native recovery stores the effective script/actor reference from the
+    // last control sample of the preceding policy interval.
+    std::ranges::copy(previous_action_, previous_action.begin());
 
     auto context = observation.subspan<ObservationLayout::kContext, 7>();
     std::ranges::fill(context, 0.0f);

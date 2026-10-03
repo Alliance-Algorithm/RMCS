@@ -125,6 +125,12 @@ RlController::RlController()
     register_output("/wheel_leg/rl/state", state_output_, std::to_underlying(State::kInit));
     register_output("/wheel_leg/enable_request", enable_request_, false);
     register_output("/wheel_leg/rl/recovery/phase", recovery_phase_output_, 0);
+    register_output("/wheel_leg/rl/recovery/native_phase", recovery_native_phase_output_, -1);
+    register_output("/wheel_leg/rl/recovery/native_failure", recovery_native_failure_output_, 0);
+    register_output("/wheel_leg/rl/recovery/native_route", recovery_native_route_output_, -1);
+    register_output(
+        "/wheel_leg/rl/recovery/native_motion_released", recovery_native_motion_released_output_,
+        false);
     register_output("/wheel_leg/rl/recovery/failure", recovery_failure_output_, 0);
     register_output("/wheel_leg/rl/recovery/support_confirmed", recovery_support_output_, false);
     register_output("/wheel_leg/rl/recovery/geometry_valid", recovery_geometry_output_, false);
@@ -165,10 +171,7 @@ RlController::RlController()
         policy_profile_ = kV5PolicyProfile;
     else
         throw std::runtime_error("Unknown frozen policy profile: " + profile_name);
-    if (recovery_enabled_ && !policy_profile_.recovery_supported)
-        throw std::runtime_error(
-            "The V6 flat candidate has no validated recovery profile; V5 recovery geometry cannot "
-            "be reused");
+
     strict_feedback_ = policy_profile_.name == kV6PolicyProfile.name || recovery_enabled_;
     RecoverySensorGuardConfig sensor_config;
     sensor_config.motor_age_seconds = get_parameter_or("recovery_motor_age_s", 0.02);
@@ -178,8 +181,9 @@ RlController::RlController()
     recovery_sensor_guard_ = RecoverySensorGuard{sensor_config};
     if (strict_feedback_) {
         dm_feedback_position_max_ = parameter_array<4>(
-            *this,
-            recovery_enabled_ ? "recovery_dm_feedback_position_max" : "dm_feedback_position_max");
+            *this, recovery_enabled_ && policy_profile_.name == kV5PolicyProfile.name
+                       ? "recovery_dm_feedback_position_max"
+                       : "dm_feedback_position_max");
         if (!std::ranges::all_of(
                 dm_feedback_position_max_, [](double value) { return value > 1.0; }))
             throw std::runtime_error("DM MIT feedback position bounds require valid values");
@@ -187,8 +191,10 @@ RlController::RlController()
     recovery_dm_rated_output_rpm_ = get_parameter_or("recovery_dm_rated_output_rpm", 100.0);
     recovery_dm_rated_torque_nm_ = get_parameter_or("recovery_dm_rated_torque_nm", 20.0);
     recovery_dm_peak_torque_nm_ = get_parameter_or("recovery_dm_peak_torque_nm", 40.0);
-    prepare_kp_ = get_parameter_or("prepare_kp", 80.0);
-    prepare_kd_ = get_parameter_or("prepare_kd", 2.0);
+    prepare_kp_ = get_parameter_or(
+        "prepare_kp", policy_profile_.name == kV6PolicyProfile.name ? 160.0 : 80.0);
+    prepare_kd_ =
+        get_parameter_or("prepare_kd", policy_profile_.name == kV6PolicyProfile.name ? 2.5 : 2.0);
     prepare_max_velocity_ = get_parameter_or("prepare_max_velocity", 1.0);
     prepare_reach_threshold_ = get_parameter_or("prepare_reach_threshold", 0.02);
     prepare_max_tilt_rad_ = get_parameter_or("prepare_max_tilt_rad", 0.2);
@@ -300,7 +306,33 @@ RlController::RlController()
                    > 1e-3))
         throw std::runtime_error("imu_to_base must be a calibrated rotation matrix");
 
-    if (recovery_enabled_ && recovery_profile_ready_) {
+    if (policy_profile_.name == kV6PolicyProfile.name) {
+        const auto resolve = [](const std::string& name) {
+            auto path = std::filesystem::path{name};
+            if (!path.is_absolute())
+                path =
+                    std::filesystem::path{ament_index_cpp::get_package_share_directory("rmcs_rl")}
+                    / path;
+            return path;
+        };
+        const auto native = V6RecoveryProfile::load(
+            resolve(
+                get_parameter_or<std::string>(
+                    "v6_recovery_profile_path",
+                    "models/wheel_leg/deployment/v6_recovery_profiles_v1.json")),
+            resolve(
+                get_parameter_or<std::string>(
+                    "v6_height_lookup_path",
+                    "models/wheel_leg/deployment/v6_height_lookup_v1.json")));
+        v6_recovery_.emplace(native.controller);
+        v6_recovery_observer_.emplace(native.geometry);
+        v6_prepare_target_ = native.controller.nominal;
+        v6_native_profile_ready_ = true;
+        if (prepare_kp_ != policy_profile_.leg_kp || prepare_kd_ != policy_profile_.leg_kd)
+            throw std::runtime_error("V6 PREPARE gains must match native training: 160 / 2.5");
+    }
+    if (recovery_enabled_ && recovery_profile_ready_
+        && policy_profile_.name == kV5PolicyProfile.name) {
         recovery_peak_budget_.configure(
             recovery_dm_rated_torque_nm_,
             get_parameter("recovery_above_rated_budget_s").as_double());
