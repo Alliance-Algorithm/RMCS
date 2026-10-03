@@ -16,8 +16,7 @@ bool RlController::update_prepare_() {
                  < prepare_reach_threshold_;
     }
     targets_[4] = targets_[5] = 0.0;
-    const Eigen::Quaterniond q_world_base =
-        orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
+    const Eigen::Quaterniond q_world_base = world_base_orientation_();
     const double gravity_z = (q_world_base.conjugate() * -Eigen::Vector3d::UnitZ()).z();
     if (!reached || -gravity_z < std::cos(prepare_max_tilt_rad_)
         || gyro_->norm() > prepare_max_angular_velocity_
@@ -32,40 +31,70 @@ bool RlController::update_prepare_() {
 }
 
 std::optional<RecoveryFeedback> RlController::observe_recovery_() {
-    if (!recovery_observer_ || !acceleration_.ready() || !acceleration_ns_.ready()
-        || !acceleration_->allFinite() || *acceleration_ns_ == 0)
+    if (!recovery_observer_ || !recovery_sensor_status_.valid || !acceleration_.ready()
+        || !acceleration_->allFinite())
         return std::nullopt;
-    const auto now = Clock::now();
-    const auto stamp =
-        Clock::time_point{std::chrono::nanoseconds{static_cast<std::int64_t>(*acceleration_ns_)}};
-    const auto age = now - stamp;
-    if (age < Clock::duration::zero() || age > std::chrono::milliseconds{30})
-        return std::nullopt;
-    // Use the same canonical policy base_link as the 35D observation. Do not
-    // apply the original CAD mesh rotation to the IMU a second time.
-    const Eigen::Quaterniond world_base =
-        orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
+    RecoverySensorData sensors;
+    sensors.steady_ns = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch())
+            .count());
+    sensors.imu_feedback_ns = *imu_ns_;
+    sensors.imu_feedback_sequence = *imu_sequence_;
+    for (int side = 0; side < 2; ++side) {
+        const int axis = 4 + side;
+        sensors.wheel_feedback_ns[side] = *motor_feedback_ns_[axis];
+        sensors.wheel_feedback_sequence[side] = *motor_feedback_sequences_[axis];
+        sensors.wheel_torque_feedback_nm[side] =
+            *torque_feedback_inputs_[axis] / wheel_scale_[side];
+        if (wheel_submitted_torque_[side].ready() && wheel_submitted_ns_[side].ready()
+            && wheel_submitted_kind_[side].ready()) {
+            sensors.wheel_torque_submitted_nm[side] =
+                *wheel_submitted_torque_[side] / wheel_scale_[side];
+            sensors.wheel_torque_submitted_ns[side] = *wheel_submitted_ns_[side];
+            sensors.wheel_tx_kind[side] = *wheel_submitted_kind_[side];
+        }
+    }
+    const Eigen::Quaterniond world_base = world_base_orientation_();
+    sensors.world_base_orientation = world_base;
     const Eigen::Vector3d gravity = world_base.conjugate() * -Eigen::Vector3d::UnitZ();
     const Eigen::Vector3d gyro = imu_to_base_ * *gyro_;
     const Eigen::Vector3d acceleration = imu_to_base_ * *acceleration_;
-    auto feedback = recovery_observer_->update(q_, dq_, gravity, gyro, acceleration, recovery_dt_);
+    auto feedback =
+        recovery_observer_->update(q_, dq_, gravity, gyro, acceleration, recovery_dt_, sensors);
     feedback.stamp = recovery_update_time_;
     last_recovery_feedback_ = feedback;
     return feedback;
 }
 
 bool RlController::advance_recovery_() {
+    const bool had_sensor_baseline =
+        recovery_observer_ && recovery_observer_->sensor_baseline_ready();
     auto feedback = observe_recovery_();
     if (!feedback) {
         return false;
     }
     if (!recovery_started_) {
+        if (!feedback->geometry_valid || !feedback->spring_compensation_valid)
+            return false;
+        // First acquire derivative baselines, even if the drives are already
+        // ready. A cold observer must not choose a fallen route for an upright body.
+        if (!had_sensor_baseline || !recovery_observer_->sensor_baseline_ready()) {
+            recovery_command_ = {};
+            return true;
+        }
         if (!recovery_.start(*feedback)) {
             return false;
         }
         recovery_started_ = true;
     }
+    const auto previous_phase = recovery_command_.phase;
     recovery_command_ = recovery_.step(*feedback, recovery_dt_);
+    if (previous_phase != RecoveryPhase::kBlend
+        && recovery_command_.phase == RecoveryPhase::kBlend) {
+        // Clear history once without changing the global 50 Hz policy clock.
+        // Hold the latest shadow targets until the next scheduled evaluation.
+        previous_action_.fill(0.0f);
+    }
     if (recovery_command_.phase == RecoveryPhase::kFailed) {
         return false;
     }

@@ -1,0 +1,10 @@
+{
+  "rmcs_core": {
+    "tests": 106,
+    "failures": 0
+  },
+  "rmcs_rl": {
+    "tests": 108,
+    "failures": 0
+  }
+}

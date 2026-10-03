@@ -1,0 +1,57 @@
+{
+  "schema": "chassis-explicit-motor-control-v1",
+  "control_id": "v6-wheel-response-control-200hz-v1",
+  "engineering_probe_only": false,
+  "training_release": false,
+  "control_frame": "Xforward_Yleft_Zup",
+  "active_order": [
+    "L_joint1",
+    "LL_joint1",
+    "L_joint3",
+    "R_joint1",
+    "RR_joint1",
+    "R_joint3"
+  ],
+  "timing": {
+    "physics_dt": 0.005,
+    "policy_dt": 0.02,
+    "pc_control_dt": 0.005,
+    "decimation": 4
+  },
+  "actuators": {
+    "leg": {
+      "model": "DM-J8009-2EC",
+      "kp": 160.0,
+      "kd": 2.5,
+      "effort_limit": 40.0,
+      "armature": 0.0,
+      "source_note": "Selected recorded PC PD; MIT gains zero. No identified drive response or torque-speed envelope; engine armature is an explicit unfit prior."
+    },
+    "wheel": {
+      "model": "M3508",
+      "gear_ratio": 15.8,
+      "gearbox_efficiency": 1.0,
+      "kd": 0.6,
+      "armature": 0.0,
+      "effort_limit": 4.5,
+      "curve_side": "wheel_output",
+      "curve_kind": "software_cap_only_not_identified",
+      "torque_reference": "wheel_output",
+      "scope": "simulation_research_prior",
+      "source_note": "PC velocity P=0.6 unchanged. Native wheel-specific additional armature/Coulomb/viscous values are bound by actuator_response and its evidence; this legacy scalar armature field is not used as their native value."
+    }
+  },
+  "plant_fit_applied": true,
+  "feedback_reference": "active_motor_output_axes_and_wheel_output_speed",
+  "policy_abi_source": "outer_chassis_contract_only_not_legacy_v40_observation_or_geometry",
+  "research_training": true,
+  "hardware_deployment_ready": false,
+  "uncertainty_note": "Wheel inertia/moving resistance only, vector overrides in actuator_response; leg response remains an unfit engineering prior. Not a six-axis identification or hardware release.",
+  "simulation_timing_approximation": {
+    "model": "200hz_feedback_pd_with_1ms_transport_impulse",
+    "hardware_pd_dt": 0.001,
+    "raw_bag_dt": 0.001,
+    "fresh_feedback_per_policy_step": 4,
+    "hardware_equivalence_verified": false
+  }
+}

@@ -6,6 +6,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -70,7 +71,7 @@ protected:
     using Ports = rmcs_executor::Executor;
 
     void SetUp() override {
-        // Keep the packaged V5 model, nominal pose, 50 Hz policy and 200 Hz PD.
+        // Keep the packaged V6 model, nominal pose, 50 Hz policy and 200 Hz PD.
         // Identity calibration and wide synthetic hinge bounds are exclusively
         // test inputs; they do not describe or update the real robot calibration.
         std::vector<std::string> args{"rl_controller_test",       "--ros-args",  "--params-file",
@@ -80,8 +81,8 @@ protected:
                  "calibration_ready:=true", "soft_limits_ready:=true", "imu_alignment_ready:=true",
                  "leg_motor_to_model:=[1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,"
                  "0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0]",
-                 "hinge_coefficients:=[-1.0,1.0,-1.0,1.0]", "hinge_min:=[-2.0,-2.0]",
-                 "hinge_max:=[2.0,2.0]"}) {
+                 "leg_model_offsets:=[0.0,0.0,0.0,0.0]", "hinge_coefficients:=[-1.0,1.0,-1.0,1.0]",
+                 "hinge_min:=[-2.0,-2.0]", "hinge_max:=[2.0,2.0]"}) {
             args.push_back("-p");
             args.push_back(parameter);
         }
@@ -103,6 +104,9 @@ protected:
         bind("/wheel_leg/imu/angular_velocity", gyro_);
         bind("/wheel_leg/imu/acceleration", acceleration_);
         bind("/wheel_leg/imu/acceleration_steady_ns", acceleration_ns_);
+        bind("/wheel_leg/imu/last_steady_ns", imu_ns_);
+        bind("/wheel_leg/imu/sequence", imu_sequence_);
+        bind("/wheel_leg/imu/acceleration_sequence", acceleration_sequence_);
         bind("/wheel_leg/dm_control_ready", ready_);
         bind("/chassis/control_velocity", velocity_command_);
         bind("/chassis/control_height", height_);
@@ -117,10 +121,14 @@ protected:
             bind(prefix + "/velocity", velocity_[i]);
             bind(prefix + "/torque", feedback_torque_[i]);
             bind(prefix + "/max_torque", max_torque_[i]);
-            if (i < 4) {
+            bind(prefix + "/feedback_sequence", sequence_[i]);
+            bind(prefix + "/feedback_steady_ns", feedback_ns_[i]);
+            if (i < 4)
                 bind(prefix + "/fault_code", fault_[i]);
-                bind(prefix + "/feedback_sequence", sequence_[i]);
-                bind(prefix + "/feedback_steady_ns", feedback_ns_[i]);
+            else {
+                bind(prefix + "/last_submitted_torque", wheel_submitted_torque_[i - 4]);
+                bind(prefix + "/last_submitted_kind", wheel_submitted_kind_[i - 4]);
+                bind(prefix + "/last_submitted_steady_ns", wheel_submitted_ns_[i - 4]);
             }
         }
         Ports::require_bound_inputs(*controller_);
@@ -135,7 +143,18 @@ protected:
     }
 
     virtual std::vector<std::string> additional_parameters() const { return {}; }
-    virtual void refresh_feedback() {}
+    virtual void refresh_feedback() {
+        const auto now_ns = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch())
+                .count());
+        for (std::size_t axis = 0; axis < sequence_.size(); ++axis) {
+            ++sequence_[axis];
+            feedback_ns_[axis] = now_ns;
+        }
+        acceleration_ns_ = imu_ns_ = now_ns;
+        ++imu_sequence_;
+        ++acceleration_sequence_;
+    }
 
     template <typename T>
     void bind(const std::string& name, T& value) {
@@ -219,13 +238,145 @@ protected:
     Eigen::Quaterniond orientation_ = Eigen::Quaterniond::Identity();
     Eigen::Vector3d gyro_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d acceleration_{0.0, 0.0, 9.81};
-    std::uint64_t acceleration_ns_ = 0;
-    std::array<double, 6> angle_{0.42, -0.13742282595254576, -0.42, 0.13741557625658019, 0.0, 0.0};
+    std::uint64_t acceleration_ns_ = 0, imu_ns_ = 0, imu_sequence_ = 0, acceleration_sequence_ = 0;
+    std::array<double, 2> wheel_submitted_torque_{};
+    std::array<std::uint8_t, 2> wheel_submitted_kind_{};
+    std::array<std::uint64_t, 2> wheel_submitted_ns_{};
+    std::array<double, 6> angle_ = DeployedPolicyContract::kNominalPosition;
     std::array<double, 6> velocity_{}, feedback_torque_{};
     std::array<double, 6> max_torque_{40.0, 40.0, 40.0, 40.0, 4.5, 4.5};
     std::array<int, 4> fault_{};
-    std::array<std::uint64_t, 4> sequence_{}, feedback_ns_{};
+    std::array<std::uint64_t, 6> sequence_{}, feedback_ns_{};
 };
+
+class RlReferenceCalibrationTest : public RlControllerTest {
+protected:
+    std::vector<std::string> additional_parameters() const override {
+        return {
+            "leg_motor_to_model:=[-1.0,0.0,0.0,0.0,0.0,-1.0,0.0,0.0,0.0,0.0,-1.0,0.0,0.0,0.0,0.0,-"
+            "1.0]",
+            "leg_model_offsets:=[1.6,2.93,-1.6,-2.93]"};
+    }
+
+    void set_reference_nominal() {
+        constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
+        for (std::size_t i = 0; i < offsets.size(); ++i) {
+            // API=-raw; V6 model=-API+offset. Apply each sign and offset once.
+            const double raw = DeployedPolicyContract::kNominalPosition[i] - offsets[i];
+            angle_[i] = -raw;
+        }
+    }
+};
+
+TEST_F(RlReferenceCalibrationTest, ReferenceMotorOffsetsAreAppliedOnceInPolicyCoordinates) {
+    set_reference_nominal();
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    for (std::size_t i = 0; i < 4; ++i)
+        EXPECT_NEAR(
+            observation(kObservationNames[ObservationLayout::kJointPosition + i]), 0.0, 1e-7);
+    constexpr std::array raw_displacement{0.03, -0.04, 0.05, -0.02};
+    constexpr std::array raw_speed{0.2, -0.3, 0.4, -0.5};
+    for (std::size_t i = 0; i < 4; ++i) {
+        angle_[i] -= raw_displacement[i];
+        velocity_[i] = -raw_speed[i];
+    }
+    for (int tick = 0; tick < 20; ++tick)
+        step();
+    ASSERT_EQ(state(), State::kRl);
+    for (std::size_t i = 0; i < 4; ++i) {
+        EXPECT_NEAR(
+            observation(kObservationNames[ObservationLayout::kJointPosition + i]),
+            raw_displacement[i], 1e-7);
+        EXPECT_NEAR(
+            observation(kObservationNames[ObservationLayout::kJointVelocity + i]),
+            0.1 * raw_speed[i], 1e-7);
+    }
+}
+
+TEST_F(RlReferenceCalibrationTest, XForwardImuPreservesPitchRollAndGyroAxes) {
+    set_reference_nominal();
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    constexpr double angle = 0.2;
+    gyro_ = Eigen::Vector3d{0.2, -0.4, 0.6};
+    for (double direction : {-1.0, 1.0}) {
+        orientation_ =
+            Eigen::Quaterniond{Eigen::AngleAxisd{direction * angle, Eigen::Vector3d::UnitY()}};
+        for (int tick = 0; tick < 20; ++tick)
+            step();
+        EXPECT_NEAR(observation("projected_gravity/x"), direction * std::sin(angle), 1e-7);
+        EXPECT_NEAR(observation("projected_gravity/y"), 0.0, 1e-7);
+        EXPECT_NEAR(observation("projected_gravity/z"), -std::cos(angle), 1e-7);
+    }
+    orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{angle, Eigen::Vector3d::UnitX()}};
+    for (int tick = 0; tick < 20; ++tick)
+        step();
+    ASSERT_EQ(state(), State::kRl);
+    EXPECT_NEAR(observation("projected_gravity/x"), 0.0, 1e-7);
+    EXPECT_NEAR(observation("projected_gravity/y"), -std::sin(angle), 1e-7);
+    EXPECT_NEAR(observation("angular_velocity/x"), 0.1, 1e-7);
+    EXPECT_NEAR(observation("angular_velocity/y"), -0.2, 1e-7);
+    EXPECT_NEAR(observation("angular_velocity/z"), 0.3, 1e-7);
+}
+
+class RlRotatedImuMountTest : public RlControllerTest {
+protected:
+    std::vector<std::string> additional_parameters() const override {
+        return {"imu_to_base:=[0.0,-1.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0]"};
+    }
+};
+
+TEST_F(RlRotatedImuMountTest, RowMajorMountRotationKeepsQuaternionAndGyroInTheSameBaseFrame) {
+    const Eigen::Quaterniond imu_to_base{
+        Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitZ()}};
+    orientation_ = imu_to_base;
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    EXPECT_NEAR(observation("projected_gravity/x"), 0.0, 1e-7);
+    EXPECT_NEAR(observation("projected_gravity/y"), 0.0, 1e-7);
+    EXPECT_NEAR(observation("projected_gravity/z"), -1.0, 1e-7);
+    orientation_ =
+        Eigen::Quaterniond{Eigen::AngleAxisd{-0.2, Eigen::Vector3d::UnitY()}} * imu_to_base;
+    gyro_ = Eigen::Vector3d{0.4, -0.2, 0.6};
+    for (int tick = 0; tick < 20; ++tick)
+        step();
+    ASSERT_EQ(state(), State::kRl);
+    EXPECT_NEAR(observation("projected_gravity/x"), -std::sin(0.2), 1e-7);
+    EXPECT_NEAR(observation("projected_gravity/y"), 0.0, 1e-7);
+    EXPECT_NEAR(observation("projected_gravity/z"), -std::cos(0.2), 1e-7);
+    EXPECT_NEAR(observation("angular_velocity/x"), 0.1, 1e-7);
+    EXPECT_NEAR(observation("angular_velocity/y"), 0.2, 1e-7);
+    EXPECT_NEAR(observation("angular_velocity/z"), 0.3, 1e-7);
+}
+
+class RlPendingMechanismLimitsTest : public RlReferenceCalibrationTest {
+protected:
+    std::vector<std::string> additional_parameters() const override {
+        auto parameters = RlReferenceCalibrationTest::additional_parameters();
+        parameters.emplace_back("soft_limits_ready:=false");
+        return parameters;
+    }
+};
+
+TEST_F(RlPendingMechanismLimitsTest, ConfirmedImuAndMotorCalibrationStillRequireMechanismLimits) {
+    set_reference_nominal();
+    EXPECT_TRUE(controller_->get_parameter("calibration_ready").as_bool());
+    EXPECT_TRUE(controller_->get_parameter("imu_alignment_ready").as_bool());
+    requested_state_ = 3;
+    ready_ = true;
+    for (int tick = 0; tick < 20; ++tick) {
+        step();
+        EXPECT_EQ(state(), State::kIdle);
+        expect_neutral();
+    }
+}
+
+TEST_F(RlControllerTest, RuntimeProfileChangesCannotMisrepresentCachedCalibration) {
+    const auto result = controller_->set_parameter(rclcpp::Parameter{"calibration_ready", false});
+    EXPECT_FALSE(result.successful);
+    EXPECT_TRUE(controller_->get_parameter("calibration_ready").as_bool());
+}
 
 TEST_F(RlControllerTest, PrepareWaitsForDrivesWithoutAdvancingReferenceOrSendingTorque) {
     angle_[0] -= 0.1;
@@ -260,7 +411,7 @@ TEST_F(RlControllerTest, PolicyUpdatesEveryTwentyTicksAndPublishesClippedActionH
     EXPECT_DOUBLE_EQ(observation("height"), static_cast<float>(0.305 * 5.0));
     EXPECT_DOUBLE_EQ(observation("joint_position/left_wheel"), 0.0);
     EXPECT_DOUBLE_EQ(observation("projected_gravity/z"), -1.0);
-    velocity_command_.vector.x() = 1.0;
+    velocity_command_.vector.x() = 0.5;
     for (int i = 1; i < 20; ++i) {
         gyro_.x() = 0.01 * i;
         step();
@@ -271,7 +422,7 @@ TEST_F(RlControllerTest, PolicyUpdatesEveryTwentyTicksAndPublishesClippedActionH
     gyro_.x() = 0.2;
     step();
     EXPECT_DOUBLE_EQ(observation("angular_velocity/x"), static_cast<float>(0.1));
-    EXPECT_NEAR(observation("command/forward"), 0.012, 1e-8);
+    EXPECT_NEAR(observation("command/forward"), 0.03, 1e-8);
     for (std::size_t i = 0; i < first.size(); ++i) {
         EXPECT_DOUBLE_EQ(
             observation(kObservationNames[ObservationLayout::kPreviousAction + i]), first[i]);
@@ -292,15 +443,78 @@ TEST_F(RlControllerTest, PdRefreshesFromFeedbackEveryFiveTicksWhilePolicyTargetI
         EXPECT_EQ(actions(), first);
     }
     step();
-    EXPECT_NEAR(torque(4), -0.2, 1e-12);
+    EXPECT_NEAR(torque(4), -0.6, 1e-12);
     velocity_[4] = wheel_target + 2.0;
     for (int i = 0; i < 4; ++i) {
         step();
-        EXPECT_NEAR(torque(4), -0.2, 1e-12);
+        EXPECT_NEAR(torque(4), -0.6, 1e-12);
     }
     step();
-    EXPECT_NEAR(torque(4), -0.4, 1e-12);
+    EXPECT_NEAR(torque(4), -1.2, 1e-12);
     EXPECT_EQ(actions(), first);
+}
+
+TEST_F(RlControllerTest, NativeWheelTorqueLimitPrecedesTheHardwareCurrentLimit) {
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    max_torque_[4] = max_torque_[5] = 20.0;
+    velocity_[4] = 10.0 * actions()[4] + 100.0;
+    velocity_[5] = 10.0 * actions()[5] - 100.0;
+    for (int tick = 0; tick < 5; ++tick)
+        step();
+    ASSERT_EQ(state(), State::kRl);
+    EXPECT_DOUBLE_EQ(torque(4), -4.5);
+    EXPECT_DOUBLE_EQ(torque(5), 4.5);
+}
+
+TEST_F(RlControllerTest, SpinEntryClearsTranslationAndSlewsYawWithNormalContext) {
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    velocity_command_.vector.x() = 0.5;
+    for (int tick = 0; tick < 40; ++tick)
+        step();
+    ASSERT_GT(observation("command/forward"), 0.0);
+    mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
+    velocity_command_.vector = Eigen::Vector3d{0.0, 0.0, -1.0};
+    for (int tick = 0; tick < 20; ++tick)
+        step();
+    ASSERT_EQ(state(), State::kRl);
+    EXPECT_DOUBLE_EQ(observation("command/forward"), 0.0);
+    EXPECT_DOUBLE_EQ(observation("command/lateral"), 0.0);
+    EXPECT_NEAR(observation("command/yaw"), -0.08, 1e-7);
+    EXPECT_DOUBLE_EQ(observation("context/normal"), 1.0);
+    for (std::size_t i = 1; i < 7; ++i)
+        EXPECT_DOUBLE_EQ(observation(kObservationNames[ObservationLayout::kContext + i]), 0.0);
+}
+
+TEST(PolicyCapability, V6HeightAndMotionDomainDoesNotInheritV5HighSpeedOrJump) {
+    const rmcs_description::BaseLink::DirectionVector zero{0.0, 0.0, 0.0};
+    for (double height : {0.23, 0.305, 0.43})
+        EXPECT_TRUE(accepts_motion_command(false, height, rmcs_msgs::ChassisMode::AUTO, zero));
+    for (double height : {0.2299, 0.4301})
+        EXPECT_FALSE(accepts_motion_command(false, height, rmcs_msgs::ChassisMode::AUTO, zero));
+    EXPECT_FALSE(accepts_motion_command(true, 0.305, rmcs_msgs::ChassisMode::AUTO, zero));
+    EXPECT_FALSE(
+        accepts_motion_command(false, 0.305, rmcs_msgs::ChassisMode::AUTO, {0.5001, 0.0, 0.0}));
+    for (double yaw : {-1.0, 1.0})
+        EXPECT_TRUE(accepts_motion_command(
+            false, 0.305, rmcs_msgs::ChassisMode::SPIN_FAST, {0.0, 0.0, yaw}));
+    EXPECT_FALSE(
+        accepts_motion_command(false, 0.305, rmcs_msgs::ChassisMode::SPIN_FAST, {0.1, 0.0, 1.0}));
+    EXPECT_FALSE(
+        accepts_motion_command(false, 0.305, rmcs_msgs::ChassisMode::AUTO, {0.0, 0.01, 0.0}));
+    EXPECT_FALSE(
+        accepts_motion_command(false, 0.305, rmcs_msgs::ChassisMode::AUTO, {0.0, 0.0, -1.01}));
+    EXPECT_FALSE(
+        accepts_motion_command(false, 0.305, rmcs_msgs::ChassisMode::AUTO, {0.0, 0.0, 1.01}));
+}
+
+TEST(PolicyIdentity, LegacyModelCannotBeLoadedWithV6Semantics) {
+    EXPECT_THROW(OnnxPolicy{RL_CONTROLLER_LEGACY_TEST_MODEL}, std::runtime_error);
+    EXPECT_THROW(
+        OnnxPolicy(RL_CONTROLLER_TEST_MODEL, LegacyPolicyContract::kSha256), std::runtime_error);
+    EXPECT_NO_THROW(OnnxPolicy{RL_CONTROLLER_TEST_MODEL});
+    EXPECT_NO_THROW(OnnxPolicy(RL_CONTROLLER_LEGACY_TEST_MODEL, LegacyPolicyContract::kSha256));
 }
 
 TEST_F(RlControllerTest, DownResetClearsAllOutputsBeforeFeedbackAndCommandValidation) {
@@ -371,6 +585,64 @@ TEST_F(RlControllerTest, UnsupportedJumpRequestFailsClosedBeforeNextPolicyTick) 
     expect_latched_idle();
 }
 
+TEST_F(RlControllerTest, FlatActorFallDisablesBeforeTheNextPdTick) {
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{0.8, Eigen::Vector3d::UnitY()}};
+    step();
+    expect_latched_idle();
+    EXPECT_EQ(
+        output<int>("rl/recovery/failure"), std::to_underlying(RecoveryFailure::kLostUpright));
+}
+
+class RlFlatSensorGuardTest : public RlControllerTest {
+protected:
+    void refresh_feedback() override {
+        RlControllerTest::refresh_feedback();
+        if (expire_wheel_)
+            feedback_ns_[5] -= 21'000'000;
+        if (missing_imu_)
+            imu_sequence_ = 0;
+    }
+    bool expire_wheel_ = false, missing_imu_ = false;
+};
+
+TEST_F(RlFlatSensorGuardTest, V6RequiresFreshWheelFramesEvenWithRecoveryDisabled) {
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    ASSERT_FALSE(controller_->get_parameter("recovery_enabled").as_bool());
+    ASSERT_TRUE(output<bool>("rl/recovery/sensors_valid"));
+    expire_wheel_ = true;
+    step();
+    expect_latched_idle();
+    expire_wheel_ = false;
+    step();
+    expect_latched_idle();
+}
+
+TEST_F(RlFlatSensorGuardTest, V6CannotReuseAQuaternionWithoutItsMatchingImuSample) {
+    start_rl();
+    ASSERT_FALSE(HasFatalFailure());
+    missing_imu_ = true;
+    step();
+    expect_latched_idle();
+}
+
+TEST(PolicyCapability, V6FlatProfileCannotEnableLegacyRecovery) {
+    const std::vector<const char*> argv{"v6_recovery_profile_test",
+                                        "--ros-args",
+                                        "--params-file",
+                                        RL_CONTROLLER_TEST_PROFILE,
+                                        "-p",
+                                        "recovery_enabled:=true",
+                                        "--log-level",
+                                        "error"};
+    rclcpp::init(static_cast<int>(argv.size()), argv.data());
+    rmcs_executor::Component::initializing_component_name = "rl_controller";
+    EXPECT_THROW(RlController{}, std::runtime_error);
+    rclcpp::shutdown();
+}
+
 TEST_F(RlControllerTest, NonfiniteObservationAtInferenceClearsPreviouslyHeldTorque) {
     start_rl();
     ASSERT_EQ(state(), State::kRl);
@@ -388,12 +660,30 @@ TEST_F(RlControllerTest, NonfiniteObservationAtInferenceClearsPreviouslyHeldTorq
 
 class RlRecoveryControllerTest : public RlControllerTest {
 protected:
-    enum class FeedbackIssue { kNone, kMissingMotor, kExpiredMotor, kMissingImu, kExpiredImu };
+    void SetUp() override {
+        angle_ = LegacyPolicyContract::kNominalPosition;
+        RlControllerTest::SetUp();
+    }
+    enum class FeedbackIssue {
+        kNone,
+        kMissingMotor,
+        kExpiredMotor,
+        kMissingImu,
+        kExpiredImu,
+        kExpiredWheel,
+        kExpiredGyro,
+        kMissingGyro,
+        kImuSkew,
+        kFutureWheel
+    };
 
     std::vector<std::string> additional_parameters() const override {
         // This deliberately small, symmetric mechanism exercises the production
         // calibration reader and recovery observer. It is not robot calibration.
         std::vector<std::string> parameters{
+            "policy_profile:=v5_flat_12486",
+            std::string{"rl_model_path:="} + RL_CONTROLLER_LEGACY_TEST_MODEL,
+            "nominal_model_pos:=[0.42,-0.13742282595254576,-0.42,0.13741557625658019,0.0,0.0]",
             "recovery_enabled:=true",
             "recovery_profile_ready:=true",
             "recovery_above_rated_budget_s:=1.0",
@@ -415,6 +705,10 @@ protected:
             parameters.push_back(prefix + "_delta_rad:=[-1.0,1.0]");
             parameters.push_back(prefix + "_inner_knee_deg:=[50.0,100.0]");
             parameters.push_back(prefix + "_slider_m:=[0.02,0.04]");
+            parameters.push_back(prefix + "_slider_slope_m_per_rad:=[0.01,0.01]");
+            parameters.push_back(prefix + "_knee_axis_at_hip_zero:=[0.0,1.0,0.0,0.0,1.0,0.0]");
+            parameters.push_back(prefix + "_wheel_axis_at_hip_zero:=[0.0,1.0,0.0,0.0,1.0,0.0]");
+            parameters.push_back(prefix + "_passive_knee_sign:=1.0");
             parameters.push_back(prefix + "_hip_origin_m:=[0.0,0.0,0.0]");
             parameters.push_back(prefix + "_hip_axis:=[0.0,1.0,0.0]");
             parameters.push_back(prefix + "_spring_compression_at_zero_m:=0.05");
@@ -436,11 +730,19 @@ protected:
             feedback_ns_[axis] = now_ns;
         }
         acceleration_ns_ = now_ns;
+        imu_ns_ = now_ns;
+        ++imu_sequence_;
+        ++acceleration_sequence_;
         switch (issue_) {
         case FeedbackIssue::kMissingMotor: sequence_[0] = 0; break;
         case FeedbackIssue::kExpiredMotor: feedback_ns_[0] -= 21'000'000; break;
         case FeedbackIssue::kMissingImu: acceleration_ns_ = 0; break;
         case FeedbackIssue::kExpiredImu: acceleration_ns_ -= 31'000'000; break;
+        case FeedbackIssue::kExpiredWheel: feedback_ns_[5] -= 21'000'000; break;
+        case FeedbackIssue::kExpiredGyro: imu_ns_ -= 21'000'000; break;
+        case FeedbackIssue::kMissingGyro: imu_sequence_ = 0; break;
+        case FeedbackIssue::kImuSkew: acceleration_ns_ -= 11'000'000; break;
+        case FeedbackIssue::kFutureWheel: feedback_ns_[4] += 1'000'000; break;
         case FeedbackIssue::kNone: break;
         }
     }
@@ -481,9 +783,7 @@ protected:
         start_recovery_from_tick_zero();
         ASSERT_FALSE(HasFatalFailure());
         issue_ = issue;
-        const bool motor_fault =
-            issue == FeedbackIssue::kMissingMotor || issue == FeedbackIssue::kExpiredMotor;
-        const int detection_ticks = motor_fault ? 1 : 5;
+        const int detection_ticks = 1;
         for (int tick = 0; tick < detection_ticks; ++tick)
             step();
         expect_latched_idle();
@@ -513,6 +813,24 @@ protected:
     FeedbackIssue issue_ = FeedbackIssue::kNone;
 };
 
+TEST_F(RlRecoveryControllerTest, ReadyDrivesWaitForSensorBaselineBeforeSelectingUprightRoute) {
+    requested_state_ = 3;
+    ready_ = true;
+    update_current_tick();
+    ASSERT_EQ(state(), State::kPrepare);
+    ASSERT_TRUE(enabled());
+    EXPECT_EQ(output<int>("rl/recovery/phase"), std::to_underlying(RecoveryPhase::kIdle));
+    expect_zero_effort();
+    for (int i = 0; i < 4; ++i) {
+        step();
+        expect_zero_effort();
+    }
+    step();
+    ASSERT_EQ(state(), State::kPrepare);
+    EXPECT_EQ(output<int>("rl/recovery/phase"), std::to_underlying(RecoveryPhase::kPrepare));
+    EXPECT_GT(torque(0), 0.0);
+}
+
 TEST_F(RlRecoveryControllerTest, TickZeroWaitsForNextPdTickBeforeStartingRecovery) {
     start_recovery_from_tick_zero();
 }
@@ -531,6 +849,67 @@ TEST_F(RlRecoveryControllerTest, MissingAccelerationFeedbackDisablesUntilExplici
 
 TEST_F(RlRecoveryControllerTest, ExpiredAccelerationFeedbackDisablesUntilExplicitReset) {
     expect_fault_and_recovery_after_reset(FeedbackIssue::kExpiredImu);
+}
+
+TEST_F(RlRecoveryControllerTest, ExpiredWheelDisablesAtExecutorCadence) {
+    expect_fault_and_recovery_after_reset(FeedbackIssue::kExpiredWheel);
+}
+
+TEST_F(RlRecoveryControllerTest, ExpiredGyroDisablesAtExecutorCadence) {
+    expect_fault_and_recovery_after_reset(FeedbackIssue::kExpiredGyro);
+}
+
+TEST_F(RlRecoveryControllerTest, MissingGyroSequenceDisablesAtExecutorCadence) {
+    expect_fault_and_recovery_after_reset(FeedbackIssue::kMissingGyro);
+}
+
+TEST_F(RlRecoveryControllerTest, ImuSkewDisablesBeforeComputingTorque) {
+    expect_fault_and_recovery_after_reset(FeedbackIssue::kImuSkew);
+}
+
+TEST_F(RlRecoveryControllerTest, FutureWheelTimestampDisablesBeforeComputingTorque) {
+    expect_fault_and_recovery_after_reset(FeedbackIssue::kFutureWheel);
+}
+
+TEST_F(RlRecoveryControllerTest, EachDownToMiddleSessionSelectsFromCurrentPosture) {
+    start_recovery_from_tick_zero();
+    ASSERT_FALSE(HasFatalFailure());
+    for (int i = 0; i < 10; ++i) {
+        step();
+        ASSERT_EQ(output<int>("rl/recovery/phase"), std::to_underlying(RecoveryPhase::kPrepare));
+    }
+    down_reset();
+    EXPECT_FALSE(enabled());
+    expect_zero_effort();
+    EXPECT_EQ(output<int>("rl/recovery/phase"), std::to_underlying(RecoveryPhase::kIdle));
+    // The second session sees a side fall; it must not reuse the first
+    // session's upright classification or be limited to the first arming.
+    orientation_ =
+        Eigen::Quaterniond{Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitX()}};
+    requested_state_ = 3;
+    ready_ = false;
+    step();
+    ASSERT_EQ(state(), State::kPrepare);
+    expect_zero_effort();
+    ready_ = true;
+    for (int i = 0; i < 5; ++i)
+        step();
+    ASSERT_EQ(state(), State::kPrepare);
+    EXPECT_EQ(output<int>("rl/recovery/phase"), std::to_underlying(RecoveryPhase::kFold));
+    down_reset();
+    EXPECT_FALSE(enabled());
+    expect_zero_effort();
+}
+
+TEST_F(RlRecoveryControllerTest, NoSubmittedWheelFramesCannotConfirmSupport) {
+    start_recovery_from_tick_zero();
+    ASSERT_FALSE(HasFatalFailure());
+    for (int i = 0; i < 250; ++i) {
+        step();
+        ASSERT_EQ(state(), State::kPrepare);
+        ASSERT_FALSE(output<bool>("rl/recovery/support_confirmed"));
+        ASSERT_EQ(output<double>("rl/recovery/blend"), 0.0);
+    }
 }
 
 } // namespace

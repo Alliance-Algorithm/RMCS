@@ -58,7 +58,10 @@ void RlController::apply_soft_limits_(Eigen::Vector4d& tau) const {
             const double slope = last_recovery_feedback_.inner_knee_slope_deg_per_rad[side];
             const double a = -slope, b = slope;
             const double outward = a * tau[hip] + b * tau[knee];
-            if ((inner >= 108.0 && outward > 0) || (inner <= 42.0 && outward < 0)) {
+            const auto limits = recovery_observer_->inner_knee_limits_deg(side);
+            const double margin = std::min(2.0, (limits[1] - limits[0]) / 2.0);
+            if ((inner >= limits[1] - margin && outward > 0)
+                || (inner <= limits[0] + margin && outward < 0)) {
                 const double multiplier = outward / (a * a + b * b);
                 tau[hip] -= a * multiplier;
                 tau[knee] -= b * multiplier;
@@ -83,6 +86,11 @@ void RlController::apply_soft_limits_(Eigen::Vector4d& tau) const {
 }
 
 void RlController::compute_motor_torques_() {
+    if (state_ == State::kPrepare && recovery_enabled_ && *state_command_ == 3
+        && !recovery_started_) {
+        clear_outputs_();
+        return;
+    }
     const bool scripted = state_ == State::kPrepare && recovery_started_;
     const bool blending = scripted && recovery_command_.phase == RecoveryPhase::kBlend;
     Eigen::Vector4d tau = Eigen::Vector4d::Zero();
@@ -104,11 +112,16 @@ void RlController::compute_motor_torques_() {
         Eigen::Vector4d policy_tau;
         for (int i = 0; i < 4; ++i)
             policy_tau[i] = std::clamp(
-                DeployedPolicyContract::kLegKp * (policy_targets_[i] - q_[i])
-                    - DeployedPolicyContract::kLegKd * dq_[i],
+                policy_profile_.leg_kp * (policy_targets_[i] - q_[i])
+                    - policy_profile_.leg_kd * dq_[i],
                 -DeployedPolicyContract::kLegTorqueLimit, DeployedPolicyContract::kLegTorqueLimit);
-        const Eigen::Vector2d policy_wheel =
-            DeployedPolicyContract::kWheelKp * (policy_targets_.tail<2>() - dq_.tail<2>());
+        Eigen::Vector2d policy_wheel =
+            policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>());
+        // V6 clips each native PD output. The historical V5 recovery blend
+        // clips only its final API output; retain that regression contract.
+        if (policy_profile_.name == kV6PolicyProfile.name)
+            policy_wheel = policy_wheel.cwiseMax(-policy_profile_.wheel_torque_limit)
+                               .cwiseMin(policy_profile_.wheel_torque_limit);
         if (blending) {
             tau = (1.0 - recovery_command_.blend) * tau + recovery_command_.blend * policy_tau;
             wheel_tau = (1.0 - recovery_command_.blend) * wheel_tau
@@ -139,6 +152,14 @@ void RlController::compute_motor_torques_() {
         }
     }
     apply_soft_limits_(tau);
+    if (strict_feedback_) {
+        // Recheck actual sample age after ONNX. A fresh control interval alone
+        // does not imply that feedback was still fresh when inference returned.
+        if (!read_model_state_()) {
+            latch_fault_(RecoveryFailure::kInvalidFeedback);
+            return;
+        }
+    }
     // Conditional 24 V output-shaft bound, after the model-side blend.
     // A measured dynamometer curve must replace these provisional endpoints.
     if (recovery_enabled_) {

@@ -1,5 +1,9 @@
 # 串联腿 V5 自起接入 RMCS：当前代码落点与实施顺序
 
+> 2026-10-03 V6 接入后：本页为 **V5 自起实现与验证历史记录**。当前默认模型已是 V6 flat_14020，旧 V5 移至 `models/wheel_leg/legacy_v5/`。现行配置、遥控/滚轮高度及未验收门控以 [V6 部署说明](wheel_leg_v6_model_deployment_20261003.md) 为准；下文 V5 标定开关、40–110° 轨迹与成功率不适用于 V6。
+
+> 2026-10-03 更新：当前代码、传感器提交证据、参考标定与 V5/V6 边界见 [自起部署说明](wheel_leg_self_righting_deployment_20261002.md)，最新 C++/Python 对照见 [对齐复测报告](artifacts/self_righting_alignment_20261002/README.md)。本文保留当时设计/验证记录；实现状态以新说明和当前代码为准。
+
 核对范围：本工作树的 `rmcs_ws/src/rmcs_rl`、`rmcs_core`、`rmcs_bringup`，以及相邻训练仓库 `../robot_rl/isaac_wheeled_rl_train` 的 12486 模型合同、传感器闭环自起实现和零位文档。本文是针对**当前 RMCS 工作树**的实施设计；源仓库的硬件文件正在重构，以当前文件名为准。
 
 ## 已有能力与实际缺口
@@ -11,7 +15,7 @@
 - `observation.cpp::read_model_state_()` 直接做 `J*q_api+offset`，未对 DM 新反馈解缠。`dm_motor.hpp::update_status()` 每执行器 tick 解码缓存的 CAN 帧；缓存帧可能在多个 tick 重复，不能把 tick 当作新样本。DM `P_MAX` 是 MIT 量化区间，不能假设它是角度回绕周期。
 - `hardware/wheel-leg.cpp` 当前只有聚合 `/wheel_leg/feedback_fresh`（六轴和 IMU 各距接收时间小于 50 ms）。`/wheel_leg/imu/sensor_gravity/*` 来自四元数投影，**不是原始加速度**；BMI088 加速度只进入 EKF，未发布带采样时间的独立观测。传感器闭环的冲击/主动探测还缺少必要输入。
 - RL 配置没有设置 `require_enable_request: true`，硬件端默认 `false`，双中即请求使能 DM；此时 RL 的三个 `*_ready` 门禁只能令其输出零力矩，不能阻止驱动使能。`WheelLegDmCommandScheduler` 在使能切换后发清错和约 100 周期使能帧，再开始 MIT 帧：恢复计时及参考推进必须等到真实驱动就绪。`/wheel_leg/calibrate` 目前能直接发送四个 DM 设零帧，运行期间须互锁。
-- YAML 中 `calibration_ready`、`soft_limits_ready`、`imu_alignment_ready` 均为 `false`，`leg_motor_to_model`/闭链系数仍为占位；这些门禁不能靠填仿真数字绕过。现行膝线性限位近似在冻结仿真 45 点上最大误差约 2.66°，大于现有 `hinge_margin=0.03 rad`，不能作为自起全行程保护。
+- 2026-10-03 用户确认参考分支硬件与电机零点可沿用，`calibration_ready`、`imu_alignment_ready` 已为 `true`，模型零偏和 BMI088 Eigen 安装变换已接入。`soft_limits_ready` 与完整自起 profile 仍为 `false`；现行膝线性限位近似在冻结仿真 45 点上最大误差约 2.66°，大于现有 `hinge_margin=0.03 rad`，不能作为自起全行程保护。
 
 ## 执行器图与数据契约
 

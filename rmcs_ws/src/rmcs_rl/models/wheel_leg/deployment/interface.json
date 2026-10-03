@@ -1,0 +1,282 @@
+{
+  "schema": "wheel-leg-policy-handoff-v1",
+  "role": "flat_research_candidate_unassessed",
+  "hardware_deployment_ready": false,
+  "domain_qualified": null,
+  "identity": {
+    "contract_id": "v6-gas-spring-full-stage-research-v1",
+    "contract_sha256": "666f7bdbba8c305d4bedc464fd1a42ea8725245461c49d186b75ed37fe58aae7",
+    "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+    "control_math_sha256": "8073540d1cec0b32c6216699863b3ef53064a2d385b7110abe291d9da0e9b1ac",
+    "onnx_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+    "input": [
+      "batch",
+      35
+    ],
+    "output": [
+      "batch",
+      6
+    ],
+    "normalization": "contract-scaled observations; no running normalizer",
+    "verified": true,
+    "max_abs_error": 5.662441253662109e-07,
+    "source_checkpoint": "/home/kaiser/robot-rl-sim60/experiments/v6-task-campaign-20261001T110045Z-282358/train/flat/attempt_007/train/model_final.pt",
+    "source_checkpoint_sha256": "7e3644f595ade15f8d43315f9e5e61e4db528fd8fac8df71bcc0441e0868891f",
+    "source_commit": "2778206b5905c2760ccc381f2592b08e1cad611a",
+    "source_run": "/home/kaiser/robot-rl-sim60/experiments/v6-task-campaign-20261001T110045Z-282358",
+    "consumed_updates": 14020,
+    "task_actor_update": 13000,
+    "learning_lineage_updates": 13398,
+    "role": "flat_candidate_unassessed",
+    "qualified": null,
+    "scope": "flat foundation; recovery/speed/terrain/jump/stepjump not yet learned by this export"
+  },
+  "input": {
+    "name": "obs",
+    "dtype": "float32",
+    "shape": [
+      "batch",
+      35
+    ],
+    "history_length": 1,
+    "normalization": "contract scales only; final clip +/-100",
+    "policy_joint_order": [
+      "L_joint1",
+      "LL_joint1",
+      "R_joint1",
+      "RR_joint1",
+      "L_joint3",
+      "R_joint3"
+    ],
+    "slots": [
+      {
+        "start": 0,
+        "count": 3,
+        "semantic": "command vx,vy,yaw_rate; ordinary vy=0"
+      },
+      {
+        "start": 3,
+        "count": 1,
+        "semantic": "height command times5"
+      },
+      {
+        "start": 4,
+        "count": 3,
+        "semantic": "body gyro rad/s times0.5"
+      },
+      {
+        "start": 7,
+        "count": 3,
+        "semantic": "unit projected gravity; upright [0,0,-1]"
+      },
+      {
+        "start": 10,
+        "count": 6,
+        "semantic": "wrapped delta from nominal P order; wheel positions zero"
+      },
+      {
+        "start": 16,
+        "count": 6,
+        "semantic": "output-axis joint velocity rad/s P order times0.1"
+      },
+      {
+        "start": 22,
+        "count": 6,
+        "semantic": "previous clipped policy action P order"
+      },
+      {
+        "start": 28,
+        "count": 7,
+        "semantic": "flat ordinary command context [1,0,0,0,0,0,0]"
+      }
+    ]
+  },
+  "output": {
+    "name": "actions",
+    "dtype": "float32",
+    "shape": [
+      "batch",
+      6
+    ],
+    "policy_joint_order": [
+      "L_joint1",
+      "LL_joint1",
+      "R_joint1",
+      "RR_joint1",
+      "L_joint3",
+      "R_joint3"
+    ],
+    "deterministic": true,
+    "leg_clip": 3.0,
+    "wheel_clip": 9.0,
+    "leg_position_scale_rad": 0.25,
+    "wheel_velocity_scale_rad_s": 10.0,
+    "nominal_position_policy_order_rad": [
+      -0.41999998688697815,
+      0.1374228298664093,
+      0.41999998688697815,
+      -0.1374155730009079,
+      0.0,
+      0.0
+    ],
+    "nominal_position_exact_from_manifest_rad": [
+      -0.42,
+      0.13742282595395358,
+      0.42,
+      -0.1374155762580851,
+      0.0,
+      0.0
+    ],
+    "control_order": [
+      "L_joint1",
+      "LL_joint1",
+      "L_joint3",
+      "R_joint1",
+      "RR_joint1",
+      "R_joint3"
+    ],
+    "policy_from_control": [
+      0,
+      1,
+      3,
+      4,
+      2,
+      5
+    ],
+    "control_from_policy": [
+      0,
+      1,
+      4,
+      2,
+      3,
+      5
+    ],
+    "position_target_rule": "q_current + atan2(sin(q_nom+0.25*a_clipped-q_current),cos(q_nom+0.25*a_clipped-q_current))",
+    "wheel_target_rule": "10*a_clipped rad/s"
+  },
+  "control": {
+    "leg_kp": 160.0,
+    "leg_kd": 2.5,
+    "leg_model_effort_limit_nm": 40.0,
+    "wheel_velocity_p": 0.6,
+    "wheel_output_effort_limit_nm": 4.5,
+    "gear_ratio_device": 15.8,
+    "policy_period_s": 0.02,
+    "simulation_physics_feedback_pd_period_s": 0.005,
+    "hardware_target_pd_period_s": 0.001,
+    "current_rmcs_v5_pd_period_s": 0.005,
+    "current_rmcs_frame_period_s": 0.001,
+    "hardware_equivalence_verified": false,
+    "actuator_response": {
+      "enabled": true,
+      "schema": "chassis-actuator-response",
+      "version": 1,
+      "joint_names": [
+        "L_joint1",
+        "LL_joint1",
+        "L_joint3",
+        "R_joint1",
+        "RR_joint1",
+        "R_joint3"
+      ],
+      "gain": 1.0,
+      "armature": [
+        0.0,
+        0.0,
+        0.0038669808882082915,
+        0.0,
+        0.0,
+        0.003818453742910773
+      ],
+      "frictionloss": [
+        0.0,
+        0.0,
+        0.049507400779663126,
+        0.0,
+        0.0,
+        0.06957712078102896
+      ],
+      "damping": [
+        0.0,
+        0.0,
+        0.0006085318417485766,
+        0.0,
+        0.0,
+        0.0003429025559035852
+      ],
+      "time_constant_s": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "leg_identification_qualified": false,
+    "gas_spring_feedforward_used": false
+  },
+  "domain": {
+    "height_command_m": [
+      0.23,
+      0.43
+    ],
+    "command_slew": {
+      "vx_m_s2": 1.5,
+      "yaw_rad_s2": 4.0
+    },
+    "trained_high_speed_recovery_jump_step_capabilities": false
+  },
+  "hardware_mapping_reference": {
+    "source_file": "deployment/v6_pair_from_dev_rmcs_rl.json",
+    "q_api_scope": "DM reversed and bias=0 applied by native driver",
+    "leg_order": [
+      "L_joint1",
+      "LL_joint1",
+      "R_joint1",
+      "RR_joint1"
+    ],
+    "leg_jacobian": [
+      [
+        -1,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        -1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        -1
+      ]
+    ],
+    "leg_offset_rad": [
+      1.6,
+      2.93,
+      -1.6,
+      -2.93
+    ],
+    "velocity_rule": "dq_model=J*dq_api",
+    "torque_rule": "tau_api=transpose(J)*tau_model",
+    "hardware_multipoint_verified": false,
+    "v6_wheel_signs_verified": false,
+    "wheel_feedback_unit": "gearbox output rad/s; do not apply15.8 again",
+    "passive_inner_knee_domain_deg": [
+      40,
+      105
+    ]
+  },
+  "rmcs_existing_policy_scope": "V5; model hash/mapping/nominal/height range/geometry must be adapted together"
+}

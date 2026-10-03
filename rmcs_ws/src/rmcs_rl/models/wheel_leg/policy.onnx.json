@@ -1,0 +1,28 @@
+{
+  "contract_id": "v6-gas-spring-full-stage-research-v1",
+  "contract_sha256": "666f7bdbba8c305d4bedc464fd1a42ea8725245461c49d186b75ed37fe58aae7",
+  "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+  "control_math_sha256": "8073540d1cec0b32c6216699863b3ef53064a2d385b7110abe291d9da0e9b1ac",
+  "onnx_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+  "input": [
+    "batch",
+    35
+  ],
+  "output": [
+    "batch",
+    6
+  ],
+  "normalization": "contract-scaled observations; no running normalizer",
+  "verified": true,
+  "max_abs_error": 5.662441253662109e-07,
+  "source_checkpoint": "/home/kaiser/robot-rl-sim60/experiments/v6-task-campaign-20261001T110045Z-282358/train/flat/attempt_007/train/model_final.pt",
+  "source_checkpoint_sha256": "7e3644f595ade15f8d43315f9e5e61e4db528fd8fac8df71bcc0441e0868891f",
+  "source_commit": "2778206b5905c2760ccc381f2592b08e1cad611a",
+  "source_run": "/home/kaiser/robot-rl-sim60/experiments/v6-task-campaign-20261001T110045Z-282358",
+  "consumed_updates": 14020,
+  "task_actor_update": 13000,
+  "learning_lineage_updates": 13398,
+  "role": "flat_candidate_unassessed",
+  "qualified": null,
+  "scope": "flat foundation; recovery/speed/terrain/jump/stepjump not yet learned by this export"
+}

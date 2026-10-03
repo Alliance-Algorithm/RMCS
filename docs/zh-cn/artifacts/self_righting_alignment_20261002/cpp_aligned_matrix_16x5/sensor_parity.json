@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "checked_sensor_rows": 162827,
+  "python_source_sha256": "7671a7528fc19a3872ac1e1ec54fd763b999f054660861aac964ecadc60282c6",
+  "maximum_absolute_error": {
+    "conditional_height_m": 6.257168591594642e-08,
+    "wheel_height_difference_m": 9.440940687555077e-08,
+    "world_wheel_rate_rad_s": 2.3556166070193285e-05,
+    "inner_knee_deg": 6.834293998281282e-06
+  },
+  "tolerances": {
+    "conditional_height_m": 1e-06,
+    "wheel_height_difference_m": 1e-06,
+    "world_wheel_rate_rad_s": 0.001,
+    "inner_knee_deg": 0.0001
+  },
+  "scope": "calibrated kinematics on identical inputs; no assertion of identical CAN proof or physics"
+}

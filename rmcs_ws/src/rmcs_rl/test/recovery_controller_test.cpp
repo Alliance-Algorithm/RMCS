@@ -18,6 +18,8 @@ RecoveryFeedback supported_upright() {
     feedback.q.head<4>() = RecoveryConfig{}.upright;
     feedback.height_if_grounded = 0.305;
     feedback.geometry_valid = true;
+    feedback.geometrically_supported = true;
+    feedback.specific_force_norm_mps2 = 9.80665;
     feedback.height_valid = true;
     feedback.contact_candidate = true;
     feedback.support_confirmed = true;
@@ -233,10 +235,10 @@ TEST(RecoveryControllerTest, FoldExitKeepsItsReferenceAndUsesPlantTorqueRules) {
     for (int i = 0; i < 59; ++i) {
         const auto command = controller.step(feedback, 0.005);
         ASSERT_EQ(command.phase, RecoveryPhase::kFold);
-        EXPECT_DOUBLE_EQ(command.torque[0], 3.0);
-        EXPECT_DOUBLE_EQ(command.torque[1], -3.0);
-        EXPECT_DOUBLE_EQ(command.torque[2], -4.0);
-        EXPECT_DOUBLE_EQ(command.torque[3], 4.0);
+        EXPECT_DOUBLE_EQ(command.torque[0], 0.0);
+        EXPECT_DOUBLE_EQ(command.torque[1], 0.0);
+        EXPECT_DOUBLE_EQ(command.torque[2], 0.0);
+        EXPECT_DOUBLE_EQ(command.torque[3], 0.0);
     }
 
     const auto command = controller.step(feedback, 0.005);
@@ -421,6 +423,7 @@ TEST(RecoveryControllerTest, FallenRecoveryNeedsContactAndStableSupportBeforeRlT
 TEST(RecoveryControllerTest, AirborneEnableWaitsForSettledGroundWithoutDriving) {
     RecoveryController controller;
     auto feedback = supported_upright();
+    feedback.geometrically_supported = false;
     feedback.height_valid = false;
     feedback.contact_candidate = false;
     feedback.support_confirmed = false;
@@ -472,15 +475,15 @@ RecoveryMechanism measured_fixture() {
     return mechanism;
 }
 
-TEST(RecoveryObserverTest, RequiresClosedChainCalibrationAndBothWheelProbes) {
+TEST(RecoveryObserverTest, RequiresClosedChainCalibrationAndCannotConfirmWithoutSensorEvidence) {
     auto incomplete = measured_fixture();
     incomplete.sides[0].delta_rad = {1.0, -1.0};
     EXPECT_THROW(RecoveryObserver{incomplete}, std::invalid_argument);
     RecoveryObserver observer{measured_fixture()};
     Eigen::Vector4d goal{0.0, 2.0, 0.0, -2.0};
     observer.constrain_policy_goal(goal, 2.0);
-    EXPECT_NEAR(goal[1], 1.0, 1e-12);
-    EXPECT_NEAR(goal[3], -1.0, 1e-12);
+    EXPECT_NEAR(goal[1], 0.92, 1e-12);
+    EXPECT_NEAR(goal[3], -0.92, 1e-12);
     const RecoveryVector6 q = RecoveryVector6::Zero();
     const RecoveryVector6 dq = RecoveryVector6::Zero();
     RecoveryFeedback feedback;
@@ -496,8 +499,8 @@ TEST(RecoveryObserverTest, RequiresClosedChainCalibrationAndBothWheelProbes) {
     }
     EXPECT_NEAR(feedback.height_if_grounded, 0.305, 1e-12);
     EXPECT_TRUE(feedback.geometry_valid);
-    EXPECT_TRUE(feedback.settled);
-    EXPECT_TRUE(feedback.support_confirmed);
+    EXPECT_FALSE(feedback.settled);
+    EXPECT_FALSE(feedback.support_confirmed);
     EXPECT_TRUE(feedback.body_clear);
     const auto lost = observer.update(
         q, dq, -Eigen::Vector3d::UnitZ(), Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), 0.005);

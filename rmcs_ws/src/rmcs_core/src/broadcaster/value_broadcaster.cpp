@@ -3,6 +3,7 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/parameter_event_handler.hpp>
 #include <rmcs_executor/component.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/u_int8.hpp>
@@ -30,6 +31,9 @@ public:
                 forward_units_.emplace(
                     name,
                     std::make_unique<ForwardUnit<double, std_msgs::msg::Float64>>(this, name));
+            } else if (output.type.get() == typeid(bool)) {
+                forward_units_.emplace(
+                    name, std::make_unique<ForwardUnit<bool, std_msgs::msg::Bool>>(this, name));
             } else if (output.type.get() == typeid(int)) {
                 forward_units_.emplace(
                     name, std::make_unique<ForwardUnit<int, std_msgs::msg::Int32>>(this, name));

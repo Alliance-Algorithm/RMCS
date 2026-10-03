@@ -20,11 +20,12 @@ bool almost_integer(double value) {
 
 bool accepts_motion_command(
     bool jump, double height, rmcs_msgs::ChassisMode mode,
-    const rmcs_description::BaseLink::DirectionVector& command) {
-    if (!std::isfinite(height) || !command.vector.allFinite() || jump
-        || std::abs(height - DeployedPolicyContract::kNominalHeight) > 1e-3
-        || command.vector.x() < -3.0 || command.vector.x() > 3.0 || command.vector.z() < -1.05
-        || command.vector.z() > 4.0 * std::numbers::pi + 1e-3)
+    const rmcs_description::BaseLink::DirectionVector& command, const PolicyProfile& profile) {
+    if (!std::isfinite(height) || !command.vector.allFinite() || jump || height < profile.height_min
+        || height > profile.height_max || std::abs(command.vector.x()) > profile.forward_limit
+        || command.vector.z() < -profile.negative_yaw_limit
+        || command.vector.z() > profile.positive_yaw_limit
+        || (mode != rmcs_msgs::ChassisMode::AUTO && !rmcs_msgs::is_spining(mode)))
         return false;
     if (rmcs_msgs::is_spining(mode)
         && (std::abs(command.vector.x()) > 1e-3 || std::abs(command.vector.y()) > 1e-3))
@@ -82,6 +83,7 @@ void RlController::enter_(State next) {
         recovery_actuation_interval_.reset();
         last_pd_tick_.reset();
         motor_feedback_initialized_ = false;
+        recovery_sensor_guard_.reset();
         if (recovery_observer_)
             recovery_observer_->reset();
         recovery_started_ = false;
@@ -96,6 +98,7 @@ void RlController::enter_(State next) {
         recovery_started_ = false;
         recovery_upright_seconds_ = 0.0;
         motor_feedback_initialized_ = false;
+        recovery_sensor_guard_.reset();
         recovery_command_ = {};
         targets_ = q_;
         policy_targets_valid_ = false;
@@ -113,6 +116,20 @@ void RlController::enter_(State next) {
 }
 
 void RlController::update_state_output_() {
+    *recovery_sensors_valid_output_ = (state_ == State::kPrepare || state_ == State::kRl)
+                                   && recovery_sensor_status_.valid && feedback_valid_
+                                   && !fault_latched_;
+    *recovery_sensor_issue_output_ = std::to_underlying(recovery_sensor_status_.issue);
+    *recovery_sensor_mask_output_ = recovery_sensor_status_.invalid_mask;
+    *recovery_motor_age_output_ = recovery_sensor_status_.maximum_motor_age_ms;
+    *recovery_imu_age_output_ = recovery_sensor_status_.imu_age_ms;
+    *recovery_acceleration_age_output_ = recovery_sensor_status_.acceleration_age_ms;
+    *recovery_contact_output_ = recovery_started_ && last_recovery_feedback_.contact_candidate;
+    *recovery_height_output_ = recovery_started_ && last_recovery_feedback_.geometry_valid
+                                 ? last_recovery_feedback_.height_if_grounded
+                                 : 0.0;
+    *recovery_blend_output_ =
+        recovery_started_ ? (state_ == State::kRl ? 1.0 : recovery_command_.blend) : 0.0;
     *state_output_ = std::to_underlying(state_);
     *recovery_phase_output_ = std::to_underlying(recovery_.phase());
     *recovery_failure_output_ = std::to_underlying(recovery_failure_latched_);
@@ -190,7 +207,7 @@ void RlController::update() {
         return;
     }
     const bool unsupported_command = !accepts_motion_command(
-        *jump_command_, *height_command_, *chassis_mode_, *velocity_command_);
+        *jump_command_, *height_command_, *chassis_mode_, *velocity_command_, policy_profile_);
     if (unsupported_command)
         RCLCPP_WARN_THROTTLE(
             get_logger(), *get_clock(), 1000,
@@ -231,16 +248,16 @@ void RlController::update() {
         }
         recovery_dt_ = *elapsed;
     }
-    if (state_ == State::kRl && recovery_started_) {
-        const Eigen::Quaterniond world_base =
-            orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
+    if (state_ == State::kRl
+        && (recovery_started_ || policy_profile_.name == kV6PolicyProfile.name)) {
+        const Eigen::Quaterniond world_base = world_base_orientation_();
         const Eigen::Vector3d gravity = world_base.conjugate() * -Eigen::Vector3d::UnitZ();
         if (-gravity.z() < std::cos(45.0 * std::numbers::pi / 180.0)) {
             latch_fault_(RecoveryFailure::kLostUpright);
             update_state_output_();
             return;
         }
-        if (pd_due) {
+        if (pd_due && recovery_started_) {
             const auto feedback = observe_recovery_();
             if (!feedback || !feedback->geometry_valid || !feedback->spring_compensation_valid) {
                 latch_fault_(RecoveryFailure::kInvalidFeedback);

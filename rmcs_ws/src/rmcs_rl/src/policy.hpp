@@ -9,27 +9,92 @@
 
 namespace rmcs::rl {
 
-// Contract of the bundled v5_flat_12486 ONNX, not the current V6 training
-// contract. A 35D tensor alone cannot identify observation or actuator semantics.
-// See docs/zh-cn/wheel_leg_refactoring_20260929.md for the version boundary.
+// The frozen V6 flat actor and its native control contract are deployed together.
+// Tensor dimensions alone cannot identify observation or actuator semantics.
 struct DeployedPolicyContract {
+    static constexpr std::string_view kName = "v6_flat_14020";
+    static constexpr std::string_view kSha256 =
+        "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a";
     static constexpr double kPolicyFrequencyHz = 50.0;
     static constexpr double kControlFrequencyHz = 200.0;
     static constexpr double kPolicyPeriodSeconds = 1.0 / kPolicyFrequencyHz;
     static constexpr double kControlPeriodSeconds = 1.0 / kControlFrequencyHz;
     static constexpr double kNominalHeight = 0.305;
-    static constexpr double kLegKp = 60.0;
-    static constexpr double kLegKd = 2.0;
+    static constexpr double kLegKp = 160.0;
+    static constexpr double kLegKd = 2.5;
     static constexpr double kLegTorqueLimit = 40.0;
-    static constexpr double kWheelKp = 0.2;
+    static constexpr double kWheelKp = 0.6;
+    static constexpr double kWheelTorqueLimit = 4.5;
+    static constexpr double kForwardSlew = 1.5;
+    static constexpr double kYawSlew = 4.0;
+    static constexpr double kHeightMin = 0.23;
+    static constexpr double kHeightMax = 0.43;
     static constexpr float kLegActionLimit = 3.0f;
     static constexpr float kWheelActionLimit = 9.0f;
     static constexpr double kLegActionScale = 0.25;
     static constexpr double kWheelActionScale = 10.0;
     static constexpr double kWheelSpeedLimit = kWheelActionScale * kWheelActionLimit;
     static constexpr std::array<double, 6> kNominalPosition{
+        -0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0};
+};
+
+// Retained solely for the V5 recovery regression and explicit legacy profiles.
+// Its geometry and recovery evidence do not qualify the V6 candidate.
+struct LegacyPolicyContract : DeployedPolicyContract {
+    static constexpr std::string_view kName = "v5_flat_12486";
+    static constexpr std::string_view kSha256 =
+        "ae58b862be5547195d8c4b3e71aa9be37b147792ebc903c68f032f341d92be6d";
+    static constexpr double kLegKp = 60.0;
+    static constexpr double kLegKd = 2.0;
+    static constexpr double kWheelKp = 0.2;
+    static constexpr double kForwardSlew = 0.6;
+    static constexpr double kHeightMin = kNominalHeight;
+    static constexpr double kHeightMax = kNominalHeight;
+    static constexpr std::array<double, 6> kNominalPosition{
         0.42, -0.13742282595254576, -0.42, 0.13741557625658019, 0.0, 0.0};
 };
+
+struct PolicyProfile {
+    std::string_view name;
+    std::string_view sha256;
+    std::array<double, 6> nominal;
+    double leg_kp, leg_kd, wheel_kp, wheel_torque_limit;
+    double forward_slew, height_min, height_max;
+    double forward_limit, negative_yaw_limit, positive_yaw_limit;
+    bool recovery_supported;
+};
+
+inline constexpr PolicyProfile kV6PolicyProfile{
+    DeployedPolicyContract::kName,
+    DeployedPolicyContract::kSha256,
+    DeployedPolicyContract::kNominalPosition,
+    DeployedPolicyContract::kLegKp,
+    DeployedPolicyContract::kLegKd,
+    DeployedPolicyContract::kWheelKp,
+    DeployedPolicyContract::kWheelTorqueLimit,
+    DeployedPolicyContract::kForwardSlew,
+    DeployedPolicyContract::kHeightMin,
+    DeployedPolicyContract::kHeightMax,
+    0.5,
+    1.0,
+    1.0,
+    false};
+
+inline constexpr PolicyProfile kV5PolicyProfile{
+    LegacyPolicyContract::kName,
+    LegacyPolicyContract::kSha256,
+    LegacyPolicyContract::kNominalPosition,
+    LegacyPolicyContract::kLegKp,
+    LegacyPolicyContract::kLegKd,
+    LegacyPolicyContract::kWheelKp,
+    LegacyPolicyContract::kWheelTorqueLimit,
+    LegacyPolicyContract::kForwardSlew,
+    LegacyPolicyContract::kHeightMin,
+    LegacyPolicyContract::kHeightMax,
+    3.0,
+    1.05,
+    12.566370614359172 + 1e-3,
+    true};
 
 struct ObservationLayout {
     static constexpr std::size_t kCommand = 0;
@@ -93,7 +158,9 @@ static_assert(kObservationNames.size() == ObservationLayout::kSize);
 
 class OnnxPolicy {
 public:
-    explicit OnnxPolicy(const std::string& model_path);
+    explicit OnnxPolicy(
+        const std::string& model_path,
+        std::string_view expected_sha256 = DeployedPolicyContract::kSha256);
     ~OnnxPolicy();
     OnnxPolicy(const OnnxPolicy&) = delete;
     OnnxPolicy& operator=(const OnnxPolicy&) = delete;
