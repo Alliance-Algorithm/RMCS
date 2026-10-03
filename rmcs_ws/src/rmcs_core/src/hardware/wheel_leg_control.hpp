@@ -270,7 +270,7 @@ public:
             schedulers_[1].next(enable[1], entered_both_down)};
     }
 
-    // Wheel-only experiments park both pairs. Keep their 100 Hz neutral
+    // Both disabled pairs share each CAN bus. Keep their 100 Hz neutral
     // feedback polls five ticks apart: two IDs on each CAN bus must not all
     // compete in the same board transfer. Never defer an explicit disable or
     // replace any system/active command with a neutral poll.
