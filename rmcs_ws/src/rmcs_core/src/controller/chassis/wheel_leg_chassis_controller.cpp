@@ -29,13 +29,13 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
         register_input("/remote/joystick/right", joystick_right_);
-        register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/remote/keyboard", keyboard_);
 
         register_input("/wheel_leg/imu/quaternion", chassis_imu_quaternion_, false);
+        register_input("/predefined/update_rate", update_rate_, false);
 
         register_output(
             "/chassis/control_velocity", chassis_control_velocity_,
@@ -59,14 +59,13 @@ public:
         command_height_min_ = get_parameter_or<double>("command_height_min", 0.20);
         command_height_max_ = get_parameter_or<double>("command_height_max", 0.42);
         default_command_height_ = get_parameter_or<double>("default_command_height", 0.22);
-        height_range_ = get_parameter_or<double>("height_range", 0.20);
-        height_step_ = get_parameter_or<double>("height_step", 0.01);
+        keyboard_height_step_ = get_parameter_or<double>("keyboard_height_step", 0.01);
+        switch_height_rate_ = get_parameter_or<double>("switch_height_rate", 0.05);
 
         angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
         height_invert_ = get_parameter_or<bool>("height_invert", false);
         heading_kp_ = get_parameter_or<double>("heading_kp", 3.0);
 
-        height_ = default_command_height_;
         stop_controls_(WheelLegControlState::kInit);
     }
 
@@ -147,6 +146,12 @@ public:
     }
 
 private:
+    struct HeadingControl {
+        bool valid = false;
+        bool reverse = false;
+        double error = 0.0;
+    };
+
     void reset_all_controls_() {
         if (!reset_active_) {
             *reset_count_output_ += 1;
@@ -172,8 +177,8 @@ private:
         *task_mode_[0] = 1.0;
         for (std::size_t i = 1; i < task_mode_.size(); ++i)
             *task_mode_[i] = 0.0;
-        height_ = default_command_height_;
         height_offset_ = 0.0;
+        reverse_aligned_ = false;
     }
 
     void update_remote_control_(WheelLegControlState state) {
@@ -189,8 +194,9 @@ private:
 
     void update_velocity_control_() {
         const Eigen::Vector2d command = read_translational_command_();
-        const double vx = update_translational_velocity_control_(command);
-        const double yaw_rate = update_angular_velocity_control_(command);
+        const auto heading = compute_heading_control_(command);
+        const double vx = update_translational_velocity_control_(command, heading);
+        const double yaw_rate = update_angular_velocity_control_(heading);
 
         chassis_control_velocity_->vector.x() = std::clamp(vx, -vx_max_, vx_max_);
         chassis_control_velocity_->vector.y() = 0.0;
@@ -204,7 +210,9 @@ private:
     }
 
     Eigen::Vector2d read_translational_command_() const {
-        Eigen::Vector2d command{joystick_right_->y(), joystick_right_->x()};
+        // The remote convention is x = vertical stick (+forward) and y = horizontal stick
+        // (+left); the command frame is x = forward and y = right.
+        Eigen::Vector2d command{joystick_right_->x(), -joystick_right_->y()};
         if (std::abs(command.x()) < deadzone_)
             command.x() = 0.0;
         if (std::abs(command.y()) < deadzone_)
@@ -216,20 +224,48 @@ private:
         return command;
     }
 
-    double update_translational_velocity_control_(const Eigen::Vector2d& command) const {
-        const double command_magnitude = command.norm();
-        if (command_magnitude <= 1e-6)
-            return 0.0;
+    // Aligns the body with the commanded direction, picking the shorter turn between driving
+    // forward and reversing so that a backward stick commands a straight backup instead of a
+    // turn-around. The margin around +/-90 degrees keeps the choice from chattering.
+    HeadingControl compute_heading_control_(const Eigen::Vector2d& command) {
+        HeadingControl heading;
+        if (command.norm() <= 1e-6)
+            return heading;
+        heading.valid = true;
 
-        // A two-wheeled base cannot strafe: project the requested velocity onto the current forward
-        // axis and let the yaw controller rotate the body onto the requested heading.
+        // Forward is +x and right is -y in the captured frame, so a rightward stick yields a
+        // negative desired heading.
         const double desired_heading = std::atan2(-command.y(), command.x());
-        const double heading_error =
-            normalize_angle_(desired_heading - (chassis_yaw_() - reference_yaw_));
-        return command_magnitude * vx_max_ * std::max(0.0, std::cos(heading_error));
+        double error = normalize_angle_(desired_heading - (chassis_yaw_() - reference_yaw_));
+
+        constexpr double reverse_margin = 0.1;
+        const double quarter_turn = std::numbers::pi / 2.0;
+        if (!reverse_aligned_ && std::abs(error) > quarter_turn + reverse_margin)
+            reverse_aligned_ = true;
+        else if (reverse_aligned_ && std::abs(error) <= quarter_turn)
+            reverse_aligned_ = false;
+
+        if (reverse_aligned_) {
+            error = normalize_angle_(error - std::copysign(std::numbers::pi, error));
+            heading.reverse = true;
+        }
+        heading.error = error;
+        return heading;
     }
 
-    double update_angular_velocity_control_(const Eigen::Vector2d& command) {
+    double update_translational_velocity_control_(
+        const Eigen::Vector2d& command, const HeadingControl& heading) const {
+        if (!heading.valid)
+            return 0.0;
+
+        // A two-wheeled base cannot strafe: project the requested velocity onto the driving
+        // direction selected by the heading controller. Reversing keeps a backward stick from
+        // turning the body around.
+        const double drive_sign = heading.reverse ? -1.0 : 1.0;
+        return drive_sign * command.norm() * vx_max_ * std::max(0.0, std::cos(heading.error));
+    }
+
+    double update_angular_velocity_control_(const HeadingControl& heading) {
         using rmcs_msgs::ChassisMode;
 
         switch (*mode_) {
@@ -240,15 +276,10 @@ private:
         default: break;
         }
 
-        if (command.norm() <= 1e-6)
+        if (!heading.valid)
             return 0.0;
 
-        // Forward is +x and right is -y in the captured frame, so a rightward stick yields a
-        // negative desired heading (clockwise).
-        const double desired_heading = std::atan2(-command.y(), command.x());
-        const double heading_error =
-            normalize_angle_(desired_heading - (chassis_yaw_() - reference_yaw_));
-        const double yaw_rate = heading_kp_ * heading_error;
+        const double yaw_rate = heading_kp_ * heading.error;
         return angular_z_invert_ ? -yaw_rate : yaw_rate;
     }
 
@@ -270,33 +301,42 @@ private:
     }
 
     void update_height_control_() {
-        const auto& rotary_knob = *rotary_knob_;
         const auto& keyboard = *keyboard_;
-        if (!last_keyboard_.q && keyboard.q)
-            height_offset_ -= height_step_;
-        if (rotary_knob > 0.1)
-            height_offset_ += height_step_ * rotary_knob;
-        if (!last_keyboard_.e && keyboard.e)
-            height_offset_ += height_step_;
-        if (rotary_knob < -0.1)
-            height_offset_ += height_step_ * rotary_knob;
+        constexpr double knob_deadband = 0.1;
 
-        double height_channel = joystick_left_->y();
+        // The knob is position-holding, so a continuous rate keeps a held knob moving the height
+        // at a bounded speed instead of saturating it within a few control cycles.
+        double knob = *rotary_knob_;
+        if (std::abs(knob) < knob_deadband)
+            knob = 0.0;
         if (height_invert_)
-            height_channel = -height_channel;
+            knob = -knob;
+        height_offset_ += switch_height_rate_ * knob * update_dt();
 
-        height_ = default_command_height_ + height_channel * height_range_ + height_offset_;
-        height_ = std::clamp(height_, command_height_min_, command_height_max_);
-        *chassis_control_height_ = height_;
+        if (!last_keyboard_.q && keyboard.q)
+            height_offset_ -= keyboard_height_step_;
+        if (!last_keyboard_.e && keyboard.e)
+            height_offset_ += keyboard_height_step_;
+
+        height_offset_ = std::clamp(
+            height_offset_, command_height_min_ - default_command_height_,
+            command_height_max_ - default_command_height_);
+        *chassis_control_height_ = default_command_height_ + height_offset_;
+    }
+
+    double update_dt() const {
+        if (update_rate_.ready() && std::isfinite(*update_rate_) && *update_rate_ > 1e-6)
+            return 1.0 / *update_rate_;
+        return default_dt_;
     }
 
     InputInterface<Eigen::Vector2d> joystick_right_;
-    InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<double> rotary_knob_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
+    InputInterface<double> update_rate_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<double> chassis_control_height_;
@@ -318,17 +358,19 @@ private:
     double command_height_min_ = 0.20;
     double command_height_max_ = 0.42;
     double default_command_height_ = 0.22;
-    double height_range_ = 0.20;
-    double height_step_ = 0.05;
+    double keyboard_height_step_ = 0.05;
+    double switch_height_rate_ = 0.05;
     bool angular_z_invert_ = false;
     bool height_invert_ = false;
     double heading_kp_ = 3.0;
 
+    static constexpr double default_dt_ = 1e-3;
+
     bool spinning_forward_ = true;
     bool switch_activity_seen_ = false;
     bool reset_active_ = false;
+    bool reverse_aligned_ = false;
     double reference_yaw_ = 0.0;
-    double height_ = 0.0;
     double height_offset_ = 0.0;
 };
 
