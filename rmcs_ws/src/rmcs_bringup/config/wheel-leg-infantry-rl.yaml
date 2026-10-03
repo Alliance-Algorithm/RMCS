@@ -24,6 +24,23 @@ value_broadcaster:
       - /wheel_leg/right_wheel/velocity
       - /wheel_leg/right_wheel/torque
 
+      - /wheel_leg/feedback_fresh
+      - /wheel_leg/dr16_fresh
+      - /wheel_leg/dm_control_ready
+      - /wheel_leg/enable_request
+      - /wheel_leg/imu/sensor_gravity/x
+      - /wheel_leg/imu/sensor_gravity/y
+      - /wheel_leg/imu/sensor_gravity/z
+      - /wheel_leg/imu/sensor_gyro/x
+      - /wheel_leg/imu/sensor_gyro/y
+      - /wheel_leg/imu/sensor_gyro/z
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/right_wheel/control_torque
+
       # 左腿（髋/膝/轮）
       - /wheel_leg/left_hip_joint/angle
       - /wheel_leg/left_hip_joint/velocity
@@ -38,6 +55,10 @@ value_broadcaster:
       - /wheel_leg/rl/state
       - /wheel_leg/rl/recovery/phase
       - /wheel_leg/rl/recovery/failure
+      - /wheel_leg/rl/recovery/native_phase
+      - /wheel_leg/rl/recovery/native_route
+      - /wheel_leg/rl/recovery/native_failure
+      - /wheel_leg/rl/recovery/native_motion_released
       - /wheel_leg/rl/recovery/sensors_valid
       - /wheel_leg/rl/recovery/sensor_issue
       - /wheel_leg/rl/recovery/sensor_invalid_mask
@@ -168,15 +189,19 @@ rl_controller:
     wheel_model_scale: [1.0, 1.0]
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
 
-    # These are continuous active motor differences, NOT passive knee angles:
-    # d_left=q_LK-q_LH, d_right=q_RH-q_RK. V6 monotone closed-chain reference
-    # maps the physical 40..105-degree knee domain to these bounds. Keep false
-    # until the actual mechanism is checked at multiple measured poses.
+    # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
+    # The user-confirmed physical upper stop is 107..108 degrees. Interpolating
+    # the upstream G0 105/110-degree samples gives d(108)=1.3889088544 rad.
+    # These measured-feedback guards are separate from the frozen V6 40..105
+    # geometry/target domain. Do not change the motor zero or extend that LUT:
+    # an initially extended leg may fold inward without inventing support.
+    # This default profile stays disarmed; use the recovery commissioning profile
+    # for the explicitly enabled, supervised real-robot test.
     soft_limits_ready: false
     hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
     hinge_bias: [0.0, 0.0]
     hinge_min: [-0.140638855, -0.140638855]
-    hinge_max: [1.329574849, 1.329574849]
+    hinge_max: [1.3889088544, 1.3889088544]
     hinge_margin: 0.03
 
     # This ONNX was trained with base_link/control_frame X-forward, Y-left,
