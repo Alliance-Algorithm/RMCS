@@ -7,7 +7,9 @@ services:
       - /dev:/dev:bind
       - /tmp/.X11-unix:/tmp/.X11-unix:bind
       - /run/user/1000/wayland-0:/run/user/1000/wayland-0:bind
-      - ${HOME}/.config/:${CONTAINER_HOME}/.config/:bind
+      - ${HOME}/.config/opencode:${CONTAINER_HOME}/.config/opencode:cached
+      - ${HOME}/.config/nvim:${CONTAINER_HOME}/.config/nvim:cached
+      - ${HOME}/.local/share/nvim:${CONTAINER_HOME}/.local/share/nvim:cached
       - .:/workspaces/RMCS:bind
     environment:
       - DISPLAY=${DISPLAY}
