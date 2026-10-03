@@ -37,12 +37,20 @@ void RlController::before_updating() {
     // Executor::start sets /predefined/update_rate AFTER before_updating().
     // Calculate divisors on the first update instead.
     last_reset_count_ = *reset_count_;
-    if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_)
+    const bool native_profile_ready =
+        policy_profile_.name != kV6PolicyProfile.name || v6_native_profile_ready_;
+    if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_
+        || !native_profile_ready)
         RCLCPP_WARN(
             get_logger(),
-            "RL disarmed: calibrated motor mapping, hinge limits and ONNX model are required");
-    if (recovery_enabled_ && !recovery_profile_ready_)
-        RCLCPP_WARN(get_logger(), "Self-righting disarmed: recovery profile is not calibrated");
+            "RL disarmed: calibration_ready=%d, soft_limits_ready=%d, imu_alignment_ready=%d, "
+            "policy_ready=%d, v6_profile_ready=%d",
+            calibration_ready_, soft_limits_ready_, imu_alignment_ready_, policy_ready_,
+            native_profile_ready);
+    if (!recovery_enabled_)
+        RCLCPP_INFO(get_logger(), "Self-righting disabled: recovery_enabled=false");
+    else if (!recovery_profile_ready_)
+        RCLCPP_WARN(get_logger(), "Self-righting disarmed: recovery_profile_ready=false");
 }
 
 void RlController::clear_outputs_() {
