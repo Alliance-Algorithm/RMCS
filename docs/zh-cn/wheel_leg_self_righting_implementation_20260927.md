@@ -1,6 +1,10 @@
 # 24 V 倒地自起的 RMCS 接入状态
 
-当前为 **RMCS 代码实现和离线验证**；尚未拿到实车四轴 L1→模型零位/方向、DM 反馈端连续角语义、全行程闭链实测表、壳体几何/气簧力曲线及 IMU/支撑探测误差。RL 配置的 `recovery_enabled`、`recovery_profile_ready`、`calibration_ready`、`soft_limits_ready`、`imu_alignment_ready` 均保持 `false`。不将仿真数据填作实车标定，也不重新给已在 **105°** 姿态内部设零的四台 DM 发送设零命令。
+> 2026-10-03 V6 接入后：本页为 **V5 自起实现与验证历史记录**。当前默认模型已是 V6 flat_14020，旧 V5 移至 `models/wheel_leg/legacy_v5/`。现行配置、遥控/滚轮高度及未验收门控以 [V6 部署说明](wheel_leg_v6_model_deployment_20261003.md) 为准；下文 V5 标定开关、40–110° 轨迹与成功率不适用于 V6。
+
+> 2026-10-03 更新：当前代码、传感器提交证据、参考标定与 V5/V6 边界见 [自起部署说明](wheel_leg_self_righting_deployment_20261002.md)，最新 C++/Python 对照见 [对齐复测报告](artifacts/self_righting_alignment_20261002/README.md)。本文保留当时设计/验证记录；实现状态以新说明和当前代码为准。
+
+当前为 **RMCS 代码实现和离线验证**。2026-10-03 用户确认沿用参考分支电机零点及 BMI088 +X 朝前安装；`calibration_ready`、`imu_alignment_ready` 已设为 `true`。尚需完成 DM 反馈端连续角语义、全行程闭链、壳体/气簧及支撑探测响应的部署配置；`recovery_enabled`、`recovery_profile_ready`、`soft_limits_ready` 继续为 `false`。不重新给已在 **105°** 姿态内部设零的四台 DM 发送设零命令。
 
 ## 已接入的控制链
 
@@ -22,7 +26,7 @@
 
 用户确认**实体底盘及 BMI088 安装均为车体 +X 向前的右手系**。原始 CAD URDF 是**−Y 向前、+X 向左、+Z 向上**；冻结的 `model/纯底盘_v5_232mm/urdf/robot.urdf` 已在导出时对根部 visual/collision/inertial 和髋关节位置左乘 `Rz(+90°)`。因此 `−Y_CAD → +X_policy`、`+X_CAD → +Y_policy`；冻结 manifest 的 `control_frame` 是 `Xforward_Yleft_Zup`，与实车控制系**名义一致**。该旋转已进入资产，既不再乘到 RMCS 机身速度命令／IMU 上，也不把六维关节动作像三维向量那样旋转。
 
-`/wheel_leg/imu/*` 来自 `Bmi088Ekf` 的 body 输出；默认 `body_to_sensor=I`。当实测传感器 +X 前、+Y 左、+Z 上及其 quaternion/gyro 符号一致时，`imu_to_base=I` 才是这个**冻结策略坐标系**的候选值。`imu_to_base` 只补偿真实 IMU 安装外参，不补偿源 CAD→已冻结策略资产的导出旋转。核验应包括水平静置 `g_B≈(0,0,-1)`、车头抬起/压下时 `g_B.x` 的正负与模型一致、侧倾时 `g_B.y` 的正负与模型一致、正 yaw 为 `+Z`，以及实际向前滚动是否对应策略的 `command/forward>0`；在角速度和轮转方向标定前，仍保持 `imu_alignment_ready=false`、`calibration_ready=false` 和恢复门禁关闭。腿／轮动作反映的是模型关节与轮轴目标，实际符号通过各轴 `leg_motor_to_model`、`wheel_model_scale` 和设备反馈方向实测，不套 `Rz(+90°)`。
+`/wheel_leg/imu/*` 来自 `Bmi088Ekf` 的 body 输出；用户确认参考分支安装方向可沿用，现已显式使用 Eigen 单位阵 `body_to_sensor=I`、`imu_to_base=I`，并设置 `imu_alignment_ready=true`。`imu_to_base` 只补偿真实 IMU 安装外参，不补偿源 CAD→已冻结策略资产的导出旋转。姿态、角速度和比力经同一安装变换送入策略与自起；新增回归覆盖俯仰/侧倾正负方向、三轴 gyro 及非单位阵安装变换。部署诊断可查看水平静置 `g_B≈(0,0,-1)`、车头抬起/压下时 `g_B.x`、侧倾时 `g_B.y` 及正 yaw 为 `+Z` 的响应。腿／轮动作通过复用零点的 `leg_motor_to_model`、`wheel_model_scale` 和设备 reversed 方向换算，不套 `Rz(+90°)`。
 
 在 `wheel-leg-infantry-rl.yaml` 中显式提供已核验的 `recovery_dm_feedback_position_max` 四值、`recovery_above_rated_budget_s`（实测允许高于额定 20 Nm 的累计时长；耗尽即裁剪到额定值，不作为精确热模型），以及 `recovery_orbit_speed`、`recovery_side_speed`、`recovery_rollover_speed`、`recovery_capture_speed` 和按策略 P 顺序的 **8 组**四主动轴模型参考：`recovery_fold_p4`、`recovery_thrust_p4`、`recovery_side_extended_p4`、`recovery_stand_p4`（0.305 m、Kp120）、`recovery_upright_p4`（0.305 m、Kp80）、`recovery_support_extended_p4`（0.40 m、Kp120）、`recovery_upright_support_extended_p4`（0.40 m、Kp80）、`recovery_capture_extended_p4`（0.35 m、Kp120）。中倾角的普通准备目标为已认证 ONNX 的 actor nominal，不把伸腿支撑姿态当接管准备目标。四轴位置必须由**实际电机反馈 API 端**与模型坐标标定，不能仅由内膝 **105° 设零**与电机内部读数 0 推定。恢复代码不把 MIT `P_MAX` 猜作反馈回绕周期；若运动时角度跳变/触及反馈量化端点，则锁定故障。
 
@@ -30,7 +34,7 @@
 
 ## 本地验证和能力边界
 
-恢复后解锁遥控运动的判定采用 **RL 接管后至少 1 s 的实际经过时间**及 **连续 1 s 的条件站立证据**双门禁；它只把摇杆命令留在零，不是支撑探测的替代品，也不能消除翻起瞬间的壳体冲击。代码仍缺少把 **RMCS C++ 控制器**接进同一 Isaac Sim 机械资产的逐案闭环验证。
+恢复后解锁遥控运动的判定采用 **RL 接管后至少 1 s 的实际经过时间**及 **连续 1 s 的条件站立证据**双门禁；它只把摇杆命令留在零，不是支撑探测的替代品，也不能消除翻起瞬间的壳体冲击。2026-10-03 已将对齐后的 **RMCS C++ 控制器和支撑观察器**接进旧 V5 Isaac 资产复测 16 姿态 × 5 次闭环，末尾严格通过 **58/80**，原 Python 同工况复测 **62/80**；修改前 C++ 为 **18/80**。相同传感器输入的 162,827 条有效样本通过运动学数值对照，214 项 C++ 测试通过；仍有 6 次 LUT 越界保护、8 次恢复超时和 8 次末尾稳定驻留不足，仰躺双腿朝上为 0/5。详见 [对齐复测报告](artifacts/self_righting_alignment_20261002/README.md)；该证据不属于 V6 资产或实机验收。
 
 在开发容器内使用**仓库脚本**而非临时 Docker 构建命令：
 

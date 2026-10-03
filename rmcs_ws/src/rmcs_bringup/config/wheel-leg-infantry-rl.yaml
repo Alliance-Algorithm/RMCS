@@ -38,6 +38,18 @@ value_broadcaster:
       - /wheel_leg/rl/state
       - /wheel_leg/rl/recovery/phase
       - /wheel_leg/rl/recovery/failure
+      - /wheel_leg/rl/recovery/sensors_valid
+      - /wheel_leg/rl/recovery/sensor_issue
+      - /wheel_leg/rl/recovery/sensor_invalid_mask
+      - /wheel_leg/rl/recovery/motor_age_ms
+      - /wheel_leg/rl/recovery/imu_age_ms
+      - /wheel_leg/rl/recovery/acceleration_age_ms
+      - /wheel_leg/rl/recovery/contact_candidate
+      - /wheel_leg/rl/recovery/support_confirmed
+      - /wheel_leg/rl/recovery/geometry_valid
+      - /wheel_leg/rl/recovery/height_if_grounded
+      - /wheel_leg/rl/recovery/motion_hold
+      - /wheel_leg/rl/recovery/blend
       - /wheel_leg/rl/performance/inference_us
       - /wheel_leg/rl/performance/pd_us
       - /wheel_leg/rl/observation/command/forward
@@ -88,13 +100,15 @@ wheel_leg:
     board_serial: ""
     joint_control_mode: "torque"
     require_enable_request: true
+    # Only an armed RL session may keep control at left-MIDDLE/right-DOWN.
     allow_spin_switch: true
     # The DM drives were already internally zeroed at the 105-degree reference.
     allow_set_zero: false
     # 电机反馈 Master ID，按左髋/右髋/左膝/右膝顺序。
     dm_master_ids: [1, 2, 1, 2]
-    # 下列数值仅沿用旧驱动的未核实设定，必须与每台 DM 调试助手的
-    # P_MAX/V_MAX/T_MAX 寄存器逐一核对；额定/峰值扭矩不等于 T_MAX。
+    # Reuse the user-confirmed dev/rmcs_rl hardware configuration @ 8149afda:
+    # its DM8009 driver uses P_MAX=12.5, V_MAX=45, T_MAX=54.
+    # Rated/peak torque and the MIT feedback quantization range are distinct.
     # 顺序同 dm_master_ids；实际命令限幅会取 min(dm_control_torque_max, dm_mit_torque_max)。
     dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
     dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
@@ -106,17 +120,41 @@ wheel_leg:
 
 rl_controller:
   ros__parameters:
-    # Planar motion candidate; calibration guards keep hardware disarmed.
+    # Frozen V6 flat candidate; six-axis verification and mechanism limits remain pending.
+    policy_profile: "v6_flat_14020"
     rl_model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
+    dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
     recovery_enabled: false
     recovery_profile_ready: false
+    # Startup-only sensor/probe limits; provisional response thresholds need
+    # validation on these two M3508 wheels before enabling recovery.
+    recovery_motor_age_s: 0.02
+    recovery_imu_age_s: 0.02
+    recovery_acceleration_age_s: 0.03
+    recovery_sensor_skew_s: 0.01
+    recovery_probe_torque_nm: 0.18
+    recovery_probe_min_submitted_nm: 0.14
+    recovery_probe_min_feedback_nm: 0.025
+    recovery_probe_feedback_ratio: 0.25
+    # Match the simulation's 3 x 5 ms pulse cadence. Increase these values only
+    # in a measured CAN-delay profile; the 9.4 ms delay regression uses 25 ms.
+    recovery_probe_pulse_s: 0.015
+    recovery_probe_response_s: 0.005
+    recovery_probe_quiet_s: 0.05
+    recovery_support_dwell_s: 0.1
+    recovery_probe_evidence_ttl_s: 0.6
+    recovery_probe_submission_age_s: 0.02
+    recovery_probe_feedback_interval_s: 0.02
+    recovery_probe_max_wheel_accel: 100.0
+    recovery_probe_max_gyro_accel: 90.0
     # A calibrated profile must explicitly provide the four recovery speeds,
     # eight P4 reference poses (separate 0.305m PREPARE and 0.40m support),
-    # per-side monotonic mechanism LUT, shell points,
+    # per-side monotonic mechanism LUT, passive-knee/wheel FK axes at hip zero,
+    # passive_knee_sign, slider_slope_m_per_rad and shell points,
     # spring curve, measured above-rated dwell and four DM feedback position
     # bounds before either flag is enabled. See
-    # docs/zh-cn/wheel_leg_self_righting_implementation_20260927.md.
+    # docs/zh-cn/wheel_leg_self_righting_deployment_20261002.md.
     # 24 V sensitivity endpoints, NOT a measured continuous motor curve.
     recovery_dm_rated_output_rpm: 100.0
     recovery_dm_rated_torque_nm: 20.0
@@ -131,23 +169,31 @@ rl_controller:
     # do not add a hip/knee differential term or repeat the DM reversed sign.
     # Leg P order: left_hip, left_knee-drive, right_hip, right_knee-drive.
     # q_model = leg_motor_to_model(4x4 row-major) * q_api + leg_model_offsets;
-    # tau_motor = leg_motor_to_model^T * tau_model. Enable only after calibration.
+    # tau_motor = leg_motor_to_model^T * tau_model.
+    # The physical 105-degree zero and IMU mounting were confirmed. V6 six-axis
+    # mapping and multipoint mechanism verification have not yet been completed.
     calibration_ready: false
-    leg_motor_to_model: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    leg_model_offsets: [0.0, 0.0, 0.0, 0.0]
+    # Reference: frozen V6 deployment/v6_pair_from_dev_rmcs_rl.json.
+    # Driver API already applies reversed with bias=0. V6 axes invert the V5
+    # model axes, hence q_v6 = -q_api + offset. Never reverse the raw angle twice.
+    leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+                         0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+    leg_model_offsets: [1.6, 2.93, -1.6, -2.93]
     # DjiMotor applies the installed 15.8 ratio to wheel-side feedback/torque.
     # The policy target is already a wheel-output speed: do not multiply it again.
+    # V6 preserves the V5 wheel axes in source; individual hardware signs await measurement.
     wheel_model_scale: [1.0, 1.0]
-    nominal_model_pos: [0.42, -0.13742282595254576, -0.42, 0.13741557625658019, 0.0, 0.0]
+    nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
 
-    # The actual passive knee angle requires a calibrated closed-chain mapping;
-    # this linear form is only a placeholder until full-range residuals are checked.
+    # These are continuous active motor differences, NOT passive knee angles:
+    # d_left=q_LK-q_LH, d_right=q_RH-q_RK. V6 monotone closed-chain reference
+    # maps the physical 40..105-degree knee domain to these bounds. Keep false
+    # until the actual mechanism is checked at multiple measured poses.
     soft_limits_ready: false
-    hinge_coefficients: [0.0, 0.0, 0.0, 0.0]
+    hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
     hinge_bias: [0.0, 0.0]
-    hinge_min: [0.0, 0.0]
-    hinge_max: [0.0, 0.0]
+    hinge_min: [-0.140638855, -0.140638855]
+    hinge_max: [1.329574849, 1.329574849]
     hinge_margin: 0.03
 
     # This ONNX was trained with base_link/control_frame X-forward, Y-left,
@@ -159,9 +205,9 @@ rl_controller:
     # was already rotated +90deg during URDF export; do not rotate again here.
     # Installed BMI088: +X forward, +Z up, right-handed => +Y left. Thus the
     # sensor and policy base_link axis orders agree; no extra 90-degree yaw.
-    # Verify static gravity/quaternion and gyro signs before marking ready.
+    # User-confirmed installation; same identity mount as dev/rmcs_rl @ 8149afda.
     # gyro_base = R_base_imu * gyro_imu; q_world_base = q_world_imu * R_base_imu^T.
-    imu_alignment_ready: false
+    imu_alignment_ready: true
     imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
     auto_enter_rl: false
@@ -181,11 +227,10 @@ wheel_leg_chassis_controller:
     yaw_rate_max: 1.0
     spin_yaw_rate: 1.0
     deadzone: 0.08
-    # Keep the legacy V5 domain until the next V6 policy integration commit.
-    command_height_min: 0.305
-    command_height_max: 0.305
+    command_height_min: 0.23
+    command_height_max: 0.43
     default_command_height: 0.305
-    height_step: 0.0
+    height_step: 0.01
     angular_z_invert: false
     height_invert: false
     jump_enabled: false

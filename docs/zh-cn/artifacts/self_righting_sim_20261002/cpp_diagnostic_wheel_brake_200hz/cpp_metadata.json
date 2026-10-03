@@ -1,0 +1,31 @@
+{
+  "source_sha256": {
+    ".script/simulation/recovery_sim_bridge.cpp": "b0e5af7748829e43504bc98723840f75f75e6fb68a0ae0a28bbe06aff8ee839f",
+    ".script/simulation/inspect_recovery_isaac.py": "f7def5a5d7b6a3764d434902d3e54e1ad07a8d49b6ccbe889abe5b22bf8dd2ca",
+    "rmcs_ws/src/rmcs_rl/src/recovery_controller.cpp": "91b93c5474bbcdfd31e6f188e87244038783bfcaaf8f00968113dfe719484ba0",
+    "rmcs_ws/src/rmcs_rl/src/recovery_controller.hpp": "2b89378d57e931271c2ababee7f7f9b8657d107a08d48fbbab52b80f28a84bfa",
+    "rmcs_ws/src/rmcs_rl/src/recovery_observer.cpp": "c47cff18befd2d585df98599823e59ba419f0e63bbdd174ea5240703eb9f5927",
+    "rmcs_ws/src/rmcs_rl/src/recovery_observer.hpp": "25bbbc8aa6aa1d151acdb18cd91bda1189b8cb0c3de446158718c374ed98c3a1"
+  },
+  "feedback_hz": 200,
+  "physics_hz": 400,
+  "sensor_columns": [
+    "conditional_height",
+    "wheel_height_difference",
+    "geometry_valid",
+    "height_valid",
+    "contact_candidate",
+    "alignment_candidate",
+    "settled",
+    "support_confirmed",
+    "body_clear",
+    "world_wheel_omega_valid"
+  ],
+  "controller_inputs": "IMU, encoders, previous PhysX applied wheel torque",
+  "contact_truth_used_by_controller": false,
+  "full_rmcs_component_graph_tested": false,
+  "hardware_can_usb_ekf_tested": false,
+  "world_wheel_axes_calibrated": false,
+  "diagnostic_wheel_brake": true,
+  "thermal_budget": "recorded exposure only, no measured hardware budget"
+}

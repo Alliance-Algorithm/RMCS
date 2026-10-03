@@ -7,6 +7,12 @@
 
 namespace rmcs::rl {
 
+Eigen::Quaterniond RlController::world_base_orientation_() const {
+    // Eigen composes body -> world with base -> body. The CAD export rotation
+    // already belongs to the frozen asset and must not be applied here.
+    return orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
+}
+
 bool RlController::read_model_state_() {
     if (!*feedback_fresh_)
         return feedback_valid_ = false;
@@ -23,19 +29,26 @@ bool RlController::read_model_state_() {
             motor_dq[i] = *velocity_inputs_[i];
         }
     }
-    if (recovery_enabled_ && recovery_profile_ready_) {
+    if (strict_feedback_) {
+        const auto now = Clock::now();
         const auto now_ns =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch())
-                .count();
+            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+        std::array<RecoverySampleStamp, 8> samples{};
+        for (std::size_t i = 0; i < 6; ++i)
+            if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
+                samples[i] = {*motor_feedback_sequences_[i], *motor_feedback_ns_[i]};
+        if (imu_sequence_.ready() && imu_ns_.ready())
+            samples[6] = {*imu_sequence_, *imu_ns_};
+        if (acceleration_sequence_.ready() && acceleration_ns_.ready())
+            samples[7] = {*acceleration_sequence_, *acceleration_ns_};
+        recovery_sensor_status_ = recovery_sensor_guard_.update(
+            now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
+        if (!recovery_sensor_status_.valid || !acceleration_.ready() || !acceleration_->allFinite())
+            return feedback_valid_ = false;
         for (int i = 0; i < 4; ++i) {
-            if (!leg_feedback_sequences_[i].ready() || !leg_feedback_ns_[i].ready())
-                return feedback_valid_ = false;
-            const auto sequence = *leg_feedback_sequences_[i];
-            const auto stamp = *leg_feedback_ns_[i];
-            if (sequence == 0 || stamp == 0 || now_ns < 0
-                || stamp > static_cast<std::uint64_t>(now_ns)
-                || static_cast<std::uint64_t>(now_ns) - stamp > 20'000'000
-                || std::abs(motor_q[i]) >= recovery_dm_feedback_position_max_[i] - 0.1)
+            const auto sequence = *motor_feedback_sequences_[i];
+            const auto stamp = *motor_feedback_ns_[i];
+            if (std::abs(motor_q[i]) >= dm_feedback_position_max_[i] - 0.1)
                 return feedback_valid_ = false;
             if (motor_feedback_initialized_) {
                 if (sequence < previous_motor_sequence_[i]
@@ -73,14 +86,17 @@ bool RlController::read_model_state_() {
 void RlController::update_command_reference_() {
     const double requested_vx = velocity_command_->vector.x();
     const double requested_yaw = velocity_command_->vector.z();
-    const bool rotating_reference = *chassis_mode_ == rmcs_msgs::ChassisMode::SPIN_FAST;
+    const bool spinning = rmcs_msgs::is_spining(*chassis_mode_);
     constexpr double policy_dt = DeployedPolicyContract::kPolicyPeriodSeconds;
-    if (rotating_reference)
-        vx_reference_ = requested_vx;
+    if (spinning)
+        vx_reference_ = 0.0;
     else
-        vx_reference_ +=
-            std::clamp(requested_vx - vx_reference_, -0.6 * policy_dt, 0.6 * policy_dt);
-    yaw_reference_ += std::clamp(requested_yaw - yaw_reference_, -4.0 * policy_dt, 4.0 * policy_dt);
+        vx_reference_ += std::clamp(
+            requested_vx - vx_reference_, -policy_profile_.forward_slew * policy_dt,
+            policy_profile_.forward_slew * policy_dt);
+    yaw_reference_ += std::clamp(
+        requested_yaw - yaw_reference_, -DeployedPolicyContract::kYawSlew * policy_dt,
+        DeployedPolicyContract::kYawSlew * policy_dt);
 
     // Respect the wheel geometry and the combined command envelope.
     const double max_linear = DeployedPolicyContract::kWheelSpeedLimit * wheel_radius_;
@@ -98,8 +114,8 @@ void RlController::update_command_reference_() {
 
 bool RlController::assemble_observation_(bool shadow_recovery) {
     if (!feedback_valid_ || !std::isfinite(*height_command_)
-        || !velocity_command_->vector.allFinite() || *height_command_ < 0.21
-        || *height_command_ > 0.35 || !std::isfinite(*jump_apex_command_))
+        || !velocity_command_->vector.allFinite() || *height_command_ < policy_profile_.height_min
+        || *height_command_ > policy_profile_.height_max || !std::isfinite(*jump_apex_command_))
         return false;
     const bool hold_command = hold_recovery_command(
         recovery_started_, state_ == State::kPrepare,
@@ -120,25 +136,14 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
         0.0, 1.0);
     height_reference_ =
         height_from_ + (height_target_ - height_from_) * (3 * u * u - 2 * u * u * u);
-    const bool rotating_reference =
-        !shadow_recovery && !hold_command && *chassis_mode_ == rmcs_msgs::ChassisMode::SPIN_FAST;
-    const bool jumping = !shadow_recovery && !hold_command && *jump_command_
-                      && *timestamp_ - rl_start_ >= std::chrono::milliseconds(800);
-    if (jumping && !jump_was_requested_)
-        jump_start_ = *timestamp_;
-    jump_was_requested_ = jumping;
-    const auto orientation = orientation_->normalized();
-    // The actor uses the frozen X-forward base_link, not the source CAD -Y
-    // frame. imu_to_base_ is only the measured IMU mounting correction.
-    const Eigen::Quaterniond q_world_base =
-        orientation * Eigen::Quaterniond{imu_to_base_.transpose()};
+    const Eigen::Quaterniond q_world_base = world_base_orientation_();
     const Eigen::Vector3d gravity = q_world_base.conjugate() * -Eigen::Vector3d::UnitZ();
     const Eigen::Vector3d omega = imu_to_base_ * *gyro_;
 
     auto observation = std::span{observation_};
     auto command = observation.subspan<ObservationLayout::kCommand, 3>();
     command[0] = (shadow_recovery || hold_command) ? 0.0 : vx_reference_;
-    command[1] = rotating_reference ? velocity_command_->vector.y() : 0.0;
+    command[1] = 0.0; // Both frozen flat actors have no lateral command capability.
     command[2] = (shadow_recovery || hold_command) ? 0.0 : yaw_reference_;
     observation[ObservationLayout::kHeight] =
         ((shadow_recovery || hold_command) ? DeployedPolicyContract::kNominalHeight
@@ -165,13 +170,7 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
 
     auto context = observation.subspan<ObservationLayout::kContext, 7>();
     std::ranges::fill(context, 0.0f);
-    context[ObservationLayout::kNormal] = jumping ? 0.0f : 1.0f;
-    context[ObservationLayout::kJumpRequest] = jumping ? 1.0f : 0.0f;
-    context[ObservationLayout::kJumpApex] = jumping ? *jump_apex_command_ * 5.0 : 0.0f;
-    context[ObservationLayout::kJumpElapsed] =
-        jumping
-            ? std::clamp(std::chrono::duration<double>(*timestamp_ - jump_start_).count(), 0.0, 5.0)
-            : 0.0f;
+    context[ObservationLayout::kNormal] = 1.0f;
     for (auto& x : observation) {
         if (!std::isfinite(x))
             return false;

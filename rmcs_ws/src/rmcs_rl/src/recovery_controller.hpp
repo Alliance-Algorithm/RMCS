@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
@@ -82,9 +83,16 @@ struct RecoveryFeedback {
     RecoveryVector6 dq = RecoveryVector6::Zero();
     Eigen::Vector3d gravity = -Eigen::Vector3d::UnitZ();
     Eigen::Vector3d omega = Eigen::Vector3d::Zero();
+    // Reconstructed from IMU attitude, calibrated joint axes and encoder rates.
+    // A missing axis calibration leaves this invalid; wheel dq is not a substitute.
+    Eigen::Vector2d world_wheel_omega = Eigen::Vector2d::Zero();
     double specific_force_norm_mps2 = 0.0;
     double height_if_grounded = 0.0;
     double wheel_height_difference = 0.0;           // left minus right, world Z
+    double height_rate_mps = 0.0;
+    double gyro_acceleration_rad_s2 = 0.0;
+    Eigen::Vector2d wheel_acceleration_rad_s2 = Eigen::Vector2d::Zero();
+    std::uint8_t probe_evidence_mask = 0;
     std::array<double, 2> spring_compensation_nm{}; // left/right: +hip, -aux
     std::array<double, 2> inner_knee_deg{};
     std::array<double, 2> inner_knee_slope_deg_per_rad{};
@@ -92,7 +100,13 @@ struct RecoveryFeedback {
     bool geometry_valid = false;
     bool height_valid = false;
     bool wheel_heights_valid = false;
+    // Legacy PLANT uses its own 30 ms geometric/IMU alignment dwell.
+    bool alignment_candidate = false;
     bool contact_candidate = false;
+    bool geometrically_supported = false;
+    bool probe_confirmed = false;
+    bool body_contact_suspected = false;
+    bool world_wheel_omega_valid = false;
     bool support_confirmed = false;
     bool body_clear = false;
     bool settled = false;
@@ -104,6 +118,8 @@ struct RecoveryFeedback {
 bool recovery_upright_for_motion(const RecoveryFeedback& feedback) noexcept;
 
 struct RecoveryConfig {
+    Eigen::Vector4d root_axis_y{-1.0, -1.0, 1.0, 1.0};
+    Eigen::Vector2d wheel_axis_y{1.0, -1.0};
     // Simulation sensitivity candidate at 24 V. Not a hardware calibration.
     double orbit_speed = 5.0;
     double side_speed = 5.0;
