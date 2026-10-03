@@ -22,6 +22,8 @@
 #include "identification/wheel_leg_identification_phase.hpp"
 #include "identification/wheel_leg_pair_identification_planner.hpp"
 #include "identification/wheel_leg_pair_multiband_plan.hpp"
+#include "identification/wheel_leg_pair_recording_plan.hpp"
+#include "identification/wheel_leg_recording_contract.hpp"
 
 namespace rmcs_core::controller::identification {
 
@@ -37,12 +39,14 @@ public:
         : Node{get_component_name(), node::options()} {
         load_parameters();
         register_interfaces();
+        if (recording_mode_)
+            parameter_guard_ = freeze_recording_parameters(*this);
     }
 
     void before_updating() override {
         RCLCPP_INFO(
             get_logger(),
-            "Paired multiband PD: %s, 50 Hz target / 1000 Hz feedback; "
+            "Paired PD: %s, 50 Hz target / 1000 Hz feedback; "
             "Kp=[%.3f,%.3f] Kd=[%.3f,%.3f]; installed gravity and springs retained",
             side_ == 0 ? "left" : "right", pd_kp_[2 * side_], pd_kp_[2 * side_ + 1],
             pd_kd_[2 * side_], pd_kd_[2 * side_ + 1]);
@@ -50,6 +54,8 @@ public:
 
     void update() override {
         zero_commands();
+        *measured_model_ = Eigen::Vector4d::Constant(std::numeric_limits<double>::quiet_NaN());
+        *recording_theta_measured_ = std::numeric_limits<double>::quiet_NaN();
         *hip_angle_model_ = std::numeric_limits<double>::quiet_NaN();
         *knee_angle_model_ = std::numeric_limits<double>::quiet_NaN();
         *hip_velocity_model_ = std::numeric_limits<double>::quiet_NaN();
@@ -135,6 +141,7 @@ public:
             model_phase_initialized_[i] = true;
         }
 
+        *measured_model_ = measured;
         *hip_angle_model_ = measured[static_cast<Eigen::Index>(2 * side_)];
         *knee_angle_model_ = measured[static_cast<Eigen::Index>(2 * side_ + 1)];
         *hip_velocity_model_ = speed[static_cast<Eigen::Index>(2 * side_)];
@@ -148,6 +155,17 @@ public:
 
         const auto base = static_cast<Eigen::Index>(2 * side_);
         const double delta = measured[base + 1] - measured[base];
+        if (recording_mode_) {
+            const auto beta = recording_plan_->geometry().beta(delta);
+            if (!beta) {
+                fail(33, "Feedback outside calibrated FK branch");
+                return;
+            }
+            *knee_inner_measured_ =
+                beta ? *beta / PairGeometry::rad : std::numeric_limits<double>::quiet_NaN();
+            *recording_theta_measured_ =
+                (measured[base] - recording_.hip_zero) / recording_.hip_sign / PairGeometry::rad;
+        }
         const bool observe_delta = probe_delta_diagnostic_ && phase() == Phase::kRunning;
         const double delta_min = limits_.spring_min[side_] + limits_.spring_margin;
         const double delta_max = limits_.spring_max[side_] - limits_.spring_margin;
@@ -204,7 +222,7 @@ public:
             // The hardware may clear a fault on this pair, but must not send
             // enable until both drives report fresh fault-free disabled feedback.
             *clear_error_request_ = true;
-            if (probe_plan_
+            if (preflight_initialized_
                 && (!*dm_control_ready_ || *status_[2 * side_] != 1
                     || *status_[2 * side_ + 1] != 1)) {
                 fail(29, "Selected torque drive lost readiness during preflight");
@@ -213,13 +231,17 @@ public:
             if (!*dm_control_ready_ || *status_[2 * side_] != 1 || *status_[2 * side_ + 1] != 1)
                 return;
 
-            if (!probe_plan_) {
+            if (!preflight_initialized_) {
                 try {
                     const auto base = static_cast<Eigen::Index>(2 * side_);
                     const std::array initial{measured[base], measured[base + 1]};
-                    probe_plan_.emplace(
-                        multiband_, initial, limits_.spring_min[side_] + limits_.spring_margin,
-                        limits_.spring_max[side_] - limits_.spring_margin);
+                    if (recording_mode_)
+                        recording_plan_->set_initial_feedback(initial);
+                    else
+                        probe_plan_.emplace(
+                            multiband_, initial, limits_.spring_min[side_] + limits_.spring_margin,
+                            limits_.spring_max[side_] - limits_.spring_margin);
+                    preflight_initialized_ = true;
                     preflight_steps_ =
                         static_cast<std::size_t>(std::ceil(probe_duration() / 0.001));
                     if (ready_timeout_s_ < 1.0 + std::ceil((preflight_steps_ + 1) / 128.0) * .001)
@@ -244,6 +266,17 @@ public:
             }
             if (preflight_index_ <= preflight_steps_)
                 return;
+            if (recording_mode_) {
+                // Refresh the entry after the zero-torque preflight; the leg
+                // may have moved under gravity while its drives became ready.
+                try {
+                    recording_plan_->set_initial_feedback({measured[base], measured[base + 1]});
+                    recording_runner_.emplace(*recording_plan_);
+                } catch (const std::exception& error) {
+                    fail(19, error.what());
+                    return;
+                }
+            }
             set_phase(Phase::kRunning);
             run_start_ = now;
             last_control_time_ = now;
@@ -251,7 +284,8 @@ public:
             have_measured_speed_ = true;
             RCLCPP_INFO(
                 get_logger(), "Measured motor-pair %s preflight passed; starting %s (%.1f s)",
-                "multiband/chirp", "RL PD", probe_duration());
+                recording_mode_ ? recording_.run.c_str() : "multiband/chirp", "RL PD",
+                probe_duration());
         }
 
         if (!*dm_control_ready_ || *status_[2 * side_] != 1 || *status_[2 * side_ + 1] != 1) {
@@ -263,19 +297,9 @@ public:
             fail(2, "Invalid experiment elapsed time");
             return;
         }
-        const bool finished = elapsed >= probe_duration();
-        if (finished) {
-            set_phase(Phase::kComplete);
-            *segment_id_ = -1;
-            *segment_role_ = 2;
-            *segment_waveform_ = 0;
-            *enable_request_ = false;
-            *clear_error_request_ = false;
-            held_torque_model_.fill(0.0);
-            last_segment_id_ = -1;
-            probe_plan_.reset();
-            zero_diagnostics();
-            RCLCPP_INFO(get_logger(), "Paired PD identification complete; disabling drive");
+        if ((recording_mode_ && recording_runner_->done())
+            || (!recording_mode_ && elapsed >= probe_duration())) {
+            complete();
             return;
         }
         // Reference is held for 20 ticks; PD consumes feedback every tick.
@@ -285,7 +309,7 @@ public:
             fail(19, error.what());
             return;
         }
-        if (phase() == Phase::kFailed)
+        if (phase() != Phase::kRunning)
             return;
         const auto torques = selected_torque_api(side_, limits_, held_torque_model_);
         for (std::size_t i = 0; i < command_torque_.size(); ++i)
@@ -307,7 +331,7 @@ private:
                     previous_tick_, tick, gap * 1000, max_tick_gap_s_ * 1000);
                 fail(
                     2, tick != previous_tick_ + 1 ? "Executor update counter discontinuity"
-                       : gap <= 0                 ? "Executor clock did not advance"
+                       : gap <= 0 ? "Executor clock did not advance"
                                   : "Executor interval exceeds configured timing budget");
                 return false;
             }
@@ -323,8 +347,10 @@ private:
         if (side != "left" && side != "right")
             throw std::invalid_argument("Identification requires exactly one side: left or right");
         side_ = side == "left" ? 0 : 1;
+        const auto pattern = get_parameter("probe_pattern").as_string();
+        recording_mode_ = pattern == "calibrated_recording";
         if (get_parameter("experiment_stage").as_string() != "probe"
-            || get_parameter("probe_pattern").as_string() != "multiband_chirp"
+            || (!recording_mode_ && pattern != "multiband_chirp")
             || get_parameter("control_law").as_string() != "rl_pd"
             || !get_parameter("phase_api_angle").as_bool()
             || get_parameter("control_frequency_hz").as_double() != 1000.0
@@ -360,30 +386,36 @@ private:
             throw std::invalid_argument("probe_measured_delta_policy must be stop or diagnostic");
         probe_delta_diagnostic_ = delta_policy == "diagnostic";
 
-        load_array("multiband_common_hz", multiband_.common_hz);
-        load_array("multiband_relative_hz", multiband_.relative_hz);
-        load_array("multiband_common_amplitude", multiband_.common_amplitude);
-        load_array("multiband_relative_amplitude", multiband_.relative_amplitude);
-        load_array("multiband_band_s", multiband_.band_s);
-        multiband_.shape_offset = get_parameter("multiband_shape_offset").as_double();
-        multiband_.eighth_turn_s = get_parameter("multiband_eighth_turn_s").as_double();
-        multiband_.dwell_s = get_parameter("multiband_dwell_s").as_double();
-        multiband_.ramp_s = get_parameter("multiband_ramp_s").as_double();
-        multiband_.common_step = get_parameter("multiband_common_step").as_double();
-        multiband_.relative_step = get_parameter("multiband_relative_step").as_double();
-        multiband_.step_rise_s = get_parameter("multiband_step_rise_s").as_double();
-        multiband_.validation_s = get_parameter("multiband_validation_s").as_double();
-        if (!has_parameter("multiband_load_offset"))
-            declare_parameter<double>("multiband_load_offset", 0.0);
-        if (!has_parameter("multiband_validation_relative_scale"))
-            declare_parameter<double>("multiband_validation_relative_scale", 1.0);
-        multiband_.load_offset = get_parameter("multiband_load_offset").as_double();
-        multiband_.validation_relative_scale =
-            get_parameter("multiband_validation_relative_scale").as_double();
-        PairMultibandPlan::validate_config(multiband_);
+        if (!recording_mode_) {
+            load_array("multiband_common_hz", multiband_.common_hz);
+            load_array("multiband_relative_hz", multiband_.relative_hz);
+            load_array("multiband_common_amplitude", multiband_.common_amplitude);
+            load_array("multiband_relative_amplitude", multiband_.relative_amplitude);
+            load_array("multiband_band_s", multiband_.band_s);
+            multiband_.shape_offset = get_parameter("multiband_shape_offset").as_double();
+            multiband_.eighth_turn_s = get_parameter("multiband_eighth_turn_s").as_double();
+            multiband_.dwell_s = get_parameter("multiband_dwell_s").as_double();
+            multiband_.ramp_s = get_parameter("multiband_ramp_s").as_double();
+            multiband_.common_step = get_parameter("multiband_common_step").as_double();
+            multiband_.relative_step = get_parameter("multiband_relative_step").as_double();
+            multiband_.step_rise_s = get_parameter("multiband_step_rise_s").as_double();
+            multiband_.validation_s = get_parameter("multiband_validation_s").as_double();
+            if (!has_parameter("multiband_load_offset"))
+                declare_parameter<double>("multiband_load_offset", 0.0);
+            if (!has_parameter("multiband_validation_relative_scale"))
+                declare_parameter<double>("multiband_validation_relative_scale", 1.0);
+            multiband_.load_offset = get_parameter("multiband_load_offset").as_double();
+            multiband_.validation_relative_scale =
+                get_parameter("multiband_validation_relative_scale").as_double();
+            PairMultibandPlan::validate_config(multiband_);
+        }
 
         load_array("pd_kp", pd_kp_);
         load_array("pd_kd", pd_kd_);
+        if (recording_mode_
+            && (std::any_of(pd_kp_.begin(), pd_kp_.end(), [](double v) { return v != 160; })
+                || std::any_of(pd_kd_.begin(), pd_kd_.end(), [](double v) { return v != 2.5; })))
+            throw std::invalid_argument("V6 recording protocol freezes PD at 160/2.5");
         for (const auto* name : {"gravity_feedforward_model", "ki_velocity", "integral_limit"}) {
             const auto values = get_parameter(name).as_double_array();
             if (values.size() != 4
@@ -416,6 +448,43 @@ private:
             || !std::isfinite(other_side_speed_limit_) || other_side_speed_limit_ <= 0)
             throw std::invalid_argument(
                 "Invalid identification timeouts or parked-side speed limit");
+        if (recording_mode_)
+            load_recording_parameters();
+    }
+
+    void load_recording_parameters() {
+        recording_.run = get_parameter("recording_run").as_string();
+        if (recording_.run.empty() || (recording_.run.front() == 'L') != (side_ == 0)
+            || get_parameter("trajectory_revision").as_string() != "pair_v6_recording_v1")
+            throw std::invalid_argument("V6 recording run/side/revision mismatch");
+        auto beta = get_parameter("recording_beta_degrees").as_double_array();
+        for (auto& value : beta)
+            value *= PairGeometry::rad;
+        const auto delta = get_parameter("recording_delta_rad").as_double_array();
+        recording_.hip_sign = get_parameter("recording_hip_sign").as_double();
+        recording_.hip_zero = get_parameter("recording_hip_zero").as_double();
+        recording_.beta_min =
+            get_parameter("recording_beta_min_deg").as_double() * PairGeometry::rad;
+        recording_.beta_max =
+            get_parameter("recording_beta_max_deg").as_double() * PairGeometry::rad;
+        recording_.beta_tolerance =
+            get_parameter("recording_beta_tolerance_deg").as_double() * PairGeometry::rad;
+        recording_.arrival_speed = get_parameter("recording_arrival_speed").as_double();
+        recording_.arrival_stable_s = get_parameter("recording_arrival_stable_s").as_double();
+        recording_.arrival_timeout_s = get_parameter("recording_arrival_timeout_s").as_double();
+        recording_.center_step_rad = get_parameter("recording_center_step_rad").as_double();
+        recording_.center_max_rad = get_parameter("recording_center_max_rad").as_double();
+        recording_.move_s = get_parameter("recording_move_s").as_double();
+        recording_.dwell_s = get_parameter("recording_dwell_s").as_double();
+        recording_.baseline_s = get_parameter("recording_baseline_s").as_double();
+        for (std::size_t j = 0; j < 2; ++j) {
+            recording_.max_speed[j] = limits_.max_speed[2 * side_ + j];
+            recording_.max_acceleration[j] = limits_.max_acceleration[2 * side_ + j];
+        }
+        recording_plan_.emplace(PairGeometry{std::move(beta), delta}, recording_);
+        rcl_interfaces::msg::ParameterDescriptor descriptor;
+        descriptor.read_only = true;
+        declare_parameter("recording_manifest_json", recording_plan_->manifest_json(), descriptor);
     }
 
     void register_interfaces() {
@@ -444,6 +513,27 @@ private:
         }
         register_output("/wheel_leg/enable_request", enable_request_, false);
         register_output("/wheel_leg/clear_error_request", clear_error_request_, false);
+        register_output(
+            "/wheel_leg/identification/measured_model", measured_model_,
+            Eigen::Vector4d::Constant(std::numeric_limits<double>::quiet_NaN()));
+        const std::string recording_prefix = "/wheel_leg/identification/recording/";
+        const double unknown = std::numeric_limits<double>::quiet_NaN();
+        register_output(
+            recording_prefix + "protocol_version", recording_protocol_,
+            std::uint32_t{recording_mode_ ? 1u : 0u});
+        register_output(recording_prefix + "segment_time_s", recording_segment_time_, unknown);
+        register_output(recording_prefix + "center_delta_rad", recording_center_, unknown);
+        register_output(
+            recording_prefix + "beta_reference_deg", recording_beta_reference_, unknown);
+        register_output(
+            recording_prefix + "theta_measured_deg", recording_theta_measured_, unknown);
+        register_output(recording_prefix + "admission", recording_admission_, -1);
+        register_output(recording_prefix + "skipped_segment", recording_skipped_, -1);
+        register_output(recording_prefix + "qualified_segment", recording_qualified_, -1);
+        register_output(recording_prefix + "cycle", recording_cycle_, -1);
+        register_output(recording_prefix + "jump_phase", recording_jump_, 0);
+        register_output(
+            recording_prefix + "reference_tick", recording_reference_tick_, std::uint64_t{0});
         register_output(
             "/wheel_leg/identification/reference_model", reference_model_, Eigen::Vector4d::Zero());
         register_output(
@@ -532,7 +622,10 @@ private:
         *knee_inner_target_ = std::numeric_limits<double>::quiet_NaN();
         held_torque_model_.fill(0.0);
         last_reference_tick_ = 0;
+        *recording_skipped_ = *recording_qualified_ = -1;
         probe_plan_.reset();
+        recording_runner_.reset();
+        preflight_initialized_ = false;
         preflight_index_ = 0;
         last_segment_id_ = -1;
         have_measured_speed_ = false;
@@ -559,6 +652,12 @@ private:
             Eigen::Matrix<double, 6, 1>::Constant(std::numeric_limits<double>::quiet_NaN());
         *torque_integral_model_ = Eigen::Vector4d::Zero();
         *torque_gravity_ff_model_ = Eigen::Vector4d::Zero();
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        *recording_segment_time_ = *recording_center_ = *recording_beta_reference_ = nan;
+        *recording_admission_ = -1;
+        *recording_cycle_ = -1;
+        *recording_jump_ = 0;
+        *recording_reference_tick_ = 0;
     }
 
     int feedback_failure_code() const {
@@ -615,8 +714,37 @@ private:
             fail(31, "PD interval exceeds configured timing budget");
             return;
         }
-        if (last_reference_tick_ == 0 || *tick_ - last_reference_tick_ >= reference_ticks_) {
-            held_reference_ = probe_sample(elapsed);
+        const bool reference_due =
+            last_reference_tick_ == 0 || *tick_ - last_reference_tick_ >= reference_ticks_;
+        std::optional<PairSample> next;
+        if (recording_mode_) {
+            const auto base = static_cast<Eigen::Index>(2 * side_);
+            next = recording_runner_->update(
+                dt, {measured[base], measured[base + 1]}, {speed[base], speed[base + 1]},
+                reference_due, &held_reference_.position);
+            *recording_skipped_ = recording_runner_->skipped_segment();
+            *recording_qualified_ = recording_runner_->qualified_segment();
+            if (recording_runner_->done()) {
+                complete();
+                return;
+            }
+        }
+        if (reference_due) {
+            held_reference_ = recording_mode_ ? *next : probe_sample(elapsed);
+            if (recording_mode_) {
+                const auto& segment = recording_plan_->segments().at(
+                    static_cast<std::size_t>(held_reference_.segment_id));
+                *recording_segment_time_ = recording_runner_->segment_time();
+                *recording_center_ = recording_runner_->center();
+                *recording_cycle_ = segment.cycle;
+                *recording_jump_ = static_cast<int>(segment.jump);
+                *recording_admission_ = recording_runner_->admission();
+                *recording_reference_tick_ = *tick_;
+                const auto beta = recording_plan_->geometry().beta(
+                    held_reference_.position[1] - held_reference_.position[0]);
+                *recording_beta_reference_ =
+                    beta ? *beta / PairGeometry::rad : std::numeric_limits<double>::quiet_NaN();
+            }
             last_reference_tick_ = *tick_;
         }
         const auto& sample = held_reference_;
@@ -677,7 +805,17 @@ private:
         *segment_id_ = sample.segment_id;
         *segment_role_ = sample.validation ? 1 : 0;
         *segment_waveform_ = sample.waveform;
-        if (sample.segment_id != last_segment_id_) {
+        if (sample.segment_id != last_segment_id_ && recording_mode_) {
+            const auto& segment =
+                recording_plan_->segments().at(static_cast<std::size_t>(sample.segment_id));
+            RCLCPP_INFO(
+                get_logger(),
+                "V6 %s segment %d: %s, %.2f s, role=%d cycle=%d phase=%d center=%.6f beta_FK=%.3f",
+                recording_.run.c_str(), sample.segment_id, segment.name.c_str(), segment.duration_s,
+                sample.validation, segment.cycle, static_cast<int>(segment.jump),
+                *recording_center_, *knee_inner_measured_);
+        }
+        if (sample.segment_id != last_segment_id_ && !recording_mode_) {
             const auto& plan = *probe_plan_;
             const auto& segment = plan.segments().at(static_cast<std::size_t>(sample.segment_id));
             RCLCPP_INFO(
@@ -689,6 +827,20 @@ private:
                 plan.relative_amplitude(multiband_.relative_amplitude[0], segment.from[1]));
         }
         last_segment_id_ = sample.segment_id;
+    }
+
+    void complete() {
+        set_phase(Phase::kComplete);
+        *knee_inner_target_ = std::numeric_limits<double>::quiet_NaN();
+        *segment_id_ = -1;
+        held_torque_model_.fill(0.0);
+        last_segment_id_ = -1;
+        probe_plan_.reset();
+        recording_runner_.reset();
+        preflight_initialized_ = false;
+        zero_commands();
+        zero_diagnostics();
+        RCLCPP_INFO(get_logger(), "Paired PD identification complete; disabling drive");
     }
 
     void fail(int code, const char* message) {
@@ -705,6 +857,8 @@ private:
         held_torque_model_.fill(0.0);
         last_segment_id_ = -1;
         probe_plan_.reset();
+        recording_runner_.reset();
+        preflight_initialized_ = false;
         preflight_index_ = 0;
         zero_commands();
         zero_diagnostics();
@@ -716,8 +870,17 @@ private:
     std::size_t last_reference_tick_ = 0;
     PairSample held_reference_{};
     PairLimits limits_;
-    double probe_duration() const { return probe_plan_->duration(); }
-    PairSample probe_sample(double elapsed) const { return probe_plan_->at(elapsed); }
+    double probe_duration() const {
+        return recording_mode_ ? recording_plan_->duration() : probe_plan_->duration();
+    }
+    PairSample probe_sample(double elapsed) const {
+        return recording_mode_ ? recording_plan_->at(elapsed) : probe_plan_->at(elapsed);
+    }
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_guard_;
+    bool recording_mode_ = false, preflight_initialized_ = false;
+    PairRecordingConfig recording_;
+    std::optional<PairRecordingPlan> recording_plan_;
+    std::optional<PairRecordingRunner> recording_runner_;
     PairMultibandConfig multiband_;
     bool probe_delta_diagnostic_ = false, probe_delta_warning_emitted_ = false;
     std::array<double, 4> max_position_error_{}, max_velocity_error_{},
@@ -737,7 +900,13 @@ private:
     std::array<OutputInterface<double>, 6> command_torque_;
     OutputInterface<bool> enable_request_;
     OutputInterface<bool> clear_error_request_;
-    OutputInterface<Eigen::Vector4d> reference_model_, reference_velocity_model_;
+    OutputInterface<Eigen::Vector4d> measured_model_, reference_model_, reference_velocity_model_;
+    OutputInterface<double> recording_segment_time_, recording_center_, recording_beta_reference_,
+        recording_theta_measured_;
+    OutputInterface<int> recording_admission_, recording_skipped_, recording_qualified_,
+        recording_cycle_, recording_jump_;
+    OutputInterface<std::uint32_t> recording_protocol_;
+    OutputInterface<std::uint64_t> recording_reference_tick_;
     OutputInterface<Eigen::Vector4d> velocity_target_model_, position_error_model_,
         speed_error_model_;
     OutputInterface<Eigen::Vector4d> torque_preclip_model_, torque_integral_model_;
