@@ -3,9 +3,12 @@
 set -euo pipefail
 
 readonly DEVELOPER_NAME="ubuntu"
-readonly NVIM_PATH="/opt/nvim/bin/nvim"
 readonly NVIM_PORT=6666
-readonly NVIM_HOST="localhost"
+# Use an explicit IPv4 address instead of "localhost": Neovide resolves
+# "localhost" to 127.0.0.1 while nvim may bind only ::1, so the UI silently
+# falls back to spawning its own local nvim instead of attaching to the
+# container server.
+readonly NVIM_HOST="127.0.0.1"
 readonly RMCS_PATH="/workspaces/RMCS/"
 
 function show_help() {
@@ -24,27 +27,32 @@ function rmcs_zsh() {
     local service="$1"
     echo "Starting and entering container..."
     setup_container
-    docker compose exec "$service" zsh
+    docker compose exec -u "$DEVELOPER_NAME" -w "$RMCS_PATH" "$service" zsh
 }
 
 function rmcs_nvim() {
     local service="$1"
-    local timeout=10
+    local timeout=15
     local success=0
     local port=$NVIM_PORT
+
+    if ! command -v nc >/dev/null 2>&1; then
+        echo "ERROR: 'nc' is required for port probing (please install netcat)." >&2
+        exit 1
+    fi
 
     echo "Starting container..."
     setup_container
 
-    echo "Checking available port and starting nvim headless server..."
+    echo "Checking available port..."
     while nc -z "$NVIM_HOST" "$port" 2>/dev/null; do
         echo "Port $port is occupied, trying next..."
         port=$((port + 1))
     done
 
-    echo "Starting nvim server on port $port..."
+    echo "Starting nvim headless server on port $port..."
     docker compose exec -u "$DEVELOPER_NAME" -w "$RMCS_PATH" -d "$service" \
-        "$NVIM_PATH" --headless --listen "$NVIM_HOST:$port"
+        nvim --headless --listen "$NVIM_HOST:$port"
 
     for i in $(seq 1 $timeout); do
         if nc -z "$NVIM_HOST" "$port" 2>/dev/null; then
@@ -52,15 +60,19 @@ function rmcs_nvim() {
             success=1
             break
         fi
-        echo "Waiting for nvim server to start... ($i/$timeout)"
+        echo "Waiting for nvim server... ($i/$timeout)"
         sleep 1
     done
 
     if [ $success -eq 1 ]; then
-        echo "Starting neovide..."
-        nohup neovide --server="$NVIM_HOST:$port" >/dev/null 2>&1 &
+        if command -v neovide &>/dev/null; then
+            echo "Starting Neovide..."
+            nohup neovide --server="$NVIM_HOST:$port" >/dev/null 2>&1 &
+        else
+            echo "Neovide not found. Connect manually: nvim --server localhost:$port --remote-ui"
+        fi
     else
-        echo "nvim server failed to start within $timeout seconds, neovide not launched"
+        echo "nvim server failed to start within $timeout seconds"
         exit 1
     fi
 }
