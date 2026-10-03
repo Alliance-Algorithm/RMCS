@@ -26,7 +26,7 @@ std::string_view v6_recovery_phase_name(V6RecoveryPhase phase) {
 
 V6RecoveryController::V6RecoveryController(const V6RecoveryConfig& config) : config_(config) {
     const std::array values{
-        config.dt, config.blend_seconds, config.stable_seconds, config.max_script_seconds,
+        config.dt, config.stable_seconds, config.max_script_seconds,
         config.prepare_speed_rad_s, config.push_speed_rad_s, config.orbit_speed_rad_s,
         config.capture_speed_rad_s, config.side_speed_rad_s, config.side_angle_rad,
         config.plant_angle_rad, config.orbit_turns, config.handover_height_min,
@@ -35,7 +35,8 @@ V6RecoveryController::V6RecoveryController(const V6RecoveryConfig& config) : con
         config.pitch_kd_nm_s_rad, config.wheel_damping_nm_s_rad,
         config.prepare_tilt_limit_deg, config.capture_tilt_limit_deg};
     if (!std::all_of(values.begin(), values.end(), positive_finite)
-        || config.dt != 0.005 || config.blend_seconds != 0.2
+        || config.dt != 0.005 || !std::isfinite(config.blend_seconds)
+        || (config.blend_seconds != 0.0 && config.blend_seconds != 0.2)
         || config.stable_seconds < 1.0 || config.max_script_seconds > 8.0
         || config.max_reroutes < 0 || config.max_reroutes > 1
         || config.handover_height_min >= config.handover_height_max
@@ -47,7 +48,7 @@ V6RecoveryController::V6RecoveryController(const V6RecoveryConfig& config) : con
         || !config.thrust.allFinite() || !config.support.allFinite()
         || !config.rl_nominal.allFinite() || !config.root_axis_signs.allFinite()
         || !config.wheel_axis_signs.allFinite())
-        throw std::invalid_argument("Invalid frozen V6 recovery configuration");
+        throw std::invalid_argument("Invalid V6 recovery configuration");
     for (int i = 0; i < 4; ++i)
         if (std::abs(config.root_axis_signs[i]) != 1.0
             || config.root_axis_signs[i] != config.root_axis_signs[i ^ 1])
@@ -131,7 +132,7 @@ void V6RecoveryController::publish_() {
     command_.pure_rl = (!membership_ || release_finished_) && phase_ == V6RecoveryPhase::kRl;
     command_.blending = enabled_ && phase_ == V6RecoveryPhase::kBlend;
     command_.scripted = enabled_ && phase_ < V6RecoveryPhase::kBlend;
-    command_.blend = command_.pure_rl ? 1.0 : command_.blending
+    command_.blend = command_.pure_rl ? 1.0 : command_.blending && config_.blend_seconds > 0.0
         ? static_cast<double>(std::clamp(static_cast<float>(phase_ticks_)
               * static_cast<float>(config_.dt) / static_cast<float>(config_.blend_seconds), 0.0f, 1.0f))
         : 0.0;
@@ -319,7 +320,8 @@ const V6RecoveryCommand& V6RecoveryController::update(const V6RecoveryFeedback& 
         && dq.head<4>().cwiseAbs().maxCoeff() < 2.0f;
     const bool ready = preparing && stable && remaining < 0.02f && measured_error < 0.12f;
     ready_ticks_ = ready ? ready_ticks_ + 1 : 0;
-    if (preparing && ready_ticks_ >= ticks_(0.1)) enter_(V6RecoveryPhase::kBlend);
+    if (preparing && ready_ticks_ >= ticks_(0.1))
+        enter_(config_.blend_seconds == 0.0 ? V6RecoveryPhase::kRl : V6RecoveryPhase::kBlend);
     if (blending && phase_ticks_ >= ticks_(config_.blend_seconds)) enter_(V6RecoveryPhase::kRl);
     const bool holding_rl = enabled_ && phase == V6RecoveryPhase::kRl && !motion_released_;
     stable_ticks_ = holding_rl && stable ? stable_ticks_ + 1 : 0;

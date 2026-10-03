@@ -324,7 +324,13 @@ RlController::RlController()
                 get_parameter_or<std::string>(
                     "v6_height_lookup_path",
                     "models/wheel_leg/deployment/v6_height_lookup_v1.json")));
-        v6_recovery_.emplace(native.controller);
+        auto recovery_config = native.controller;
+        recovery_config.blend_seconds =
+            get_parameter_or("v6_recovery_blend_seconds", recovery_config.blend_seconds);
+        v6_recovery_.emplace(recovery_config);
+        RCLCPP_INFO(
+            get_logger(), "V6 self-righting takeover: %s",
+            recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend");
         v6_recovery_observer_.emplace(native.geometry);
         v6_prepare_target_ = native.controller.nominal;
         v6_native_profile_ready_ = true;

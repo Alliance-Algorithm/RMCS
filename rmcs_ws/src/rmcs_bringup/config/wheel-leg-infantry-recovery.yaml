@@ -156,6 +156,9 @@ rl_controller:
     v6_height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
     recovery_enabled: true
     recovery_profile_ready: true
+    # At the native completion condition, switch all six axes to actor effort
+    # in that same 200 Hz control tick. Keep the post-takeover motion hold.
+    v6_recovery_blend_seconds: 0.0
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
     recovery_motor_age_s: 0.02
     recovery_imu_age_s: 0.02
