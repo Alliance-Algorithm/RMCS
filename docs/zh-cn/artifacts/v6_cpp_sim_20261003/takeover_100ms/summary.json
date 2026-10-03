@@ -1,0 +1,722 @@
+{
+  "schema": "rmcs-v6-cpp-isaac-summary-v1",
+  "generated_at": "2026-10-03T02:16:30.254117+00:00",
+  "source_directory": "/home/yukikaze/Documents/workspace/RMCS/docs/zh-cn/artifacts/v6_cpp_sim_20261003/takeover_100ms",
+  "source_report_sha256": "2fd0e55de8b4396cea23a5ed82019633d70a1bc67c26cb7955921cb193f2a3f0",
+  "summarizer_sha256": "ec5366b1875b44257a547fa06d94d6a4b5b8e8b4f43db4fbdd22e9a6aaf48cba",
+  "source_status": "complete",
+  "source_error": null,
+  "policy_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+  "contract_sha256": "666f7bdbba8c305d4bedc464fd1a42ea8725245461c49d186b75ed37fe58aae7",
+  "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+  "timing_scope": "logical simulation ticks with real steady-clock freshness; paced socket loop",
+  "sensor_source": "ideal base IMU and output-axis encoders",
+  "physics_dt_s": 0.005,
+  "executor_rate_hz": 1000,
+  "policy_rate_hz": 50,
+  "pd_rate_hz": 200,
+  "case_count": 4,
+  "passed_cases": 4,
+  "complete": true,
+  "hardware_ready": false,
+  "domain_qualified": null,
+  "cases": [
+    {
+      "case": "stand",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.02,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 1.1060605756556303,
+          "planar_speed_peak_first_2s_m_s": 0.03545395177294156,
+          "entry_effort_jump_max_nm": 10.662766849994659,
+          "effort_step_peak_first_2s_nm": 10.662766849994659
+        },
+        "vx_mae_m_s": 0.005442186937328132,
+        "yaw_mae_rad_s": 0.0033692886229201875,
+        "height_mae_m": 0.00034019304239290074,
+        "planar_speed_mean_m_s": 0.005551565953015233,
+        "tilt_max_deg": 0.3127866623704862,
+        "drift_max_m": 0.05430521259044816,
+        "final_height_m": 0.30466577410697937,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "nominal",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "PREPARE": 2,
+        "RL": 3197
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 2,
+          "name": "PREPARE"
+        },
+        {
+          "time_s": 0.02,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 25.254596392000167,
+        "simulation_to_wall_ratio": 0.6335480382124926,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.147503,
+          "mean": 7.892089749296654,
+          "median": 7.772248,
+          "p95": 9.0949484,
+          "p99": 9.82205982,
+          "max": 12.127265
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.003472,
+          "mean": 5.062149843125,
+          "median": 5.0661465,
+          "p95": 5.0782392000000005,
+          "p99": 5.10015777,
+          "max": 5.190111
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3197,
+          "min": 25.192,
+          "mean": 60.68220706912731,
+          "median": 60.051,
+          "p95": 86.37679999999996,
+          "p99": 105.43959999999997,
+          "max": 138.07
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.113,
+          "mean": 2.2434945295404813,
+          "median": 1.417,
+          "p95": 5.746099999999999,
+          "p99": 6.694199999999999,
+          "max": 49.898
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0591089309375,
+          "median": 5.064754,
+          "p95": 5.0754667,
+          "p99": 5.09498024,
+          "max": 5.185409
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0591089309375,
+          "median": 5.064754,
+          "p95": 5.0754667,
+          "p99": 5.09498024,
+          "max": 5.185409
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0591089309375,
+          "median": 5.064754,
+          "p95": 5.0754667,
+          "p99": 5.09498024,
+          "max": 5.185409
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    },
+    {
+      "case": "stand__native_prepare",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand__native_prepare",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.01,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 0.5177551717768739,
+          "planar_speed_peak_first_2s_m_s": 0.014066210224716973,
+          "entry_effort_jump_max_nm": 0.21761710762977593,
+          "effort_step_peak_first_2s_nm": 7.73523598909378
+        },
+        "vx_mae_m_s": 0.005477839944952134,
+        "yaw_mae_rad_s": 0.0034835672290248784,
+        "height_mae_m": 0.0003397850737697904,
+        "planar_speed_mean_m_s": 0.005586050622714291,
+        "tilt_max_deg": 0.31465779040329017,
+        "drift_max_m": 0.05465537442391597,
+        "final_height_m": 0.3046591877937317,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "native_prepare",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "RL": 3199
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 25.381953024998438,
+        "simulation_to_wall_ratio": 0.6303691439441935,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.211212,
+          "mean": 7.931046140043763,
+          "median": 7.807774,
+          "p95": 9.1766267,
+          "p99": 9.788343939999999,
+          "max": 13.373997
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.005525,
+          "mean": 5.062573646250001,
+          "median": 5.0658945,
+          "p95": 5.0792475,
+          "p99": 5.10836379,
+          "max": 5.204073
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3199,
+          "min": 17.955,
+          "mean": 61.07501625507972,
+          "median": 59.544,
+          "p95": 88.09,
+          "p99": 107.936,
+          "max": 169.467
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.111,
+          "mean": 2.1969518599562363,
+          "median": 1.343,
+          "p95": 5.6986,
+          "p99": 6.5844,
+          "max": 31.678
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059502476875,
+          "median": 5.0645235,
+          "p95": 5.07645405,
+          "p99": 5.102813479999999,
+          "max": 5.202353
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059502476875,
+          "median": 5.0645235,
+          "p95": 5.07645405,
+          "p99": 5.102813479999999,
+          "max": 5.202353
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059502476875,
+          "median": 5.0645235,
+          "p95": 5.07645405,
+          "p99": 5.102813479999999,
+          "max": 5.202353
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    },
+    {
+      "case": "stand__pitch_forward",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand__pitch_forward",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.02,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 10.969106199002262,
+          "planar_speed_peak_first_2s_m_s": 0.20476899610627067,
+          "entry_effort_jump_max_nm": 10.820092415809631,
+          "effort_step_peak_first_2s_nm": 10.820092415809631
+        },
+        "vx_mae_m_s": 0.004565411509465666,
+        "yaw_mae_rad_s": 0.006071892561151984,
+        "height_mae_m": 0.0003352866656538258,
+        "planar_speed_mean_m_s": 0.004744342302249518,
+        "tilt_max_deg": 0.3544303396565459,
+        "drift_max_m": 0.04598690558393799,
+        "final_height_m": 0.30469581484794617,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "pitch_forward",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "PREPARE": 2,
+        "RL": 3197
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 2,
+          "name": "PREPARE"
+        },
+        {
+          "time_s": 0.02,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 25.21452786000009,
+        "simulation_to_wall_ratio": 0.6345548125603468,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.21357,
+          "mean": 7.8787227830572055,
+          "median": 7.78034,
+          "p95": 8.7585909,
+          "p99": 9.7630658,
+          "max": 11.019594
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.002553,
+          "mean": 5.062306061875001,
+          "median": 5.0659885,
+          "p95": 5.0797187,
+          "p99": 5.10247856,
+          "max": 5.210514
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3197,
+          "min": 18.727,
+          "mean": 59.74080356584298,
+          "median": 58.586,
+          "p95": 88.17739999999996,
+          "p99": 100.81067999999999,
+          "max": 147.402
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.111,
+          "mean": 2.135011566114411,
+          "median": 1.286,
+          "p95": 5.744,
+          "p99": 6.9402800000000004,
+          "max": 39.164
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059289659375,
+          "median": 5.0646165,
+          "p95": 5.07759805,
+          "p99": 5.097534369999999,
+          "max": 5.209919999999999
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059289659375,
+          "median": 5.0646165,
+          "p95": 5.07759805,
+          "p99": 5.097534369999999,
+          "max": 5.209919999999999
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.059289659375,
+          "median": 5.0646165,
+          "p95": 5.07759805,
+          "p99": 5.097534369999999,
+          "max": 5.209919999999999
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    },
+    {
+      "case": "stand__pitch_backward",
+      "outcome": "PASS",
+      "passed": true,
+      "reason": "complete_reported_checks_passed",
+      "reported_passed": true,
+      "reported_completed": true,
+      "completed": true,
+      "expected_simulated_seconds": 16.0,
+      "observed_simulated_seconds": 16.0,
+      "trace_samples": 3200,
+      "source_report": {
+        "case": "stand__pitch_backward",
+        "completed": true,
+        "samples": 3200,
+        "steady_samples": 2001,
+        "rl_entered_at_s": 0.02,
+        "fault": null,
+        "takeover": {
+          "tilt_peak_first_2s_deg": 11.342012270022,
+          "planar_speed_peak_first_2s_m_s": 0.24916647850457843,
+          "entry_effort_jump_max_nm": 11.036266481876373,
+          "effort_step_peak_first_2s_nm": 13.248248774407493
+        },
+        "vx_mae_m_s": 0.005356415425069343,
+        "yaw_mae_rad_s": 0.0037061986644205814,
+        "height_mae_m": 0.0003385834340033928,
+        "planar_speed_mean_m_s": 0.0054661828106467815,
+        "tilt_max_deg": 0.31527903204183383,
+        "drift_max_m": 0.053444839348652906,
+        "final_height_m": 0.3046611547470093,
+        "steady_command": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "checks": {
+          "steady_window_completed": true,
+          "controller_rl": true,
+          "expected_command": true,
+          "upright": true,
+          "velocity_tracking": true,
+          "yaw_tracking": true,
+          "height_tracking": true,
+          "mechanism": true,
+          "no_physics_failure": true,
+          "stand_speed": true,
+          "stand_drift": true
+        },
+        "passed": true,
+        "command_case": "stand",
+        "initial_profile": "pitch_backward",
+        "expected_duration_s": 16.0,
+        "requested_duration_s": 16.0
+      },
+      "failed_checks": [],
+      "first_fault": null,
+      "mechanism_failure_samples": 0,
+      "state_sample_counts": {
+        "IDLE": 1,
+        "PREPARE": 2,
+        "RL": 3197
+      },
+      "state_transitions": [
+        {
+          "time_s": 0.005,
+          "state": 1,
+          "name": "IDLE"
+        },
+        {
+          "time_s": 0.01,
+          "state": 2,
+          "name": "PREPARE"
+        },
+        {
+          "time_s": 0.02,
+          "state": 3,
+          "name": "RL"
+        }
+      ],
+      "warnings": [],
+      "timing": {
+        "wall_seconds": 24.93385029000092,
+        "simulation_to_wall_ratio": 0.6416979252665357,
+        "simulation_sample_interval_ms": {
+          "count": 3199,
+          "min": 4.999999999999005,
+          "mean": 5.0,
+          "median": 4.999999999999893,
+          "p95": 5.000000000000782,
+          "p99": 5.000000000000782,
+          "max": 5.000000000000782
+        },
+        "wall_sample_interval_ms": {
+          "count": 3199,
+          "min": 7.132573,
+          "mean": 7.791181556111286,
+          "median": 7.693173,
+          "p95": 8.496201999999998,
+          "p99": 9.564730919999999,
+          "max": 10.71225
+        },
+        "wall_sample_interval_source": "bridge_wall_sample_interval_ms",
+        "wall_sample_intervals_over_20ms": 0,
+        "bridge_step_duration_ms": {
+          "count": 3200,
+          "min": 5.006051,
+          "mean": 5.0619563521875,
+          "median": 5.0659355,
+          "p95": 5.077604399999999,
+          "p99": 5.0969321899999995,
+          "max": 5.220804
+        },
+        "distinct_sensor_timestamps": 3200,
+        "distinct_sensor_sequences": 3200,
+        "inference_us": {
+          "count": 3197,
+          "min": 20.944,
+          "mean": 60.27020738192055,
+          "median": 59.221,
+          "p95": 88.495,
+          "p99": 103.16463999999993,
+          "max": 149.299
+        },
+        "pd_us": {
+          "count": 3199,
+          "min": 0.113,
+          "mean": 2.2037149109096594,
+          "median": 1.425,
+          "p95": 5.646,
+          "p99": 6.638639999999998,
+          "max": 36.002
+        },
+        "inference_invocations": null,
+        "duration_sample_scope": "Cached last-call durations sampled per sensor frame; not invocation counts"
+      },
+      "sensors": {
+        "issue_sample_counts": {
+          "1": 1,
+          "0": 3199
+        },
+        "invalid_mask_samples": 1,
+        "invalid_status_samples": 1,
+        "motor_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0589253478125,
+          "median": 5.064562499999999,
+          "p95": 5.0752073,
+          "p99": 5.09382126,
+          "max": 5.218865999999999
+        },
+        "imu_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0589253478125,
+          "median": 5.064562499999999,
+          "p95": 5.0752073,
+          "p99": 5.09382126,
+          "max": 5.218865999999999
+        },
+        "acceleration_age_ms": {
+          "count": 3200,
+          "min": -1.0,
+          "mean": 5.0589253478125,
+          "median": 5.064562499999999,
+          "p95": 5.0752073,
+          "p99": 5.09382126,
+          "max": 5.218865999999999
+        }
+      },
+      "horizon_source": "source_report.expected_duration_s"
+    }
+  ],
+  "source_trace_sha256": {
+    "stand": "1096fcdf56e7e1061355d5930671678d3fb98194c76011b273f3ede61ca15c4d",
+    "stand__native_prepare": "b659f67d1bc526ba01346915b5de9f5135f4d67d4485d9ef50f0ce276ab480d2",
+    "stand__pitch_backward": "4c5877079d46d83062acc4abad251cd36348d889218aa238d03ad6d1e686a383",
+    "stand__pitch_forward": "64bd34f151b30534e570b0dc5c4132ee6c608d45e0139482bf0454a9b4b45994"
+  },
+  "artifacts": {
+    "trajectory": "trajectory.png",
+    "summary": "summary.json"
+  },
+  "passed": true
+}

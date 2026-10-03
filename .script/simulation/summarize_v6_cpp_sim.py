@@ -278,8 +278,9 @@ def write_markdown(destination, summary):
               "case JSON are unchanged. This nominal simulation does not qualify hardware, CAN/USB or BMI088 EKF.", ""]
     for case in summary["cases"]:
         if case["outcome"] != "PASS" or case["warnings"]:
-            lines.append(f"- `{case['case']}`: {case['reason']}; " + "; ".join(case["warnings"]))
-    (destination / "summary.md").write_text("\n".join(lines) + "\n")
+            detail = "; ".join([case["reason"], *case["warnings"]])
+            lines.append(f"- `{case['case']}`: {detail}")
+    (destination / "summary.md").write_text("\n".join(lines).rstrip() + "\n")
 
 
 def main():
