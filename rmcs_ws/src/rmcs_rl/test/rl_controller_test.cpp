@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <typeinfo>
 #include <utility>
 #include <vector>
@@ -480,6 +481,128 @@ TEST_F(RlV6CaptureTest, InvalidFeedbackCannotUseTheImmediateCapturePath) {
     expect_latched_idle();
 }
 
+class RlV6NativeRecoveryTest : public RlV6CaptureTest {
+protected:
+    std::vector<std::string> additional_parameters() const override {
+        auto parameters = RlV6CaptureTest::additional_parameters();
+        parameters.emplace_back("recovery_enabled:=true");
+        parameters.emplace_back("recovery_profile_ready:=true");
+        return parameters;
+    }
+    void refresh_feedback() override {
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        RlControllerTest::refresh_feedback();
+    }
+    void set_prepare_reference() {
+        constexpr std::array prepare{
+            -0.3207126102216724, 0.09491855918261657, 0.32070064924300457, -0.09490058680048478};
+        constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
+        for (std::size_t axis = 0; axis < 4; ++axis)
+            angle_[axis] = offsets[axis] - prepare[axis];
+        requested_state_ = 3;
+        ready_ = true;
+    }
+};
+
+TEST_F(RlV6NativeRecoveryTest, ShadowActorUsesPreviousEffectiveReferenceAtFiftyHertz) {
+    set_prepare_reference();
+    // Above the 8-degree handover gate, inside native 15-degree PREPARE entry.
+    orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{0.15, Eigen::Vector3d::UnitY()}};
+    step();
+    ASSERT_EQ(state(), State::kPrepare);
+    ASSERT_EQ(output<int>("rl/recovery/native_phase"), 7);
+    const auto first_action = actions();
+    ASSERT_NE(first_action, PolicyAction{});
+    for (int axis = 0; axis < 6; ++axis)
+        EXPECT_DOUBLE_EQ(
+            observation(kObservationNames[ObservationLayout::kPreviousAction + axis]), 0.0);
+    for (int tick = 1; tick < 20; ++tick) {
+        step();
+        ASSERT_EQ(actions(), first_action);
+    }
+    step();
+    // Four 5 ms native references move each coupled pair by 4 rad/s toward
+    // the pitch-compensated goal: 0.08 rad / actor scale 0.25 = 0.32.
+    constexpr std::array expected{
+        0.3971495591133103 - 0.32,
+        -0.17001706708534804 - 0.32,
+        -0.3971974030279817 + 0.32,
+        0.1700599578304013 + 0.32,
+        0.2,
+        -0.2};
+    for (int axis = 0; axis < 6; ++axis)
+        EXPECT_NEAR(
+            observation(kObservationNames[ObservationLayout::kPreviousAction + axis]),
+            expected[axis], 1e-6);
+    EXPECT_TRUE(enabled());
+}
+
+TEST_F(RlV6NativeRecoveryTest, NativeProbeBlendAndStableMotionReleaseRetainPolicyHistory) {
+    set_prepare_reference();
+    bool blended = false, saw_blend_history = false, confirmed_at_blend = false;
+    for (int tick = 0; tick < 1500; ++tick) {
+        step();
+        ASSERT_TRUE(enabled());
+        const int phase = output<int>("rl/recovery/native_phase");
+        if (phase == 8) {
+            blended = true;
+            confirmed_at_blend |= output<bool>("rl/recovery/support_confirmed");
+            EXPECT_EQ(state(), State::kPrepare);
+            EXPECT_TRUE(output<bool>("rl/recovery/motion_hold"));
+            if (output<double>("rl/recovery/blend") > 0.0) {
+                double history_norm = 0.0;
+                for (int axis = 0; axis < 6; ++axis)
+                    history_norm += std::abs(
+                        observation(kObservationNames[ObservationLayout::kPreviousAction + axis]));
+                saw_blend_history |= history_norm > 0.1;
+            }
+        }
+        if (output<bool>("rl/recovery/native_motion_released"))
+            break;
+    }
+    EXPECT_TRUE(blended);
+    EXPECT_TRUE(saw_blend_history);
+    EXPECT_EQ(state(), State::kRl);
+    EXPECT_TRUE(confirmed_at_blend);
+    // Native probing ends at BLEND; its 0.6 s evidence may expire during the
+    // separate 1 s RL stability interval. It does not become a contact sensor.
+    EXPECT_TRUE(output<bool>("rl/recovery/native_motion_released"));
+    EXPECT_FALSE(output<bool>("rl/recovery/motion_hold"));
+}
+
+TEST_F(
+    RlV6NativeRecoveryTest,
+    SlightStopPenetrationInvalidatesSupportWithoutInventingAnActuatorFault) {
+    set_prepare_reference();
+    angle_[1] = 2.93 - (-0.3207126102216724 - 0.141);
+    orientation_ =
+        Eigen::Quaterniond{Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitY()}};
+    step();
+    EXPECT_EQ(state(), State::kPrepare);
+    EXPECT_TRUE(enabled());
+    EXPECT_FALSE(output<bool>("rl/recovery/geometry_valid"));
+    EXPECT_FALSE(output<bool>("rl/recovery/support_confirmed"));
+    EXPECT_EQ(output<int>("rl/recovery/native_failure"), 0);
+}
+
+TEST_F(RlV6NativeRecoveryTest, EveryNewMiddleSessionSelectsCurrentPostureAndSensorLossDisarms) {
+    set_prepare_reference();
+    step();
+    ASSERT_EQ(output<int>("rl/recovery/native_phase"), 7);
+    feedback_fresh_ = false;
+    step();
+    expect_latched_idle();
+    feedback_fresh_ = true;
+    down_reset();
+    orientation_ =
+        Eigen::Quaterniond{Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitY()}};
+    requested_state_ = 3;
+    step();
+    EXPECT_EQ(state(), State::kPrepare);
+    EXPECT_EQ(output<int>("rl/recovery/native_phase"), 1);
+    EXPECT_TRUE(enabled());
+}
+
 class RlV6TakeoverTest : public RlV6CaptureTest {
 protected:
     virtual double blend_seconds() const { return 0.0; }
@@ -499,11 +622,14 @@ protected:
 
     void capture_loaded_pose() {
         constexpr std::array error{0.04, -0.06, -0.04, 0.06};
+        constexpr std::array prepare_nominal{
+            -0.3207126102216724, 0.09491855918261657, 0.32070064924300457, -0.09490058680048478};
         for (std::size_t axis = 0; axis < error.size(); ++axis) {
             angle_[axis] -= error[axis];
             velocity_[axis] = -0.3;
             // PREPARE advances the pose by at most 1 rad/s for this first 1 ms.
-            prepare_targets_[axis] = model_q(axis) - std::copysign(0.001, error[axis]);
+            prepare_targets_[axis] =
+                model_q(axis) + std::clamp(prepare_nominal[axis] - model_q(axis), -0.001, 0.001);
         }
         velocity_[4] = 1.0;
         velocity_[5] = -1.0;
@@ -523,17 +649,6 @@ protected:
             actor_targets_[axis] =
                 model_q(axis) + std::remainder(goal - model_q(axis), 2 * std::numbers::pi);
         }
-        constexpr std::array a{-1.0, 1.0}, b{1.0, -1.0};
-        for (std::size_t side = 0; side < 2; ++side) {
-            const auto hip = 2 * side, knee = hip + 1;
-            const double endpoint_a =
-                (-0.140638855 + 0.03 - a[side] * actor_targets_[hip]) / b[side];
-            const double endpoint_b =
-                (1.329574849 - 0.03 - a[side] * actor_targets_[hip]) / b[side];
-            actor_targets_[knee] = std::clamp(
-                actor_targets_[knee], std::min(endpoint_a, endpoint_b),
-                std::max(endpoint_a, endpoint_b));
-        }
         actor_targets_[4] = 10.0 * action[4];
         actor_targets_[5] = 10.0 * action[5];
     }
@@ -543,8 +658,8 @@ protected:
         EXPECT_NEAR(fraction(), alpha, 1e-12);
         for (std::size_t axis = 0; axis < 6; ++axis) {
             const double prepare =
-                axis < 4 ? 80.0 * (prepare_targets_[axis] - model_q(axis)) - 2.0 * model_dq(axis)
-                         : -0.2 * model_dq(axis);
+                axis < 4 ? 160.0 * (prepare_targets_[axis] - model_q(axis)) - 2.5 * model_dq(axis)
+                         : -0.6 * model_dq(axis);
             const double actor =
                 axis < 4 ? 160.0 * (actor_targets_[axis] - model_q(axis)) - 2.5 * model_dq(axis)
                          : 0.6 * (actor_targets_[axis] - model_dq(axis));
@@ -732,7 +847,9 @@ protected:
             "policy_profile:=v5_flat_12486",
             std::string{"rl_model_path:="} + RL_CONTROLLER_LEGACY_TEST_MODEL,
             "nominal_model_pos:=[0.42,-0.13742282595254576,-0.42,0.13741557625658019,0.0,0.0]",
-            "recovery_enabled:=false"};
+            "recovery_enabled:=false",
+            "prepare_kp:=80.0",
+            "prepare_kd:=2.0"};
     }
 };
 
@@ -782,15 +899,15 @@ TEST_F(RlControllerTest, PrepareWaitsForDrivesWithoutAdvancingReferenceOrSending
     step();
     ASSERT_EQ(state(), State::kPrepare);
     // First ready tick moves the captured target by 1 rad/s * 1 ms only.
-    EXPECT_NEAR(torque(0), 80.0 * 0.001, 1e-12);
+    EXPECT_NEAR(torque(0), 160.0 * 0.001, 1e-12);
     EXPECT_DOUBLE_EQ(output<double>("rl/performance/inference_us"), 0.0);
     velocity_[0] = 0.1;
     for (int i = 0; i < 4; ++i) {
         step();
-        EXPECT_NEAR(torque(0), 0.08, 1e-12);
+        EXPECT_NEAR(torque(0), 0.16, 1e-12);
     }
     step();
-    EXPECT_NEAR(torque(0), 80.0 * 0.006 - 2.0 * 0.1, 1e-12);
+    EXPECT_NEAR(torque(0), 160.0 * 0.006 - 2.5 * 0.1, 1e-12);
 }
 
 TEST_F(RlControllerTest, PolicyUpdatesEveryTwentyTicksAndPublishesClippedActionHistory) {
@@ -1017,15 +1134,18 @@ TEST_F(RlFlatSensorGuardTest, V6CannotReuseAQuaternionWithoutItsMatchingImuSampl
     expect_latched_idle();
 }
 
-TEST(PolicyCapability, V6FlatProfileCannotEnableLegacyRecovery) {
-    const std::vector<const char*> argv{"v6_recovery_profile_test",
-                                        "--ros-args",
-                                        "--params-file",
-                                        RL_CONTROLLER_TEST_PROFILE,
-                                        "-p",
-                                        "recovery_enabled:=true",
-                                        "--log-level",
-                                        "error"};
+TEST(PolicyCapability, V6RejectsMissingFrozenGeometryEvenWhenRecoveryIsEnabled) {
+    const std::vector<const char*> argv{
+        "v6_recovery_profile_test",
+        "--ros-args",
+        "--params-file",
+        RL_CONTROLLER_TEST_PROFILE,
+        "-p",
+        "recovery_enabled:=true",
+        "-p",
+        "v6_recovery_profile_path:=/missing/v5/geometry.json",
+        "--log-level",
+        "error"};
     rclcpp::init(static_cast<int>(argv.size()), argv.data());
     rmcs_executor::Component::initializing_component_name = "rl_controller";
     EXPECT_THROW(RlController{}, std::runtime_error);

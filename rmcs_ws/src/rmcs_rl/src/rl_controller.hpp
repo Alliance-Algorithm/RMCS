@@ -5,6 +5,8 @@
 #include "recovery_controller.hpp"
 #include "recovery_observer.hpp"
 #include "recovery_sensor_guard.hpp"
+#include "v6_recovery_controller.hpp"
+#include "v6_recovery_observer.hpp"
 
 #include <array>
 #include <chrono>
@@ -55,6 +57,12 @@ private:
     void enter_(State next);
     void latch_fault_(std::optional<RecoveryFailure> reason = std::nullopt);
     bool advance_recovery_();
+    bool advance_v6_recovery_();
+    V6RecoveryFeedback v6_recovery_feedback_() const;
+    std::optional<V6RecoveryFeedback> observe_v6_recovery_();
+    RecoverySensorData recovery_sensor_data_() const;
+    RecoveryPhase recovery_phase_() const;
+    bool recovery_motion_hold_() const;
     bool evaluate_policy_(std::size_t tick, bool recovering);
     void clear_outputs_();
     void update_state_output_();
@@ -101,6 +109,9 @@ private:
     OutputInterface<bool> enable_request_;
     OutputInterface<int> recovery_phase_output_;
     OutputInterface<int> recovery_failure_output_;
+    OutputInterface<int> recovery_native_phase_output_, recovery_native_failure_output_;
+    OutputInterface<int> recovery_native_route_output_;
+    OutputInterface<bool> recovery_native_motion_released_output_;
     OutputInterface<bool> recovery_support_output_;
     OutputInterface<bool> recovery_geometry_output_;
     OutputInterface<bool> recovery_motion_hold_output_;
@@ -138,6 +149,7 @@ private:
     bool timing_ready_ = false;
     bool recovery_enabled_ = false;
     bool recovery_profile_ready_ = false;
+    bool v6_native_profile_ready_ = false;
     bool recovery_started_ = false;
     bool strict_feedback_ = true;
     bool policy_targets_valid_ = false;
@@ -155,16 +167,22 @@ private:
     Vector6 targets_ = Vector6::Zero();
     Vector6 policy_targets_ = Vector6::Zero();
     Vector6 v6_takeover_targets_ = Vector6::Zero();
+    Eigen::Vector4d v6_prepare_target_ = Eigen::Vector4d::Zero();
     RecoveryController recovery_;
+    std::optional<V6RecoveryController> v6_recovery_;
+    std::optional<V6RecoveryObserver> v6_recovery_observer_;
     RecoveryPeakBudget recovery_peak_budget_;
     RecoveryCommand recovery_command_;
     std::optional<RecoveryObserver> recovery_observer_;
     RecoveryFeedback last_recovery_feedback_;
+    V6RecoveryFeedback v6_recovery_feedback_data_;
     RecoverySensorGuard recovery_sensor_guard_;
     RecoverySensorStatus recovery_sensor_status_;
     RecoveryFailure recovery_failure_latched_ = RecoveryFailure::kNone;
+    int v6_recovery_failure_latched_ = 0;
     PolicyObservation observation_{};
     PolicyAction previous_action_{};
+    PolicyAction policy_action_{};
     std::size_t last_reset_count_ = 0;
     std::size_t last_policy_tick_ = 0;
     std::optional<std::size_t> last_pd_tick_;

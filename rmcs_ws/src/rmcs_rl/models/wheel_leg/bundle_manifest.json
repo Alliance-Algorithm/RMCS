@@ -13,6 +13,13 @@
     "deployment/v6_wheel_response_control_200hz_v1.json": "8073540d1cec0b32c6216699863b3ef53064a2d385b7110abe291d9da0e9b1ac",
     "policy.onnx": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
     "policy.onnx.contract.json": "666f7bdbba8c305d4bedc464fd1a42ea8725245461c49d186b75ed37fe58aae7",
-    "policy.onnx.json": "ad42a43fd394f5ac6dc40e3d949eaa40a21a650668bb21886ecccb46e168597e"
+    "policy.onnx.json": "ad42a43fd394f5ac6dc40e3d949eaa40a21a650668bb21886ecccb46e168597e",
+    "deployment/v6_recovery_profiles_v1.json": "5b09a3bb27285ab7571bd133151d7118091997309ccc9d59c6b1259836dc1eef",
+    "deployment/v6_height_lookup_v1.json": "c3e215187828fae328e3df3af1728897feb6695616ec8b9bdd4322433ea00282"
+  },
+  "rmcs_recovery_extension": {
+    "source_commit": "2778206b5905c2760ccc381f2592b08e1cad611a",
+    "scope": "frozen V6 native scripted recovery runtime candidate; full deployment-C++ physical acceptance recorded separately",
+    "hardware_deployment_ready": false
   }
 }
