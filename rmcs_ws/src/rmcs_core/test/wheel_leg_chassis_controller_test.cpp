@@ -1,6 +1,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -81,9 +82,9 @@ protected:
         Ports::bind(*controller_, "/remote/joystick/left", left_stick_);
         Ports::bind(*controller_, "/remote/switch/right", right_);
         Ports::bind(*controller_, "/remote/switch/left", left_);
+        Ports::bind(*controller_, "/wheel_leg/dr16_fresh", remote_fresh_);
         Ports::bind(*controller_, "/remote/rotary_knob", knob_);
         Ports::bind(*controller_, "/remote/keyboard", keyboard_);
-        Ports::bind(*controller_, "/wheel_leg/imu/quaternion", orientation_);
         Ports::require_bound_inputs(*controller_);
         controller_->before_updating();
     }
@@ -106,10 +107,10 @@ protected:
     }
     std::unique_ptr<WheelLegChassisController> controller_;
     Eigen::Vector2d right_stick_ = Eigen::Vector2d::Zero(), left_stick_ = Eigen::Vector2d::Zero();
-    Eigen::Quaterniond orientation_ = Eigen::Quaterniond::Identity();
     Switch left_ = Switch::UNKNOWN, right_ = Switch::UNKNOWN;
     rmcs_msgs::Keyboard keyboard_ = rmcs_msgs::Keyboard::zero();
     double knob_ = 0.0;
+    bool remote_fresh_ = true;
 };
 
 TEST_F(ChassisControllerTest, StartupAndAsynchronousArmingKeepStateAndResetContract) {
@@ -134,12 +135,40 @@ TEST_F(ChassisControllerTest, StartupAndAsynchronousArmingKeepStateAndResetContr
     EXPECT_EQ(output<std::size_t>("reset_count"), 2);
 }
 
-TEST_F(ChassisControllerTest, ResetAndUnknownRemoteClearMotionAndJumpInTheSameTick) {
+TEST_F(ChassisControllerTest, RemoteLossClearsAnArmedSessionDespiteCachedDoubleMiddle) {
     arm();
-    right_stick_.y() = 1.0;
+    right_stick_.x() = 1.0;
+    keyboard_.v = true;
+    remote_fresh_ = false;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    EXPECT_TRUE(velocity().isZero());
+    EXPECT_FALSE(output<bool>("jump_request"));
+    remote_fresh_ = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    arm();
+}
+
+TEST_F(ChassisControllerTest, RemoteLossBetweenDownAndMiddleRequiresAnotherFreshDown) {
+    step(Switch::DOWN, Switch::DOWN);
+    remote_fresh_ = false;
+    step(Switch::DOWN, Switch::DOWN);
+    remote_fresh_ = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    arm();
+}
+
+TEST_F(ChassisControllerTest, ResetAndUnknownRemoteClearMotionAndJumpInTheSameTick) {
+    controller_.reset();
+    rclcpp::shutdown();
+    create({"jump_enabled:=true"});
+    arm();
+    right_stick_.x() = 1.0;
     keyboard_.v = true;
     step(Switch::MIDDLE, Switch::MIDDLE);
-    EXPECT_DOUBLE_EQ(velocity().x(), 2.5);
+    EXPECT_DOUBLE_EQ(velocity().x(), 0.5);
     EXPECT_TRUE(output<bool>("jump_request"));
     EXPECT_DOUBLE_EQ(output<double>("jump_apex_delta"), 0.06);
     step(Switch::UNKNOWN, Switch::MIDDLE);
@@ -155,7 +184,7 @@ TEST_F(ChassisControllerTest, ModeTogglesOnlyOnKeyEdgesAndResetReturnsAuto) {
     keyboard_.c = true;
     step(Switch::MIDDLE, Switch::MIDDLE);
     EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::SPIN_FAST);
-    EXPECT_NEAR(velocity().z(), -1.8, 1e-12);
+    EXPECT_DOUBLE_EQ(velocity().z(), -1.0);
     step(Switch::MIDDLE, Switch::MIDDLE);
     EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::SPIN_FAST);
     keyboard_.c = false;
@@ -163,8 +192,209 @@ TEST_F(ChassisControllerTest, ModeTogglesOnlyOnKeyEdgesAndResetReturnsAuto) {
     keyboard_.c = true;
     step(Switch::MIDDLE, Switch::MIDDLE);
     EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::AUTO);
+    keyboard_.c = false;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    keyboard_.c = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(velocity().z(), 1.0);
     step(Switch::DOWN, Switch::DOWN);
     EXPECT_TRUE(velocity().isZero());
+}
+
+TEST_F(ChassisControllerTest, RightStickTranslatesAndLeftHorizontalStickControlsYaw) {
+    arm();
+    right_stick_ = {1.0, 0.0};
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isApprox(Eigen::Vector3d{0.5, 0.0, 0.0}));
+    right_stick_ = {-1.0, 0.0};
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isApprox(Eigen::Vector3d{-0.5, 0.0, 0.0}));
+    right_stick_ = {0.0, 1.0};
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isZero()); // The current model has no lateral command domain.
+    left_stick_ = {0.0, 1.0};
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isApprox(Eigen::Vector3d{0.0, 0.0, 1.0}));
+    left_stick_.y() = -1.0;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(velocity().z(), -1.0);
+}
+
+TEST_F(ChassisControllerTest, KeyboardWasdOnlyAddsTranslationAndUnsupportedModesStayAuto) {
+    arm();
+    keyboard_.w = true;
+    right_stick_.x() = 1.0;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isApprox(Eigen::Vector3d{0.5, 0.0, 0.0}));
+    right_stick_.setZero();
+    keyboard_.w = false;
+    keyboard_.s = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(velocity().x(), -0.5);
+    keyboard_.s = false;
+    keyboard_.a = true;
+    keyboard_.x = true;
+    keyboard_.z = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isZero());
+    EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::AUTO);
+    keyboard_.a = false;
+    keyboard_.d = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isZero());
+}
+
+TEST_F(ChassisControllerTest, SpinSwitchRequiresAnArmedSessionAndTogglesOnCombinationEdges) {
+    step(Switch::MIDDLE, Switch::DOWN);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::AUTO);
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    arm();
+    right_stick_ = {1.0, 1.0};
+    left_stick_.y() = 1.0;
+    keyboard_.w = true;
+    keyboard_.a = true;
+    step(Switch::MIDDLE, Switch::DOWN);
+    EXPECT_EQ(output<int>("control_state"), 3);
+    EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::SPIN_FAST);
+    EXPECT_TRUE(velocity().isApprox(Eigen::Vector3d{0.0, 0.0, -1.0}));
+    step(Switch::MIDDLE, Switch::DOWN);
+    EXPECT_TRUE(velocity().isApprox(Eigen::Vector3d{0.0, 0.0, -1.0}));
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_EQ(output<int>("control_state"), 3);
+    EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::SPIN_FAST);
+    step(Switch::MIDDLE, Switch::DOWN);
+    EXPECT_EQ(output<int>("control_state"), 3);
+    EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::AUTO);
+    EXPECT_DOUBLE_EQ(velocity().z(), 1.0);
+    step(Switch::UP, Switch::DOWN);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    EXPECT_TRUE(velocity().isZero());
+    step(Switch::MIDDLE, Switch::DOWN);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_EQ(output<int>("control_state"), 1);
+}
+
+TEST_F(ChassisControllerTest, RemoteLossInSpinClearsSessionAndMode) {
+    arm();
+    step(Switch::MIDDLE, Switch::DOWN);
+    remote_fresh_ = false;
+    step(Switch::MIDDLE, Switch::DOWN);
+    EXPECT_EQ(output<int>("control_state"), 1);
+    EXPECT_EQ(output<rmcs_msgs::ChassisMode>("control_mode"), rmcs_msgs::ChassisMode::AUTO);
+    EXPECT_TRUE(velocity().isZero());
+    remote_fresh_ = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_EQ(output<int>("control_state"), 1);
+}
+
+TEST_F(ChassisControllerTest, MotionLimitsDeadzoneAndNonfiniteInputsRemainBounded) {
+    controller_.reset();
+    rclcpp::shutdown();
+    create(
+        {"vx_max:=0.4", "vy_max:=0.3", "yaw_rate_max:=0.8", "spin_yaw_rate:=0.6",
+         "angular_z_invert:=true"});
+    arm();
+    right_stick_ = {1.0, 1.0};
+    left_stick_.y() = 5.0;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_NEAR(velocity().x(), 0.4 / std::sqrt(2.0), 1e-12);
+    EXPECT_NEAR(velocity().y(), 0.3 / std::sqrt(2.0), 1e-12);
+    EXPECT_DOUBLE_EQ(velocity().z(), -0.8);
+    right_stick_ = {0.04, std::numeric_limits<double>::quiet_NaN()};
+    left_stick_.y() = std::numeric_limits<double>::infinity();
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isZero());
+    keyboard_.c = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_TRUE(velocity().isApprox(Eigen::Vector3d{0.0, 0.0, 0.6}));
+}
+
+TEST_F(ChassisControllerTest, JumpRequestIsDisabledByDefault) {
+    arm();
+    keyboard_.v = true;
+    keyboard_.shift = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_FALSE(output<bool>("jump_request"));
+    EXPECT_DOUBLE_EQ(output<double>("jump_apex_delta"), 0.0);
+}
+
+TEST_F(ChassisControllerTest, RotaryKnobMapsAsymmetricHeightAndLeftVerticalStickHasNoEffect) {
+    controller_.reset();
+    rclcpp::shutdown();
+    create(
+        {"command_height_min:=0.23", "command_height_max:=0.43", "default_command_height:=0.305",
+         "height_step:=0.01"});
+    arm();
+    left_stick_ = {1.0, 0.0};
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.305);
+    EXPECT_DOUBLE_EQ(velocity().z(), 0.0);
+    knob_ = -1.0;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.23);
+    knob_ = 1.0;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.43);
+    for (const double knob :
+         {0.0, 0.04, -0.04, std::numeric_limits<double>::quiet_NaN(),
+          std::numeric_limits<double>::infinity()}) {
+        knob_ = knob;
+        step(Switch::MIDDLE, Switch::MIDDLE);
+        EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.305);
+    }
+    knob_ = 0.54; // Half of the positive travel after the 0.08 deadzone.
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.3675);
+    knob_ = -0.54;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.2675);
+    knob_ = 0.0;
+    left_stick_ = {0.0, 1.0};
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.305);
+    EXPECT_DOUBLE_EQ(velocity().z(), 1.0);
+}
+
+TEST_F(ChassisControllerTest, HeightKeysAddBoundedOffsetAndRotaryInversionReversesEndpoints) {
+    controller_.reset();
+    rclcpp::shutdown();
+    create(
+        {"command_height_min:=0.23", "command_height_max:=0.43", "default_command_height:=0.305",
+         "height_step:=0.01", "height_invert:=true"});
+    arm();
+    knob_ = 1.0;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.23);
+    knob_ = -1.0;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.43);
+    knob_ = 0.0;
+    keyboard_.r = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.315);
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.315);
+    keyboard_.r = false;
+    keyboard_.f = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.305);
+    keyboard_.f = false;
+    for (int i = 0; i < 50; ++i) {
+        keyboard_.r = true;
+        step(Switch::MIDDLE, Switch::MIDDLE);
+        keyboard_.r = false;
+        step(Switch::MIDDLE, Switch::MIDDLE);
+    }
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.43);
+    keyboard_.f = true;
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.42);
+    step(Switch::DOWN, Switch::DOWN);
+    step(Switch::MIDDLE, Switch::MIDDLE);
+    EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.305);
 }
 
 TEST_F(ChassisControllerTest, FixedHeightProfileKeepsRequestedHeightConstant) {
@@ -172,17 +402,19 @@ TEST_F(ChassisControllerTest, FixedHeightProfileKeepsRequestedHeightConstant) {
     rclcpp::shutdown();
     create(
         {"command_height_min:=0.305", "command_height_max:=0.305", "default_command_height:=0.305",
-         "height_range:=0.0", "height_step:=0.0"});
+         "height_step:=0.0"});
     arm();
-    left_stick_.y() = 1.0;
+    left_stick_.x() = 1.0;
     knob_ = 1.0;
-    keyboard_.q = true;
+    keyboard_.r = true;
     step(Switch::MIDDLE, Switch::MIDDLE);
     EXPECT_DOUBLE_EQ(output<double>("control_height"), 0.305);
 }
 
 TEST_F(ChassisControllerTest, RejectsReversedLimitsAndInvalidDeadzone) {
-    for (const auto& parameter : {"command_height_min:=0.5", "deadzone:=1.0", "heading_kp:=-1.0"}) {
+    for (const auto& parameter :
+         {"command_height_min:=0.5", "deadzone:=1.0", "vy_max:=-0.1", "spin_yaw_rate:=1.1",
+          "yaw_rate_max:=0.0"}) {
         controller_.reset();
         rclcpp::shutdown();
         EXPECT_THROW(create({parameter}), std::invalid_argument);

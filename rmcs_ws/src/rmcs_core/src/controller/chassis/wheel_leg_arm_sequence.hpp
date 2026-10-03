@@ -8,7 +8,8 @@ namespace rmcs_core::controller::chassis {
 // across DOWN/MIDDLE intermediate positions, then arm only at double MIDDLE.
 class WheelLegArmSequence {
 public:
-    bool update(rmcs_msgs::Switch left, rmcs_msgs::Switch right) noexcept {
+    bool update(
+        rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool allow_spin_switch = false) noexcept {
         using rmcs_msgs::Switch;
         if (left == Switch::DOWN && right == Switch::DOWN) {
             pending_ = true;
@@ -18,6 +19,8 @@ public:
                 armed_ = true;
                 pending_ = false;
             }
+        } else if (allow_spin_switch && armed_ && left == Switch::MIDDLE && right == Switch::DOWN) {
+            // This combination can continue an armed RL session, but cannot start one.
         } else {
             armed_ = false;
             if ((left != Switch::DOWN && left != Switch::MIDDLE)
