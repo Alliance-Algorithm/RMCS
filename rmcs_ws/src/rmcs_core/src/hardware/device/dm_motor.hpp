@@ -72,14 +72,14 @@ public:
         }
 
         Type motor_type;
-        std::uint8_t id;                  // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
-        std::uint16_t feedback_id = 0;    // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
+        std::uint8_t id;                   // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
+        std::uint16_t feedback_id = 0;     // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
         bool reversed = false;
-        double angle_bias = 0.0;          // rad
-        double position_max = 12.5;       // P_MAX [rad]，须与电机寄存器一致
-        double velocity_max = 45.0;       // V_MAX [rad/s]，须与电机寄存器一致
-        double torque_max = 54.0;         // T_MAX [Nm]，须与电机寄存器一致
-        double control_torque_max = 40.0; // 纯力矩与前馈上限；不限制电机内部位置 PD
+        double angle_bias = 0.0;           // rad
+        double position_max = 12.5;        // P_MAX [rad]，须与电机寄存器一致
+        double velocity_max = 45.0;        // V_MAX [rad/s]，须与电机寄存器一致
+        double torque_max = 54.0;          // T_MAX [Nm]，须与电机寄存器一致
+        double control_torque_max = 40.0;  // 纯力矩与前馈上限；不限制电机内部位置 PD
     };
 
     static constexpr double kKpMax = 500.0;
@@ -204,20 +204,25 @@ public:
     // ---- 反馈接收与状态更新 ----
 
     bool match_then_store_status(std::uint32_t can_id, std::span<const std::byte> can_data) {
+        if (!matches_feedback(can_id, can_data))
+            return false;
+        can_data_.store(CanPacket8{can_data}, std::memory_order_relaxed);
+        return true;
+    }
+
+    bool matches_feedback(std::uint32_t can_id, std::span<const std::byte> can_data) const {
         if (can_id != feedback_id_)
             return false;
         if (can_data.size() != 8)
             return false;
         // D[0] 低 4 位为电机 ID（说明书："ID 取 CAN_ID 的低 8 位"，但帧内仅 4 位可用）
         const auto d0 = static_cast<std::uint8_t>(can_data[0]);
-        if ((d0 & 0x0F) != (id_ & 0x0F))
-            return false;
-        can_data_.store(CanPacket8{can_data}, std::memory_order_relaxed);
-        return true;
+        return (d0 & 0x0F) == (id_ & 0x0F);
     }
 
-    void update_status() {
-        auto packet = can_data_.load(std::memory_order_relaxed);
+    void update_status() { update_status(can_data_.load(std::memory_order_relaxed)); }
+
+    void update_status(CanPacket8 packet) {
         const auto bytes = packet.as_bytes();
 
         const auto d0 = static_cast<std::uint8_t>(bytes[0]);

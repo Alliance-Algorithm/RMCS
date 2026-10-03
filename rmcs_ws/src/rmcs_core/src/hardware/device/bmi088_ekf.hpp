@@ -81,6 +81,18 @@ public:
         if (sample_time < ekf_state_time_)
             return std::nullopt;
 
+        // Buffered frames after reconnect or a receive gap must not integrate the current gyro
+        // over an unobserved interval. Check before the pending accelerometer prediction, which
+        // otherwise advances the state time and hides the gap from this guard.
+        // TODO: Remove this once librmcs guarantees historical IMU frames are flushed on
+        // connection.
+        if (std::chrono::duration<double>{sample_time - ekf_state_time_}.count() > 1 / 1000.0) {
+            ekf_state_time_ = sample_time;
+            if (pending_accel_sample_ && pending_accel_sample_->sample_time <= sample_time)
+                pending_accel_sample_ = std::nullopt;
+            return std::nullopt;
+        }
+
         if (is_gyro_saturated(gyro_rad_per_sec))
             ekf_.inflate_attitude_uncertainty_to_initial();
 
@@ -103,16 +115,6 @@ public:
 
             pending_accel_sample_ = std::nullopt;
             break;
-        }
-
-        // Guard against stale IMU frames that librmcs may deliver right after reconnect before the
-        // device-side buffer is drained. Integrating a frame with a large timestamp jump can inject
-        // a huge bogus gyro delta, so drop it instead of advancing the filter.
-        // TODO: Remove this once librmcs guarantees buffered historical IMU frames are flushed on
-        // connection.
-        if (std::chrono::duration<double>{sample_time - ekf_state_time_}.count() > 1 / 1000.0) {
-            ekf_state_time_ = sample_time;
-            return std::nullopt;
         }
 
         if (!ekf_.predict(

@@ -51,6 +51,13 @@ U8_FIELDS = {"tx_kind": 6, "feedback_fresh": None, "enable_requested": None,
              "tx_frame_bytes": 48, "feedback_torque_source": 6,
              "tx_can_bus": 6, "torque_limited": 6}
 U8_FIELDS.update({"segment_role": None, "segment_waveform": None, "wheel_mode": None})
+FLOAT_FIELDS.update({"q_unwrapped_model": 4, **{key: None for key in (
+    "inner_knee_fk_deg", "inner_knee_requested_deg", "inner_knee_reference_deg",
+    "thigh_orientation_fk_deg", "segment_elapsed_s", "reference_center_delta_rad")}})
+U64_FIELDS["reference_update_tick"] = None
+U32_FIELDS["recording_protocol_version"] = None
+I32_FIELDS.update({key: None for key in (
+    "configuration_admission", "skipped_arrival_segment", "qualified_arrival_segment", "jump_cycle_id", "jump_phase")})
 OPTIONAL_DEFAULTS = {
     "feedback_current_a": float("nan"), "wheel_velocity_target_api": float("nan"),
     "tau_preclip_api": float("nan"), "repetition_id": 0,
@@ -60,6 +67,12 @@ OPTIONAL_DEFAULTS = {
     "feedback_torque_source": 0, "tx_can_bus": 255, "torque_limited": 0,
     "segment_role": 2, "segment_waveform": 0, "wheel_mode": 0,
     "failure_reason": 0,
+    "q_unwrapped_model": float("nan"), "inner_knee_fk_deg": float("nan"),
+    "inner_knee_requested_deg": float("nan"), "inner_knee_reference_deg": float("nan"),
+    "thigh_orientation_fk_deg": float("nan"), "segment_elapsed_s": float("nan"),
+    "reference_center_delta_rad": float("nan"), "reference_update_tick": 0,
+    "recording_protocol_version": 0, "configuration_admission": -1,
+    "skipped_arrival_segment": -1, "qualified_arrival_segment": -1, "jump_cycle_id": -1, "jump_phase": 0,
 }
 
 
@@ -132,10 +145,19 @@ def load_identity(calibration: Path, profile: Path) -> dict:
             for child in value:
                 visit(child)
     visit(profile_data)
+    recording = None
+    if controller.get("probe_pattern") == "calibrated_recording":
+        from check_wheel_leg_profile import check
+        errors = check(profile_data)
+        if errors:
+            raise ValueError("Invalid V6 profile: " + "; ".join(errors))
+        if sha(calibration) != controller["calibration_sha256"]:
+            raise ValueError("V6 calibration file differs from the run binding")
+        recording = controller
     spring_min = controller.get("spring_delta_min")
     spring_max = controller.get("spring_delta_max")
     return {"side": side, "model_sign": sign.tolist(), "model_offset_rad": offset.tolist(),
-            "phase_api_angle": phase_api_angle,
+            "phase_api_angle": phase_api_angle, "recording": recording,
             "spring_delta_min": spring_min, "spring_delta_max": spring_max,
             "calibration_sha256": sha(calibration), "profile_sha256": sha(profile),
             "calibration_source": str(calibration.resolve()), "profile_source": str(profile.resolve())}
@@ -282,6 +304,24 @@ def convert(rows: list[dict], identity: dict, *, seed: int = 0,
                         shift = round((model_angle[first, hip] + midpoint
                                        - model_angle[first, knee]) / (2 * np.pi))
                         model_angle[indices, knee] += shift * 2 * np.pi
+    recording = identity.get("recording")
+    if recording:
+        if np.any(a["recording_protocol_version"] != 1):
+            raise ValueError("V6 run must carry recording protocol version 1")
+        running = a["phase"] == 2
+        if len(np.unique(a["repetition_id"][running])) > 1:
+            raise ValueError("V6 recording requires a new bag after each interruption/rearm")
+        expected_role = int(recording["recording_run"].endswith(("03", "J02")))
+        if np.any(a["segment_role"][running] != expected_role):
+            raise ValueError("V6 segment role differs from whole-run holdout identity")
+        first = 0 if side == "left" else 2
+        if np.any(~np.isfinite(a["q_unwrapped_model"][running, first:first+2])):
+            raise ValueError("V6 running telemetry lacks controller model coordinates")
+        # Preserve the exact lift used by the controller, including full turns.
+        # Reconstructed wrapped phases remain available through q_api + binding.
+        supplied = a["q_unwrapped_model"]
+        valid = np.isfinite(supplied)
+        model_angle[valid] = supplied[valid]
     a["q_model"] = model_angle
     a["dq_model"] = a["dq_api"][:, :4] * sign
     a["torque_fb_model"] = a["torque_fb_api"][:, :4] * sign
@@ -426,7 +466,7 @@ def convert(rows: list[dict], identity: dict, *, seed: int = 0,
     a.update(pair_valid=pair_valid, pair_epoch=pair_epoch, pair_age_fail=pair_age_fail,
              pair_skew_fail=pair_skew_fail, pair_waiting_for_both=pair_waiting)
     split = split_segments(a["segment_id"][pair_valid], seed, holdout_fraction)
-    if a["experiment_kind"][0] == 1:
+    if recording or a["experiment_kind"][0] == 1:
         split = {int(segment): 2 if np.any((a["segment_id"] == segment)
                      & (a["segment_role"] == 1)) else 1
                  for segment in np.unique(a["segment_id"][a["segment_id"] >= 0])}
@@ -437,7 +477,7 @@ def convert(rows: list[dict], identity: dict, *, seed: int = 0,
     a["split"] = np.asarray([split.get(int(seg), 0) if ok else 0 for seg, ok in
                              zip(a["segment_id"], pair_valid)], dtype=np.uint8)
     metadata = {
-        "schema_version": 4, "topic": TOPIC, "message_type": TYPE,
+        "schema_version": 5 if recording else 4, "topic": TOPIC, "message_type": TYPE,
         "axis_order": list(AXES), "model_order": list(AXES[:4]),
         "side": side, "side_source": "bag_and_profile_checked",
         "experiment_kind": "wheel" if a["experiment_kind"][0] == 1 else "pair",
@@ -450,7 +490,7 @@ def convert(rows: list[dict], identity: dict, *, seed: int = 0,
         "calibration_source": identity.get("calibration_source"),
         "split_seed": seed, "holdout_fraction": holdout_fraction,
         "segment_split": {str(k): "holdout" if v == 2 else "train" for k, v in sorted(split.items())},
-        "insufficient_holdout": len(split) < 2,
+        "insufficient_holdout": not any(v == 2 for v in split.values()) if recording else len(split) < 2,
         "qc_thresholds": {"max_encoder_step_rad": max_encoder_step_rad,
                           "saturation_tolerance_nm": saturation_tolerance_nm,
                           "max_skew_ms": max_skew_ms, "max_age_ms": max_age_ms},
@@ -471,8 +511,14 @@ def convert(rows: list[dict], identity: dict, *, seed: int = 0,
         "dropped_samples_last": int(a["dropped_samples"][-1]),
         "limitations": ["q/dq/torque feedback and CAN sequence/time may straddle a callback boundary",
                         "tx_queued_steady_ns is host submission, not acknowledged CAN or motor execution",
-                        "q_model uses supplied API-to-model calibration without encoder unwrap or interpolation"],
+                        "q_model reproduces model phase lift; raw MIT encoder turns are never inferred or resampled"],
     }
+    if recording:
+        from v6_pair_recording_qc import summarize_recording
+        metadata["recording"] = summarize_recording(a, recording)
+        metadata["controller"] = recording
+        metadata["asset_manifest_sha256"] = recording["asset_manifest_sha256"]
+        metadata["insufficient_holdout"] = not any(value == 2 for value in split.values())
     return a, metadata
 
 

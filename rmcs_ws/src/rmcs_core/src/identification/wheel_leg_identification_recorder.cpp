@@ -23,6 +23,7 @@
 #include <rmcs_utility/ring_buffer.hpp>
 
 #include "identification/wheel_leg_identification_axes.hpp"
+#include "identification/wheel_leg_recording_contract.hpp"
 
 namespace rmcs_core::controller::identification {
 
@@ -118,6 +119,24 @@ public:
         register_input("/wheel_leg/identification/segment_role", segment_role_, false);
         register_input("/wheel_leg/identification/segment_waveform", segment_waveform_, false);
         register_input("/wheel_leg/identification/wheel_mode", wheel_mode_, false);
+        register_input("/wheel_leg/identification/measured_model", measured_model_, false);
+        register_input(
+            "/wheel_leg/identification/selected/inner_knee_measured_deg", inner_knee_fk_, false);
+        register_input(
+            "/wheel_leg/identification/selected/inner_knee_target_deg", inner_knee_requested_,
+            false);
+        const std::string recording = "/wheel_leg/identification/recording/";
+        register_input(recording + "protocol_version", recording_protocol_, false);
+        register_input(recording + "beta_reference_deg", inner_knee_reference_, false);
+        register_input(recording + "theta_measured_deg", thigh_orientation_, false);
+        register_input(recording + "reference_tick", reference_tick_, false);
+        register_input(recording + "segment_time_s", segment_elapsed_, false);
+        register_input(recording + "center_delta_rad", center_delta_, false);
+        register_input(recording + "admission", configuration_admission_, false);
+        register_input(recording + "skipped_segment", skipped_arrival_, false);
+        register_input(recording + "qualified_segment", qualified_arrival_, false);
+        register_input(recording + "cycle", jump_cycle_, false);
+        register_input(recording + "jump_phase", jump_phase_, false);
 
         constexpr std::array kSelectedAxes{"hip", "knee"};
         for (std::size_t i = 0; i < kSelectedAxes.size(); ++i) {
@@ -143,6 +162,8 @@ public:
 
         publisher_ = create_publisher<Sample>(
             "/wheel_leg/identification/sample", rclcpp::QoS{rclcpp::KeepLast(128)}.reliable());
+        if (get_parameter_or<std::string>("trajectory_revision", "") == "pair_v6_recording_v1")
+            parameter_guard_ = freeze_recording_parameters(*this);
         worker_ = std::thread{[this] { publish_queued(); }};
     }
 
@@ -195,6 +216,26 @@ public:
         sample.segment_role = segment_role_.ready() ? *segment_role_ : 2;
         sample.segment_waveform = segment_waveform_.ready() ? *segment_waveform_ : 0;
         sample.wheel_mode = wheel_mode_.ready() ? *wheel_mode_ : 0;
+        sample.recording_protocol_version = recording_protocol_.ready() ? *recording_protocol_ : 0;
+        sample.q_unwrapped_model.fill(nan);
+        if (measured_model_.ready())
+            for (std::size_t i = 0; i < 4; ++i)
+                sample.q_unwrapped_model[i] = (*measured_model_)[static_cast<Eigen::Index>(i)];
+        sample.inner_knee_fk_deg = inner_knee_fk_.ready() ? *inner_knee_fk_ : nan;
+        sample.inner_knee_requested_deg =
+            inner_knee_requested_.ready() ? *inner_knee_requested_ : nan;
+        sample.inner_knee_reference_deg =
+            inner_knee_reference_.ready() ? *inner_knee_reference_ : nan;
+        sample.thigh_orientation_fk_deg = thigh_orientation_.ready() ? *thigh_orientation_ : nan;
+        sample.reference_update_tick = reference_tick_.ready() ? *reference_tick_ : 0;
+        sample.segment_elapsed_s = segment_elapsed_.ready() ? *segment_elapsed_ : nan;
+        sample.reference_center_delta_rad = center_delta_.ready() ? *center_delta_ : nan;
+        sample.configuration_admission =
+            configuration_admission_.ready() ? *configuration_admission_ : -1;
+        sample.skipped_arrival_segment = skipped_arrival_.ready() ? *skipped_arrival_ : -1;
+        sample.qualified_arrival_segment = qualified_arrival_.ready() ? *qualified_arrival_ : -1;
+        sample.jump_cycle_id = jump_cycle_.ready() ? *jump_cycle_ : -1;
+        sample.jump_phase = jump_phase_.ready() ? *jump_phase_ : 0;
 
         for (std::size_t i = 0; i < 6; ++i) {
             const bool received = *feedback_sequence_[i] != 0;
@@ -412,6 +453,14 @@ private:
     InputInterface<int> phase_, segment_id_, failure_reason_;
     InputInterface<std::uint8_t> segment_role_, segment_waveform_, wheel_mode_;
     InputInterface<std::uint32_t> repetition_id_;
+    InputInterface<Eigen::Vector4d> measured_model_;
+    InputInterface<double> inner_knee_fk_, inner_knee_requested_, inner_knee_reference_,
+        thigh_orientation_;
+    InputInterface<double> segment_elapsed_, center_delta_;
+    InputInterface<std::uint32_t> recording_protocol_;
+    InputInterface<std::uint64_t> reference_tick_;
+    InputInterface<int> configuration_admission_, skipped_arrival_, qualified_arrival_, jump_cycle_,
+        jump_phase_;
     InputInterface<Eigen::Matrix<double, 6, 1>> preclip_api_;
 
     std::size_t selected_side_ = 0;
@@ -436,6 +485,7 @@ private:
     std::atomic<std::uint64_t> wake_count_{0};
     std::atomic<bool> stopping_{false};
     std::thread worker_;
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_guard_;
 };
 
 } // namespace rmcs_core::controller::identification
