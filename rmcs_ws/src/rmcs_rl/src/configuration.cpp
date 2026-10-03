@@ -140,6 +140,7 @@ RlController::RlController()
     register_output("/wheel_leg/rl/recovery/contact_candidate", recovery_contact_output_, false);
     register_output("/wheel_leg/rl/recovery/height_if_grounded", recovery_height_output_, 0.0);
     register_output("/wheel_leg/rl/recovery/blend", recovery_blend_output_, 0.0);
+    register_output("/wheel_leg/rl/v6_takeover/blend_fraction", v6_takeover_blend_output_, 0.0);
     register_output("/wheel_leg/rl/performance/inference_us", inference_time_us_, 0.0);
     register_output("/wheel_leg/rl/performance/pd_us", pd_time_us_, 0.0);
     for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
@@ -194,6 +195,11 @@ RlController::RlController()
     prepare_max_angular_velocity_ = get_parameter_or("prepare_max_angular_velocity", 0.35);
     prepare_max_joint_velocity_ = get_parameter_or("prepare_max_joint_velocity", 0.5);
     prepare_stable_seconds_ = get_parameter_or("prepare_stable_seconds", 0.25);
+    v6_capture_max_leg_error_rad_ = get_parameter_or("v6_capture_max_leg_error_rad", 0.15);
+    v6_capture_max_angular_velocity_ = get_parameter_or("v6_capture_max_angular_velocity", 1.0);
+    v6_capture_max_leg_velocity_ = get_parameter_or("v6_capture_max_leg_velocity", 2.0);
+    v6_capture_max_wheel_velocity_ = get_parameter_or("v6_capture_max_wheel_velocity", 5.0);
+    v6_takeover_blend_seconds_ = get_parameter_or("v6_takeover_blend_seconds", 0.0);
     hinge_margin_ = get_parameter_or("hinge_margin", 0.03);
     height_transition_seconds_ = get_parameter_or("height_transition_seconds", 6.0);
     wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
@@ -210,6 +216,11 @@ RlController::RlController()
         prepare_max_angular_velocity_,
         prepare_max_joint_velocity_,
         prepare_stable_seconds_,
+        v6_capture_max_leg_error_rad_,
+        v6_capture_max_angular_velocity_,
+        v6_capture_max_leg_velocity_,
+        v6_capture_max_wheel_velocity_,
+        v6_takeover_blend_seconds_,
         hinge_margin_,
         height_transition_seconds_,
         wheel_radius_,
@@ -229,6 +240,17 @@ RlController::RlController()
         || recovery_dm_rated_torque_nm_ > recovery_dm_peak_torque_nm_
         || recovery_dm_peak_torque_nm_ > 40.0)
         throw std::runtime_error("Invalid policy frequency, PREPARE thresholds, or robot geometry");
+    // These are bounded upright takeover envelopes, not recovery parameters.
+    // Startup overrides may tighten them, but cannot turn flat capture into a
+    // folded-pose or high-speed recovery entry.
+    if (v6_capture_max_leg_error_rad_ <= 0.0 || v6_capture_max_leg_error_rad_ > 0.25
+        || v6_capture_max_angular_velocity_ <= 0.0 || v6_capture_max_angular_velocity_ > 2.0
+        || v6_capture_max_leg_velocity_ <= 0.0 || v6_capture_max_leg_velocity_ > 5.0
+        || v6_capture_max_wheel_velocity_ <= 0.0 || v6_capture_max_wheel_velocity_ > 10.0
+        || (policy_profile_.name == kV6PolicyProfile.name && prepare_max_tilt_rad_ > 0.35))
+        throw std::runtime_error("V6 capture thresholds exceed the bounded upright entry domain");
+    if (v6_takeover_blend_seconds_ < 0.0 || v6_takeover_blend_seconds_ > 0.3)
+        throw std::runtime_error("V6 torque takeover blend must be between 0 and 0.3 seconds");
 
     const auto matrix = parameter_array<16>(*this, "leg_motor_to_model");
     const auto offsets = parameter_array<4>(*this, "leg_model_offsets");

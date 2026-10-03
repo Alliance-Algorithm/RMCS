@@ -67,6 +67,8 @@ void RlController::enter_(State next) {
     prepare_stable_since_.reset();
     if (next != State::kRl) {
         clear_outputs_();
+        v6_takeover_targets_.setZero();
+        v6_takeover_blend_fraction_ = 0.0;
         *inference_time_us_ = 0.0;
         *pd_time_us_ = 0.0;
         previous_action_.fill(0);
@@ -105,6 +107,12 @@ void RlController::enter_(State next) {
         last_policy_tick_ = std::numeric_limits<std::size_t>::max();
         enable_wait_start_ = Clock::now();
     } else if (next == State::kRl) {
+        // Freeze the last preparation pose, not its old torque. The optional
+        // V6 takeover recomputes this PD with every fresh 200 Hz feedback.
+        if (!recovery_started_ && policy_profile_.name == kV6PolicyProfile.name) {
+            v6_takeover_targets_ = targets_;
+            v6_takeover_targets_.tail<2>().setZero();
+        }
         if (!recovery_started_)
             last_policy_tick_ = std::numeric_limits<std::size_t>::max();
         else
@@ -130,6 +138,7 @@ void RlController::update_state_output_() {
                                  : 0.0;
     *recovery_blend_output_ =
         recovery_started_ ? (state_ == State::kRl ? 1.0 : recovery_command_.blend) : 0.0;
+    *v6_takeover_blend_output_ = v6_takeover_blend_fraction_;
     *state_output_ = std::to_underlying(state_);
     *recovery_phase_output_ = std::to_underlying(recovery_.phase());
     *recovery_failure_output_ = std::to_underlying(recovery_failure_latched_);
@@ -248,8 +257,8 @@ void RlController::update() {
         }
         recovery_dt_ = *elapsed;
     }
-    if (state_ == State::kRl
-        && (recovery_started_ || policy_profile_.name == kV6PolicyProfile.name)) {
+    if ((state_ == State::kRl && recovery_started_)
+        || policy_profile_.name == kV6PolicyProfile.name) {
         const Eigen::Quaterniond world_base = world_base_orientation_();
         const Eigen::Vector3d gravity = world_base.conjugate() * -Eigen::Vector3d::UnitZ();
         if (-gravity.z() < std::cos(45.0 * std::numbers::pi / 180.0)) {

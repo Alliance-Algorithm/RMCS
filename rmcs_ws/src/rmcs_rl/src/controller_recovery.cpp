@@ -18,6 +18,32 @@ bool RlController::update_prepare_() {
     targets_[4] = targets_[5] = 0.0;
     const Eigen::Quaterniond q_world_base = world_base_orientation_();
     const double gravity_z = (q_world_base.conjugate() * -Eigen::Vector3d::UnitZ()).z();
+    if (policy_profile_.name == kV6PolicyProfile.name) {
+        // A free-base balancing actor must take over from its upright reset
+        // domain before passive springs/static leg PD tip the unbalanced base.
+        // V6 never waits for a non-balancing controller to demonstrate static
+        // balance. Fresh sensors, drive readiness and the real hinge bounds
+        // remain mandatory; the legacy/recovery dwell below is unchanged.
+        if (!feedback_valid_ || !recovery_sensor_status_.valid
+            || -gravity_z < std::cos(prepare_max_tilt_rad_)
+            || (imu_to_base_ * *gyro_).norm() > v6_capture_max_angular_velocity_
+            || dq_.head<4>().cwiseAbs().maxCoeff() > v6_capture_max_leg_velocity_
+            || dq_.tail<2>().cwiseAbs().maxCoeff() > v6_capture_max_wheel_velocity_)
+            return false;
+        for (int i = 0; i < 4; ++i)
+            if (std::abs(std::remainder(nominal_[i] - q_[i], 2 * std::numbers::pi))
+                > v6_capture_max_leg_error_rad_)
+                return false;
+        for (int side = 0; side < 2; ++side) {
+            const int hip = 2 * side;
+            const double relative = hinge_coeff_[hip] * q_[hip]
+                                    + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
+            if (relative < hinge_min_[side] + hinge_margin_
+                || relative > hinge_max_[side] - hinge_margin_)
+                return false;
+        }
+        return true;
+    }
     if (!reached || -gravity_z < std::cos(prepare_max_tilt_rad_)
         || gyro_->norm() > prepare_max_angular_velocity_
         || dq_.cwiseAbs().maxCoeff() > prepare_max_joint_velocity_) {

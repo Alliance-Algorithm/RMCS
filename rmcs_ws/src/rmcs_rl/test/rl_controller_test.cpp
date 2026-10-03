@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -358,6 +359,394 @@ protected:
         return parameters;
     }
 };
+
+class RlV6CaptureTest : public RlReferenceCalibrationTest {
+protected:
+    void SetUp() override {
+        RlReferenceCalibrationTest::SetUp();
+        set_reference_nominal();
+    }
+
+    std::vector<std::string> additional_parameters() const override {
+        auto parameters = RlReferenceCalibrationTest::additional_parameters();
+        // Use the actual V6 relative-hinge domain, not the generic fixture's
+        // wide test limits. The calibration remains synthetic J=-I.
+        parameters.emplace_back("hinge_coefficients:=[-1.0,1.0,1.0,-1.0]");
+        parameters.emplace_back("hinge_min:=[-0.140638855,-0.140638855]");
+        parameters.emplace_back("hinge_max:=[1.329574849,1.329574849]");
+        return parameters;
+    }
+
+    void request_capture() {
+        requested_state_ = 3;
+        ready_ = true;
+    }
+
+    void expect_waiting_capture() {
+        request_capture();
+        for (int i = 0; i < 300; ++i) {
+            step();
+            ASSERT_EQ(state(), State::kPrepare);
+            ASSERT_TRUE(enabled());
+            ASSERT_DOUBLE_EQ(output<double>("rl/performance/inference_us"), 0.0);
+        }
+    }
+};
+
+TEST_F(RlV6CaptureTest, LoadedNominalAndSmallFreeBasePitchEnterBeforeStaticBalanceDwell) {
+    // Frozen evaluation resets include pitch +/-0.02 rad. A passive spring
+    // loads the legs away from a static PD's 0.02 rad reach threshold. None of
+    // these samples meet the old quiet-velocity/dwell requirement.
+    orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{0.02, Eigen::Vector3d::UnitY()}};
+    constexpr std::array model_error{0.04, -0.06, -0.04, 0.06};
+    for (std::size_t i = 0; i < model_error.size(); ++i) {
+        angle_[i] -= model_error[i];
+        velocity_[i] = -0.8; // API=-model for all four leg output axes.
+    }
+    gyro_.y() = 0.4;
+    velocity_[4] = 2.0;
+    velocity_[5] = -2.0;
+    request_capture();
+    step();
+    ASSERT_EQ(state(), State::kRl);
+    ASSERT_TRUE(enabled());
+    ASSERT_TRUE(output<bool>("rl/recovery/sensors_valid"));
+    ASSERT_GT(output<double>("rl/performance/inference_us"), 0.0);
+    for (std::size_t i = 0; i < model_error.size(); ++i)
+        EXPECT_NEAR(
+            observation(kObservationNames[ObservationLayout::kJointPosition + i]), model_error[i],
+            1e-7);
+    EXPECT_NEAR(observation("projected_gravity/x"), std::sin(0.02), 1e-7);
+}
+
+TEST_F(RlV6CaptureTest, DriveReadinessStillPrecedesImmediateCapture) {
+    requested_state_ = 3;
+    for (int i = 0; i < 5; ++i) {
+        step();
+        ASSERT_EQ(state(), State::kPrepare);
+        for (std::size_t axis = 0; axis < kMotorNames.size(); ++axis)
+            EXPECT_DOUBLE_EQ(torque(axis), 0.0);
+    }
+    ready_ = true;
+    step();
+    EXPECT_EQ(state(), State::kRl);
+    EXPECT_GT(output<double>("rl/performance/inference_us"), 0.0);
+}
+
+TEST_F(RlV6CaptureTest, TiltOutsideUprightCaptureCannotEnter) {
+    orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{0.21, Eigen::Vector3d::UnitY()}};
+    expect_waiting_capture();
+}
+
+TEST_F(RlV6CaptureTest, AngularMotionOutsideCaptureCannotEnter) {
+    gyro_.x() = 1.01;
+    expect_waiting_capture();
+}
+
+TEST_F(RlV6CaptureTest, FastLegOutputCannotEnter) {
+    velocity_[0] = -2.01;
+    expect_waiting_capture();
+}
+
+TEST_F(RlV6CaptureTest, FastWheelOutputCannotEnter) {
+    velocity_[4] = 5.01;
+    expect_waiting_capture();
+}
+
+TEST_F(RlV6CaptureTest, LegPoseOutsideBoundedNominalCaptureCannotEnter) {
+    angle_[0] -= 0.151;
+    expect_waiting_capture();
+}
+
+TEST_F(RlV6CaptureTest, LostUprightDisarmsWhileStillPreparingAndRequiresReset) {
+    orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{0.21, Eigen::Vector3d::UnitY()}};
+    request_capture();
+    step();
+    ASSERT_EQ(state(), State::kPrepare);
+    orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{0.80, Eigen::Vector3d::UnitY()}};
+    step();
+    expect_latched_idle();
+    EXPECT_EQ(
+        output<int>("rl/recovery/failure"), std::to_underlying(RecoveryFailure::kLostUpright));
+    orientation_ = Eigen::Quaterniond::Identity();
+    step();
+    expect_latched_idle();
+}
+
+TEST_F(RlV6CaptureTest, InvalidFeedbackCannotUseTheImmediateCapturePath) {
+    feedback_fresh_ = false;
+    request_capture();
+    step();
+    expect_latched_idle();
+}
+
+class RlV6TakeoverTest : public RlV6CaptureTest {
+protected:
+    virtual double blend_seconds() const { return 0.0; }
+
+    std::vector<std::string> additional_parameters() const override {
+        auto parameters = RlV6CaptureTest::additional_parameters();
+        parameters.push_back("v6_takeover_blend_seconds:=" + std::to_string(blend_seconds()));
+        return parameters;
+    }
+
+    double fraction() { return output<double>("rl/v6_takeover/blend_fraction"); }
+    double model_q(std::size_t axis) {
+        constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
+        return axis < 4 ? offsets[axis] - angle_[axis] : angle_[axis];
+    }
+    double model_dq(std::size_t axis) { return axis < 4 ? -velocity_[axis] : velocity_[axis]; }
+
+    void capture_loaded_pose() {
+        constexpr std::array error{0.04, -0.06, -0.04, 0.06};
+        for (std::size_t axis = 0; axis < error.size(); ++axis) {
+            angle_[axis] -= error[axis];
+            velocity_[axis] = -0.3;
+            // PREPARE advances the pose by at most 1 rad/s for this first 1 ms.
+            prepare_targets_[axis] = model_q(axis) - std::copysign(0.001, error[axis]);
+        }
+        velocity_[4] = 1.0;
+        velocity_[5] = -1.0;
+        orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{0.02, Eigen::Vector3d::UnitY()}};
+        request_capture();
+        step();
+        ASSERT_EQ(state(), State::kRl);
+        ASSERT_GT(output<double>("rl/performance/inference_us"), 0.0);
+        sample_actor_targets();
+    }
+
+    void sample_actor_targets() {
+        const auto action = actions();           // Published actions from the real C++ ONNX actor.
+        for (std::size_t axis = 0; axis < 4; ++axis) {
+            const double goal =
+                DeployedPolicyContract::kNominalPosition[axis] + 0.25 * action[axis];
+            actor_targets_[axis] =
+                model_q(axis) + std::remainder(goal - model_q(axis), 2 * std::numbers::pi);
+        }
+        constexpr std::array a{-1.0, 1.0}, b{1.0, -1.0};
+        for (std::size_t side = 0; side < 2; ++side) {
+            const auto hip = 2 * side, knee = hip + 1;
+            const double endpoint_a =
+                (-0.140638855 + 0.03 - a[side] * actor_targets_[hip]) / b[side];
+            const double endpoint_b =
+                (1.329574849 - 0.03 - a[side] * actor_targets_[hip]) / b[side];
+            actor_targets_[knee] = std::clamp(
+                actor_targets_[knee], std::min(endpoint_a, endpoint_b),
+                std::max(endpoint_a, endpoint_b));
+        }
+        actor_targets_[4] = 10.0 * action[4];
+        actor_targets_[5] = 10.0 * action[5];
+    }
+
+    void expect_live_mix(double alpha) {
+        ASSERT_EQ(state(), State::kRl);
+        EXPECT_NEAR(fraction(), alpha, 1e-12);
+        for (std::size_t axis = 0; axis < 6; ++axis) {
+            const double prepare =
+                axis < 4 ? 80.0 * (prepare_targets_[axis] - model_q(axis)) - 2.0 * model_dq(axis)
+                         : -0.2 * model_dq(axis);
+            const double actor =
+                axis < 4 ? 160.0 * (actor_targets_[axis] - model_q(axis)) - 2.5 * model_dq(axis)
+                         : 0.6 * (actor_targets_[axis] - model_dq(axis));
+            const double limit = axis < 4 ? 40.0 : 4.5;
+            const double native =
+                std::clamp((1.0 - alpha) * prepare + alpha * actor, -limit, limit);
+            EXPECT_NEAR(torque(axis), axis < 4 ? -native : native, 2e-6) << kMotorNames[axis];
+        }
+    }
+
+    void exercise_live_window() {
+        capture_loaded_pose();
+        ASSERT_FALSE(HasFatalFailure());
+        expect_live_mix(0.0);
+        const auto first_action = actions();
+        ASSERT_NE(first_action, PolicyAction{}); // Inference/history start while alpha is zero.
+        std::array<double, 6> first_effort;
+        for (std::size_t axis = 0; axis < 6; ++axis)
+            first_effort[axis] = torque(axis);
+        const int duration_ms = static_cast<int>(std::lround(1000.0 * blend_seconds()));
+        for (int elapsed_ms = 1; elapsed_ms <= duration_ms + 5; ++elapsed_ms) {
+            // Fresh snapshots change both model coordinates and speeds. This
+            // distinguishes live PREPARE PD from holding its capture torque.
+            if (elapsed_ms % 5 == 0) {
+                for (std::size_t axis = 0; axis < 4; ++axis) {
+                    angle_[axis] -= (axis % 2 == 0 ? 0.001 : -0.001);
+                    velocity_[axis] = -(elapsed_ms % 10 == 0 ? 0.6 : 0.4);
+                }
+                velocity_[4] = elapsed_ms % 10 == 0 ? 2.0 : 1.5;
+                velocity_[5] = -velocity_[4];
+            }
+            step();
+            ASSERT_EQ(state(), State::kRl);
+            if (elapsed_ms % 20 == 0)
+                sample_actor_targets();
+            if (elapsed_ms == 20) {
+                for (std::size_t axis = 0; axis < 6; ++axis)
+                    EXPECT_DOUBLE_EQ(
+                        observation(kObservationNames[ObservationLayout::kPreviousAction + axis]),
+                        first_action[axis]);
+            }
+            if (elapsed_ms < 5) {
+                EXPECT_DOUBLE_EQ(fraction(), 0.0);
+                for (std::size_t axis = 0; axis < 6; ++axis)
+                    EXPECT_DOUBLE_EQ(torque(axis), first_effort[axis]);
+            }
+            if (elapsed_ms % 5 == 0) {
+                const double t = std::min(1.0, static_cast<double>(elapsed_ms) / duration_ms);
+                expect_live_mix(t * t * (3.0 - 2.0 * t));
+            }
+        }
+        EXPECT_DOUBLE_EQ(fraction(), 1.0);
+    }
+
+    std::array<double, 6> prepare_targets_{}, actor_targets_{};
+};
+
+class RlV6Blend100Test : public RlV6TakeoverTest {
+protected:
+    double blend_seconds() const override { return 0.1; }
+};
+
+class RlV6Blend200Test : public RlV6TakeoverTest {
+protected:
+    double blend_seconds() const override { return 0.2; }
+};
+
+TEST_F(RlV6TakeoverTest, DefaultDirectTakeoverAppliesActorPdAtItsFirstCaptureTick) {
+    capture_loaded_pose();
+    ASSERT_FALSE(HasFatalFailure());
+    expect_live_mix(1.0);
+}
+
+TEST_F(RlV6Blend100Test, RealActorRunsImmediatelyAndAllSixLiveTorquesBlendFor100Milliseconds) {
+    exercise_live_window();
+}
+
+TEST_F(RlV6Blend200Test, RealActorRunsImmediatelyAndAllSixLiveTorquesBlendFor200Milliseconds) {
+    exercise_live_window();
+}
+
+TEST_F(RlV6Blend100Test, DisableClearsEffortAndANewCaptureRestartsTheBlend) {
+    capture_loaded_pose();
+    ASSERT_FALSE(HasFatalFailure());
+    for (int i = 0; i < 50; ++i)
+        step();
+    ASSERT_NEAR(fraction(), 0.5, 1e-12);
+    requested_state_ = 1;
+    step();
+    expect_latched_idle();
+    EXPECT_DOUBLE_EQ(fraction(), 0.0);
+    request_capture();
+    step();
+    ASSERT_EQ(state(), State::kRl);
+    EXPECT_DOUBLE_EQ(fraction(), 0.0);
+    EXPECT_GT(output<double>("rl/performance/inference_us"), 0.0);
+}
+
+TEST_F(RlV6Blend200Test, SensorFaultDuringTheWindowDisarmsAndClearsTheFraction) {
+    capture_loaded_pose();
+    ASSERT_FALSE(HasFatalFailure());
+    for (int i = 0; i < 100; ++i)
+        step();
+    ASSERT_NEAR(fraction(), 0.5, 1e-12);
+    feedback_fresh_ = false;
+    step();
+    expect_latched_idle();
+    EXPECT_DOUBLE_EQ(fraction(), 0.0);
+    EXPECT_FALSE(output<bool>("rl/recovery/sensors_valid"));
+}
+
+TEST_F(RlV6Blend100Test, BlendParameterIsStartupOnly) {
+    const auto result =
+        controller_->set_parameter(rclcpp::Parameter{"v6_takeover_blend_seconds", 0.2});
+    EXPECT_FALSE(result.successful);
+    EXPECT_DOUBLE_EQ(controller_->get_parameter("v6_takeover_blend_seconds").as_double(), 0.1);
+}
+
+TEST(V6TakeoverConfiguration, BlendWindowMustBeFiniteAndBounded) {
+    for (const auto* parameter :
+         {"v6_takeover_blend_seconds:=-0.001", "v6_takeover_blend_seconds:=0.301",
+          "v6_takeover_blend_seconds:=.nan"}) {
+        SCOPED_TRACE(parameter);
+        const std::vector<const char*> argv{
+            "v6_takeover_configuration_test",
+            "--ros-args",
+            "--params-file",
+            RL_CONTROLLER_TEST_PROFILE,
+            "-p",
+            parameter,
+            "--log-level",
+            "error"};
+        rclcpp::init(static_cast<int>(argv.size()), argv.data());
+        rmcs_executor::Component::initializing_component_name = "rl_controller";
+        EXPECT_THROW(RlController{}, std::runtime_error);
+        rclcpp::shutdown();
+    }
+}
+
+class RlV6ExpiredCaptureSampleTest : public RlV6CaptureTest {
+protected:
+    void refresh_feedback() override {
+        RlControllerTest::refresh_feedback();
+        imu_ns_ -= 21'000'000;
+    }
+};
+
+TEST_F(RlV6ExpiredCaptureSampleTest, CachedAttitudeCannotEnterEvenAtNominalUpright) {
+    request_capture();
+    step();
+    expect_latched_idle();
+    EXPECT_FALSE(output<bool>("rl/recovery/sensors_valid"));
+}
+
+TEST(V6CaptureConfiguration, StartupOverridesCannotOpenUnboundedCapture) {
+    for (const auto* parameter :
+         {"v6_capture_max_leg_error_rad:=0.26", "v6_capture_max_angular_velocity:=2.01",
+          "v6_capture_max_leg_velocity:=5.01", "v6_capture_max_wheel_velocity:=10.01",
+          "v6_capture_max_leg_velocity:=0.0", "prepare_max_tilt_rad:=0.351"}) {
+        SCOPED_TRACE(parameter);
+        const std::vector<const char*> argv{
+            "v6_capture_configuration_test",
+            "--ros-args",
+            "--params-file",
+            RL_CONTROLLER_TEST_PROFILE,
+            "-p",
+            parameter,
+            "--log-level",
+            "error"};
+        rclcpp::init(static_cast<int>(argv.size()), argv.data());
+        rmcs_executor::Component::initializing_component_name = "rl_controller";
+        EXPECT_THROW(RlController{}, std::runtime_error);
+        rclcpp::shutdown();
+    }
+}
+
+class RlV5PrepareDwellTest : public RlControllerTest {
+protected:
+    void SetUp() override {
+        angle_ = LegacyPolicyContract::kNominalPosition;
+        RlControllerTest::SetUp();
+    }
+    std::vector<std::string> additional_parameters() const override {
+        return {
+            "policy_profile:=v5_flat_12486",
+            std::string{"rl_model_path:="} + RL_CONTROLLER_LEGACY_TEST_MODEL,
+            "nominal_model_pos:=[0.42,-0.13742282595254576,-0.42,0.13741557625658019,0.0,0.0]",
+            "recovery_enabled:=false"};
+    }
+};
+
+TEST_F(RlV5PrepareDwellTest, LegacyStillRequiresItsOriginalStaticBalanceDwell) {
+    requested_state_ = 3;
+    ready_ = true;
+    for (int i = 0; i < 250; ++i) {
+        step();
+        ASSERT_EQ(state(), State::kPrepare);
+        ASSERT_DOUBLE_EQ(output<double>("rl/performance/inference_us"), 0.0);
+    }
+    step();
+    EXPECT_EQ(state(), State::kRl);
+}
 
 TEST_F(RlPendingMechanismLimitsTest, ConfirmedImuAndMotorCalibrationStillRequireMechanismLimits) {
     set_reference_nominal();
