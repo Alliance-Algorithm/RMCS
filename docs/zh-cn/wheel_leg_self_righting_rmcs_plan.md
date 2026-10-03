@@ -1,5 +1,9 @@
 # 自起接入 RMCS：按现有风格的实施计划
 
+> 2026-10-03 V6 接入后：本页为 **V5 自起实现与验证历史记录**。当前默认模型已是 V6 flat_14020，旧 V5 移至 `models/wheel_leg/legacy_v5/`。现行配置、遥控/滚轮高度及未验收门控以 [V6 部署说明](wheel_leg_v6_model_deployment_20261003.md) 为准；下文 V5 标定开关、40–110° 轨迹与成功率不适用于 V6。
+
+> 2026-10-03 更新：当前代码、传感器提交证据、参考标定与 V5/V6 边界见 [自起部署说明](wheel_leg_self_righting_deployment_20261002.md)，最新 C++/Python 对照见 [对齐复测报告](artifacts/self_righting_alignment_20261002/README.md)。本文保留当时设计/验证记录；实现状态以新说明和当前代码为准。
+
 前置阅读：[wheel_leg_self_righting_rmcs.md](wheel_leg_self_righting_rmcs.md)（当前代码落点与缺口）。本文只回答“怎么接入才符合 RMCS 风格”，并给出可执行计划。
 
 ## 1. RMCS 风格是什么（从现有代码归纳）

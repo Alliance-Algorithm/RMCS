@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-03",
+  "branch": "dev/wheel_leg_rl",
+  "reference_branch": "dev/rmcs_rl",
+  "reference_commit": "8149afda1de0f0e79dac07a6444fc3741759d5c2",
+  "reference_yaml_sha256": "88b083759ce72028a75b402f13458c97758f37d06563c46fdf973b2ad6ce24de",
+  "authority": "User confirmed the reference hardware configuration, existing motor zero calibration and BMI088 X-forward installation.",
+  "model": "Existing V5 policy, no model replacement",
+  "axis_order": [
+    "left_hip_joint",
+    "left_knee_joint",
+    "right_hip_joint",
+    "right_knee_joint"
+  ],
+  "motor_model_offsets_rad": [
+    -1.6,
+    -2.93,
+    1.6,
+    2.93
+  ],
+  "imu_to_base": [
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "readiness": {
+    "calibration_ready": true,
+    "imu_alignment_ready": true,
+    "soft_limits_ready": false,
+    "recovery_profile_ready": false,
+    "recovery_enabled": false
+  },
+  "build": {
+    "packages": [
+      "rmcs_core",
+      "rmcs_rl",
+      "rmcs_bringup"
+    ],
+    "passed": true
+  },
+  "unit_tests": {
+    "rmcs_core": {
+      "tests": 106,
+      "failures": 0,
+      "errors": 0,
+      "disabled": 0
+    },
+    "rmcs_rl": {
+      "tests": 112,
+      "failures": 0,
+      "errors": 0,
+      "disabled": 0
+    }
+  },
+  "new_tests": [
+    {
+      "name": "ReferenceMotorOffsetsAreAppliedOnceInPolicyCoordinates",
+      "passed": true
+    },
+    {
+      "name": "XForwardImuPreservesPitchRollAndGyroAxes",
+      "passed": true
+    },
+    {
+      "name": "RowMajorMountRotationKeepsQuaternionAndGyroInTheSameBaseFrame",
+      "passed": true
+    },
+    {
+      "name": "ConfirmedImuAndMotorCalibrationStillRequireMechanismLimits",
+      "passed": true
+    }
+  ],
+  "physical_hardware_tested_this_run": false,
+  "source_sha256": {
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml": "381971398b30a582399ab882b8ba6ec705570a8596887dbc99414e4f96cd315e",
+    "rmcs_ws/src/rmcs_core/src/hardware/wheel-leg.cpp": "0eb0d4686cc11e9ae6bac09e78a3024135b63ab64ac468fc1ea5023f5059d73d",
+    "rmcs_ws/src/rmcs_rl/src/configuration.cpp": "5c0dce3200f4b7d304d566010416a7d259c33dac5fc3ce49dda6f2766dcc3edb",
+    "rmcs_ws/src/rmcs_rl/src/observation.cpp": "a39237f7804c2923c01ea90c082b48241e40d3638a5f615834d5126ea25a974b",
+    "rmcs_ws/src/rmcs_rl/src/controller_recovery.cpp": "ecff9ea4516f4c034bb5f803916187a992bf52e78d28f6ae3c00c2b85065aca2",
+    "rmcs_ws/src/rmcs_rl/src/rl_controller.cpp": "48b810424f2ee79019d44e8873f08a8eb9b048f71b4b60080b93e4baff614a99",
+    "rmcs_ws/src/rmcs_rl/src/rl_controller.hpp": "7e85c450ae6bd06cc327dfb1bcd00d9441e45fc91bbf0d2256349bb32d40618e",
+    "rmcs_ws/src/rmcs_rl/test/rl_controller_test.cpp": "9bf97ed1b81e2ce3493f1a0859e12fdfeadc59d467c99f1142991cdcd0b6bfb1"
+  }
+}

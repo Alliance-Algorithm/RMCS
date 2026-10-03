@@ -2,12 +2,45 @@
 
 #include <algorithm>
 #include <array>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 
 #include <onnxruntime_cxx_api.h>
+#include <openssl/evp.h>
 
 namespace rmcs::rl {
+
+namespace {
+void verify_model(const std::string& path, std::string_view expected_sha256) {
+    std::ifstream file{path, std::ios::binary};
+    if (!file)
+        throw std::runtime_error("Cannot read policy model: " + path);
+    const std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> digest{
+        EVP_MD_CTX_new(), EVP_MD_CTX_free};
+    if (!digest || EVP_DigestInit_ex(digest.get(), EVP_sha256(), nullptr) != 1)
+        throw std::runtime_error("Cannot initialize policy SHA256");
+    std::array<char, 8192> buffer;
+    while (file.read(buffer.data(), buffer.size()) || file.gcount())
+        if (EVP_DigestUpdate(digest.get(), buffer.data(), file.gcount()) != 1)
+            throw std::runtime_error("Cannot calculate policy SHA256");
+    if (!file.eof())
+        throw std::runtime_error("Cannot finish reading policy model: " + path);
+    std::array<unsigned char, EVP_MAX_MD_SIZE> bytes;
+    unsigned int size = 0;
+    if (EVP_DigestFinal_ex(digest.get(), bytes.data(), &size) != 1 || size != 32)
+        throw std::runtime_error("Cannot finalize policy SHA256");
+    constexpr std::string_view hex = "0123456789abcdef";
+    std::string actual;
+    actual.reserve(2 * size);
+    for (unsigned int i = 0; i < size; ++i) {
+        actual.push_back(hex[bytes[i] >> 4]);
+        actual.push_back(hex[bytes[i] & 15]);
+    }
+    if (actual != expected_sha256)
+        throw std::runtime_error("Policy SHA256 does not match its frozen profile: " + actual);
+}
+} // namespace
 
 struct OnnxPolicy::Impl {
     Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "rmcs_rl"};
@@ -59,8 +92,10 @@ struct OnnxPolicy::Impl {
     }
 };
 
-OnnxPolicy::OnnxPolicy(const std::string& model_path)
-    : impl_(std::make_unique<Impl>(model_path)) {}
+OnnxPolicy::OnnxPolicy(const std::string& model_path, std::string_view expected_sha256) {
+    verify_model(model_path, expected_sha256);
+    impl_ = std::make_unique<Impl>(model_path);
+}
 
 OnnxPolicy::~OnnxPolicy() = default;
 

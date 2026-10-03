@@ -4,6 +4,7 @@
 #include "policy.hpp"
 #include "recovery_controller.hpp"
 #include "recovery_observer.hpp"
+#include "recovery_sensor_guard.hpp"
 
 #include <array>
 #include <chrono>
@@ -33,7 +34,8 @@ enum class State : int { kInit = 0, kIdle = 1, kPrepare = 2, kRl = 3 };
 
 bool accepts_motion_command(
     bool jump, double height, rmcs_msgs::ChassisMode mode,
-    const rmcs_description::BaseLink::DirectionVector& command);
+    const rmcs_description::BaseLink::DirectionVector& command,
+    const PolicyProfile& profile = kV6PolicyProfile);
 
 class RlController final
     : public rmcs_executor::Component
@@ -57,6 +59,7 @@ private:
     void clear_outputs_();
     void update_state_output_();
     bool read_model_state_();
+    Eigen::Quaterniond world_base_orientation_() const;
     std::optional<RecoveryFeedback> observe_recovery_();
     bool update_prepare_();
     void update_command_reference_();
@@ -72,8 +75,11 @@ private:
     std::array<InputInterface<double>, 6> torque_feedback_inputs_;
     std::array<OutputInterface<double>, 6> torque_outputs_;
     std::array<InputInterface<int>, 4> fault_inputs_;
-    std::array<InputInterface<std::uint64_t>, 4> leg_feedback_sequences_;
-    std::array<InputInterface<std::uint64_t>, 4> leg_feedback_ns_;
+    std::array<InputInterface<std::uint64_t>, 6> motor_feedback_sequences_;
+    std::array<InputInterface<std::uint64_t>, 6> motor_feedback_ns_;
+    std::array<InputInterface<double>, 2> wheel_submitted_torque_;
+    std::array<InputInterface<std::uint64_t>, 2> wheel_submitted_ns_;
+    std::array<InputInterface<std::uint8_t>, 2> wheel_submitted_kind_;
     InputInterface<bool> feedback_fresh_;
     InputInterface<Eigen::Quaterniond> orientation_;
     InputInterface<Eigen::Vector3d> gyro_;
@@ -90,6 +96,7 @@ private:
     InputInterface<bool> dm_control_ready_;
     InputInterface<Eigen::Vector3d> acceleration_;
     InputInterface<std::uint64_t> acceleration_ns_;
+    InputInterface<std::uint64_t> imu_ns_, imu_sequence_, acceleration_sequence_;
     OutputInterface<int> state_output_;
     OutputInterface<bool> enable_request_;
     OutputInterface<int> recovery_phase_output_;
@@ -97,11 +104,18 @@ private:
     OutputInterface<bool> recovery_support_output_;
     OutputInterface<bool> recovery_geometry_output_;
     OutputInterface<bool> recovery_motion_hold_output_;
+    OutputInterface<bool> recovery_sensors_valid_output_, recovery_contact_output_;
+    OutputInterface<int> recovery_sensor_issue_output_, recovery_sensor_mask_output_;
+    OutputInterface<double> recovery_motor_age_output_, recovery_imu_age_output_;
+    OutputInterface<double> recovery_acceleration_age_output_, recovery_blend_output_;
+    OutputInterface<double> recovery_height_output_;
     OutputInterface<double> inference_time_us_;
     OutputInterface<double> pd_time_us_;
     std::array<OutputInterface<double>, ObservationLayout::kSize> observation_outputs_;
     std::array<OutputInterface<double>, PolicyAction{}.size()> action_outputs_;
     std::unique_ptr<OnnxPolicy> policy_;
+    PolicyProfile policy_profile_ = kV6PolicyProfile;
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_guard_;
 
     // q_model = J * q_motor + offset; tau_motor = J^T * tau_model.
     // P[0:4] are active model coordinates, not passive knee hinge coordinates.
@@ -124,6 +138,7 @@ private:
     bool recovery_enabled_ = false;
     bool recovery_profile_ready_ = false;
     bool recovery_started_ = false;
+    bool strict_feedback_ = true;
     bool policy_targets_valid_ = false;
     bool motor_feedback_initialized_ = false;
     // IMU body axes -> frozen policy base_link. The source CAD's +90 degree
@@ -135,7 +150,7 @@ private:
     std::array<std::uint64_t, 4> previous_motor_sequence_{};
     std::array<std::uint64_t, 4> previous_motor_sample_ns_{};
     std::array<double, 4> previous_motor_angle_{};
-    std::array<double, 4> recovery_dm_feedback_position_max_{};
+    std::array<double, 4> dm_feedback_position_max_{};
     Vector6 targets_ = Vector6::Zero();
     Vector6 policy_targets_ = Vector6::Zero();
     RecoveryController recovery_;
@@ -143,6 +158,8 @@ private:
     RecoveryCommand recovery_command_;
     std::optional<RecoveryObserver> recovery_observer_;
     RecoveryFeedback last_recovery_feedback_;
+    RecoverySensorGuard recovery_sensor_guard_;
+    RecoverySensorStatus recovery_sensor_status_;
     RecoveryFailure recovery_failure_latched_ = RecoveryFailure::kNone;
     PolicyObservation observation_{};
     PolicyAction previous_action_{};
