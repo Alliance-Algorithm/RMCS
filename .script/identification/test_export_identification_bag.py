@@ -281,7 +281,8 @@ def test_pair_controller_model_offset_must_match_export_calibration(tmp_path):
         load_identity(calibration, profile)
 
 
-def test_actual_rosbag2_mcap_round_trip(tmp_path, monkeypatch):
+@pytest.mark.parametrize("recording_run", [None, "RJ02"])
+def test_actual_rosbag2_mcap_round_trip(tmp_path, monkeypatch, recording_run):
     rosbag2_py = pytest.importorskip("rosbag2_py")
     from rclpy.serialization import serialize_message
     from rmcs_msgs.msg import WheelLegIdentificationSample
@@ -294,6 +295,15 @@ def test_actual_rosbag2_mcap_round_trip(tmp_path, monkeypatch):
     writer.create_topic(rosbag2_py.TopicMetadata(id=0, name=TOPIC, type=TYPE, serialization_format="cdr"))
     for i in range(3):
         sample = row(i)
+        if recording_run:
+            sample.update(recording_protocol_version=1, segment_role=1,
+                          q_unwrapped_model=[1.6, 2.93, -8., -9.],
+                          inner_knee_fk_deg=75., inner_knee_requested_deg=75.,
+                          inner_knee_reference_deg=74., thigh_orientation_fk_deg=15.,
+                          reference_update_tick=2**60+i, segment_elapsed_s=.02*i,
+                          reference_center_delta_rad=.01, configuration_admission=1,
+                          skipped_arrival_segment=7, qualified_arrival_segment=9,
+                          jump_cycle_id=2, jump_phase=3)
         msg = WheelLegIdentificationSample()
         for key, value in sample.items():
             if key == "bag_timestamp_ns":
@@ -309,18 +319,25 @@ def test_actual_rosbag2_mcap_round_trip(tmp_path, monkeypatch):
     from ament_index_python.packages import get_package_share_directory
     installed = Path(get_package_share_directory("rmcs_msgs")) / "msg/WheelLegIdentificationSample.msg"
     (uri.parent / "WheelLegIdentificationSample.msg").write_bytes(installed.read_bytes())
+    calibration = tmp_path / "measured_calibration.json"
+    profile = tmp_path / "run.yaml"
+    if recording_run:
+        from prepare_v6_pair_recording import prepare
+        from v6_pair_recording import CALIBRATION
+        prepare(recording_run, profile)
+        calibration.write_bytes(CALIBRATION.read_bytes())
+    else:
+        calibration.write_text(json.dumps(IDENTITY))
+        profile.write_text("controller:\n  ros__parameters:\n    side: right\n")
+    identity = load_identity(calibration, profile)
     exported = read_bag(uri)
-    a, _ = convert(exported, IDENTITY)
+    a, _ = convert(exported, identity)
     assert len(exported) == 3
     assert a["feedback_sequence"].dtype == np.uint64
     assert int(a["control_steady_ns"][2]) == 2**60 + 10_000_000
     assert int(a["bag_timestamp_ns"][2]) == 2**60 + 10_000_050
     assert int(a["stamp_nanosec"][2]) == 2
     from export_identification_bag import main
-    calibration = tmp_path / "measured_calibration.json"
-    profile = tmp_path / "run.yaml"
-    calibration.write_text(json.dumps(IDENTITY))
-    profile.write_text("controller:\n  ros__parameters:\n    side: right\n")
     output = tmp_path / "export.npz"
     monkeypatch.setattr(sys, "argv", ["export_identification_bag.py", "--bag", str(uri),
                                   "--calibration", str(calibration), "--profile", str(profile),
@@ -331,6 +348,16 @@ def test_actual_rosbag2_mcap_round_trip(tmp_path, monkeypatch):
     assert metadata["profile_sha256"] == hashlib.sha256(profile.read_bytes()).hexdigest()
     with np.load(output, allow_pickle=False) as npz:
         assert int(npz["control_steady_ns"][2]) == 2**60 + 10_000_000
+        if recording_run:
+            assert metadata["schema_version"] == 5
+            assert metadata["controller"]["recording_run"] == recording_run
+            assert npz["reference_update_tick"].dtype == np.uint64
+            assert int(npz["reference_update_tick"][2]) == 2**60+2
+            np.testing.assert_array_equal(npz["q_model"][:, 2:4], [[-8., -9.]]*3)
+            assert npz["qualified_arrival_segment"].tolist() == [9]*3
+            assert npz["skipped_arrival_segment"].tolist() == [7]*3
+            assert npz["jump_phase"].tolist() == [3]*3
+            assert set(npz["split"][npz["pair_valid"]]) == {2}
 
 
 def test_invalid_run_marker_blocks_export_before_reading_bag(tmp_path, monkeypatch, capsys):

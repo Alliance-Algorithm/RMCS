@@ -35,8 +35,8 @@ class UnidentifiableError(ValueError):
 
 def load_run(npz_path: Path, profile: Path) -> tuple[dict, dict, dict]:
     metadata = json.loads(npz_path.with_suffix(".json").read_text())
-    if metadata.get("schema_version") not in (2, 3, 4) or metadata.get("side") not in ("left", "right"):
-        raise ValueError("expected exporter schema 2, 3 or 4 with a left/right side")
+    if metadata.get("schema_version") not in (2, 3, 4, 5) or metadata.get("side") not in ("left", "right"):
+        raise ValueError("expected exporter schema 2, 3, 4 or 5 with a left/right side")
     digest = hashlib.sha256(profile.read_bytes()).hexdigest()
     if digest != metadata.get("profile_sha256"):
         raise ValueError("saved run profile SHA256 differs from exporter metadata")
@@ -47,9 +47,9 @@ def load_run(npz_path: Path, profile: Path) -> tuple[dict, dict, dict]:
     recorder = root.get("wheel_leg_identification_recorder", {}).get("ros__parameters", {})
     if controller.get("side") != metadata["side"] or recorder.get("side") != metadata["side"]:
         raise ValueError("both recorder and pair controller must select the exported side")
-    if controller.get("probe_pattern") in ("rotation_chirp", "multiband_chirp"):
+    if controller.get("probe_pattern") in ("rotation_chirp", "multiband_chirp", "calibrated_recording"):
         raise ValueError(
-            "Full-turn rotation_chirp/multiband_chirp requires fixed-base nonlinear closed-chain replay with "
+            "Full-turn/physical-beta recording requires fixed-base nonlinear closed-chain replay with "
             "gravity and gas springs; this local affine-load fitter is not valid for that run")
     gains = {}
     for name in ("kp_position", "kp_velocity", "ki_velocity", "max_speed", "max_torque", "integral_limit"):
