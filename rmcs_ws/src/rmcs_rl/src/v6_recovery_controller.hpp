@@ -32,6 +32,7 @@ struct V6RecoveryConfig {
     Eigen::Vector4d root_axis_signs{1.0, 1.0, -1.0, -1.0};
     Eigen::Vector2d wheel_axis_signs{1.0, -1.0};
     double dt = 0.005;
+    // Frozen simulation uses 200 ms; zero selects direct deployment takeover.
     double blend_seconds = 0.2;
     double stable_seconds = 1.0;
     double max_script_seconds = 8.0;
@@ -103,7 +104,8 @@ public:
     V6RecoveryVector6 project_feedback(const V6RecoveryVector6& q) const;
     // Reevaluate native PD on current feedback without advancing the reference.
     // rl_torque is output-side actor PD effort; both paths are clipped before
-    // the 200 ms linear torque blend. No V5 feedforward or 1.5 Nm wheel clamp.
+    // the optional 200 ms linear torque blend. Zero takes over in the ready tick.
+    // No V5 feedforward or 1.5 Nm wheel clamp.
     V6RecoveryVector6 torques(const V6RecoveryFeedback& feedback,
                              const V6RecoveryVector6& rl_torque) const;
     V6RecoveryVector6 effective_action_history(const V6RecoveryVector6& rl_action) const;
