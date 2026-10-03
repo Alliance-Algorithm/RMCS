@@ -9,6 +9,7 @@ endif()
 
 find_package(ament_cmake_auto REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(nlohmann_json REQUIRED)
 ament_auto_find_build_dependencies()
 
 # The official x86_64 release contains headers and a prebuilt shared library (no
@@ -42,9 +43,12 @@ ament_auto_add_library(${PROJECT_NAME} SHARED
   src/onnx_policy.cpp
   src/recovery_controller.cpp
   src/recovery_observer.cpp
+  src/v6_recovery_controller.cpp
+  src/v6_recovery_profile.cpp
+  src/v6_recovery_observer.cpp
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${ORT_ROOT}/include)
-target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so OpenSSL::Crypto)
+target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so OpenSSL::Crypto nlohmann_json::nlohmann_json)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(DIRECTORY ${ORT_ROOT}/lib/ DESTINATION lib FILES_MATCHING PATTERN "*.so*")
 install(DIRECTORY models/ DESTINATION share/${PROJECT_NAME}/models
@@ -83,6 +87,19 @@ if(BUILD_TESTING)
   target_compile_definitions(v6_controller_abi_test PRIVATE
     RL_CONTROLLER_TEST_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-rl.yaml"
     RL_CONTROLLER_TEST_MODEL="${PROJECT_SOURCE_DIR}/models/wheel_leg/policy.onnx")
+  ament_add_gtest(v6_recovery_controller_test test/v6_recovery_controller_test.cpp src/v6_recovery_controller.cpp)
+  target_include_directories(v6_recovery_controller_test PRIVATE src)
+  target_link_libraries(v6_recovery_controller_test nlohmann_json::nlohmann_json)
+  target_compile_definitions(v6_recovery_controller_test PRIVATE
+    V6_RECOVERY_REFERENCE_JSON="${PROJECT_SOURCE_DIR}/test/v6_recovery_reference.json")
+  ament_add_gtest(v6_recovery_observer_test test/v6_recovery_observer_test.cpp
+    src/v6_recovery_observer.cpp src/v6_recovery_profile.cpp)
+  target_include_directories(v6_recovery_observer_test PRIVATE src)
+  target_link_libraries(v6_recovery_observer_test OpenSSL::Crypto nlohmann_json::nlohmann_json)
+  target_compile_definitions(v6_recovery_observer_test PRIVATE
+    V6_RECOVERY_PROFILE="${PROJECT_SOURCE_DIR}/models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
+    V6_HEIGHT_LOOKUP="${PROJECT_SOURCE_DIR}/models/wheel_leg/deployment/v6_height_lookup_v1.json"
+    V6_OBSERVER_REFERENCE="${PROJECT_SOURCE_DIR}/test/v6_recovery_observer_reference.json")
   ament_add_gtest(control_interval_test test/control_interval_test.cpp)
   target_include_directories(control_interval_test PRIVATE src)
   ament_add_gtest(recovery_controller_test test/recovery_controller_test.cpp
