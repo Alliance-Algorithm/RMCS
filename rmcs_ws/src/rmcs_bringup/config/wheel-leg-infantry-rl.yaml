@@ -126,40 +126,22 @@ rl_controller:
     rl_model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
+    # Frozen V6 references/geometry are runtime candidates; these files do not
+    # grant motor calibration or real-robot recovery readiness.
+    v6_recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
+    v6_height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
     recovery_enabled: false
     recovery_profile_ready: false
-    # Startup-only sensor/probe limits; provisional response thresholds need
-    # validation on these two M3508 wheels before enabling recovery.
+    # Shared real sensor age/skew guards apply to ordinary RL and recovery.
     recovery_motor_age_s: 0.02
     recovery_imu_age_s: 0.02
     recovery_acceleration_age_s: 0.03
     recovery_sensor_skew_s: 0.01
-    recovery_probe_torque_nm: 0.18
-    recovery_probe_min_submitted_nm: 0.14
-    recovery_probe_min_feedback_nm: 0.025
-    recovery_probe_feedback_ratio: 0.25
-    # Match the simulation's 3 x 5 ms pulse cadence. Increase these values only
-    # in a measured CAN-delay profile; the 9.4 ms delay regression uses 25 ms.
-    recovery_probe_pulse_s: 0.015
-    recovery_probe_response_s: 0.005
-    recovery_probe_quiet_s: 0.05
-    recovery_support_dwell_s: 0.1
-    recovery_probe_evidence_ttl_s: 0.6
-    recovery_probe_submission_age_s: 0.02
-    recovery_probe_feedback_interval_s: 0.02
-    recovery_probe_max_wheel_accel: 100.0
-    recovery_probe_max_gyro_accel: 90.0
-    # A calibrated profile must explicitly provide the four recovery speeds,
-    # eight P4 reference poses (separate 0.305m PREPARE and 0.40m support),
-    # per-side monotonic mechanism LUT, passive-knee/wheel FK axes at hip zero,
-    # passive_knee_sign, slider_slope_m_per_rad and shell points,
-    # spring curve, measured above-rated dwell and four DM feedback position
-    # bounds before either flag is enabled. See
-    # docs/zh-cn/wheel_leg_self_righting_deployment_20261002.md.
-    # 24 V sensitivity endpoints, NOT a measured continuous motor curve.
-    recovery_dm_rated_output_rpm: 100.0
-    recovery_dm_rated_torque_nm: 20.0
-    recovery_dm_peak_torque_nm: 40.0
+    # V6 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
+    # and its encoder/gyro response thresholds. It is a conditional support
+    # estimate; queued CAN torque and motor-current truth are not substituted
+    # for measured contact. Hardware readiness stays false pending validation.
+    # See docs/zh-cn/wheel_leg_v6_recovery_alignment_20261003.md.
     height_transition_seconds: 6.0
     wheel_radius: 0.06
     wheel_track: 0.4373
@@ -212,8 +194,8 @@ rl_controller:
     imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
     auto_enter_rl: false
-    prepare_kp: 80.0
-    prepare_kd: 2.0
+    prepare_kp: 160.0
+    prepare_kd: 2.5
     prepare_max_velocity: 1.0
     prepare_reach_threshold: 0.02
     prepare_max_tilt_rad: 0.2

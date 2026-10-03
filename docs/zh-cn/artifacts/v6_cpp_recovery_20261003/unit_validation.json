@@ -1,0 +1,159 @@
+{
+  "schema": "rmcs-v6-recovery-cpp-unit-validation-v1",
+  "date_utc": "2026-10-03T13:54:12.769518+00:00",
+  "source_commit": "2778206b5905c2760ccc381f2592b08e1cad611a",
+  "hardware_actuation": false,
+  "packages": {
+    "rmcs_core": {
+      "test_targets": [
+        {
+          "target": "dm_motor_test.gtest",
+          "tests": 31,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "3c327120df008ad51311fa544e799b1404b222f4a0f97dc8303f0529f18adabb"
+        },
+        {
+          "target": "wheel_leg_chassis_controller_test.gtest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "d9ce112abce49ff624b9688fd825f94939830a5b7623b474c1e38e28fe6a4b7f"
+        },
+        {
+          "target": "wheel_leg_pair_controller_test.gtest",
+          "tests": 29,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "c416b47012950aa4b3aa1eb863d28e9b5de65f24f959376a3f21c07ce5adf11d"
+        },
+        {
+          "target": "wheel_leg_pair_identification_test.gtest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "24d845d504a672df2d4c7068f7ff05664641ddc860dae3e68c5829da545ce942"
+        },
+        {
+          "target": "wheel_leg_pair_recording_test.gtest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "02eafbf69bdb85f3684558d2d872812c23f6976c8030ce51a65eb0c4f96c5fda"
+        },
+        {
+          "target": "wheel_leg_sensor_snapshot_test.gtest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "f64d28df5a3aa4283a31819b76aa08fdd0224d26531c71b7bf5ae6ab23d3aa81"
+        },
+        {
+          "target": "wheel_leg_wheel_controller_test.gtest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "4ba9792b30c24e3b77507eb497bad4e50fc88bb30415abf209dcd2a49f473aeb"
+        },
+        {
+          "target": "wheel_leg_wheel_identification_test.gtest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "af5939f4b35ed3048f57587934cd38e9ce870a7bf1b235270984f86e3a12b1fd"
+        }
+      ],
+      "tests": 117,
+      "failures": 0,
+      "errors": 0
+    },
+    "rmcs_rl": {
+      "test_targets": [
+        {
+          "target": "control_interval_test.gtest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "6bffaaf39c3e165f9683742015b3cef0e366019006f063ea5146320daa22d02f"
+        },
+        {
+          "target": "onnx_policy_abi_test.gtest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "19a48e5d9ce09220621f4f4efde4dcdfc24aad288ffd5e04f4bfa2af68218d3f"
+        },
+        {
+          "target": "recovery_controller_test.gtest",
+          "tests": 27,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "063eb60cf371ea81701f007637698ef495ba693c1b8b22d6e8f3929eb318c045"
+        },
+        {
+          "target": "recovery_handover_test.gtest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "3522e992075b7701b4c72ae9e5702a3ca338e77943ca3411889a3d4729399ee3"
+        },
+        {
+          "target": "recovery_observer_test.gtest",
+          "tests": 29,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "f841b8a7d56a1fec395b16021cf8dd3a33443a70c8811972c4ed728dfded1dec"
+        },
+        {
+          "target": "recovery_parity_test.gtest",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "b71b3bfe7df61ba146152794e02177ecc224b88fb4317c5130756693c32007b8"
+        },
+        {
+          "target": "recovery_sensor_guard_test.gtest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "6525976f89c4c77f1a1ac6fc7aadbdf4e887720b2072f2fc3bddea65791bc402"
+        },
+        {
+          "target": "rl_controller_test.gtest",
+          "tests": 58,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "ae28ac1287d5d0f869f852b2575dcae9e3c29368b41e58ba290d446ceddd73ae"
+        },
+        {
+          "target": "v6_controller_abi_test.gtest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "7735a8b8be991f8684d9f19ed86676d144df43fccae5d9c8c2aba114a81894d9"
+        },
+        {
+          "target": "v6_recovery_controller_test.gtest",
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "847b47e300462f31301eb2ea1fdacd0cbb87555d2eb8181f1329384938ed7bfc"
+        },
+        {
+          "target": "v6_recovery_observer_test.gtest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "xml_sha256": "f8a5d6b4843191b0c49d558ff8358395e49251cf5cf3141ab816be0c39c83e27"
+        }
+      ],
+      "tests": 163,
+      "failures": 0,
+      "errors": 0
+    }
+  },
+  "parity_fixtures": {
+    "rmcs_ws/src/rmcs_rl/test/v6_recovery_reference.json": "5b3854870c2f4500917c802f2a541eb9592acc5d26182a97f5e0b5f5a324d421",
+    "rmcs_ws/src/rmcs_rl/test/v6_recovery_observer_reference.json": "8b3b4390a12f71df62fa528784913e112a4bd6e2fb8d5aeff69f66834e752e71"
+  }
+}
