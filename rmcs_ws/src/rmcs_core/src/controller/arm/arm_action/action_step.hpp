@@ -39,13 +39,13 @@ public:
     // ---------- 构造工厂 ----------
     static Step makeJoint(
         const JointTarget& target, const MotionParams& params, const std::string& pipeline = "ompl",
-        const std::string& planner = "RRTstarkConfigDefault") {
+        const std::string& planner = "BiTRRTkConfigDefault") {
         return Step(MotionType::Joint, pipeline, planner, target, params);
     }
 
     static Step makePose(
         const PoseTarget& target, const MotionParams& params, const std::string& pipeline = "ompl",
-        const std::string& planner = "RRTstarkConfigDefault") {
+        const std::string& planner = "BiTRRTkConfigDefault") {
         return Step(MotionType::Pose, pipeline, planner, target, params);
     }
 

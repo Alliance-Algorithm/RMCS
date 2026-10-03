@@ -2,9 +2,23 @@
 
 source ~/env_setup.bash
 
+use_rviz="false"
+extra_args=()
+
+for arg in "$@"; do
+    case "$arg" in
+    --rviz | -r)
+        use_rviz="true"
+        ;;
+    *)
+        extra_args+=("$arg")
+        ;;
+    esac
+done
+
 if [ -z "${RMCS_ROBOT_TYPE}" ]; then
     echo "Error: Please set robot type first (e.g. 'set-robot sentry')."
     exit 1
 fi
 
-ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE}
+ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE} use_rviz:=${use_rviz} "${extra_args[@]}"
