@@ -1,0 +1,891 @@
+{
+  "schema": "rmcs-v6-cpp-validation-v1",
+  "generated_at": "2026-10-03T02:20:56.622533+00:00",
+  "cpp_commit": "abe49098",
+  "simulation_commit": "de95ecba",
+  "hardware_actuated": false,
+  "cpp_tests": {
+    "rmcs_core": {
+      "groups": [
+        {
+          "file": "dm_motor_test.gtest.xml",
+          "tests": 31,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:00.155"
+        },
+        {
+          "file": "wheel_leg_chassis_controller_test.gtest.xml",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:05:59.933"
+        },
+        {
+          "file": "wheel_leg_pair_controller_test.gtest.xml",
+          "tests": 29,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:01.047"
+        },
+        {
+          "file": "wheel_leg_pair_identification_test.gtest.xml",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:00.271"
+        },
+        {
+          "file": "wheel_leg_pair_recording_test.gtest.xml",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:00.592"
+        },
+        {
+          "file": "wheel_leg_sensor_snapshot_test.gtest.xml",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:00.199"
+        },
+        {
+          "file": "wheel_leg_wheel_controller_test.gtest.xml",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:03.116"
+        },
+        {
+          "file": "wheel_leg_wheel_identification_test.gtest.xml",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:02.996"
+        }
+      ],
+      "tests": 117,
+      "failures": 0,
+      "errors": 0,
+      "disabled": 0
+    },
+    "rmcs_rl": {
+      "groups": [
+        {
+          "file": "control_interval_test.gtest.xml",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:03.761"
+        },
+        {
+          "file": "onnx_policy_abi_test.gtest.xml",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:03.432"
+        },
+        {
+          "file": "recovery_controller_test.gtest.xml",
+          "tests": 27,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:03.806"
+        },
+        {
+          "file": "recovery_handover_test.gtest.xml",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:04.665"
+        },
+        {
+          "file": "recovery_observer_test.gtest.xml",
+          "tests": 29,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:04.185"
+        },
+        {
+          "file": "recovery_parity_test.gtest.xml",
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:04.140"
+        },
+        {
+          "file": "recovery_sensor_guard_test.gtest.xml",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:03.872"
+        },
+        {
+          "file": "rl_controller_test.gtest.xml",
+          "tests": 54,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:04.234"
+        },
+        {
+          "file": "v6_controller_abi_test.gtest.xml",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "disabled": 0,
+          "timestamp": "2026-10-03T10:06:03.497"
+        }
+      ],
+      "tests": 144,
+      "failures": 0,
+      "errors": 0,
+      "disabled": 0
+    }
+  },
+  "component_sensor_checks": {
+    "direct": {
+      "schema": "rmcs-v6-component-sensor-check-v1",
+      "passed": true,
+      "scope": "sensor frames and public actor outputs; no physical dynamics/cadence proof",
+      "model_path": "/home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+      "model_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+      "peer": {
+        "acceleration_age_ms": -1.0,
+        "actions": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "axis_order": [
+          "left_hip_joint",
+          "left_knee_joint",
+          "right_hip_joint",
+          "right_knee_joint",
+          "left_wheel",
+          "right_wheel"
+        ],
+        "command_height": 0.305,
+        "command_velocity": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "effort_within_limits": true,
+        "enable_request": false,
+        "executor_hz": 1000,
+        "failure": 0,
+        "imu_age_ms": -1.0,
+        "inference_hz": 50,
+        "inference_us": 0.0,
+        "jump_request": false,
+        "max_torque": [
+          40.0,
+          40.0,
+          40.0,
+          40.0,
+          4.5,
+          4.5
+        ],
+        "mode": 0,
+        "model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+        "model_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+        "motor_age_ms": -1.0,
+        "observation": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "ok": true,
+        "parameters": {
+          "chassis": {
+            "angular_z_invert": false,
+            "command_height_max": 0.43,
+            "command_height_min": 0.23,
+            "deadzone": 0.08,
+            "default_command_height": 0.305,
+            "height_invert": false,
+            "height_step": 0.01,
+            "jump_enabled": false,
+            "spin_yaw_rate": 1.0,
+            "vx_max": 0.5,
+            "vy_max": 0.0,
+            "yaw_rate_max": 1.0
+          },
+          "rl_controller": {
+            "auto_enter_rl": false,
+            "calibration_ready": true,
+            "dm_feedback_position_max": [
+              12.5,
+              12.5,
+              12.5,
+              12.5
+            ],
+            "height_transition_seconds": 6.0,
+            "hinge_bias": [
+              0.0,
+              0.0
+            ],
+            "hinge_coefficients": [
+              -1.0,
+              1.0,
+              1.0,
+              -1.0
+            ],
+            "hinge_margin": 0.03,
+            "hinge_max": [
+              1.329574849,
+              1.329574849
+            ],
+            "hinge_min": [
+              -0.140638855,
+              -0.140638855
+            ],
+            "imu_alignment_ready": true,
+            "imu_to_base": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "leg_model_offsets": [
+              1.6,
+              2.93,
+              -1.6,
+              -2.93
+            ],
+            "leg_motor_to_model": [
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "nominal_model_pos": [
+              -0.42,
+              0.13742282595395358,
+              0.42,
+              -0.1374155762580851,
+              0.0,
+              0.0
+            ],
+            "policy_profile": "v6_flat_14020",
+            "prepare_stable_seconds": 0.25,
+            "recovery_enabled": false,
+            "rl_inference_frequency": 50.0,
+            "rl_model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+            "soft_limits_ready": true,
+            "v6_takeover_blend_seconds": 0.0,
+            "wheel_model_scale": [
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "pd_hz": 200,
+        "pd_us": 0.0,
+        "physics_hz": 200,
+        "policy_profile": "v6_flat_14020",
+        "profile_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml",
+        "protocol": "rmcs_v6_component_sim_v1",
+        "requested_state": 0,
+        "reset_count": 0,
+        "sensor_issue": 0,
+        "sensor_mask": 255,
+        "sensor_sequence": 0,
+        "sensor_steady_ns": 0,
+        "sensors_valid": false,
+        "simulation_only": true,
+        "state": 0,
+        "torque_api": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "update_count": 0,
+        "v6_takeover_blend_fraction": 0.0,
+        "v6_takeover_blend_supported": true,
+        "wall_sample_interval_ms": 0.0,
+        "wall_step_duration_ms": 0.0
+      },
+      "passed_cases": [
+        "DOWN/MIDDLE arming and unarmed SPIN rejection",
+        "translation/yaw mapping and left-x height isolation",
+        "rotary endpoints/center/deadzone and R/F offset",
+        "pure SPIN both signs, edge toggle and held switch",
+        "double-DOWN zero effort",
+        "dynamic sensor-frame capture with valid bounded effort",
+        "remote freshness loss disarms the session",
+        "strict feedback freshness rejection stays latched",
+        "malformed shape/JSON rejected while disabled output stays zero",
+        "session reset"
+      ],
+      "actor_comparison": {
+        "passed": true,
+        "compared_samples": 73,
+        "maximum_absolute_action_error": 3.5762786865234375e-07,
+        "atol": 1e-05,
+        "rtol": 1e-05,
+        "onnxruntime_version": "1.27.0",
+        "mismatches": []
+      },
+      "record_count": 92
+    },
+    "100ms": {
+      "schema": "rmcs-v6-component-sensor-check-v1",
+      "passed": true,
+      "scope": "sensor frames and public actor outputs; no physical dynamics/cadence proof",
+      "model_path": "/home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+      "model_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+      "peer": {
+        "acceleration_age_ms": -1.0,
+        "actions": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "axis_order": [
+          "left_hip_joint",
+          "left_knee_joint",
+          "right_hip_joint",
+          "right_knee_joint",
+          "left_wheel",
+          "right_wheel"
+        ],
+        "command_height": 0.305,
+        "command_velocity": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "effort_within_limits": true,
+        "enable_request": false,
+        "executor_hz": 1000,
+        "failure": 0,
+        "imu_age_ms": -1.0,
+        "inference_hz": 50,
+        "inference_us": 0.0,
+        "jump_request": false,
+        "max_torque": [
+          40.0,
+          40.0,
+          40.0,
+          40.0,
+          4.5,
+          4.5
+        ],
+        "mode": 0,
+        "model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+        "model_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+        "motor_age_ms": -1.0,
+        "observation": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "ok": true,
+        "parameters": {
+          "chassis": {
+            "angular_z_invert": false,
+            "command_height_max": 0.43,
+            "command_height_min": 0.23,
+            "deadzone": 0.08,
+            "default_command_height": 0.305,
+            "height_invert": false,
+            "height_step": 0.01,
+            "jump_enabled": false,
+            "spin_yaw_rate": 1.0,
+            "vx_max": 0.5,
+            "vy_max": 0.0,
+            "yaw_rate_max": 1.0
+          },
+          "rl_controller": {
+            "auto_enter_rl": false,
+            "calibration_ready": true,
+            "dm_feedback_position_max": [
+              12.5,
+              12.5,
+              12.5,
+              12.5
+            ],
+            "height_transition_seconds": 6.0,
+            "hinge_bias": [
+              0.0,
+              0.0
+            ],
+            "hinge_coefficients": [
+              -1.0,
+              1.0,
+              1.0,
+              -1.0
+            ],
+            "hinge_margin": 0.03,
+            "hinge_max": [
+              1.329574849,
+              1.329574849
+            ],
+            "hinge_min": [
+              -0.140638855,
+              -0.140638855
+            ],
+            "imu_alignment_ready": true,
+            "imu_to_base": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "leg_model_offsets": [
+              1.6,
+              2.93,
+              -1.6,
+              -2.93
+            ],
+            "leg_motor_to_model": [
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "nominal_model_pos": [
+              -0.42,
+              0.13742282595395358,
+              0.42,
+              -0.1374155762580851,
+              0.0,
+              0.0
+            ],
+            "policy_profile": "v6_flat_14020",
+            "prepare_stable_seconds": 0.25,
+            "recovery_enabled": false,
+            "rl_inference_frequency": 50.0,
+            "rl_model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+            "soft_limits_ready": true,
+            "v6_takeover_blend_seconds": 0.1,
+            "wheel_model_scale": [
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "pd_hz": 200,
+        "pd_us": 0.0,
+        "physics_hz": 200,
+        "policy_profile": "v6_flat_14020",
+        "profile_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml",
+        "protocol": "rmcs_v6_component_sim_v1",
+        "requested_state": 0,
+        "reset_count": 0,
+        "sensor_issue": 0,
+        "sensor_mask": 255,
+        "sensor_sequence": 0,
+        "sensor_steady_ns": 0,
+        "sensors_valid": false,
+        "simulation_only": true,
+        "state": 0,
+        "torque_api": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "update_count": 0,
+        "v6_takeover_blend_fraction": 0.0,
+        "v6_takeover_blend_supported": true,
+        "wall_sample_interval_ms": 0.0,
+        "wall_step_duration_ms": 0.0
+      },
+      "passed_cases": [
+        "DOWN/MIDDLE arming and unarmed SPIN rejection",
+        "translation/yaw mapping and left-x height isolation",
+        "rotary endpoints/center/deadzone and R/F offset",
+        "pure SPIN both signs, edge toggle and held switch",
+        "double-DOWN zero effort",
+        "dynamic sensor-frame capture with valid bounded effort",
+        "remote freshness loss disarms the session",
+        "strict feedback freshness rejection stays latched",
+        "malformed shape/JSON rejected while disabled output stays zero",
+        "session reset"
+      ],
+      "actor_comparison": {
+        "passed": true,
+        "compared_samples": 73,
+        "maximum_absolute_action_error": 3.5762786865234375e-07,
+        "atol": 1e-05,
+        "rtol": 1e-05,
+        "onnxruntime_version": "1.27.0",
+        "mismatches": []
+      },
+      "record_count": 92
+    },
+    "200ms": {
+      "schema": "rmcs-v6-component-sensor-check-v1",
+      "passed": true,
+      "scope": "sensor frames and public actor outputs; no physical dynamics/cadence proof",
+      "model_path": "/home/yukikaze/Documents/workspace/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+      "model_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+      "peer": {
+        "acceleration_age_ms": -1.0,
+        "actions": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "axis_order": [
+          "left_hip_joint",
+          "left_knee_joint",
+          "right_hip_joint",
+          "right_knee_joint",
+          "left_wheel",
+          "right_wheel"
+        ],
+        "command_height": 0.305,
+        "command_velocity": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "effort_within_limits": true,
+        "enable_request": false,
+        "executor_hz": 1000,
+        "failure": 0,
+        "imu_age_ms": -1.0,
+        "inference_hz": 50,
+        "inference_us": 0.0,
+        "jump_request": false,
+        "max_torque": [
+          40.0,
+          40.0,
+          40.0,
+          40.0,
+          4.5,
+          4.5
+        ],
+        "mode": 0,
+        "model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+        "model_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+        "motor_age_ms": -1.0,
+        "observation": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "ok": true,
+        "parameters": {
+          "chassis": {
+            "angular_z_invert": false,
+            "command_height_max": 0.43,
+            "command_height_min": 0.23,
+            "deadzone": 0.08,
+            "default_command_height": 0.305,
+            "height_invert": false,
+            "height_step": 0.01,
+            "jump_enabled": false,
+            "spin_yaw_rate": 1.0,
+            "vx_max": 0.5,
+            "vy_max": 0.0,
+            "yaw_rate_max": 1.0
+          },
+          "rl_controller": {
+            "auto_enter_rl": false,
+            "calibration_ready": true,
+            "dm_feedback_position_max": [
+              12.5,
+              12.5,
+              12.5,
+              12.5
+            ],
+            "height_transition_seconds": 6.0,
+            "hinge_bias": [
+              0.0,
+              0.0
+            ],
+            "hinge_coefficients": [
+              -1.0,
+              1.0,
+              1.0,
+              -1.0
+            ],
+            "hinge_margin": 0.03,
+            "hinge_max": [
+              1.329574849,
+              1.329574849
+            ],
+            "hinge_min": [
+              -0.140638855,
+              -0.140638855
+            ],
+            "imu_alignment_ready": true,
+            "imu_to_base": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "leg_model_offsets": [
+              1.6,
+              2.93,
+              -1.6,
+              -2.93
+            ],
+            "leg_motor_to_model": [
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "nominal_model_pos": [
+              -0.42,
+              0.13742282595395358,
+              0.42,
+              -0.1374155762580851,
+              0.0,
+              0.0
+            ],
+            "policy_profile": "v6_flat_14020",
+            "prepare_stable_seconds": 0.25,
+            "recovery_enabled": false,
+            "rl_inference_frequency": 50.0,
+            "rl_model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+            "soft_limits_ready": true,
+            "v6_takeover_blend_seconds": 0.2,
+            "wheel_model_scale": [
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "pd_hz": 200,
+        "pd_us": 0.0,
+        "physics_hz": 200,
+        "policy_profile": "v6_flat_14020",
+        "profile_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml",
+        "protocol": "rmcs_v6_component_sim_v1",
+        "requested_state": 0,
+        "reset_count": 0,
+        "sensor_issue": 0,
+        "sensor_mask": 255,
+        "sensor_sequence": 0,
+        "sensor_steady_ns": 0,
+        "sensors_valid": false,
+        "simulation_only": true,
+        "state": 0,
+        "torque_api": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "update_count": 0,
+        "v6_takeover_blend_fraction": 0.0,
+        "v6_takeover_blend_supported": true,
+        "wall_sample_interval_ms": 0.0,
+        "wall_step_duration_ms": 0.0
+      },
+      "passed_cases": [
+        "DOWN/MIDDLE arming and unarmed SPIN rejection",
+        "translation/yaw mapping and left-x height isolation",
+        "rotary endpoints/center/deadzone and R/F offset",
+        "pure SPIN both signs, edge toggle and held switch",
+        "double-DOWN zero effort",
+        "dynamic sensor-frame capture with valid bounded effort",
+        "remote freshness loss disarms the session",
+        "strict feedback freshness rejection stays latched",
+        "malformed shape/JSON rejected while disabled output stays zero",
+        "session reset"
+      ],
+      "actor_comparison": {
+        "passed": true,
+        "compared_samples": 73,
+        "maximum_absolute_action_error": 3.5762786865234375e-07,
+        "atol": 1e-05,
+        "rtol": 1e-05,
+        "onnxruntime_version": "1.27.0",
+        "mismatches": []
+      },
+      "record_count": 92
+    }
+  },
+  "total_cpp_tests": 261,
+  "cpp_tests_passed": true,
+  "actor_parity_receipt": "matrix_paced/actor_parity.json",
+  "matrix_receipt": "matrix_paced/report.json",
+  "takeover_comparison": "takeover_comparison/takeover_comparison.json"
+}

@@ -1,0 +1,144 @@
+{
+  "scope": "Single nominal engineering height_high bench; 22 seconds, same physical 105-degree stop; no hardware qualification",
+  "runs": {
+    "margin_0_03": {
+      "output_directory": "docs/zh-cn/artifacts/v6_cpp_sim_20261003/matrix_paced",
+      "actual_parameters": {
+        "hinge_margin": 0.03,
+        "hinge_min": [
+          -0.140638855,
+          -0.140638855
+        ],
+        "hinge_max": [
+          1.329574849,
+          1.329574849
+        ],
+        "hinge_coefficients": [
+          -1.0,
+          1.0,
+          1.0,
+          -1.0
+        ],
+        "v6_takeover_blend_seconds": 0.0
+      },
+      "completed": true,
+      "passed": false,
+      "checks": {
+        "steady_window_completed": true,
+        "controller_rl": true,
+        "expected_command": true,
+        "upright": true,
+        "velocity_tracking": true,
+        "yaw_tracking": true,
+        "height_tracking": false,
+        "mechanism": true,
+        "no_physics_failure": true,
+        "stand_speed": true,
+        "stand_drift": false
+      },
+      "sample_count": 4400,
+      "steady_sample_count": 2001,
+      "final_height_mm": 424.86193776130676,
+      "height_mae_mm": 5.138953130641988,
+      "mean_planar_speed_m_s": 0.02492220061205961,
+      "max_drift_m": 0.24943374901890578,
+      "fault": null,
+      "hard_upper_difference": [
+        1.329574849,
+        1.329574849
+      ],
+      "measured_active_difference_mean": [
+        1.3292850521372177,
+        1.329242190038008
+      ],
+      "measured_active_difference_range": [
+        [
+          1.3286868929862976,
+          1.3294917941093445
+        ],
+        [
+          1.326391339302063,
+          1.32953280210495
+        ]
+      ]
+    },
+    "margin_0": {
+      "output_directory": "docs/zh-cn/artifacts/v6_cpp_sim_20261003/height_high_margin_zero",
+      "actual_parameters": {
+        "hinge_margin": 0.0,
+        "hinge_min": [
+          -0.140638855,
+          -0.140638855
+        ],
+        "hinge_max": [
+          1.329574849,
+          1.329574849
+        ],
+        "hinge_coefficients": [
+          -1.0,
+          1.0,
+          1.0,
+          -1.0
+        ],
+        "v6_takeover_blend_seconds": 0.0
+      },
+      "completed": true,
+      "passed": false,
+      "checks": {
+        "steady_window_completed": true,
+        "controller_rl": true,
+        "expected_command": true,
+        "upright": true,
+        "velocity_tracking": true,
+        "yaw_tracking": true,
+        "height_tracking": false,
+        "mechanism": true,
+        "no_physics_failure": true,
+        "stand_speed": true,
+        "stand_drift": true
+      },
+      "sample_count": 4400,
+      "steady_sample_count": 2001,
+      "final_height_mm": 424.7458875179291,
+      "height_mae_mm": 5.2378353299289255,
+      "mean_planar_speed_m_s": 0.0011277204350830551,
+      "max_drift_m": 0.009688596418381643,
+      "fault": null,
+      "hard_upper_difference": [
+        1.329574849,
+        1.329574849
+      ],
+      "measured_active_difference_mean": [
+        1.3292877432526737,
+        1.3292297483950124
+      ],
+      "measured_active_difference_range": [
+        [
+          1.3292680978775024,
+          1.3293142318725586
+        ],
+        [
+          1.3292089104652405,
+          1.3292690217494965
+        ]
+      ]
+    }
+  },
+  "identity_matches": {
+    "policy_sha256": true,
+    "contract_sha256": true,
+    "asset_manifest_sha256": true,
+    "physics_dt_s": true,
+    "executor_rate_hz": true,
+    "policy_rate_hz": true,
+    "pd_rate_hz": true,
+    "reset_jitter": true,
+    "initial_profiles": true,
+    "source_sha256": true,
+    "plant": true
+  },
+  "differing_recorded_source_hashes": {},
+  "conclusion": "Zero hinge_margin does not remove the 430mm height shortfall; height MAE increases about 0.099mm while planar drift improves.",
+  "height_mae_delta_mm": 0.09888219928693776,
+  "final_height_delta_mm": -0.11605024337768555
+}

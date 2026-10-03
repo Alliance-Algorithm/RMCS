@@ -1,0 +1,1581 @@
+{
+  "schema": "rmcs-v6-cpp-isaac-v1",
+  "status": "complete",
+  "started_at": "2026-10-03T02:16:31.981441+00:00",
+  "controller": "production WheelLegChassisController + RlController + OnnxPolicy",
+  "policy_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+  "contract_sha256": "666f7bdbba8c305d4bedc464fd1a42ea8725245461c49d186b75ed37fe58aae7",
+  "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+  "physics_dt_s": 0.005,
+  "executor_rate_hz": 1000,
+  "policy_rate_hz": 50,
+  "pd_rate_hz": 200,
+  "sensor_source": "ideal base IMU and output-axis encoders",
+  "reset_jitter": {
+    "roll_rad": [
+      -0.01,
+      0.01
+    ],
+    "pitch_rad": [
+      -0.02,
+      0.02
+    ],
+    "z_m": [
+      0.0,
+      0.002
+    ]
+  },
+  "timing_scope": "logical simulation ticks with real steady-clock freshness; paced socket loop",
+  "fixed_base": false,
+  "external_guide": false,
+  "state_writes_between_resets": 0,
+  "hardware_gate_overrides": "bridge only; installed YAML remains disarmed",
+  "domain_qualified": null,
+  "cases": [
+    {
+      "case": "stand",
+      "completed": true,
+      "samples": 3200,
+      "steady_samples": 2001,
+      "rl_entered_at_s": 0.02,
+      "fault": null,
+      "takeover": {
+        "tilt_peak_first_2s_deg": 1.1267436083304425,
+        "planar_speed_peak_first_2s_m_s": 0.03806204944495169,
+        "entry_effort_jump_max_nm": 10.662766849994659,
+        "effort_step_peak_first_2s_nm": 10.662766849994659
+      },
+      "vx_mae_m_s": 0.005467350661488383,
+      "yaw_mae_rad_s": 0.0034760835105695415,
+      "height_mae_m": 0.0003401788188957092,
+      "planar_speed_mean_m_s": 0.005575959058840364,
+      "tilt_max_deg": 0.317135455354888,
+      "drift_max_m": 0.054566903880121184,
+      "final_height_m": 0.30466485023498535,
+      "steady_command": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "checks": {
+        "steady_window_completed": true,
+        "controller_rl": true,
+        "expected_command": true,
+        "upright": true,
+        "velocity_tracking": true,
+        "yaw_tracking": true,
+        "height_tracking": true,
+        "mechanism": true,
+        "no_physics_failure": true,
+        "stand_speed": true,
+        "stand_drift": true
+      },
+      "passed": true,
+      "command_case": "stand",
+      "initial_profile": "nominal",
+      "expected_duration_s": 16.0,
+      "requested_duration_s": 16.0
+    },
+    {
+      "case": "stand__native_prepare",
+      "completed": true,
+      "samples": 3200,
+      "steady_samples": 2001,
+      "rl_entered_at_s": 0.01,
+      "fault": null,
+      "takeover": {
+        "tilt_peak_first_2s_deg": 0.5753931518805643,
+        "planar_speed_peak_first_2s_m_s": 0.015699229534547034,
+        "entry_effort_jump_max_nm": 0.21761710762977593,
+        "effort_step_peak_first_2s_nm": 1.709498688309866
+      },
+      "vx_mae_m_s": 0.005488346043652084,
+      "yaw_mae_rad_s": 0.00337350587694365,
+      "height_mae_m": 0.00033916279949108965,
+      "planar_speed_mean_m_s": 0.005598093439490884,
+      "tilt_max_deg": 0.31589905197193274,
+      "drift_max_m": 0.05478982702157206,
+      "final_height_m": 0.3046586215496063,
+      "steady_command": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "checks": {
+        "steady_window_completed": true,
+        "controller_rl": true,
+        "expected_command": true,
+        "upright": true,
+        "velocity_tracking": true,
+        "yaw_tracking": true,
+        "height_tracking": true,
+        "mechanism": true,
+        "no_physics_failure": true,
+        "stand_speed": true,
+        "stand_drift": true
+      },
+      "passed": true,
+      "command_case": "stand",
+      "initial_profile": "native_prepare",
+      "expected_duration_s": 16.0,
+      "requested_duration_s": 16.0
+    },
+    {
+      "case": "stand__pitch_forward",
+      "completed": true,
+      "samples": 3200,
+      "steady_samples": 2001,
+      "rl_entered_at_s": 0.02,
+      "fault": null,
+      "takeover": {
+        "tilt_peak_first_2s_deg": 12.521692571104623,
+        "planar_speed_peak_first_2s_m_s": 0.23078400990840092,
+        "entry_effort_jump_max_nm": 10.820092415809631,
+        "effort_step_peak_first_2s_nm": 10.820092415809631
+      },
+      "vx_mae_m_s": 0.0007009110492169154,
+      "yaw_mae_rad_s": 0.008351993005809622,
+      "height_mae_m": 0.00031941620663723276,
+      "planar_speed_mean_m_s": 0.001248585714878759,
+      "tilt_max_deg": 0.320816076980128,
+      "drift_max_m": 0.0017150217980104769,
+      "final_height_m": 0.3046296238899231,
+      "steady_command": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "checks": {
+        "steady_window_completed": true,
+        "controller_rl": true,
+        "expected_command": true,
+        "upright": true,
+        "velocity_tracking": true,
+        "yaw_tracking": true,
+        "height_tracking": true,
+        "mechanism": true,
+        "no_physics_failure": true,
+        "stand_speed": true,
+        "stand_drift": true
+      },
+      "passed": true,
+      "command_case": "stand",
+      "initial_profile": "pitch_forward",
+      "expected_duration_s": 16.0,
+      "requested_duration_s": 16.0
+    },
+    {
+      "case": "stand__pitch_backward",
+      "completed": true,
+      "samples": 3200,
+      "steady_samples": 2001,
+      "rl_entered_at_s": 0.02,
+      "fault": null,
+      "takeover": {
+        "tilt_peak_first_2s_deg": 12.837040360444574,
+        "planar_speed_peak_first_2s_m_s": 0.2935909567411963,
+        "entry_effort_jump_max_nm": 11.036266481876373,
+        "effort_step_peak_first_2s_nm": 11.036266481876373
+      },
+      "vx_mae_m_s": 0.005192679633071804,
+      "yaw_mae_rad_s": 0.004710823638939739,
+      "height_mae_m": 0.00033464394230534077,
+      "planar_speed_mean_m_s": 0.005310554132369577,
+      "tilt_max_deg": 0.31959391287887345,
+      "drift_max_m": 0.05162104575696545,
+      "final_height_m": 0.3047385513782501,
+      "steady_command": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "checks": {
+        "steady_window_completed": true,
+        "controller_rl": true,
+        "expected_command": true,
+        "upright": true,
+        "velocity_tracking": true,
+        "yaw_tracking": true,
+        "height_tracking": true,
+        "mechanism": true,
+        "no_physics_failure": true,
+        "stand_speed": true,
+        "stand_drift": true
+      },
+      "passed": true,
+      "command_case": "stand",
+      "initial_profile": "pitch_backward",
+      "expected_duration_s": 16.0,
+      "requested_duration_s": 16.0
+    }
+  ],
+  "requested_cases": [
+    "stand",
+    "stand__native_prepare",
+    "stand__pitch_forward",
+    "stand__pitch_backward"
+  ],
+  "initial_profiles": {
+    "nominal": {
+      "pitch_rad": 0.0,
+      "pitch_rate_rad_s": 0.0,
+      "vx_m_s": 0.0
+    },
+    "native_prepare": {
+      "source_sha256": "5b09a3bb27285ab7571bd133151d7118091997309ccc9d59c6b1259836dc1eef",
+      "reference": {
+        "geometry_control6_rad": [
+          -0.3451002042488576,
+          0.12257537399576232,
+          0.0,
+          0.3451002042488576,
+          -0.12256773461920795,
+          0.0
+        ],
+        "pd_control6_rad": [
+          -0.3207126102216724,
+          0.09491855918261657,
+          0.0,
+          0.32070064924300457,
+          -0.09490058680048478,
+          0.0
+        ],
+        "hold_torque_nm": [
+          3.9020150443496373,
+          -4.4250903701033195,
+          0.0,
+          -3.9039288009364856,
+          4.426743650995705,
+          0.0
+        ],
+        "kp": 160.0,
+        "kp_units": "N*m/rad",
+        "pd_offset_control6_rad": [
+          0.024387594027185232,
+          -0.027656814813145747,
+          0.0,
+          -0.024399555005853037,
+          0.02766714781872316,
+          0.0
+        ],
+        "assumptions": [
+          "static_two_wheel_support_on_flat_ground",
+          "nominal_catalogue_gas_curve",
+          "nominal_mass_and_COM",
+          "zero_joint_velocity",
+          "no_actuator_saturation"
+        ],
+        "height_m": 0.30500000000000027,
+        "full_joint_positions": {
+          "L_joint1": -0.3451002042488576,
+          "R_joint1": 0.3451002042488576,
+          "LL_joint1": 0.12257537399576232,
+          "RR_joint1": -0.12256773461920795,
+          "L_joint2": 0.330387565142803,
+          "R_jonit2": -0.3303870978704308,
+          "LL_joint2": -0.33039931800127115,
+          "RR_joint2": 0.3303880785724081,
+          "L_joint3": 0.0,
+          "LLL_joint2": -0.38245022049551247,
+          "R_joint3": 0.0,
+          "RRR_joint2": 0.38244970536868517,
+          "LL_joint3": 0.19319979803191087,
+          "RR_joint3": -0.19319573071454524,
+          "L_spring_slide": 0.014272463063692266,
+          "R_spring_slide": 0.014272440780790407,
+          "LL_link4": -0.3304282626097375,
+          "RR_joint4": 0.33042779534567696
+        },
+        "root_quaternion_xyzw": [
+          0.002280963062901527,
+          0.0,
+          0.0,
+          0.9999973986003693
+        ],
+        "geometry_validation": {
+          "passive_knee_deg": [
+            63.86647204009721,
+            63.8664452673624
+          ],
+          "spring_compression_m": {
+            "L_spring_slide": 0.0554547170274332,
+            "R_spring_slide": 0.05545473931033506
+          },
+          "max_closure_gap_m": 1.2719202621569003e-16,
+          "com_x_minus_wheel_support_m": -4.4374226515486725e-15,
+          "minimum_ground_clearance_m": 0.0
+        },
+        "static_load": {
+          "static_hold_torque_nm": [
+            3.9020150443496373,
+            -4.4250903701033195,
+            0.0,
+            -3.9039288009364856,
+            4.426743650995705,
+            0.0
+          ],
+          "gravity_virtual_nm": [
+            1.460669532188194,
+            -0.7529940212776484,
+            0.0,
+            -1.4606710407511792,
+            0.7529917453954523,
+            0.0
+          ],
+          "wheel_support_virtual_nm": [
+            10.60372191514677,
+            -9.373026469904806,
+            0.0,
+            -10.60185704709021,
+            9.371308551167303,
+            0.0
+          ],
+          "spring_virtual_nm": [
+            -13.045067427308213,
+            13.045122818730476,
+            0.0,
+            13.045114807275516,
+            -13.045060456767557,
+            0.0
+          ],
+          "wheel_normals_n": [
+            68.1169250260696,
+            68.10473497393039
+          ],
+          "spring_compression_m": [
+            0.0554547170274332,
+            0.05545473931033506
+          ],
+          "spring_force_n": [
+            356.95123732913555,
+            356.95130639368847
+          ],
+          "mapping_residual": 1.5323596539789782e-11
+        },
+        "pd_target_is_reset_pose": false,
+        "dynamic_validation_passed": false,
+        "source": "V6_closed_chain_static_virtual_work_candidate_requires_dynamic_AB_validation",
+        "provenance": {
+          "static_helper_sha256": "94464e7af8bc92c07d6af8534febe9b5e22ed79d4c9f33e046aa0e9c8da6d352",
+          "spring_fit_sha256": "85d9712eb240c9719752930f7ada6c08d8323358f9775de3b1c7f29ce80183b9",
+          "model_spec_sha256": "7429f6e59369e590e0fd96cba8b45fd60c362a0231c4bcc2e80a4c4688eadd88",
+          "asset_manifest_sha256": "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba",
+          "solver_sha256": "5a56f077d2e43ae26e342f5b28830933bf0a7e39e9c08d761a642d222f30cf24",
+          "fk_sha256": "1f2ea56703cb8648ad32edcefcf275fa876727013e9b9de525bbc3549dc93112"
+        }
+      },
+      "scope": "geometry-derived V6 prepared endpoint, zero velocities; no preceding script executed"
+    },
+    "pitch_forward": {
+      "pitch_rad": 0.1,
+      "pitch_rate_rad_s": 0.4,
+      "vx_m_s": 0.1
+    },
+    "pitch_backward": {
+      "pitch_rad": -0.1,
+      "pitch_rate_rad_s": -0.4,
+      "vx_m_s": -0.1
+    }
+  },
+  "initial_profile_scope": "engineering end-state/release stress; no full fallen-pose trajectory executed",
+  "source_sha256": {
+    ".script/simulation/play_v6_cpp_isaac.py": "905466485924257d230c5951ee4ad5ae906e58366e1fabbf18eed8496eb60f5d",
+    ".script/simulation/v6_component_sim_bridge.cpp": "aa4396dd58db9ed4b0eccde07d7d0966cbef55bc0daf4863061275db8203049b",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml": "79141f0fd6506b79b744e9b48adfe01438ebffb3b19648a880ef33f33515e793",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg_chassis_controller.cpp": "9e0368ce6671670f260729e78f6bec2eba479cd3f200abb3d43135bcf20d7b4e",
+    "rmcs_ws/src/rmcs_rl/src/rl_controller.cpp": "35e876747b5d8e612698adbc949884bb9ac764336f3ecec66c55a37ff9c7ff4f",
+    "rmcs_ws/src/rmcs_rl/src/rl_controller.hpp": "f02f4ee922dcf0b2abd0288e4156222bc1d9386bc41c9acbf5297d2e3b97b75b",
+    "rmcs_ws/src/rmcs_rl/src/controller_recovery.cpp": "3f15373ae44bf3105c3c2726cabe84a0acc8a954bbfb940573cd4ad2531e0fec",
+    "rmcs_ws/src/rmcs_rl/src/observation.cpp": "f6e13bd007dd7419ef9ebddd2a7bb227ec47a9570802d288fc3f7a54684db89f",
+    "rmcs_ws/src/rmcs_rl/src/action.cpp": "c5714c104037735b5c545ee9aa29b669789dfa869b4bb191d1ac4b584bb088f7",
+    "rmcs_ws/src/rmcs_rl/src/configuration.cpp": "1cb751354c679e13d714655201e56142622d09b7e5fa56fc313b51ac917a97b1",
+    "rmcs_ws/src/rmcs_rl/src/policy.hpp": "bdc91630dc793048c97d12f4edde465383b63996f8c08d5642d7a343888ada3b"
+  },
+  "plant": {
+    "body_count": 19,
+    "tree_dofs": 18,
+    "loop_constraints": 6,
+    "num_envs": 1,
+    "terrain_families": [
+      "jump"
+    ],
+    "mass_kg_each": [
+      13.886000633239746
+    ],
+    "contact_filters": [
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ],
+      [
+        "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+        "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+      ]
+    ],
+    "self_collision_enabled": false,
+    "solver_order": [
+      0
+    ],
+    "actuator_response": {
+      "config": {
+        "enabled": true,
+        "schema": "chassis-actuator-response",
+        "version": 1,
+        "joint_names": [
+          "L_joint1",
+          "LL_joint1",
+          "L_joint3",
+          "R_joint1",
+          "RR_joint1",
+          "R_joint3"
+        ],
+        "gain": 1.0,
+        "armature": [
+          0.0,
+          0.0,
+          0.0038669808882082915,
+          0.0,
+          0.0,
+          0.003818453742910773
+        ],
+        "frictionloss": [
+          0.0,
+          0.0,
+          0.049507400779663126,
+          0.0,
+          0.0,
+          0.06957712078102896
+        ],
+        "damping": [
+          0.0,
+          0.0,
+          0.0006085318417485766,
+          0.0,
+          0.0,
+          0.0003429025559035852
+        ],
+        "time_constant_s": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "native_properties_verified": true,
+      "native_first_environment": {
+        "armature": [
+          0.0,
+          0.0,
+          0.0038669807836413383,
+          0.0,
+          0.0,
+          0.0038184537552297115
+        ],
+        "frictionloss": [
+          0.0,
+          0.0,
+          0.04950740188360214,
+          0.0,
+          0.0,
+          0.06957712024450302
+        ],
+        "dynamic_friction": [
+          0.0,
+          0.0,
+          0.04950740188360214,
+          0.0,
+          0.0,
+          0.06957712024450302
+        ],
+        "damping": [
+          0.0,
+          0.0,
+          0.0006085318163968623,
+          0.0,
+          0.0,
+          0.0003429025528021157
+        ]
+      },
+      "functional_probe": {
+        "enabled": true,
+        "schema": "chassis-actuator-response",
+        "version": 1,
+        "joint_names": [
+          "L_joint1",
+          "LL_joint1",
+          "L_joint3",
+          "R_joint1",
+          "RR_joint1",
+          "R_joint3"
+        ],
+        "physics_dt": 0.005,
+        "parameters": {
+          "enabled": true,
+          "schema": "chassis-actuator-response",
+          "version": 1,
+          "joint_names": [
+            "L_joint1",
+            "LL_joint1",
+            "L_joint3",
+            "R_joint1",
+            "RR_joint1",
+            "R_joint3"
+          ],
+          "gain": 1.0,
+          "armature": [
+            0.0,
+            0.0,
+            0.0038669808882082915,
+            0.0,
+            0.0,
+            0.003818453742910773
+          ],
+          "frictionloss": [
+            0.0,
+            0.0,
+            0.049507400779663126,
+            0.0,
+            0.0,
+            0.06957712078102896
+          ],
+          "damping": [
+            0.0,
+            0.0,
+            0.0006085318417485766,
+            0.0,
+            0.0,
+            0.0003429025559035852
+          ],
+          "time_constant_s": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "checks": {
+          "first_step_matches": true,
+          "second_step_matches": true,
+          "selected_reset_zero": true,
+          "other_environment_preserved": true,
+          "response_after_reset_matches": true,
+          "zero_constant_exact_identity": true
+        },
+        "passed": true,
+        "expected_first": [
+          [
+            1.0,
+            -2.0,
+            3.0,
+            -4.0,
+            5.0,
+            -6.0
+          ],
+          [
+            -1.0,
+            2.0,
+            -3.0,
+            4.0,
+            -5.0,
+            6.0
+          ]
+        ],
+        "observed_first": [
+          [
+            1.0,
+            -2.0,
+            3.0,
+            -4.0,
+            5.0,
+            -6.0
+          ],
+          [
+            -1.0,
+            2.0,
+            -3.0,
+            4.0,
+            -5.0,
+            6.0
+          ]
+        ],
+        "expected_second": [
+          [
+            1.0,
+            -2.0,
+            3.0,
+            -4.0,
+            5.0,
+            -6.0
+          ],
+          [
+            -1.0,
+            2.0,
+            -3.0,
+            4.0,
+            -5.0,
+            6.0
+          ]
+        ],
+        "observed_second": [
+          [
+            1.0,
+            -2.0,
+            3.0,
+            -4.0,
+            5.0,
+            -6.0
+          ],
+          [
+            -1.0,
+            2.0,
+            -3.0,
+            4.0,
+            -5.0,
+            6.0
+          ]
+        ]
+      }
+    },
+    "nominal_mass_kg": 13.885999999999997,
+    "dynamics_randomization": {
+      "sampling": "startup_per_environment_episode_static",
+      "seed": 198910,
+      "configuration": {
+        "enabled": true,
+        "sampling": "startup",
+        "enabled_fraction": 0.5,
+        "base_body": "base_link",
+        "wheel_bodies": [
+          "L_link3",
+          "R_link3"
+        ],
+        "base_mass_scale": [
+          0.9,
+          1.1
+        ],
+        "leg_mass_scale": [
+          1.0,
+          1.0
+        ],
+        "wheel_mass_scale": [
+          1.0,
+          1.0
+        ],
+        "inertia_scale": [
+          1.0,
+          1.0
+        ],
+        "base_com_offset_m": {
+          "x": [
+            -0.01,
+            0.01
+          ],
+          "y": [
+            -0.005,
+            0.005
+          ],
+          "z": [
+            0.0,
+            0.0
+          ]
+        },
+        "source_reference": "explicit_engineering_payload_COM_prior_not_identified_uncertainty;mass_and_inertia_scale_together"
+      },
+      "sampled_properties_sha256": "769b9565d7bab1a84ea5db12cfb35212ac9607d8b14d0a775548acb13d539b2e",
+      "total_mass_bounds_kg": [
+        12.723999977111816,
+        15.048001289367676
+      ],
+      "metrics": {
+        "/domain/dynamics_enabled_fraction": 0.0,
+        "/domain/total_mass_kg_min": 13.886000633239746,
+        "/domain/total_mass_kg_max": 13.886000633239746,
+        "/domain/base_mass_scale_mean": 1.0,
+        "/domain/base_com_offset_x_abs_max_m": 0.0,
+        "/domain/base_com_offset_y_abs_max_m": 0.0,
+        "/domain/base_com_offset_z_abs_max_m": 0.0
+      },
+      "inertia_mass_scaling": "full_tensor_scaled_with_mass_then_optional_independent_scalar",
+      "com_frame": "body_local_translation_with_backend_principal_axes_relabeling"
+    },
+    "contact_domain": {
+      "combine_mode": "multiply",
+      "robot_material_friction": 1.0,
+      "static_equals_dynamic": true,
+      "sampling": "startup_episode_static",
+      "min_effective_friction": 0.5,
+      "max_effective_friction": 0.5,
+      "nominal_fraction": 1.0,
+      "low_grip_fraction": 0.0
+    },
+    "physics_device": "cpu",
+    "gpu_dynamics_enabled": false,
+    "state_tensor_device": "cpu",
+    "scene_group_counts": {
+      "live": 1
+    },
+    "terrain_collision_paths": [
+      "/World/envs/env_0/Terrain/surface_0/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_1/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_2/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_3/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_4/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_5/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_6/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_7/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_8/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_9/geometry/mesh",
+      "/World/envs/env_0/Terrain/surface_10/geometry/mesh"
+    ],
+    "gas_spring_force_enabled": true,
+    "active_joint_order": [
+      "L_joint1",
+      "LL_joint1",
+      "L_joint3",
+      "R_joint1",
+      "RR_joint1",
+      "R_joint3"
+    ],
+    "step_tasks": {
+      "step_jump_count": 0,
+      "body_climb_count": 0,
+      "normal_climb_request": "forward_velocity_only",
+      "jump_request_inputs": "preset_height_wheel_odometry_imu_single_beam",
+      "contact_evidence": "native_physx_base_link_contact_points"
+    },
+    "command_transport": {
+      "enabled": true,
+      "delay_ms": [
+        0.04,
+        0.16
+      ],
+      "can_period_ms": 1.0,
+      "enabled_fraction": 0.5,
+      "drop_probability_max": 0.005,
+      "burst_probability": 0.0001,
+      "burst_packets": [
+        2,
+        3
+      ],
+      "scope": "engineering_stress_prior_not_measured_packet_loss;USB_whole_batch_short_hold;unknown_CAN_phase;substep_torque_impulse_approximation",
+      "delivery_model": "phase_aware_hold_v1",
+      "can_phase_ms": [
+        0.0,
+        1.0
+      ],
+      "jitter_ms": 0.02,
+      "jitter_correlation": 0.9,
+      "physics_dt_s": 0.005,
+      "transport_dt_s": 0.001,
+      "transport_ticks_per_physics_step": 5,
+      "application": "phase_aware_interval_torque_average"
+    },
+    "recovery_training": {
+      "enabled": true,
+      "count": 0,
+      "reference_dt": 0.005,
+      "pd_dt": 0.005,
+      "blend_seconds": 0.2,
+      "state_writes": "episode_initial_reset_only",
+      "learning": "exclude_script_and_blend_transitions"
+    },
+    "control_timing": {
+      "physics_dt": 0.005,
+      "policy_dt": 0.02,
+      "decimation": 4,
+      "pc_control_dt": 0.005,
+      "target_update": "once_per_policy_step",
+      "feedback_control": "after_each_physical_state_refresh",
+      "runtime_substep_verification": "pending_first_step"
+    },
+    "design_preflight": {
+      "status": "static_passed",
+      "source": "/home/yukikaze/Documents/workspace/robot_rl/isaac_wheeled_rl_schedule/contracts/v6_flat_keyboard_playback_expectations_v1.json",
+      "stage": "flat",
+      "role": "playback",
+      "seed": 190619,
+      "block_index": 0,
+      "num_envs": 1,
+      "physics_dt": 0.005,
+      "policy_dt": 0.02,
+      "decimation": 4,
+      "runtime_expected": {
+        "physics_dt": 0.005,
+        "policy_dt": 0.02,
+        "decimation": 4,
+        "pc_control_dt": 0.005,
+        "seed": 190619,
+        "leg_kp": 160.0,
+        "leg_kd": 2.5,
+        "wheel_velocity_p": 0.6,
+        "precision_tracking": false,
+        "dense_tracking": true,
+        "command_reference": true,
+        "modules": {
+          "usb_transport": false,
+          "command_transport": true,
+          "signal_perturbations": false,
+          "dynamics_randomization": true,
+          "contact_domain": true,
+          "step_assist": false,
+          "jump_assist": false,
+          "training_schedule": true,
+          "actuator_response": true,
+          "step_jump_task": true,
+          "step_climb_task": true,
+          "recovery_training": true,
+          "signal_delay": false
+        },
+        "actuator_response": {
+          "enabled": true,
+          "schema": "chassis-actuator-response",
+          "version": 1,
+          "joint_names": [
+            "L_joint1",
+            "LL_joint1",
+            "L_joint3",
+            "R_joint1",
+            "RR_joint1",
+            "R_joint3"
+          ],
+          "gain": 1.0,
+          "armature": [
+            0.0,
+            0.0,
+            0.0038669808882082915,
+            0.0,
+            0.0,
+            0.003818453742910773
+          ],
+          "frictionloss": [
+            0.0,
+            0.0,
+            0.049507400779663126,
+            0.0,
+            0.0,
+            0.06957712078102896
+          ],
+          "damping": [
+            0.0,
+            0.0,
+            0.0006085318417485766,
+            0.0,
+            0.0,
+            0.0003429025559035852
+          ],
+          "time_constant_s": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "command_transport_model": "phase_aware_hold_v1",
+        "finite_passive_landing": {
+          "enabled": true,
+          "window_seconds": 0.6,
+          "policy_dt": 0.02
+        },
+        "start_stop_timing": {
+          "enabled": false,
+          "start_delay_seconds": null,
+          "policy_dt": 0.02
+        },
+        "signal_delay": {
+          "version": "physical_signal_delay_v1",
+          "enabled": false,
+          "clock": "physics_steps",
+          "jitter_clock": "policy_steps",
+          "enabled_fraction": 0.75,
+          "jitter_ms": 5.0,
+          "feedback_pd": "fresh_physics_feedback",
+          "scope": "engineering_pipeline_age_not_measured_USB_latency",
+          "profiles": [
+            {
+              "probability": 0.6,
+              "observation_ms": [
+                0.0,
+                20.0
+              ],
+              "action_ms": [
+                0.0,
+                15.0
+              ]
+            },
+            {
+              "probability": 0.35,
+              "observation_ms": [
+                20.0,
+                40.0
+              ],
+              "action_ms": [
+                15.0,
+                30.0
+              ]
+            },
+            {
+              "probability": 0.05,
+              "observation_ms": [
+                40.0,
+                80.0
+              ],
+              "action_ms": [
+                30.0,
+                60.0
+              ]
+            }
+          ],
+          "schedule": {
+            "clock": "domain_actor_updates",
+            "start": 1500,
+            "end": 2500
+          }
+        }
+      },
+      "actuator_response_evidence": {
+        "status": "authenticated",
+        "sha256": "254753afce4131af5a0b4e1db71572e1fbb9f7dfa0611cfb6f918ce0cfb199bc",
+        "scope": "Wheel-output effective inertia and moving resistance only; four leg axes remain the nominal prior.",
+        "validated_file_count": 4
+      },
+      "budget": {
+        "schema": "task-domain-budget-v2",
+        "campaign_id": "v6-task-domains-20261001",
+        "domain": "flat",
+        "domain_update_ceiling": 20000,
+        "historical_consumed_updates": 1000,
+        "total_ceiling": 121000,
+        "budget_spec_sha256": "868f273e00a7fc50c03b798b8fac918a73352abda0b4b40fe01b2779ebee4a6e",
+        "rollback_refunds_consumed_updates": false
+      },
+      "step_jump_task": {
+        "status": "authenticated",
+        "height_lookup_sha256": "c3e215187828fae328e3df3af1728897feb6695616ec8b9bdd4322433ea00282",
+        "sensor_scope": "engineering_prior_not_identified"
+      },
+      "recovery_training": {
+        "status": "authenticated",
+        "enabled": true,
+        "reference_dt": 0.005,
+        "blend_seconds": 0.2,
+        "stable_seconds": 1.0,
+        "max_script_seconds": 8.0,
+        "reroute_tilt_rad": 1.2217304763960306,
+        "reroute_support_lost_seconds": 0.15,
+        "max_reroutes": 1,
+        "learning_mask": "pure_rl_intervals_only",
+        "reset_mode": "initial_state_only",
+        "controller": "encoder_imu_recovery_fsm",
+        "action_history": "effective_reference"
+      },
+      "design_sha256": "1dbc41cc8218f6b1dbc05a838fd2068c9c7df5a263bbc79cffa7faefdd939480",
+      "environment_stage": "foundation"
+    },
+    "runtime_preflight": {
+      "status": "runtime_configuration_passed",
+      "observed": {
+        "physics_dt": 0.005,
+        "policy_dt": 0.02,
+        "decimation": 4,
+        "pc_control_dt": 0.005,
+        "seed": 190619,
+        "leg_kp": 160.0,
+        "leg_kd": 2.5,
+        "wheel_velocity_p": 0.6,
+        "modules": {
+          "usb_transport": false,
+          "command_transport": true,
+          "signal_perturbations": false,
+          "dynamics_randomization": true,
+          "contact_domain": true,
+          "step_assist": false,
+          "jump_assist": false,
+          "training_schedule": true,
+          "actuator_response": true,
+          "signal_delay": false,
+          "step_jump_task": true,
+          "step_climb_task": true,
+          "recovery_training": true
+        },
+        "precision_tracking": false,
+        "dense_tracking": true,
+        "command_reference": true,
+        "actuator_response": {
+          "enabled": true,
+          "schema": "chassis-actuator-response",
+          "version": 1,
+          "joint_names": [
+            "L_joint1",
+            "LL_joint1",
+            "L_joint3",
+            "R_joint1",
+            "RR_joint1",
+            "R_joint3"
+          ],
+          "gain": 1.0,
+          "armature": [
+            0.0,
+            0.0,
+            0.0038669808882082915,
+            0.0,
+            0.0,
+            0.003818453742910773
+          ],
+          "frictionloss": [
+            0.0,
+            0.0,
+            0.049507400779663126,
+            0.0,
+            0.0,
+            0.06957712078102896
+          ],
+          "damping": [
+            0.0,
+            0.0,
+            0.0006085318417485766,
+            0.0,
+            0.0,
+            0.0003429025559035852
+          ],
+          "time_constant_s": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "signal_delay": {
+          "version": "physical_signal_delay_v1",
+          "enabled": false,
+          "clock": "physics_steps",
+          "jitter_clock": "policy_steps",
+          "enabled_fraction": 0.75,
+          "jitter_ms": 5.0,
+          "feedback_pd": "fresh_physics_feedback",
+          "scope": "engineering_pipeline_age_not_measured_USB_latency",
+          "profiles": [
+            {
+              "probability": 0.6,
+              "observation_ms": [
+                0.0,
+                20.0
+              ],
+              "action_ms": [
+                0.0,
+                15.0
+              ]
+            },
+            {
+              "probability": 0.35,
+              "observation_ms": [
+                20.0,
+                40.0
+              ],
+              "action_ms": [
+                15.0,
+                30.0
+              ]
+            },
+            {
+              "probability": 0.05,
+              "observation_ms": [
+                40.0,
+                80.0
+              ],
+              "action_ms": [
+                30.0,
+                60.0
+              ]
+            }
+          ],
+          "schedule": {
+            "clock": "domain_actor_updates",
+            "start": 1500,
+            "end": 2500
+          }
+        },
+        "command_transport_model": "phase_aware_hold_v1",
+        "finite_passive_landing": {
+          "enabled": true,
+          "window_seconds": 0.6,
+          "policy_dt": 0.02
+        },
+        "start_stop_timing": {
+          "enabled": false,
+          "start_delay_seconds": null,
+          "policy_dt": 0.02
+        }
+      },
+      "functional_transport_precision_randomization_probes": "not_run"
+    }
+  },
+  "policy_joint_ids": [
+    0,
+    2,
+    1,
+    3,
+    8,
+    10
+  ],
+  "bridge": {
+    "acceleration_age_ms": -1.0,
+    "actions": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "axis_order": [
+      "left_hip_joint",
+      "left_knee_joint",
+      "right_hip_joint",
+      "right_knee_joint",
+      "left_wheel",
+      "right_wheel"
+    ],
+    "command_height": 0.305,
+    "command_velocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "effort_within_limits": true,
+    "enable_request": false,
+    "executor_hz": 1000,
+    "failure": 0,
+    "imu_age_ms": -1.0,
+    "inference_hz": 50,
+    "inference_us": 0.0,
+    "jump_request": false,
+    "max_torque": [
+      40.0,
+      40.0,
+      40.0,
+      40.0,
+      4.5,
+      4.5
+    ],
+    "mode": 0,
+    "model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+    "model_sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+    "motor_age_ms": -1.0,
+    "observation": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "ok": true,
+    "parameters": {
+      "chassis": {
+        "angular_z_invert": false,
+        "command_height_max": 0.43,
+        "command_height_min": 0.23,
+        "deadzone": 0.08,
+        "default_command_height": 0.305,
+        "height_invert": false,
+        "height_step": 0.01,
+        "jump_enabled": false,
+        "spin_yaw_rate": 1.0,
+        "vx_max": 0.5,
+        "vy_max": 0.0,
+        "yaw_rate_max": 1.0
+      },
+      "rl_controller": {
+        "auto_enter_rl": false,
+        "calibration_ready": true,
+        "dm_feedback_position_max": [
+          12.5,
+          12.5,
+          12.5,
+          12.5
+        ],
+        "height_transition_seconds": 6.0,
+        "hinge_bias": [
+          0.0,
+          0.0
+        ],
+        "hinge_coefficients": [
+          -1.0,
+          1.0,
+          1.0,
+          -1.0
+        ],
+        "hinge_margin": 0.03,
+        "hinge_max": [
+          1.329574849,
+          1.329574849
+        ],
+        "hinge_min": [
+          -0.140638855,
+          -0.140638855
+        ],
+        "imu_alignment_ready": true,
+        "imu_to_base": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "leg_model_offsets": [
+          1.6,
+          2.93,
+          -1.6,
+          -2.93
+        ],
+        "leg_motor_to_model": [
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "nominal_model_pos": [
+          -0.42,
+          0.13742282595395358,
+          0.42,
+          -0.1374155762580851,
+          0.0,
+          0.0
+        ],
+        "policy_profile": "v6_flat_14020",
+        "prepare_stable_seconds": 0.25,
+        "recovery_enabled": false,
+        "rl_inference_frequency": 50.0,
+        "rl_model_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+        "soft_limits_ready": true,
+        "v6_takeover_blend_seconds": 0.2,
+        "wheel_model_scale": [
+          1.0,
+          1.0
+        ]
+      }
+    },
+    "pd_hz": 200,
+    "pd_us": 0.0,
+    "physics_hz": 200,
+    "policy_profile": "v6_flat_14020",
+    "profile_path": "/workspaces/RMCS/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml",
+    "protocol": "rmcs_v6_component_sim_v1",
+    "requested_state": 0,
+    "reset_count": 0,
+    "sensor_issue": 0,
+    "sensor_mask": 255,
+    "sensor_sequence": 0,
+    "sensor_steady_ns": 0,
+    "sensors_valid": false,
+    "simulation_only": true,
+    "state": 0,
+    "torque_api": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "update_count": 0,
+    "v6_takeover_blend_fraction": 0.0,
+    "v6_takeover_blend_supported": true,
+    "wall_sample_interval_ms": 0.0,
+    "wall_step_duration_ms": 0.0
+  },
+  "passed_cases": 4,
+  "finished_at": "2026-10-03T02:18:18.587499+00:00"
+}
