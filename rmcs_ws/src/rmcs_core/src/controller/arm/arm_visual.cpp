@@ -1,7 +1,8 @@
-#include "arm_action/obstacle/obstacle_course.hpp"
 #include "controller/arm/arm_action/action_dictionary.hpp"
 #include "controller/arm/arm_action/arm_action_machine.hpp"
-#include "controller/arm/arm_action/obstacle/obstacle.hpp"
+#include "controller/arm/obstacle/obstacle.hpp"
+#include "obstacle/obstacle_coordinates_map.hpp"
+#include "obstacle/obstacle_course.hpp"
 #include <Eigen/Geometry>
 #include <atomic>
 #include <chrono>
@@ -50,7 +51,8 @@ public:
         , moveit_visual_tools_(
               arm_action_machine_.node(), move_group_->getPlanningFrame(),
               rviz_visual_tools::RVIZ_MARKER_TOPIC, move_group_->getRobotModel())
-        , obstacle_course_(move_group_) {
+        , obstacle_coordinates_map_()
+        , obstacle_course_(move_group_, obstacle_coordinates_map_) {
 
         moveit_visual_tools_.loadTrajectoryPub("/display_planned_path", false);
 
@@ -148,7 +150,7 @@ private:
 
         obstacle_course_.apply_collision();
 
-        const Action::PoseTarget target{-0.350, -0.208, 0.222, 1.310, -1.571, -2.707};
+        const Action::PoseTarget target{-0.347, -0.105, 0.178, -1.571, -1.527, -0.020};
         uint64_t previous_id = 0;
         if (const auto current = arm_action_machine_.get_trajectory())
             previous_id = current->request_id;
@@ -331,6 +333,7 @@ private:
     ActionMachine arm_action_machine_;
     moveit::planning_interface::MoveGroupInterface* move_group_;
     moveit_visual_tools::MoveItVisualTools moveit_visual_tools_;
+    obstacle::ObstacleCoordinatesMap obstacle_coordinates_map_;
     obstacle::ObstacleCourse obstacle_course_;
 
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr gui_sub_;

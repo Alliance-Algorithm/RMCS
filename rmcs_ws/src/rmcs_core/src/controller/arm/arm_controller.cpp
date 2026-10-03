@@ -1,7 +1,8 @@
 #include "controller/arm/arm_action/action_dictionary.hpp"
 #include "controller/arm/arm_action/action_step.hpp"
 #include "controller/arm/arm_action/arm_action_machine.hpp"
-#include "controller/arm/arm_action/obstacle/obstacle_course.hpp"
+#include "controller/arm/obstacle/obstacle_coordinates_map.hpp"
+#include "controller/arm/obstacle/obstacle_course.hpp"
 #include "filter/low_pass_filter.hpp"
 #include <Eigen/src/Core/Matrix.h>
 #include <algorithm>
@@ -57,7 +58,9 @@ public:
         , action_dictionary_(make_action_parameter_map(get_parameter("action_profile").as_string()))
         , chassis_type_(get_parameter("action_profile").as_string())
         , arm_action_machine_()
-        , obstacle_course_(arm_action_machine_.moveit_group_getter().get())
+        , obstacle_coordinates_map_()
+        , obstacle_course_(
+              arm_action_machine_.moveit_group_getter().get(), obstacle_coordinates_map_)
         , custom_joint_filter_(0.2) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -615,6 +618,7 @@ private:
     ActionDictionary action_dictionary_;
     std::string chassis_type_;
     ActionMachine arm_action_machine_;
+    obstacle::ObstacleCoordinatesMap obstacle_coordinates_map_;
     obstacle::ObstacleCourse obstacle_course_;
 
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};

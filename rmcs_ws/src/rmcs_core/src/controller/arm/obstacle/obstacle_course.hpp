@@ -1,6 +1,8 @@
 #pragma once
+
 #include "moveit_msgs/msg/link_padding.hpp"
 #include "obstacle.hpp"
+#include "obstacle_coordinates_map.hpp"
 #include <memory>
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
 #include <numbers>
@@ -13,7 +15,9 @@ namespace rmcs_core::controller::arm::obstacle {
 class ObstacleCourse {
 
 public:
-    explicit ObstacleCourse(moveit::planning_interface::MoveGroupInterface* move_group)
+    explicit ObstacleCourse(
+        moveit::planning_interface::MoveGroupInterface* move_group,
+        const ObstacleCoordinatesMap& obstacle_coordinates_map)
         : logger_(rclcpp::get_logger("obstacle_course")) {
 
         frame_id_ = move_group->getPlanningFrame();
@@ -27,26 +31,31 @@ public:
 
         Eigen::Vector3d mm2m_scale = {0.001, 0.001, 0.001};
 
-        Pose energy_unit_compensation{-0.0475, -0.0475, -0.0725, 0, 0, 0};
-        // Pose gimbal_compensation{-0.50775 + 0.04105, -0.280, -0.37885 + 0.004, 0, 0, 0};
-
-        Pose gimbal_compensation{0, 0.5399, -0.264 + 0.004, 0, 0, 0};
-
-        // Pose gimbal_compensation{0, 0, 0, 0, 0, 0};
-
         add_collision(
-            "energy_unit_left_front", "energy_unit", mm2m_scale, energy_unit_compensation,
-            {-0.237, -0.127, 0.131, 0, 0, 0});
+            "energy_unit_left_front", "energy_unit", mm2m_scale,
+            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
+            obstacle_coordinates_map.get_pose("energy_unit_left_front_store"));
         add_collision(
-            "energy_unit_left_back", "energy_unit", mm2m_scale, energy_unit_compensation,
-            {0.102, -0.431, 0.157, 0.0, 1.57, 1.571});
+            "energy_unit_left_back", "energy_unit", mm2m_scale,
+            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
+            obstacle_coordinates_map.get_pose("energy_unit_left_back_store"));
         add_collision(
-            "energy_unit_right_back", "energy_unit", mm2m_scale, energy_unit_compensation);
+            "energy_unit_right_back", "energy_unit", mm2m_scale,
+            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
+            obstacle_coordinates_map.get_pose("energy_unit_right_back_store"));
         add_collision(
-            "energy_unit_right_front", "energy_unit", mm2m_scale, energy_unit_compensation);
-        add_collision("gimbal", "gimbal", mm2m_scale, gimbal_compensation, {0, 0, 0, 0, 0, 0});
+            "energy_unit_right_front", "energy_unit", mm2m_scale,
+            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
+            obstacle_coordinates_map.get_pose("energy_unit_right_front_store"));
+        add_collision(
+            "gimbal", "gimbal", mm2m_scale,
+            obstacle_coordinates_map.get_pose("gimbal_compensation"),
+            obstacle_coordinates_map.get_pose("gimbal"));
 
-        set_operation("energy_unit_left_back", CollisionObjectOperation::REMOVE);
+        set_operation("energy_unit_left_back", CollisionObjectOperation::ADD);
+        set_operation("energy_unit_right_back", CollisionObjectOperation::ADD);
+        set_operation("energy_unit_right_front", CollisionObjectOperation::ADD);
+        set_operation("energy_unit_left_front", CollisionObjectOperation::ADD);
         set_operation("gimbal", CollisionObjectOperation::ADD);
     }
 
@@ -93,7 +102,7 @@ private:
         Pose pose = {}) {
         auto [it, inserted] = obstacles_.emplace(id, std::make_unique<Obstacle>(frame_id_, id));
         if (!inserted) {
-            RCLCPP_WARN(logger_, "duplicate obstacle if: %s", id.c_str());
+            RCLCPP_WARN(logger_, "duplicate obstacle id: %s", id.c_str());
             return;
         }
         it->second->mesh_load(mesh, scale);
