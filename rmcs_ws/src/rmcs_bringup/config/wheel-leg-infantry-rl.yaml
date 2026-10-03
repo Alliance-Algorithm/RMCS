@@ -50,6 +50,7 @@ value_broadcaster:
       - /wheel_leg/rl/recovery/height_if_grounded
       - /wheel_leg/rl/recovery/motion_hold
       - /wheel_leg/rl/recovery/blend
+      - /wheel_leg/rl/v6_takeover/blend_fraction
       - /wheel_leg/rl/performance/inference_us
       - /wheel_leg/rl/performance/pd_us
       - /wheel_leg/rl/observation/command/forward
@@ -219,6 +220,18 @@ rl_controller:
     prepare_max_angular_velocity: 0.35
     prepare_max_joint_velocity: 0.5
     prepare_stable_seconds: 0.25
+    # V6 takes over near the actor's upright nominal reset without requiring
+    # static balance under PREPARE PD. Allow bounded gas-spring load deflection;
+    # gyro/axis speed, strict sample freshness and measured hinge limits still
+    # gate entry. These engineering capture bounds do not qualify hardware.
+    # prepare_max_tilt_rad remains the capture tilt bound (0.2 rad).
+    v6_capture_max_leg_error_rad: 0.15
+    v6_capture_max_angular_velocity: 1.0
+    v6_capture_max_leg_velocity: 2.0
+    v6_capture_max_wheel_velocity: 5.0
+    # RL inference starts at capture regardless of this effort-only window.
+    # 0 selects direct takeover; optional six-axis smoothstep is bounded to 0.3 s.
+    v6_takeover_blend_seconds: 0.0
 
 wheel_leg_chassis_controller:
   ros__parameters:
