@@ -668,9 +668,9 @@ private:
                     scheduler.next(false);
                 actions = normal_action_gate_.apply(actions, cycle.enable_sides, cycle.pairs);
             }
-            if (cycle.wheel_only && !cycle.side_bound)
-                actions =
-                    WheelLegDmSideSchedulers::stagger_disabled_polls(actions, wheel_poll_tick_++);
+            if (!cycle.side_bound && !cycle.enable)
+                actions = WheelLegDmSideSchedulers::stagger_disabled_polls(
+                    actions, disabled_poll_tick_++);
             if (cycle.side_bound)
                 for (std::size_t side = 0; side < actions.size(); ++side)
                     if (!cycle.enable_sides[side] && actions[side] != Action::kClearError
@@ -904,7 +904,7 @@ private:
         std::array<std::atomic<bool>, 2> dm_enabled_{};
         std::array<std::atomic<bool>, 2> dm_mit_sent_{};
         std::atomic<bool> dm_all_disabled_{false};
-        std::size_t wheel_poll_tick_ = 0;
+        std::size_t disabled_poll_tick_ = 0;
         WheelLegDmSideSchedulers command_schedulers_;
         std::array<WheelLegDmFaultClearScheduler, 2> fault_clear_schedulers_;
         WheelLegNormalActionGate normal_action_gate_;
