@@ -23,33 +23,16 @@ bool RlController::update_prepare_() {
                  < prepare_reach_threshold_;
     }
     targets_[4] = targets_[5] = 0.0;
-    const Eigen::Quaterniond q_world_base = world_base_orientation_();
-    const double gravity_z = (q_world_base.conjugate() * -Eigen::Vector3d::UnitZ()).z();
     if (v6) {
         // A free-base balancing actor must take over from its upright reset
         // domain before passive springs/static leg PD tip the unbalanced base.
         // V6 never waits for a non-balancing controller to demonstrate static
         // balance. Fresh sensors, drive readiness and the real hinge bounds
-        // remain mandatory; the legacy/recovery dwell below is unchanged.
-        if (!feedback_valid_ || !recovery_sensor_status_.valid
-            || -gravity_z < std::cos(prepare_max_tilt_rad_)
-            || (imu_to_base_ * *gyro_).norm() > v6_capture_max_angular_velocity_
-            || dq_.head<4>().cwiseAbs().maxCoeff() > v6_capture_max_leg_velocity_
-            || dq_.tail<2>().cwiseAbs().maxCoeff() > v6_capture_max_wheel_velocity_)
-            return false;
-        for (int i = 0; i < 4; ++i)
-            if (std::abs(std::remainder(nominal_[i] - q_[i], 2 * std::numbers::pi))
-                > v6_capture_max_leg_error_rad_)
-                return false;
-        for (int side = 0; side < 2; ++side) {
-            const int hip = 2 * side;
-            const double relative = hinge_coeff_[hip] * q_[hip]
-                                  + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
-            if (relative < hinge_min_[side] || relative > hinge_max_[side])
-                return false;
-        }
-        return true;
+        // remain mandatory; the legacy dwell below is unchanged.
+        return v6_upright_capture_ready_(prepare_max_tilt_rad_);
     }
+    const Eigen::Quaterniond q_world_base = world_base_orientation_();
+    const double gravity_z = (q_world_base.conjugate() * -Eigen::Vector3d::UnitZ()).z();
     if (!reached || -gravity_z < std::cos(prepare_max_tilt_rad_)
         || gyro_->norm() > prepare_max_angular_velocity_
         || dq_.cwiseAbs().maxCoeff() > prepare_max_joint_velocity_) {
@@ -60,6 +43,29 @@ bool RlController::update_prepare_() {
         prepare_stable_since_ = *timestamp_;
     return *timestamp_ - *prepare_stable_since_
         >= std::chrono::duration<double>{prepare_stable_seconds_};
+}
+
+bool RlController::v6_upright_capture_ready_(double max_tilt_rad) const {
+    const double gravity_z =
+        (world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ()).z();
+    if (!feedback_valid_ || !recovery_sensor_status_.valid
+        || -gravity_z < std::cos(max_tilt_rad)
+        || (imu_to_base_ * *gyro_).norm() > v6_capture_max_angular_velocity_
+        || dq_.head<4>().cwiseAbs().maxCoeff() > v6_capture_max_leg_velocity_
+        || dq_.tail<2>().cwiseAbs().maxCoeff() > v6_capture_max_wheel_velocity_)
+        return false;
+    for (int i = 0; i < 4; ++i)
+        if (std::abs(std::remainder(nominal_[i] - q_[i], 2 * std::numbers::pi))
+            > v6_capture_max_leg_error_rad_)
+            return false;
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side;
+        const double relative = hinge_coeff_[hip] * q_[hip]
+                              + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
+        if (relative < hinge_min_[side] || relative > hinge_max_[side])
+            return false;
+    }
+    return true;
 }
 
 RecoverySensorData RlController::recovery_sensor_data_() const {
@@ -184,6 +190,8 @@ V6RecoveryFeedback RlController::v6_recovery_feedback_() const {
 bool RlController::advance_v6_recovery_() {
     if (!v6_recovery_ || !v6_recovery_observer_)
         return false;
+    v6_recovery_feedback_data_.rl_capture_ready =
+        v6_upright_capture_ready_(v6_recovery_capture_max_tilt_rad_);
     const auto& command = v6_recovery_->update(v6_recovery_feedback_data_);
     v6_recovery_feedback_data_.wheel_probe_torque =
         v6_recovery_observer_->probe_command(command.scripted && command.release_finished);
@@ -200,8 +208,11 @@ bool RlController::advance_v6_recovery_() {
         }
         return false;
     }
-    if (command.pure_rl && state_ == State::kPrepare)
+    if (command.pure_rl && state_ == State::kPrepare) {
+        RCLCPP_INFO(get_logger(), "V6 self-righting handover: policy owns all six axes, motion %s",
+                    command.motion_hold ? "held" : "released");
         enter_(State::kRl);
+    }
     return true;
 }
 

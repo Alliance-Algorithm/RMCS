@@ -327,10 +327,32 @@ RlController::RlController()
         auto recovery_config = native.controller;
         recovery_config.blend_seconds =
             get_parameter_or("v6_recovery_blend_seconds", recovery_config.blend_seconds);
+        recovery_config.dynamic_takeover = get_parameter_or("v6_recovery_dynamic_takeover", false);
+        recovery_config.release_motion_on_takeover =
+            get_parameter_or("v6_recovery_release_motion_on_takeover", false);
+        recovery_config.dynamic_capture_height_min = get_parameter_or(
+            "v6_recovery_capture_height_min", recovery_config.dynamic_capture_height_min);
+        v6_recovery_capture_max_tilt_rad_ =
+            get_parameter_or("v6_recovery_capture_max_tilt_rad", prepare_max_tilt_rad_);
+        if (!std::isfinite(v6_recovery_capture_max_tilt_rad_)
+            || v6_recovery_capture_max_tilt_rad_ <= 0.0
+            || v6_recovery_capture_max_tilt_rad_ > 40.0 * std::numbers::pi / 180.0)
+            throw std::runtime_error("V6 recovery capture tilt must be within 40 degrees");
+        recovery_config.prepare_speed_rad_s = get_parameter_or(
+            "v6_recovery_fold_plant_speed_rad_s", recovery_config.prepare_speed_rad_s);
+        if (!std::isfinite(recovery_config.prepare_speed_rad_s)
+            || recovery_config.prepare_speed_rad_s <= 0.0
+            || recovery_config.prepare_speed_rad_s > recovery_config.push_speed_rad_s)
+            throw std::runtime_error("V6 FOLD/PLANT speed must not exceed the native push speed");
         v6_recovery_.emplace(recovery_config);
         RCLCPP_INFO(
-            get_logger(), "V6 self-righting takeover: %s",
-            recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend");
+            get_logger(), "V6 self-righting takeover: %s, bounded upright capture=%d, "
+                          "FOLD/PLANT %.2f rad/s, capture %.1f deg above %.2f m, motion %s",
+            recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
+            recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
+            v6_recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
+            recovery_config.dynamic_capture_height_min,
+            recovery_config.release_motion_on_takeover ? "released at takeover" : "held until stable");
         v6_recovery_observer_.emplace(native.geometry);
         v6_prepare_target_ = native.controller.nominal;
         v6_native_profile_ready_ = true;

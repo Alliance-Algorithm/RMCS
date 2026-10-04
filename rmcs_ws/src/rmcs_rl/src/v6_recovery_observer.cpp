@@ -129,6 +129,7 @@ V6RecoveryFeedback V6RecoveryObserver::observe(
     feedback.gyro = gyro;
     feedback.estimated_height = heights_.minCoeff();
     feedback.support = plausible_;
+    feedback.support_confirmed = confirmed_;
     feedback.body_clear =
         (confirmed_ || phase == V6RecoveryPhase::kBlend || phase == V6RecoveryPhase::kRl)
         && plausible_ && heights_.minCoeff() > 0.27f;
