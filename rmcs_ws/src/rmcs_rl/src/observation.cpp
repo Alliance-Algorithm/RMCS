@@ -103,24 +103,9 @@ bool RlController::read_model_state_() {
 }
 
 void RlController::update_command_reference_() {
+    const double requested_vx = velocity_command_->vector.x();
+    const double requested_yaw = velocity_command_->vector.z();
     const bool spinning = rmcs_msgs::is_spining(*chassis_mode_);
-    double requested_vx = spinning ? 0.0 : velocity_command_->vector.x();
-    double requested_yaw = velocity_command_->vector.z();
-
-    // Training projects the requested target before applying the per-policy-step
-    // slew. Reprojecting the slewed reference would change transient observations.
-    const double max_linear = DeployedPolicyContract::kWheelSpeedLimit * wheel_radius_;
-    const double demand =
-        std::abs(requested_vx) + wheel_track_ * std::abs(requested_yaw) / 2;
-    if (demand > max_linear) {
-        const double scale = max_linear / demand;
-        requested_vx *= scale;
-        requested_yaw *= scale;
-    }
-    const double lateral_acceleration = std::abs(requested_vx * requested_yaw);
-    if (lateral_acceleration > 2.06)
-        requested_yaw *= 2.06 / lateral_acceleration;
-
     constexpr double policy_dt = DeployedPolicyContract::kPolicyPeriodSeconds;
     if (spinning)
         vx_reference_ = 0.0;
@@ -131,6 +116,19 @@ void RlController::update_command_reference_() {
     yaw_reference_ += std::clamp(
         requested_yaw - yaw_reference_, -DeployedPolicyContract::kYawSlew * policy_dt,
         DeployedPolicyContract::kYawSlew * policy_dt);
+
+    // Respect the wheel geometry and the combined command envelope.
+    const double max_linear = DeployedPolicyContract::kWheelSpeedLimit * wheel_radius_;
+    const double demand = std::max(
+        std::abs(vx_reference_ - wheel_track_ * yaw_reference_ / 2),
+        std::abs(vx_reference_ + wheel_track_ * yaw_reference_ / 2));
+    if (demand > max_linear) {
+        const double scale = max_linear / demand;
+        vx_reference_ *= scale;
+        yaw_reference_ *= scale;
+    }
+    if (std::abs(vx_reference_ * yaw_reference_) > 2.06)
+        vx_reference_ = std::copysign(2.06 / std::abs(yaw_reference_), vx_reference_);
 }
 
 bool RlController::assemble_observation_(bool shadow_recovery) {

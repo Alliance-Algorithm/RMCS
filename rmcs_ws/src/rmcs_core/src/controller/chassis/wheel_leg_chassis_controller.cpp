@@ -192,9 +192,7 @@ private:
             return;
         }
         const Eigen::Vector2d command = read_translational_command_();
-        const double yaw_command = std::clamp(
-            read_channel_(joystick_left_->y()) + keyboard_->a - keyboard_->d, -1.0, 1.0);
-        const double yaw_rate = yaw_command * yaw_rate_max_;
+        const double yaw_rate = read_channel_(joystick_left_->y()) * yaw_rate_max_;
         chassis_control_velocity_->vector << command.x() * vx_max_, command.y() * vy_max_,
             (angular_z_invert_ ? -yaw_rate : yaw_rate);
     }
@@ -203,7 +201,7 @@ private:
         const auto keyboard = *keyboard_;
         Eigen::Vector2d command{
             read_channel_(joystick_right_->x()) + keyboard.w - keyboard.s,
-            vy_max_ > 0.0 ? read_channel_(joystick_right_->y()) : 0.0};
+            read_channel_(joystick_right_->y()) + keyboard.a - keyboard.d};
         const double magnitude = command.norm();
         if (magnitude > 1.0)
             command /= magnitude;
