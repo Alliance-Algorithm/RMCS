@@ -109,7 +109,7 @@ private:
         height_step_ = get_parameter_or<double>("height_step", 0.01);
 
         angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
-        height_invert_ = get_parameter_or<bool>("height_invert", false);
+        height_invert_ = get_parameter_or<bool>("height_invert", true);
         jump_enabled_ = get_parameter_or<bool>("jump_enabled", false);
 
         const std::array values{
@@ -192,7 +192,9 @@ private:
             return;
         }
         const Eigen::Vector2d command = read_translational_command_();
-        const double yaw_rate = read_channel_(joystick_left_->y()) * yaw_rate_max_;
+        const double yaw_command = std::clamp(
+            read_channel_(joystick_left_->y()) + keyboard_->a - keyboard_->d, -1.0, 1.0);
+        const double yaw_rate = yaw_command * yaw_rate_max_;
         chassis_control_velocity_->vector << command.x() * vx_max_, command.y() * vy_max_,
             (angular_z_invert_ ? -yaw_rate : yaw_rate);
     }
@@ -201,7 +203,7 @@ private:
         const auto keyboard = *keyboard_;
         Eigen::Vector2d command{
             read_channel_(joystick_right_->x()) + keyboard.w - keyboard.s,
-            read_channel_(joystick_right_->y()) + keyboard.a - keyboard.d};
+            vy_max_ > 0.0 ? read_channel_(joystick_right_->y()) : 0.0};
         const double magnitude = command.norm();
         if (magnitude > 1.0)
             command /= magnitude;
@@ -272,7 +274,7 @@ private:
     double default_command_height_ = 0.305;
     double height_step_ = 0.01;
     bool angular_z_invert_ = false;
-    bool height_invert_ = false;
+    bool height_invert_ = true;
     bool jump_enabled_ = false;
 
     bool spinning_forward_ = true;

@@ -9,8 +9,7 @@ __pycache__/
 /models/*
 !/models/wheel_leg/
 /models/wheel_leg/*
-!/models/wheel_leg/policy.onnx
-!/models/wheel_leg/SHA256SUMS
+!/models/wheel_leg/*.onnx
 !/models/wheel_leg/deployment/
 /models/wheel_leg/deployment/*
 !/models/wheel_leg/deployment/v6_recovery_profiles_v1.json
