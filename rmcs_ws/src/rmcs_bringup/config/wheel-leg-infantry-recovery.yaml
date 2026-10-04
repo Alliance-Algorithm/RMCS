@@ -177,7 +177,7 @@ rl_controller:
     # and its encoder/gyro response thresholds. It is a conditional support
     # estimate; queued CAN torque and motor-current truth are not substituted
     # for measured contact. Validate support and takeover in this ground test.
-    height_transition_seconds: 6.0
+    height_transition_seconds: 4.0
     wheel_radius: 0.06
     wheel_track: 0.4373
 
