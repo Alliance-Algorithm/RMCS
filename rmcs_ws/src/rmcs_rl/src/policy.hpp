@@ -69,9 +69,9 @@ inline constexpr PolicyProfile kV6PolicyProfile{
     DeployedPolicyContract::kForwardSlew,
     DeployedPolicyContract::kHeightMin,
     DeployedPolicyContract::kHeightMax,
-    5.0,
-    18.84956,
-    18.84956,
+    0.5,
+    1.0,
+    1.0,
     true};
 
 inline constexpr PolicyProfile kV5PolicyProfile{
