@@ -161,7 +161,7 @@ rl_controller:
     # and its encoder/gyro response thresholds. It is a conditional support
     # estimate; queued CAN torque and motor-current truth are not substituted
     # for measured contact. Hardware readiness stays false pending validation.
-    height_transition_seconds: 4.0
+    height_transition_seconds: 6.0
     wheel_radius: 0.06
     wheel_track: 0.4373
 
@@ -240,10 +240,10 @@ rl_controller:
 
 wheel_leg_chassis_controller:
   ros__parameters:
-    vx_max: 5.0
+    vx_max: 0.5
     vy_max: 0.0
-    yaw_rate_max: 18.84956
-    spin_yaw_rate: 18.84956
+    yaw_rate_max: 1.0
+    spin_yaw_rate: 1.0
     deadzone: 0.08
     command_height_min: 0.23
     command_height_max: 0.43
