@@ -59,6 +59,7 @@ public:
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
+        status_component.register_output(name_prefix + "/temperature_c", temperature_output_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
@@ -164,15 +165,20 @@ public:
     auto send_id() const noexcept -> std::uint32_t { return send_id(type_, id_); }
 
     bool match_then_store_status(std::uint32_t can_id, std::span<const std::byte> can_data) {
-        if (can_id != recv_id())
+        if (!matches_feedback(can_id, can_data))
             return false;
         store_status(can_data);
         return true;
     }
 
-    void update_status() {
-        const auto feedback =
-            std::bit_cast<DjiMotorFeedback>(can_data_.load(std::memory_order::relaxed));
+    bool matches_feedback(std::uint32_t can_id, std::span<const std::byte> can_data) const {
+        return can_id == recv_id() && can_data.size() == 8;
+    }
+
+    void update_status() { update_status(can_data_.load(std::memory_order_relaxed)); }
+
+    void update_status(CanPacket8 packet) {
+        const auto feedback = std::bit_cast<DjiMotorFeedback>(packet);
 
         // Temperature unit: celsius
         temperature_ = static_cast<double>(feedback.temperature);
@@ -206,6 +212,7 @@ public:
         *angle_output_ = angle();
         *velocity_output_ = velocity();
         *torque_output_ = torque();
+        *temperature_output_ = temperature();
     }
 
     double control_torque() const {
@@ -275,6 +282,7 @@ private:
     rmcs_executor::Component::OutputInterface<double> angle_output_;
     rmcs_executor::Component::OutputInterface<double> velocity_output_;
     rmcs_executor::Component::OutputInterface<double> torque_output_;
+    rmcs_executor::Component::OutputInterface<double> temperature_output_;
     rmcs_executor::Component::OutputInterface<double> max_torque_output_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;

@@ -165,7 +165,6 @@ rl_bridge:
     enable_default: false
     invalid_value: "nan"                   # 必须加引号！
     reset_interface: "/chassis/deformable/reset_count"
-    expected_model_id: "0xd5899956ba7faeda"
 
     # 关节序 = 训练 DOF 序：RF, LF, LB, RB。角度/速度来自硬件的 RL 坐标输出，
     # 力矩用硬件实测 /torque（不再是下游关节控制器的 control_torque）。

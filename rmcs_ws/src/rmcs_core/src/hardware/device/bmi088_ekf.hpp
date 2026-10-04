@@ -24,13 +24,18 @@ public:
     using TimePoint = rmcs_msgs::BoardClock::time_point;
     using Snapshot = rmcs_msgs::ImuSnapshot;
 
+    struct AccelerationSnapshot {
+        Eigen::Vector3d specific_force_body_mps2;
+        TimePoint timestamp;
+    };
+
     explicit Bmi088Ekf(Config config)
         : config_(std::move(config)) {}
 
     Bmi088Ekf()
         : Bmi088Ekf(Config{}) {}
 
-    void push_accelerometer_sample(
+    bool push_accelerometer_sample(
         std::int16_t x, std::int16_t y, std::int16_t z, TimePoint sample_time) {
         const Eigen::Vector3d accel_g =
             config_.body_to_sensor.transpose() * convert_accelerometer(x, y, z);
@@ -44,18 +49,25 @@ public:
                     ekf_state_time_,
                 };
                 const auto guard = std::scoped_lock{mutex_};
+                latest_acceleration_ = AccelerationSnapshot{accel_g * 9.80665, sample_time};
                 initialized_ = true;
+                return true;
             }
-            return;
+            return false;
         }
 
-        if (sample_time < ekf_state_time_)
-            return;
+        if (sample_time <= ekf_state_time_)
+            return false;
 
-        if (pending_accel_sample_ && sample_time < pending_accel_sample_->sample_time)
-            return;
+        if (pending_accel_sample_ && sample_time <= pending_accel_sample_->sample_time)
+            return false;
 
+        {
+            const auto guard = std::scoped_lock{mutex_};
+            latest_acceleration_ = AccelerationSnapshot{accel_g * 9.80665, sample_time};
+        }
         pending_accel_sample_ = {accel_g, sample_time};
+        return true;
     }
 
     std::optional<Snapshot> try_update_with_gyroscope_sample(
@@ -68,6 +80,18 @@ public:
 
         if (sample_time < ekf_state_time_)
             return std::nullopt;
+
+        // Buffered frames after reconnect or a receive gap must not integrate the current gyro
+        // over an unobserved interval. Check before the pending accelerometer prediction, which
+        // otherwise advances the state time and hides the gap from this guard.
+        // TODO: Remove this once librmcs guarantees historical IMU frames are flushed on
+        // connection.
+        if (std::chrono::duration<double>{sample_time - ekf_state_time_}.count() > 1 / 1000.0) {
+            ekf_state_time_ = sample_time;
+            if (pending_accel_sample_ && pending_accel_sample_->sample_time <= sample_time)
+                pending_accel_sample_ = std::nullopt;
+            return std::nullopt;
+        }
 
         if (is_gyro_saturated(gyro_rad_per_sec))
             ekf_.inflate_attitude_uncertainty_to_initial();
@@ -91,16 +115,6 @@ public:
 
             pending_accel_sample_ = std::nullopt;
             break;
-        }
-
-        // Guard against stale IMU frames that librmcs may deliver right after reconnect before the
-        // device-side buffer is drained. Integrating a frame with a large timestamp jump can inject
-        // a huge bogus gyro delta, so drop it instead of advancing the filter.
-        // TODO: Remove this once librmcs guarantees buffered historical IMU frames are flushed on
-        // connection.
-        if (std::chrono::duration<double>{sample_time - ekf_state_time_}.count() > 1 / 1000.0) {
-            ekf_state_time_ = sample_time;
-            return std::nullopt;
         }
 
         if (!ekf_.predict(
@@ -131,6 +145,11 @@ public:
         if (!initialized_)
             return std::nullopt;
         return latest_snapshot_;
+    }
+
+    [[nodiscard]] std::optional<AccelerationSnapshot> acceleration_snapshot() const noexcept {
+        const auto guard = std::scoped_lock{mutex_};
+        return latest_acceleration_;
     }
 
 private:
@@ -167,6 +186,7 @@ private:
     std::optional<AccelSample> pending_accel_sample_;
 
     Snapshot latest_snapshot_;
+    std::optional<AccelerationSnapshot> latest_acceleration_;
 };
 
 } // namespace rmcs_core::hardware::device

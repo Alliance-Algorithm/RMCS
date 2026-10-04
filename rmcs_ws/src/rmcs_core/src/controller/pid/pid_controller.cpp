@@ -35,14 +35,6 @@ public:
             }
         }
 
-        if (has_parameter("enable_interface")) {
-            const auto enable_interface = get_parameter("enable_interface").as_string();
-            if (!enable_interface.empty()) {
-                register_input(enable_interface, enable_);
-                enable_gated_ = true;
-            }
-        }
-
         get_parameter("integral_min", pid_calculator_.integral_min);
         get_parameter("integral_max", pid_calculator_.integral_max);
 
@@ -61,12 +53,6 @@ public:
             return;
         }
 
-        if (enable_gated_ && enable_.ready() && !*enable_) {
-            pid_calculator_.reset();
-            *control_ = 0.0;
-            return;
-        }
-
         auto err = *setpoint_ - *measurement_;
         *control_ = *feedforward_ + pid_calculator_.update(err);
     }
@@ -78,10 +64,8 @@ private:
 
     OutputInterface<double> control_;
     InputInterface<std::size_t> reset_count_;
-    InputInterface<bool> enable_;
     std::size_t last_reset_count_ = 0;
     bool reset_enabled_ = false;
-    bool enable_gated_ = false;
 };
 
 } // namespace rmcs_core::controller::pid

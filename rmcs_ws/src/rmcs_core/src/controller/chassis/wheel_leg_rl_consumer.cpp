@@ -1,18 +1,16 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <limits>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "controller/chassis/wheel_leg_control_state.hpp"
-
 namespace rmcs_core::controller::chassis {
 
-class WheelLegRlConsumer
+class WheelLegRlConsumer final
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
@@ -28,153 +26,93 @@ public:
         register_input("/chassis/control_state", state_);
         register_input("/chassis/reset_count", reset_count_);
 
-        policy_leg_default_position_ = parameter_array_or(
-            "policy_leg_default_position",
+        default_leg_position_ = parameter_array_or(
+            "default_leg_position",
             std::array<double, 4>{0.42, -0.13742282595254576, -0.42, 0.13741557625658019});
-        urdf_zero_leg_position_ =
-            parameter_array_or("urdf_zero_leg_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
-        calibrated_zero_leg_position_ = parameter_array_or(
-            "calibrated_zero_leg_position", std::array<double, 4>{-1.6, -2.93, 1.6, 2.93});
         safe_leg_position_ = parameter_array_or(
-            "safe_leg_position",
-            std::array<double, 4>{-0.08, -0.48742282595254576, 0.08, 0.48741557625658019});
+            "safe_leg_position", std::array<double, 4>{0.0, 0.0, 0.0, 0.0});
 
-        constexpr std::array<const char*, 4> kLegJoints{
+        constexpr std::array kLegNames{
             "left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"};
-        constexpr std::array<const char*, 2> kWheelJoints{"left_wheel", "right_wheel"};
-        for (std::size_t i = 0; i < kLegJoints.size(); ++i) {
-            register_input(
-                std::string{"/wheel_leg/"} + kLegJoints[i] + "/angle", leg_position_[i], false);
+        constexpr std::array kWheelNames{"left_wheel", "right_wheel"};
+        for (std::size_t i = 0; i < kLegNames.size(); ++i)
             register_output(
-                std::string{"/wheel_leg/"} + kLegJoints[i] + "/control_angle", leg_target_[i],
+                std::string{"/wheel_leg/"} + kLegNames[i] + "/control_angle", leg_target_[i],
                 safe_leg_position_[i]);
-        }
-        for (std::size_t i = 0; i < kWheelJoints.size(); ++i)
+        for (std::size_t i = 0; i < kWheelNames.size(); ++i)
             register_output(
-                std::string{"/wheel_leg/"} + kWheelJoints[i] + "/control_velocity",
+                std::string{"/wheel_leg/"} + kWheelNames[i] + "/control_velocity",
                 wheel_target_[i], 0.0);
 
-        action_scale_ = get_parameter_or<double>("action_scale", 0.25);
-        wheel_velocity_scale_ = get_parameter_or<double>("wheel_velocity_scale", 10.0);
+        action_scale_ = get_parameter_or("action_scale", 0.25);
+        wheel_velocity_scale_ = get_parameter_or("wheel_velocity_scale", 10.0);
     }
 
     void update() override {
         const bool actions_ready = std::all_of(
             action_.begin(), action_.end(), [](const auto& input) { return input.ready(); });
-        const bool leg_positions_ready =
-            std::all_of(leg_position_.begin(), leg_position_.end(), [](const auto& input) {
-                return input.ready() && std::isfinite(*input);
-            });
-        const auto state = static_cast<WheelLegControlState>(*state_);
+        const bool policy_valid = actions_ready && valid_.ready() && healthy_.ready()
+                               && *valid_ > 0.5 && *healthy_ > 0.5 && *state_ == 3;
         if (*reset_count_ != last_reset_count_) {
             last_reset_count_ = *reset_count_;
-            hold_target_valid_ = false;
-            publish_fixed_targets_(safe_leg_position_);
+            publish_safe_targets_();
             return;
         }
-        if (state == WheelLegControlState::kInit || state == WheelLegControlState::kDisabled
-            || !leg_positions_ready) {
-            hold_target_valid_ = false;
-            publish_fixed_targets_(safe_leg_position_);
-            return;
-        }
-        if (state == WheelLegControlState::kUrdfZero) {
-            hold_target_valid_ = false;
-            publish_fixed_targets_(urdf_zero_leg_position_);
-            return;
-        }
-        if (state == WheelLegControlState::kCalibratedZero) {
-            hold_target_valid_ = false;
-            publish_fixed_targets_(calibrated_zero_leg_position_);
-            return;
-        }
-        const bool policy_valid = state == WheelLegControlState::kRl && actions_ready
-                               && valid_.ready() && healthy_.ready() && *valid_ > 0.5
-                               && *healthy_ > 0.5;
         if (!policy_valid) {
-            publish_hold_targets_();
+            publish_safe_targets_();
             return;
         }
-        hold_target_valid_ = false;
         for (std::size_t i = 0; i < leg_target_.size(); ++i) {
             const double value = *action_[i];
-            if (!std::isfinite(value)) {
-                *leg_target_[i] = policy_leg_default_position_[i];
-                continue;
-            }
-            const double desired =
-                policy_leg_default_position_[i] + action_scale_ * std::clamp(value, -3.0, 3.0);
-            *leg_target_[i] = desired;
+            *leg_target_[i] = std::isfinite(value)
+                                  ? default_leg_position_[i]
+                                        + action_scale_ * std::clamp(value, -3.0, 3.0)
+                                  : default_leg_position_[i];
         }
         for (std::size_t i = 0; i < wheel_target_.size(); ++i) {
-            const double value = *action_[leg_target_.size() + i];
-            *wheel_target_[i] =
-                std::isfinite(value) ? wheel_velocity_scale_ * std::clamp(value, -3.0, 3.0) : 0.0;
+            const double value = *action_[4 + i];
+            *wheel_target_[i] = std::isfinite(value)
+                                    ? wheel_velocity_scale_ * std::clamp(value, -3.0, 3.0)
+                                    : 0.0;
         }
     }
 
 private:
-    static constexpr std::array<const char*, 6> kActionNames{
+    static constexpr std::array kActionNames{
         "left_hip", "left_knee", "right_hip", "right_knee", "left_wheel", "right_wheel"};
 
-    std::array<double, 4>
-        parameter_array_or(const char* name, const std::array<double, 4>& fallback) const {
+    std::array<double, 4> parameter_array_or(
+        const char* name, const std::array<double, 4>& fallback) const {
         if (!has_parameter(name))
             return fallback;
         const auto values = get_parameter(name).as_double_array();
         if (values.size() != fallback.size())
-            throw std::invalid_argument(
-                std::string{"WheelLegRlConsumer: parameter '"} + name
-                + "' must contain exactly 4 values");
+            throw std::invalid_argument(std::string{"WheelLegRlConsumer: invalid parameter "} + name);
         std::array<double, 4> result{};
         for (std::size_t i = 0; i < result.size(); ++i) {
             if (!std::isfinite(values[i]))
-                throw std::invalid_argument(
-                    std::string{"WheelLegRlConsumer: parameter '"} + name
-                    + "' contains a non-finite value");
+                throw std::invalid_argument(std::string{"WheelLegRlConsumer: non-finite parameter "} + name);
             result[i] = values[i];
         }
         return result;
     }
 
-    void publish_hold_targets_() {
-        if (!hold_target_valid_) {
-            for (std::size_t i = 0; i < hold_leg_position_.size(); ++i)
-                hold_leg_position_[i] = *leg_position_[i];
-            hold_target_valid_ = true;
-        }
-        publish_fixed_targets_(hold_leg_position_);
-    }
-
-    void publish_fixed_targets_(const std::array<double, 4>& desired) {
+    void publish_safe_targets_() {
         for (std::size_t i = 0; i < leg_target_.size(); ++i)
-            *leg_target_[i] = desired[i];
-        publish_wheel_zero_();
-    }
-
-    void publish_wheel_zero_() {
+            *leg_target_[i] = safe_leg_position_[i];
         for (auto& target : wheel_target_)
             *target = 0.0;
     }
 
     std::array<InputInterface<double>, 6> action_;
-    std::array<InputInterface<double>, 4> leg_position_;
     InputInterface<double> valid_;
     InputInterface<double> healthy_;
     InputInterface<int> state_;
     InputInterface<std::size_t> reset_count_;
     std::array<OutputInterface<double>, 4> leg_target_;
     std::array<OutputInterface<double>, 2> wheel_target_;
-    std::array<double, 4> policy_leg_default_position_{
-        0.42, -0.13742282595254576, -0.42, 0.13741557625658019};
-    std::array<double, 4> urdf_zero_leg_position_{0.0, 0.0, 0.0, 0.0};
-    std::array<double, 4> calibrated_zero_leg_position_{
-        0.42, -0.13742282595254576, -0.42, 0.13741557625658019};
-    std::array<double, 4> safe_leg_position_{
-        -0.08, -0.48742282595254576, 0.08, 0.48741557625658019};
-    std::array<double, 4> hold_leg_position_{};
-    bool hold_target_valid_ = false;
-
+    std::array<double, 4> default_leg_position_{};
+    std::array<double, 4> safe_leg_position_{};
     double action_scale_ = 0.25;
     double wheel_velocity_scale_ = 10.0;
     std::size_t last_reset_count_ = 0;
@@ -184,4 +122,5 @@ private:
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rmcs_core::controller::chassis::WheelLegRlConsumer, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(
+    rmcs_core::controller::chassis::WheelLegRlConsumer, rmcs_executor::Component)
