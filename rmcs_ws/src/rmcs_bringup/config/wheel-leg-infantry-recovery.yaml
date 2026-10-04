@@ -156,9 +156,19 @@ rl_controller:
     v6_height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
     recovery_enabled: true
     recovery_profile_ready: true
-    # At the native completion condition, switch all six axes to actor effort
-    # in that same 200 Hz control tick. Keep the post-takeover motion hold.
+    # At the measured capture condition, switch all six axes to actor effort
+    # in that same 200 Hz control tick, accepting motion commands immediately.
     v6_recovery_blend_seconds: 0.0
+    v6_recovery_release_motion_on_takeover: true
+    # Reuse the ordinary V6 leg/velocity capture envelope below, with separate
+    # recovery tilt/height bounds while the body is still rising.
+    v6_recovery_dynamic_takeover: true
+    # Capture on measured leg pose while the body is still rising. Wheel-probe
+    # support is required; the ordinary RL fall guard applies after takeover.
+    v6_recovery_capture_max_tilt_rad: 0.6981317007977318
+    v6_recovery_capture_height_min: 0.20
+    # Raise the slow folding/planting ramp; retain native push/capture speeds.
+    v6_recovery_fold_plant_speed_rad_s: 2.0
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
     recovery_motor_age_s: 0.02
     recovery_imu_age_s: 0.02
@@ -236,11 +246,11 @@ rl_controller:
     # static balance under PREPARE PD. Allow bounded gas-spring load deflection;
     # gyro/axis speed, strict sample freshness and measured hinge limits still
     # gate entry. These engineering capture bounds do not qualify hardware.
-    # prepare_max_tilt_rad remains the capture tilt bound (0.2 rad).
-    v6_capture_max_leg_error_rad: 0.15
+    # Ordinary entry uses prepare_max_tilt_rad; recovery has its own tilt bound.
+    v6_capture_max_leg_error_rad: 0.25
     v6_capture_max_angular_velocity: 1.0
-    v6_capture_max_leg_velocity: 2.0
-    v6_capture_max_wheel_velocity: 5.0
+    v6_capture_max_leg_velocity: 4.0
+    v6_capture_max_wheel_velocity: 10.0
     # RL inference starts at capture regardless of this effort-only window.
     # 0 selects direct takeover; optional six-axis smoothstep is bounded to 0.3 s.
     v6_takeover_blend_seconds: 0.0
@@ -252,9 +262,9 @@ wheel_leg_chassis_controller:
     yaw_rate_max: 1.0
     spin_yaw_rate: 1.0
     deadzone: 0.08
-    # Keep height fixed during the first recovery/balance commissioning run.
-    command_height_min: 0.305
-    command_height_max: 0.305
+    # Match the V6 height command domain; retain the nominal startup height.
+    command_height_min: 0.23
+    command_height_max: 0.43
     default_command_height: 0.305
     height_step: 0.01
     angular_z_invert: false

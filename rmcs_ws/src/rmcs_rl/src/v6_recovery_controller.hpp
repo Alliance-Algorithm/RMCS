@@ -34,6 +34,11 @@ struct V6RecoveryConfig {
     double dt = 0.005;
     // Frozen simulation uses 200 ms; zero selects direct deployment takeover.
     double blend_seconds = 0.2;
+    // End any script at the caller's bounded upright capture before stabilization.
+    bool dynamic_takeover = false;
+    double dynamic_capture_height_min = 0.27;
+    // Deployment may accept driver commands as soon as the actor owns all axes.
+    bool release_motion_on_takeover = false;
     double stable_seconds = 1.0;
     double max_script_seconds = 8.0;
     double prepare_speed_rad_s = 1.0;
@@ -67,7 +72,11 @@ struct V6RecoveryFeedback {
     double estimated_height = 0.0;
     // Native plausible conditional support; never true simulator contacts.
     bool support = false;
+    // Wheel-probe evidence does not require the static standing height.
+    bool support_confirmed = false;
     bool body_clear = false;
+    // Caller validates the shared V6 upright pose/velocity envelope and sensing.
+    bool rl_capture_ready = false;
     Eigen::Vector2d wheel_probe_torque = Eigen::Vector2d::Zero();
 };
 
