@@ -1,7 +1,0 @@
-{
-  "status": "completed_and_audited",
-  "bag_sha256": "bbb60a663634648cc2a34b77c58da5727aaa2e5ce85aad933c56ab0d6a7de8bc",
-  "decision": "kp_0.6_retained_as_identification_baseline_not_final_precision_release",
-  "comparison": "../comparison_02_vs_06/assessment.md",
-  "training_release": false
-}

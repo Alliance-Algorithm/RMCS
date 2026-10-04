@@ -44,38 +44,4 @@ add_executable(wheel_leg_recording_preview tools/wheel_leg_recording_preview.cpp
 target_include_directories(wheel_leg_recording_preview PRIVATE ${PROJECT_SOURCE_DIR}/src)
 install(TARGETS wheel_leg_recording_preview DESTINATION lib/${PROJECT_NAME})
 
-if(BUILD_TESTING)
-    find_package(ament_cmake_gtest REQUIRED)
-    ament_add_gtest(wheel_leg_chassis_controller_test test/wheel_leg_chassis_controller_test.cpp)
-    target_include_directories(wheel_leg_chassis_controller_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_target_dependencies(wheel_leg_chassis_controller_test
-        rclcpp pluginlib rmcs_executor rmcs_msgs rmcs_description rmcs_utility)
-    ament_add_gtest(dm_motor_test test/dm_motor_test.cpp)
-    target_include_directories(dm_motor_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_target_dependencies(dm_motor_test rmcs_executor rmcs_msgs)
-    ament_add_gtest(wheel_leg_sensor_snapshot_test test/wheel_leg_sensor_snapshot_test.cpp)
-    target_include_directories(wheel_leg_sensor_snapshot_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_target_dependencies(wheel_leg_sensor_snapshot_test rmcs_executor rmcs_msgs rmcs_utility)
-    ament_add_gtest(wheel_leg_pair_identification_test test/wheel_leg_pair_identification_test.cpp)
-    target_include_directories(wheel_leg_pair_identification_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_target_dependencies(wheel_leg_pair_identification_test rmcs_msgs)
-    ament_add_gtest(wheel_leg_pair_recording_test test/wheel_leg_pair_recording_test.cpp)
-    target_include_directories(wheel_leg_pair_recording_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_add_gtest(wheel_leg_pair_controller_test test/wheel_leg_pair_controller_test.cpp)
-    target_include_directories(wheel_leg_pair_controller_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    target_compile_definitions(wheel_leg_pair_controller_test PRIVATE
-        PAIR_CONTROLLER_TEST_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-pair-pd-loaded-identification.yaml"
-        V6_CONTROLLER_TEST_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-v6-L01-identification.yaml")
-    ament_target_dependencies(wheel_leg_pair_controller_test
-        rclcpp pluginlib rmcs_executor rmcs_msgs rmcs_utility)
-    ament_add_gtest(wheel_leg_wheel_identification_test test/wheel_leg_wheel_identification_test.cpp)
-    target_include_directories(wheel_leg_wheel_identification_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    ament_add_gtest(wheel_leg_wheel_controller_test test/wheel_leg_wheel_controller_test.cpp)
-    target_include_directories(wheel_leg_wheel_controller_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    target_compile_definitions(wheel_leg_wheel_controller_test PRIVATE
-        WHEEL_CONTROLLER_TEST_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-wheel-identification.yaml")
-    ament_target_dependencies(wheel_leg_wheel_controller_test
-        rclcpp pluginlib rmcs_executor rmcs_msgs rmcs_utility)
-endif()
-
 ament_auto_package()

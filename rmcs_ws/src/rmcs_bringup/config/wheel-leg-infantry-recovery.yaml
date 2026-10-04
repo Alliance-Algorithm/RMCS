@@ -192,7 +192,7 @@ rl_controller:
     # Reuse the confirmed reference signs/offsets and BMI088 mounting. The motor
     # zero hold has been exercised; full multipoint geometry metrology is pending.
     calibration_ready: true
-    # Reference: frozen V6 deployment/v6_pair_from_dev_rmcs_rl.json.
+    # Calibration: .script/identification/calibration/v6_pair_from_dev_rmcs_rl.json.
     # Driver API already applies reversed with bias=0. V6 axes invert the V5
     # model axes, hence q_v6 = -q_api + offset. Never reverse the raw angle twice.
     leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
