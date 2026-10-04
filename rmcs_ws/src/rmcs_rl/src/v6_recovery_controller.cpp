@@ -26,7 +26,7 @@ std::string_view v6_recovery_phase_name(V6RecoveryPhase phase) {
 
 V6RecoveryController::V6RecoveryController(const V6RecoveryConfig& config) : config_(config) {
     const std::array values{
-        config.dt, config.stable_seconds, config.max_script_seconds,
+        config.dt, config.dynamic_capture_height_min, config.stable_seconds, config.max_script_seconds,
         config.prepare_speed_rad_s, config.push_speed_rad_s, config.orbit_speed_rad_s,
         config.capture_speed_rad_s, config.side_speed_rad_s, config.side_angle_rad,
         config.plant_angle_rad, config.orbit_turns, config.handover_height_min,
@@ -37,6 +37,9 @@ V6RecoveryController::V6RecoveryController(const V6RecoveryConfig& config) : con
     if (!std::all_of(values.begin(), values.end(), positive_finite)
         || config.dt != 0.005 || !std::isfinite(config.blend_seconds)
         || (config.blend_seconds != 0.0 && config.blend_seconds != 0.2)
+        || (config.dynamic_takeover && config.blend_seconds != 0.0)
+        || config.dynamic_capture_height_min < 0.20
+        || config.dynamic_capture_height_min > config.handover_height_min
         || config.stable_seconds < 1.0 || config.max_script_seconds > 8.0
         || config.max_reroutes < 0 || config.max_reroutes > 1
         || config.handover_height_min >= config.handover_height_max
@@ -112,6 +115,8 @@ Eigen::Vector4d V6RecoveryController::paired_delta(const Eigen::Vector4d& goal,
 void V6RecoveryController::enter_(V6RecoveryPhase phase) {
     phase_ = phase;
     phase_ticks_ = 0;
+    if (phase == V6RecoveryPhase::kRl && config_.release_motion_on_takeover)
+        motion_released_ = true;
 }
 
 void V6RecoveryController::fail_(int code) {
@@ -320,7 +325,14 @@ const V6RecoveryCommand& V6RecoveryController::update(const V6RecoveryFeedback& 
         && dq.head<4>().cwiseAbs().maxCoeff() < 2.0f;
     const bool ready = preparing && stable && remaining < 0.02f && measured_error < 0.12f;
     ready_ticks_ = ready ? ready_ticks_ + 1 : 0;
-    if (preparing && ready_ticks_ >= ticks_(0.1))
+    // A valid measured capture ends the current script, even before PREPARE.
+    // Use the current phase so an earlier failure cannot be cleared here.
+    const bool captured_for_rl = enabled_ && phase_ < V6RecoveryPhase::kBlend
+        && config_.dynamic_takeover
+        && feedback.rl_capture_ready && feedback.support && feedback.support_confirmed
+        && height > static_cast<float>(config_.dynamic_capture_height_min)
+        && height < static_cast<float>(config_.handover_height_max);
+    if (captured_for_rl || (preparing && ready_ticks_ >= ticks_(0.1)))
         enter_(config_.blend_seconds == 0.0 ? V6RecoveryPhase::kRl : V6RecoveryPhase::kBlend);
     if (blending && phase_ticks_ >= ticks_(config_.blend_seconds)) enter_(V6RecoveryPhase::kRl);
     const bool holding_rl = enabled_ && phase == V6RecoveryPhase::kRl && !motion_released_;
