@@ -2,40 +2,90 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <numbers>
+#include <ranges>
+#include <stdexcept>
+#include <string>
 
 #include <eigen3/Eigen/Dense>
-#include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/rclcpp/node_mixin.hpp>
 
-#include "controller/chassis/wheel_leg_control_state.hpp"
+#include "wheel_leg_arm_sequence.hpp"
 
 namespace rmcs_core::controller::chassis {
 
-// Chassis command source of the wheel-leg. It decodes the remote control into the chassis command
-// interfaces and selects the fixed-pose or RL mode. It does not read joint feedback, solve the
-// closed chain, or run the policy; those belong to hardware, WheelLegRlConsumer, and rmcs_rl.
-class WheelLegChassisController
+// Chassis command source of the wheel-leg. It owns the arm request upstream of the RL bridge and
+// consumer, so enabling inference does not depend on consuming its actions.
+class WheelLegChassisController final
     : public rmcs_executor::Component
-    , public rclcpp::Node {
+    , public rclcpp::Node
+    , public rmcs_utility::NodeMixin {
 public:
     explicit WheelLegChassisController()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+        : Node{get_component_name(), node::options()} {
+        register_output("/wheel_leg/enable_request", enable_request_, false);
+        register_interfaces_();
+        load_parameters_();
+        height_ = default_command_height_;
+        stop_controls_(0);
+    }
+
+    void update() override {
+        using rmcs_msgs::Switch;
+
+        // RemoteControl may retain the last DR16 switch values after a receive
+        // gap. Invalidate the arm sequence independently of those cached values.
+        const auto switch_right = *remote_fresh_ ? *switch_right_ : Switch::UNKNOWN;
+        const auto switch_left = *remote_fresh_ ? *switch_left_ : Switch::UNKNOWN;
+        const auto keyboard = *keyboard_;
+
+        const bool both_down = switch_left == Switch::DOWN && switch_right == Switch::DOWN;
+        const bool any_unknown = switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
+
+        // Power-on hold: stay at kInit(0) until the operator first moves a switch.
+        if (!switch_activity_seen_
+            && (switch_left != last_switch_left_ || switch_right != last_switch_right_))
+            switch_activity_seen_ = true;
+
+        *jump_request_ = false;
+        *jump_apex_delta_ = 0.0;
+
+        if (!switch_activity_seen_) {
+            stop_controls_(0);
+        } else if (any_unknown || both_down) {
+            reset_all_controls_(switch_left, switch_right);
+        } else {
+            reset_active_ = false;
+            update_state_command_(switch_left, switch_right);
+            if (arm_sequence_.armed()) {
+                update_mode_(switch_left, switch_right, keyboard);
+                update_remote_control_();
+            } else {
+                *mode_ = rmcs_msgs::ChassisMode::AUTO;
+                stop_controls_(1);
+            }
+        }
+
+        *enable_request_ = *chassis_control_state_ == 3;
+        last_switch_left_ = switch_left;
+        last_switch_right_ = switch_right;
+        last_keyboard_ = keyboard;
+    }
+
+private:
+    void register_interfaces_() {
         register_input("/remote/joystick/right", joystick_right_);
+        register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
+        register_input("/wheel_leg/dr16_fresh", remote_fresh_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/remote/keyboard", keyboard_);
-
-        register_input("/wheel_leg/imu/quaternion", chassis_imu_quaternion_, false);
-        register_input("/predefined/update_rate", update_rate_, false);
 
         register_output(
             "/chassis/control_velocity", chassis_control_velocity_,
@@ -43,334 +93,196 @@ public:
         register_output("/chassis/control_height", chassis_control_height_, 0.0);
         register_output("/chassis/control_state", chassis_control_state_, 0);
         register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
-        register_output("/wheel_leg/rl/enable", rl_enable_, false);
-        register_output("/wheel_leg/joint_enable", joint_enable_, false);
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
-        register_output("/chassis/task_mode/stand", task_mode_[0], 1.0);
-        register_output("/chassis/task_mode/move", task_mode_[1], 0.0);
-        register_output("/chassis/task_mode/up", task_mode_[2], 0.0);
-        register_output("/chassis/task_mode/down", task_mode_[3], 0.0);
-        register_output("/chassis/task_mode/jump", task_mode_[4], 0.0);
+        register_output("/chassis/jump_request", jump_request_, false);
+        register_output("/chassis/jump_apex_delta", jump_apex_delta_, 0.0);
+    }
 
-        vx_max_ = get_parameter_or<double>("vx_max", 2.5);
-        yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 3.0);
+    void load_parameters_() {
+        vx_max_ = get_parameter_or<double>("vx_max", 0.5);
+        vy_max_ = get_parameter_or<double>("vy_max", 0.0);
+        yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 1.0);
+        spin_yaw_rate_ = get_parameter_or<double>("spin_yaw_rate", 1.0);
         deadzone_ = get_parameter_or<double>("deadzone", 0.08);
 
-        command_height_min_ = get_parameter_or<double>("command_height_min", 0.20);
-        command_height_max_ = get_parameter_or<double>("command_height_max", 0.42);
-        default_command_height_ = get_parameter_or<double>("default_command_height", 0.22);
-        keyboard_height_step_ = get_parameter_or<double>("keyboard_height_step", 0.01);
-        switch_height_rate_ = get_parameter_or<double>("switch_height_rate", 0.05);
+        command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
+        command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
+        default_command_height_ = get_parameter_or<double>("default_command_height", 0.305);
+        height_step_ = get_parameter_or<double>("height_step", 0.01);
 
         angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
         height_invert_ = get_parameter_or<bool>("height_invert", false);
-        heading_kp_ = get_parameter_or<double>("heading_kp", 3.0);
+        jump_enabled_ = get_parameter_or<bool>("jump_enabled", false);
 
-        stop_controls_(WheelLegControlState::kInit);
+        const std::array values{
+            vx_max_,
+            vy_max_,
+            yaw_rate_max_,
+            spin_yaw_rate_,
+            deadzone_,
+            command_height_min_,
+            command_height_max_,
+            default_command_height_,
+            height_step_};
+        if (!std::ranges::all_of(values, [](double value) { return std::isfinite(value); })
+            || vx_max_ <= 0.0 || vy_max_ < 0.0 || yaw_rate_max_ <= 0.0 || spin_yaw_rate_ <= 0.0
+            || spin_yaw_rate_ > yaw_rate_max_ || deadzone_ < 0.0 || deadzone_ >= 1.0
+            || command_height_min_ <= 0.0 || command_height_min_ > command_height_max_
+            || default_command_height_ < command_height_min_
+            || default_command_height_ > command_height_max_ || height_step_ < 0.0)
+            throw std::invalid_argument("Invalid wheel-leg chassis command limits");
     }
 
-    void before_updating() override {
-        if (!chassis_imu_quaternion_.ready()) {
-            chassis_imu_quaternion_.make_and_bind_directly(Eigen::Quaterniond::Identity());
-            RCLCPP_WARN(
-                get_logger(),
-                "Failed to fetch \"/wheel_leg/imu/quaternion\". Set to identity; direction "
-                "alignment will be disabled.");
+    void update_mode_(
+        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
+        const rmcs_msgs::Keyboard& keyboard) {
+        using rmcs_msgs::Switch;
+        const bool spin_switch = switch_left == Switch::MIDDLE && switch_right == Switch::DOWN;
+        const bool spin_switch_edge =
+            spin_switch
+            && (last_switch_left_ != Switch::MIDDLE || last_switch_right_ != Switch::DOWN);
+        if (spin_switch_edge || (!last_keyboard_.c && keyboard.c)) {
+            if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST) {
+                *mode_ = rmcs_msgs::ChassisMode::AUTO;
+            } else {
+                *mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
+                spinning_forward_ = !spinning_forward_;
+            }
         }
     }
 
-    void update() override {
-        const auto switch_right = *switch_right_;
-        const auto switch_left = *switch_left_;
-        const auto keyboard = *keyboard_;
-        const auto selected_state = wheel_leg_control_state(switch_left, switch_right);
-
-        // Power-on hold: stay at kInit(0) until the operator first moves a switch.
-        if (!switch_activity_seen_
-            && (switch_left != last_switch_left_ || switch_right != last_switch_right_))
-            switch_activity_seen_ = true;
-
-        if (switch_left != last_switch_left_ || switch_right != last_switch_right_)
-            RCLCPP_INFO(
-                get_logger(), "[wheel_leg mode] switches left=%d right=%d state=%d enable=%d",
-                static_cast<int>(switch_left), static_cast<int>(switch_right),
-                static_cast<int>(selected_state),
-                static_cast<int>(switch_activity_seen_
-                                 && selected_state != WheelLegControlState::kDisabled));
-
-        *joint_enable_ =
-            switch_activity_seen_ && selected_state != WheelLegControlState::kDisabled;
-
-        do {
-            if (!switch_activity_seen_) {
-                stop_controls_(WheelLegControlState::kInit);
-                break;
-            }
-
-            if (selected_state != WheelLegControlState::kDisabled)
-                reset_active_ = false;
-
-            if (selected_state == WheelLegControlState::kDisabled) {
-                reset_all_controls_();
-                break;
-            }
-
-            auto mode = *mode_;
-            if (selected_state == WheelLegControlState::kRl) {
-                if (!last_keyboard_.c && keyboard.c) {
-                    if (mode != rmcs_msgs::ChassisMode::SPIN_FAST) {
-                        mode = rmcs_msgs::ChassisMode::SPIN_FAST;
-                        spinning_forward_ = !spinning_forward_;
-                    } else {
-                        mode = rmcs_msgs::ChassisMode::AUTO;
-                    }
-                } else if (!last_keyboard_.x && keyboard.x) {
-                    mode = mode != rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                             ? rmcs_msgs::ChassisMode::LAUNCH_RAMP
-                             : rmcs_msgs::ChassisMode::AUTO;
-                } else if (!last_keyboard_.z && keyboard.z) {
-                    mode = mode != rmcs_msgs::ChassisMode::STEP_DOWN
-                             ? rmcs_msgs::ChassisMode::STEP_DOWN
-                             : rmcs_msgs::ChassisMode::AUTO;
-                }
-
-                *mode_ = mode;
-            }
-
-            update_remote_control_(selected_state);
-        } while (false);
-
-        last_switch_left_ = switch_left;
-        last_switch_right_ = switch_right;
-        last_keyboard_ = keyboard;
-    }
-
-private:
-    struct HeadingControl {
-        bool valid = false;
-        bool reverse = false;
-        double error = 0.0;
-    };
-
-    void reset_all_controls_() {
+    void reset_all_controls_(rmcs_msgs::Switch left, rmcs_msgs::Switch right) {
         if (!reset_active_) {
             *reset_count_output_ += 1;
             reset_active_ = true;
-            spinning_forward_ = true;
-            // Capture the current chassis facing as the "gimbal forward" for this session.
-            reference_yaw_ = chassis_yaw_();
         }
-        stop_controls_(WheelLegControlState::kDisabled);
+        arm_sequence_.update(left, right, true);
+        *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        stop_controls_(1);
     }
 
-    void stop_controls_(WheelLegControlState state) {
-        hold_chassis_commands_();
-        *chassis_control_state_ = static_cast<int>(state);
-        *rl_enable_ = false;
-        *joint_enable_ = false;
-    }
-
-    void hold_chassis_commands_() {
+    void stop_controls_(int state) {
         chassis_control_velocity_->vector << 0.0, 0.0, 0.0;
         *chassis_control_height_ = default_command_height_;
-        *mode_ = rmcs_msgs::ChassisMode::AUTO;
-        *task_mode_[0] = 1.0;
-        for (std::size_t i = 1; i < task_mode_.size(); ++i)
-            *task_mode_[i] = 0.0;
+        *chassis_control_state_ = state;
+        *jump_request_ = false;
+        *jump_apex_delta_ = 0.0;
+        height_ = default_command_height_;
         height_offset_ = 0.0;
-        reverse_aligned_ = false;
     }
 
-    void update_remote_control_(WheelLegControlState state) {
-        *chassis_control_state_ = static_cast<int>(state);
-        *rl_enable_ = state == WheelLegControlState::kRl;
-        if (state != WheelLegControlState::kRl) {
-            hold_chassis_commands_();
-            return;
-        }
+    void update_remote_control_() {
         update_velocity_control_();
         update_height_control_();
+        // Hold the request while V is held; RL owns the elapsed time and release transition.
+        *jump_request_ = jump_enabled_ && keyboard_->v;
+        *jump_apex_delta_ = *jump_request_ ? (keyboard_->shift ? 0.10 : 0.06) : 0.0;
+    }
+
+    // Require double DOWN before arming; a single MIDDLE cannot start PREPARE.
+    void update_state_command_(rmcs_msgs::Switch left, rmcs_msgs::Switch right) {
+        arm_sequence_.update(left, right, true);
+        *chassis_control_state_ = arm_sequence_.armed() ? 3 : 1;
     }
 
     void update_velocity_control_() {
+        // Pure SPIN has no translation reference, including keyboard and right-stick input.
+        if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST) {
+            const double yaw_rate = spinning_forward_ ? spin_yaw_rate_ : -spin_yaw_rate_;
+            chassis_control_velocity_->vector << 0.0, 0.0,
+                (angular_z_invert_ ? -yaw_rate : yaw_rate);
+            return;
+        }
         const Eigen::Vector2d command = read_translational_command_();
-        const auto heading = compute_heading_control_(command);
-        const double vx = update_translational_velocity_control_(command, heading);
-        const double yaw_rate = update_angular_velocity_control_(heading);
-
-        chassis_control_velocity_->vector.x() = std::clamp(vx, -vx_max_, vx_max_);
-        chassis_control_velocity_->vector.y() = 0.0;
-        chassis_control_velocity_->vector.z() = std::clamp(yaw_rate, -yaw_rate_max_, yaw_rate_max_);
-        const bool moving = command.norm() > 1e-6;
-        *task_mode_[0] = moving ? 0.0 : 1.0;
-        *task_mode_[1] = moving ? 1.0 : 0.0;
-        *task_mode_[2] = 0.0;
-        *task_mode_[3] = 0.0;
-        *task_mode_[4] = 0.0;
+        const double yaw_rate = read_channel_(joystick_left_->y()) * yaw_rate_max_;
+        chassis_control_velocity_->vector << command.x() * vx_max_, command.y() * vy_max_,
+            (angular_z_invert_ ? -yaw_rate : yaw_rate);
     }
 
     Eigen::Vector2d read_translational_command_() const {
-        // The remote convention is x = vertical stick (+forward) and y = horizontal stick
-        // (+left); the command frame is x = forward and y = right.
-        Eigen::Vector2d command{joystick_right_->x(), -joystick_right_->y()};
-        if (std::abs(command.x()) < deadzone_)
-            command.x() = 0.0;
-        if (std::abs(command.y()) < deadzone_)
-            command.y() = 0.0;
-
+        const auto keyboard = *keyboard_;
+        Eigen::Vector2d command{
+            read_channel_(joystick_right_->x()) + keyboard.w - keyboard.s,
+            read_channel_(joystick_right_->y()) + keyboard.a - keyboard.d};
         const double magnitude = command.norm();
         if (magnitude > 1.0)
             command /= magnitude;
         return command;
     }
 
-    // Aligns the body with the commanded direction, picking the shorter turn between driving
-    // forward and reversing so that a backward stick commands a straight backup instead of a
-    // turn-around. The margin around +/-90 degrees keeps the choice from chattering.
-    HeadingControl compute_heading_control_(const Eigen::Vector2d& command) {
-        HeadingControl heading;
-        if (command.norm() <= 1e-6)
-            return heading;
-        heading.valid = true;
-
-        // Forward is +x and right is -y in the captured frame, so a rightward stick yields a
-        // negative desired heading.
-        const double desired_heading = std::atan2(-command.y(), command.x());
-        double error = normalize_angle_(desired_heading - (chassis_yaw_() - reference_yaw_));
-
-        constexpr double reverse_margin = 0.1;
-        const double quarter_turn = std::numbers::pi / 2.0;
-        if (!reverse_aligned_ && std::abs(error) > quarter_turn + reverse_margin)
-            reverse_aligned_ = true;
-        else if (reverse_aligned_ && std::abs(error) <= quarter_turn)
-            reverse_aligned_ = false;
-
-        if (reverse_aligned_) {
-            error = normalize_angle_(error - std::copysign(std::numbers::pi, error));
-            heading.reverse = true;
-        }
-        heading.error = error;
-        return heading;
-    }
-
-    double update_translational_velocity_control_(
-        const Eigen::Vector2d& command, const HeadingControl& heading) const {
-        if (!heading.valid)
+    double read_channel_(double channel) const {
+        if (!std::isfinite(channel) || std::abs(channel) < deadzone_)
             return 0.0;
-
-        // A two-wheeled base cannot strafe: project the requested velocity onto the driving
-        // direction selected by the heading controller. Reversing keeps a backward stick from
-        // turning the body around.
-        const double drive_sign = heading.reverse ? -1.0 : 1.0;
-        return drive_sign * command.norm() * vx_max_ * std::max(0.0, std::cos(heading.error));
-    }
-
-    double update_angular_velocity_control_(const HeadingControl& heading) {
-        using rmcs_msgs::ChassisMode;
-
-        switch (*mode_) {
-        case ChassisMode::SPIN_SLOW:
-            return 0.3 * (spinning_forward_ ? yaw_rate_max_ : -yaw_rate_max_);
-        case ChassisMode::SPIN_FAST:
-            return 0.6 * (spinning_forward_ ? yaw_rate_max_ : -yaw_rate_max_);
-        default: break;
-        }
-
-        if (!heading.valid)
-            return 0.0;
-
-        const double yaw_rate = heading_kp_ * heading.error;
-        return angular_z_invert_ ? -yaw_rate : yaw_rate;
-    }
-
-    // Chassis yaw derived from the body x axis projected onto the horizontal plane.
-    double chassis_yaw_() const {
-        if (!chassis_imu_quaternion_.ready())
-            return 0.0;
-        const Eigen::Vector3d forward = *chassis_imu_quaternion_ * Eigen::Vector3d::UnitX();
-        return std::atan2(forward.y(), forward.x());
-    }
-
-    static double normalize_angle_(double angle) {
-        angle = std::fmod(angle, 2.0 * std::numbers::pi);
-        if (angle > std::numbers::pi)
-            angle -= 2.0 * std::numbers::pi;
-        else if (angle < -std::numbers::pi)
-            angle += 2.0 * std::numbers::pi;
-        return angle;
+        return std::clamp(channel, -1.0, 1.0);
     }
 
     void update_height_control_() {
-        const auto& keyboard = *keyboard_;
-        constexpr double knob_deadband = 0.1;
-
-        // The knob is position-holding, so a continuous rate keeps a held knob moving the height
-        // at a bounded speed instead of saturating it within a few control cycles.
-        double knob = *rotary_knob_;
-        if (std::abs(knob) < knob_deadband)
-            knob = 0.0;
+        double rotary_knob = read_channel_(*rotary_knob_);
+        // The rotary knob spans the asymmetric height domain around the nominal height.
         if (height_invert_)
-            knob = -knob;
-        height_offset_ += switch_height_rate_ * knob * update_dt();
-
-        if (!last_keyboard_.q && keyboard.q)
-            height_offset_ -= keyboard_height_step_;
-        if (!last_keyboard_.e && keyboard.e)
-            height_offset_ += keyboard_height_step_;
-
+            rotary_knob = -rotary_knob;
+        if (rotary_knob > 0.0)
+            rotary_knob = (rotary_knob - deadzone_) / (1.0 - deadzone_);
+        else if (rotary_knob < 0.0)
+            rotary_knob = (rotary_knob + deadzone_) / (1.0 - deadzone_);
+        const double height_baseline =
+            default_command_height_
+            + rotary_knob
+                  * (rotary_knob >= 0.0 ? command_height_max_ - default_command_height_
+                                        : default_command_height_ - command_height_min_);
+        const auto& keyboard = *keyboard_;
+        if (!last_keyboard_.r && keyboard.r)
+            height_offset_ += height_step_;
+        if (!last_keyboard_.f && keyboard.f)
+            height_offset_ -= height_step_;
         height_offset_ = std::clamp(
-            height_offset_, command_height_min_ - default_command_height_,
-            command_height_max_ - default_command_height_);
-        *chassis_control_height_ = default_command_height_ + height_offset_;
-    }
-
-    double update_dt() const {
-        if (update_rate_.ready() && std::isfinite(*update_rate_) && *update_rate_ > 1e-6)
-            return 1.0 / *update_rate_;
-        return default_dt_;
+            height_offset_, command_height_min_ - height_baseline,
+            command_height_max_ - height_baseline);
+        height_ = height_baseline + height_offset_;
+        height_ = std::clamp(height_, command_height_min_, command_height_max_);
+        *chassis_control_height_ = height_;
     }
 
     InputInterface<Eigen::Vector2d> joystick_right_;
+    InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<bool> remote_fresh_;
     InputInterface<double> rotary_knob_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
-    InputInterface<double> update_rate_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<double> chassis_control_height_;
     OutputInterface<int> chassis_control_state_;
+    OutputInterface<bool> enable_request_;
     OutputInterface<std::size_t> reset_count_output_;
-    OutputInterface<bool> rl_enable_;
-    OutputInterface<bool> joint_enable_;
-    std::array<OutputInterface<double>, 5> task_mode_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
+    OutputInterface<bool> jump_request_;
+    OutputInterface<double> jump_apex_delta_;
 
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
-    double vx_max_ = 2.5;
-    double yaw_rate_max_ = 3.0;
+    double vx_max_ = 0.5;
+    double vy_max_ = 0.0;
+    double yaw_rate_max_ = 1.0;
+    double spin_yaw_rate_ = 1.0;
     double deadzone_ = 0.08;
-    double command_height_min_ = 0.20;
-    double command_height_max_ = 0.42;
-    double default_command_height_ = 0.22;
-    double keyboard_height_step_ = 0.05;
-    double switch_height_rate_ = 0.05;
+    double command_height_min_ = 0.23;
+    double command_height_max_ = 0.43;
+    double default_command_height_ = 0.305;
+    double height_step_ = 0.01;
     bool angular_z_invert_ = false;
     bool height_invert_ = false;
-    double heading_kp_ = 3.0;
-
-    static constexpr double default_dt_ = 1e-3;
+    bool jump_enabled_ = false;
 
     bool spinning_forward_ = true;
     bool switch_activity_seen_ = false;
+    WheelLegArmSequence arm_sequence_;
     bool reset_active_ = false;
-    bool reverse_aligned_ = false;
-    double reference_yaw_ = 0.0;
+    double height_ = 0.0;
     double height_offset_ = 0.0;
 };
 
