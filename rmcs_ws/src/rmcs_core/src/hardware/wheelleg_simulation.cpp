@@ -26,7 +26,6 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 
-#include "controller/wheelleg/leg_kinematics.hpp"
 #include "controller/wheelleg/leg_transmission.hpp"
 
 namespace rmcs_core::hardware {
@@ -190,7 +189,6 @@ public:
                 return vec[bd + 3] * fwd[0] + vec[bd + 4] * fwd[1] + vec[bd + 5] * fwd[2];
             };
             const double qbR = roll_torque(data_->qfrc_bias);
-            const double qcR = roll_torque(data_->qfrc_constraint);
             const double qaR = roll_torque(data_->qfrc_applied);
             const double qbX = data_->qfrc_bias[bd + 3];
             const double qbY = data_->qfrc_bias[bd + 4];
@@ -283,12 +281,6 @@ private:
 
         hip_kp_ = node::param_or("hip_kp", 400.0);
         hip_kd_ = node::param_or("hip_kd", 8.0);
-        sync_kd_ = node::param_or("sync_kd", 0.0);
-        sync_kp_ = node::param_or("sync_kp", 0.0);
-        direct_hip_kd_ = node::param_or("direct_hip_kd", 0.0);
-        direct_crank_kd_ = node::param_or("direct_crank_kd", 0.0);
-        knee_kp_ = node::param_or("knee_kp", 800.0);
-        knee_kd_ = node::param_or("knee_kd", 40.0);
         wheel_kp_ = node::param_or("wheel_kp", 20.0);
         open_loop_wheel_torque_ =
             node::param_or("open_loop_wheel_torque", std::numeric_limits<double>::quiet_NaN());
@@ -664,8 +656,6 @@ private:
             if (leg_lock_eq_ids_[i] >= 0)
                 model_->eq_data[leg_lock_eq_ids_[i] * mjNEQDATA] = leg_lock_qpos_[i];
         }
-        for (int i = 0; i < 7; ++i)
-            base_hold_qpos_[static_cast<std::size_t>(i)] = data_->qpos[base_qpos + i];
 
         // Move the commissioning carriers to the initial base pose so their
         // welds are already satisfied the moment they are activated.
@@ -862,58 +852,7 @@ private:
         double hip_torque_r = 0.0;
         double crank_torque_r = 0.0;
 
-        if (command.per_leg_torque_valid) {
-            // Per-leg direct torque: each leg gets its own command (no shared
-            // interface, so no antisymmetric mode).
-            hip_torque_l = command.hip_torque_l;
-            hip_torque_r = command.hip_torque_r;
-            crank_torque_l = command.crank_torque_l;
-            crank_torque_r = command.crank_torque_r;
-
-            if (direct_hip_kd_ > 0.0) {
-                hip_torque_l -= direct_hip_kd_ * joint_velocity_(kLJoint1);
-                hip_torque_r -= direct_hip_kd_ * joint_velocity_(kRJoint1);
-            }
-            if (direct_crank_kd_ > 0.0) {
-                crank_torque_l -= direct_crank_kd_ * joint_velocity_(kLCrank);
-                crank_torque_r -= direct_crank_kd_ * joint_velocity_(kRCrank);
-            }
-        } else if (command.leg_torque_valid) {
-            // Direct reduced-joint torque (执行路线2 §8). V5.0 hip/crank mirror
-            // on the same sign, so both legs receive the same command.
-            hip_torque_l = command.hip_torque;
-            crank_torque_l = command.crank_torque;
-            hip_torque_r = command.hip_torque;
-            crank_torque_r = command.crank_torque;
-
-            // Differential sync damping: the direct-torque interface commands
-            // both legs identically, so the antisymmetric mode is unactuated.
-            // Damp the L/R velocity difference to keep the legs together.
-            if (sync_kp_ > 0.0 || sync_kd_ > 0.0) {
-                const double hip_sync =
-                    sync_kp_ * (joint_position_(kLJoint1) - joint_position_(kRJoint1))
-                    + sync_kd_ * (joint_velocity_(kLJoint1) - joint_velocity_(kRJoint1));
-                const double crank_sync =
-                    sync_kp_ * (joint_position_(kLCrank) - joint_position_(kRCrank))
-                    + sync_kd_ * (joint_velocity_(kLCrank) - joint_velocity_(kRCrank));
-                hip_torque_l -= hip_sync;
-                hip_torque_r += hip_sync;
-                crank_torque_l -= crank_sync;
-                crank_torque_r += crank_sync;
-            }
-
-            // Motor velocity damping (back-EMF-like): the direct-torque path
-            // skips the joint PD, so add explicit viscous damping on each joint
-            // to damp the leg's structural mode (~5-8 Hz).
-            if (direct_hip_kd_ > 0.0) {
-                hip_torque_l -= direct_hip_kd_ * joint_velocity_(kLJoint1);
-                hip_torque_r -= direct_hip_kd_ * joint_velocity_(kRJoint1);
-            }
-            if (direct_crank_kd_ > 0.0) {
-                crank_torque_l -= direct_crank_kd_ * joint_velocity_(kLCrank);
-                crank_torque_r -= direct_crank_kd_ * joint_velocity_(kRCrank);
-            }
-        } else {
+        {
             const double roll_bias = std::isfinite(open_loop_roll_bias_)
                                         ? open_loop_roll_bias_
                                         : (command.roll_bias_valid ? command.roll_bias : 0.0);
@@ -1292,18 +1231,6 @@ private:
             double wheel_velocity = 0.0;
             bool torque_valid = false;
             double wheel_torque = 0.0;
-            // Direct reduced-joint torques (执行路线2 §8). When both are finite
-            // the leg PD is bypassed and these are applied (mirrored to R).
-            // In the closed-chain model the second channel is the crank motor.
-            bool leg_torque_valid = false;
-            double hip_torque = 0.0;
-            double crank_torque = 0.0;
-            // Per-leg direct torques (per-leg control).
-            bool per_leg_torque_valid = false;
-            double hip_torque_l = 0.0;
-            double hip_torque_r = 0.0;
-            double crank_torque_l = 0.0;
-            double crank_torque_r = 0.0;
             bool per_leg_wheel_valid = false;
             double wheel_torque_l = 0.0;
             double wheel_torque_r = 0.0;
@@ -1320,12 +1247,6 @@ private:
             register_input("/wheelleg/reference/knee_angle", knee_angle_, false);
             register_input("/wheelleg/reference/wheel_velocity", wheel_velocity_, false);
             register_input("/wheelleg/control/wheel_torque", wheel_torque_, false);
-            register_input("/wheelleg/control/hip_torque", hip_torque_, false);
-            register_input("/wheelleg/control/crank_torque", crank_torque_, false);
-            register_input("/wheelleg/control/hip_torque_l", hip_torque_l_, false);
-            register_input("/wheelleg/control/hip_torque_r", hip_torque_r_, false);
-            register_input("/wheelleg/control/crank_torque_l", crank_torque_l_, false);
-            register_input("/wheelleg/control/crank_torque_r", crank_torque_r_, false);
             register_input("/wheelleg/control/wheel_torque_l", wheel_torque_l_, false);
             register_input("/wheelleg/control/wheel_torque_r", wheel_torque_r_, false);
             register_input("/wheelleg/control/roll_bias", roll_bias_, false);
@@ -1341,25 +1262,6 @@ private:
             control_.torque_valid = wheel_torque_.ready() && std::isfinite(*wheel_torque_);
             if (control_.torque_valid)
                 control_.wheel_torque = *wheel_torque_;
-            control_.leg_torque_valid = hip_torque_.ready() && crank_torque_.ready()
-                                     && std::isfinite(*hip_torque_)
-                                     && std::isfinite(*crank_torque_);
-            if (control_.leg_torque_valid) {
-                control_.hip_torque = *hip_torque_;
-                control_.crank_torque = *crank_torque_;
-            }
-            control_.per_leg_torque_valid = hip_torque_l_.ready() && hip_torque_r_.ready()
-                                         && crank_torque_l_.ready() && crank_torque_r_.ready()
-                                         && std::isfinite(*hip_torque_l_)
-                                         && std::isfinite(*hip_torque_r_)
-                                         && std::isfinite(*crank_torque_l_)
-                                         && std::isfinite(*crank_torque_r_);
-            if (control_.per_leg_torque_valid) {
-                control_.hip_torque_l = *hip_torque_l_;
-                control_.hip_torque_r = *hip_torque_r_;
-                control_.crank_torque_l = *crank_torque_l_;
-                control_.crank_torque_r = *crank_torque_r_;
-            }
             control_.per_leg_wheel_valid = wheel_torque_l_.ready() && wheel_torque_r_.ready()
                                         && std::isfinite(*wheel_torque_l_)
                                         && std::isfinite(*wheel_torque_r_);
@@ -1370,8 +1272,7 @@ private:
             control_.roll_bias_valid = roll_bias_.ready() && std::isfinite(*roll_bias_);
             if (control_.roll_bias_valid)
                 control_.roll_bias = *roll_bias_;
-            control_.valid = (hip_angle_.ready() && knee_angle_.ready())
-                          || control_.leg_torque_valid || control_.per_leg_torque_valid;
+            control_.valid = hip_angle_.ready() && knee_angle_.ready();
         }
 
         [[nodiscard]] bool reference_ready() const { return hip_angle_.ready(); }
@@ -1384,12 +1285,6 @@ private:
         InputInterface<double> knee_angle_;
         InputInterface<double> wheel_velocity_;
         InputInterface<double> wheel_torque_;
-        InputInterface<double> hip_torque_;
-        InputInterface<double> crank_torque_;
-        InputInterface<double> hip_torque_l_;
-        InputInterface<double> hip_torque_r_;
-        InputInterface<double> crank_torque_l_;
-        InputInterface<double> crank_torque_r_;
         InputInterface<double> wheel_torque_l_;
         InputInterface<double> wheel_torque_r_;
         InputInterface<double> roll_bias_;
@@ -1447,7 +1342,6 @@ private:
     int r_wheel_geom_id_ = -1;
     int base_dof_adr_ = -1;
     int base_qpos_adr_ = -1;
-    std::array<double, 7> base_hold_qpos_{0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0};
     std::array<int, 12> leg_lock_ids_{};
     std::array<double, 12> leg_lock_qpos_{};
     std::array<int, 12> leg_lock_eq_ids_{};
@@ -1473,11 +1367,6 @@ private:
     double initial_height_ = 0.4008;
 
     double hip_kp_ = 400.0, hip_kd_ = 8.0;
-    double sync_kd_ = 0.0;
-    double sync_kp_ = 0.0;
-    double direct_hip_kd_ = 0.0;
-    double direct_crank_kd_ = 0.0;
-    double knee_kp_ = 800.0, knee_kd_ = 40.0;
     double crank_kp_ = 150.0, crank_kd_ = 2.0;
     double wheel_kp_ = 20.0;
     double open_loop_wheel_torque_ = std::numeric_limits<double>::quiet_NaN();

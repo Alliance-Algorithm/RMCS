@@ -82,3 +82,7 @@ CLAUDE.md
 
 /rmcs_ws/src/rmcs_core/models/wheelleg
 /source
+
+# MuJoCo runtime log and colcon install manifest
+MUJOCO_LOG.TXT
+rmcs_ws/symlink_install_manifest.txt

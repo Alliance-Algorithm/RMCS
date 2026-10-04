@@ -18,16 +18,10 @@ wheelleg_sim:
     fix_base_hold_z: false
     hip_kp: 250.0
     hip_kd: 6.0
-    knee_kp: 0.0
-    knee_kd: 0.0
     crank_kp: 150.0
     crank_kd: 2.0
     wheel_kp: 20.0
     gravity_feedforward: true
-    sync_kp: 0.0
-    direct_hip_kd: 0.0
-    direct_crank_kd: 0.0
-    sync_kd: 0.0
     joint_damping: 0.1
     hip_armature: 0.005
     constraint_timeconst: 0.002
@@ -135,13 +129,7 @@ wheelleg_trajectory_controller:
     body_com_offset: 0.00918
     knee_branch_sign: -1.0
     d_max: 100.0
-    total_mass: 0.0
     gravity: 9.81
-    velocity_pitch_kp: 0.0
-    velocity_pitch_limit: 0.2
-    transition_time_velocity: 1.5
-    accel_to_pitch: 0.0
-    accel_pitch_limit: 0.35
     leg_motion_coupling: 0.0
     outer_kx: 0.5
     outer_kv: 0.5
@@ -150,7 +138,6 @@ wheelleg_trajectory_controller:
     accel_d_kp: -0.5
     accel_theta_ff: 3.85
     accel_kv: 2.0
-    yaw_torque_ff: 0.0
     posture_yaw_scale: 0.15
     command_accel_limit: 1.5
     command_jerk_limit: 4.0

@@ -6,7 +6,7 @@
 #include <numbers>
 #include <utility>
 
-#include "controller/wheelleg/leg_kinematics.hpp"
+#include "controller/wheelleg/legacy/leg_kinematics.hpp"
 #include "controller/wheelleg/leg_transmission.hpp"
 
 namespace rmcs_core::wheelleg {
