@@ -207,7 +207,7 @@ RlController::RlController()
     v6_capture_max_wheel_velocity_ = get_parameter_or("v6_capture_max_wheel_velocity", 5.0);
     v6_takeover_blend_seconds_ = get_parameter_or("v6_takeover_blend_seconds", 0.0);
     hinge_margin_ = get_parameter_or("hinge_margin", 0.03);
-    height_transition_seconds_ = get_parameter_or("height_transition_seconds", 6.0);
+    height_transition_seconds_ = get_parameter_or("height_transition_seconds", 4.0);
     wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
     wheel_track_ = get_parameter_or("wheel_track", 0.4373);
     inference_frequency_ =
