@@ -3,3 +3,15 @@
 /log/
 __pycache__/
 *.pyc
+
+# Keep the deployment package limited to runtime policy assets.
+/test/
+/models/*
+!/models/wheel_leg/
+/models/wheel_leg/*
+!/models/wheel_leg/policy.onnx
+!/models/wheel_leg/SHA256SUMS
+!/models/wheel_leg/deployment/
+/models/wheel_leg/deployment/*
+!/models/wheel_leg/deployment/v6_recovery_profiles_v1.json
+!/models/wheel_leg/deployment/v6_height_lookup_v1.json
