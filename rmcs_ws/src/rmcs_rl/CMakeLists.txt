@@ -51,8 +51,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${ORT_ROOT}/include)
 target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so OpenSSL::Crypto nlohmann_json::nlohmann_json)
 set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(DIRECTORY ${ORT_ROOT}/lib/ DESTINATION lib FILES_MATCHING PATTERN "*.so*")
-install(FILES models/wheel_leg/policy.onnx models/wheel_leg/SHA256SUMS
-  DESTINATION share/${PROJECT_NAME}/models/wheel_leg)
+file(GLOB POLICY_MODELS CONFIGURE_DEPENDS models/wheel_leg/*.onnx)
+install(FILES ${POLICY_MODELS} DESTINATION share/${PROJECT_NAME}/models/wheel_leg)
 install(FILES
   models/wheel_leg/deployment/v6_recovery_profiles_v1.json
   models/wheel_leg/deployment/v6_height_lookup_v1.json

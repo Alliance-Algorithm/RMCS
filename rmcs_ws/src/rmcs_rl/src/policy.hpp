@@ -9,12 +9,10 @@
 
 namespace rmcs::rl {
 
-// The frozen V6 flat actor and its native control contract are deployed together.
-// Tensor dimensions alone cannot identify observation or actuator semantics.
+// V6 observation and actuator conventions shared by compatible ONNX actors.
+// Model selection belongs to the startup model_path parameter.
 struct DeployedPolicyContract {
-    static constexpr std::string_view kName = "v6_flat_14020";
-    static constexpr std::string_view kSha256 =
-        "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a";
+    static constexpr std::string_view kName = "v6";
     static constexpr double kPolicyFrequencyHz = 50.0;
     static constexpr double kControlFrequencyHz = 200.0;
     static constexpr double kPolicyPeriodSeconds = 1.0 / kPolicyFrequencyHz;
@@ -41,9 +39,7 @@ struct DeployedPolicyContract {
 // Retained solely for the V5 recovery regression and explicit legacy profiles.
 // Its geometry and recovery evidence do not qualify the V6 candidate.
 struct LegacyPolicyContract : DeployedPolicyContract {
-    static constexpr std::string_view kName = "v5_flat_12486";
-    static constexpr std::string_view kSha256 =
-        "ae58b862be5547195d8c4b3e71aa9be37b147792ebc903c68f032f341d92be6d";
+    static constexpr std::string_view kName = "v5";
     static constexpr double kLegKp = 60.0;
     static constexpr double kLegKd = 2.0;
     static constexpr double kWheelKp = 0.2;
@@ -56,7 +52,6 @@ struct LegacyPolicyContract : DeployedPolicyContract {
 
 struct PolicyProfile {
     std::string_view name;
-    std::string_view sha256;
     std::array<double, 6> nominal;
     double leg_kp, leg_kd, wheel_kp, wheel_torque_limit;
     double forward_slew, height_min, height_max;
@@ -66,7 +61,6 @@ struct PolicyProfile {
 
 inline constexpr PolicyProfile kV6PolicyProfile{
     DeployedPolicyContract::kName,
-    DeployedPolicyContract::kSha256,
     DeployedPolicyContract::kNominalPosition,
     DeployedPolicyContract::kLegKp,
     DeployedPolicyContract::kLegKd,
@@ -75,14 +69,13 @@ inline constexpr PolicyProfile kV6PolicyProfile{
     DeployedPolicyContract::kForwardSlew,
     DeployedPolicyContract::kHeightMin,
     DeployedPolicyContract::kHeightMax,
-    0.5,
-    1.0,
-    1.0,
+    5.0,
+    18.84956,
+    18.84956,
     true};
 
 inline constexpr PolicyProfile kV5PolicyProfile{
     LegacyPolicyContract::kName,
-    LegacyPolicyContract::kSha256,
     LegacyPolicyContract::kNominalPosition,
     LegacyPolicyContract::kLegKp,
     LegacyPolicyContract::kLegKd,
@@ -158,9 +151,7 @@ static_assert(kObservationNames.size() == ObservationLayout::kSize);
 
 class OnnxPolicy {
 public:
-    explicit OnnxPolicy(
-        const std::string& model_path,
-        std::string_view expected_sha256 = DeployedPolicyContract::kSha256);
+    explicit OnnxPolicy(const std::string& model_path);
     ~OnnxPolicy();
     OnnxPolicy(const OnnxPolicy&) = delete;
     OnnxPolicy& operator=(const OnnxPolicy&) = delete;
