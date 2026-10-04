@@ -209,6 +209,8 @@ private:
     double height_from_ = DeployedPolicyContract::kNominalHeight;
     double height_target_ = DeployedPolicyContract::kNominalHeight;
     double height_transition_seconds_ = 6.0;
+    bool height_command_is_reference_ = false;
+    double height_reference_rate_max_ = 0.02;
     double wheel_radius_ = 0.06;
     double wheel_track_ = 0.4373;
     double inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;

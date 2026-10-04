@@ -30,6 +30,8 @@ value_broadcaster:
 
       - /wheel_leg/feedback_fresh
       - /wheel_leg/dr16_fresh
+      - /remote/rotary_knob
+      - /chassis/control_height
       - /wheel_leg/dm_control_ready
       - /wheel_leg/enable_request
       - /wheel_leg/imu/sensor_gravity/x
@@ -80,6 +82,7 @@ value_broadcaster:
       - /wheel_leg/rl/performance/pd_us
       - /wheel_leg/rl/observation/command/forward
       - /wheel_leg/rl/observation/command/yaw
+      - /wheel_leg/rl/observation/height
       - /wheel_leg/rl/observation/projected_gravity/z
       - /wheel_leg/rl/action/left_hip_joint
       - /wheel_leg/rl/action/left_knee_joint
@@ -178,6 +181,9 @@ rl_controller:
     # estimate; queued CAN torque and motor-current truth are not substituted
     # for measured contact. Validate support and takeover in this ground test.
     height_transition_seconds: 6.0
+    # The chassis supplies a continuous height reference; do not restart a step curve.
+    height_command_is_reference: true
+    height_reference_rate_max: 0.02
     wheel_radius: 0.06
     wheel_track: 0.4373
 
@@ -265,6 +271,7 @@ wheel_leg_chassis_controller:
     command_height_min: 0.23
     command_height_max: 0.43
     default_command_height: 0.305
+    height_rate_max: 0.02
     height_step: 0.01
     angular_z_invert: false
     # RMCS DR16 convention: negative knob input is UP.

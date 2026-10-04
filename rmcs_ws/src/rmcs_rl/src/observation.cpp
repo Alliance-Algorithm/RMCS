@@ -141,18 +141,34 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
         update_command_reference_();
     else if (hold_command)
         vx_reference_ = yaw_reference_ = 0.0;
-    if (!shadow_recovery && (policy_profile_.name != kV6PolicyProfile.name || !hold_command)
-        && std::abs(*height_command_ - height_target_) > 1e-6) {
-        height_from_ = height_reference_;
-        height_target_ = *height_command_;
-        height_start_ = *timestamp_;
+    const bool height_command_active =
+        !shadow_recovery && (policy_profile_.name != kV6PolicyProfile.name || !hold_command);
+    if (height_command_is_reference_) {
+        if (height_command_active) {
+            // The chassis integrates the height knob. Follow that continuous
+            // reference without restarting a full transition for every sample.
+            // Limit pending commands on release from recovery as well.
+            const double max_step =
+                height_reference_rate_max_ * DeployedPolicyContract::kPolicyPeriodSeconds;
+            height_reference_ += std::clamp(
+                *height_command_ - height_reference_, -max_step, max_step);
+            height_from_ = height_reference_;
+            height_target_ = *height_command_;
+            height_start_ = *timestamp_;
+        }
+    } else {
+        if (height_command_active && std::abs(*height_command_ - height_target_) > 1e-6) {
+            height_from_ = height_reference_;
+            height_target_ = *height_command_;
+            height_start_ = *timestamp_;
+        }
+        const double u = std::clamp(
+            std::chrono::duration<double>(*timestamp_ - height_start_).count()
+                / height_transition_seconds_,
+            0.0, 1.0);
+        height_reference_ =
+            height_from_ + (height_target_ - height_from_) * (3 * u * u - 2 * u * u * u);
     }
-    const double u = std::clamp(
-        std::chrono::duration<double>(*timestamp_ - height_start_).count()
-            / height_transition_seconds_,
-        0.0, 1.0);
-    height_reference_ =
-        height_from_ + (height_target_ - height_from_) * (3 * u * u - 2 * u * u * u);
     const Eigen::Quaterniond q_world_base = world_base_orientation_();
     const Eigen::Vector3d gravity = q_world_base.conjugate() * -Eigen::Vector3d::UnitZ();
     const Eigen::Vector3d omega = imu_to_base_ * *gyro_;

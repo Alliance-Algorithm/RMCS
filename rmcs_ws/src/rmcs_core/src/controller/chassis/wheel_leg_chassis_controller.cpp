@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <ranges>
 #include <stdexcept>
 #include <string>
@@ -76,6 +78,8 @@ public:
     }
 
 private:
+    using Clock = std::chrono::steady_clock;
+
     void register_interfaces_() {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -84,6 +88,7 @@ private:
         register_input("/wheel_leg/dr16_fresh", remote_fresh_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/remote/keyboard", keyboard_);
+        register_input("/predefined/timestamp", timestamp_);
 
         register_output(
             "/chassis/control_velocity", chassis_control_velocity_,
@@ -106,6 +111,7 @@ private:
         command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
         command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
         default_command_height_ = get_parameter_or<double>("default_command_height", 0.305);
+        height_rate_max_ = get_parameter_or<double>("height_rate_max", 0.02);
         height_step_ = get_parameter_or<double>("height_step", 0.01);
 
         angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
@@ -121,13 +127,15 @@ private:
             command_height_min_,
             command_height_max_,
             default_command_height_,
+            height_rate_max_,
             height_step_};
         if (!std::ranges::all_of(values, [](double value) { return std::isfinite(value); })
             || vx_max_ <= 0.0 || vy_max_ < 0.0 || yaw_rate_max_ <= 0.0 || spin_yaw_rate_ <= 0.0
             || spin_yaw_rate_ > yaw_rate_max_ || deadzone_ < 0.0 || deadzone_ >= 1.0
             || command_height_min_ <= 0.0 || command_height_min_ > command_height_max_
             || default_command_height_ < command_height_min_
-            || default_command_height_ > command_height_max_ || height_step_ < 0.0)
+            || default_command_height_ > command_height_max_ || height_rate_max_ <= 0.0
+            || height_step_ < 0.0)
             throw std::invalid_argument("Invalid wheel-leg chassis command limits");
     }
 
@@ -166,7 +174,7 @@ private:
         *jump_request_ = false;
         *jump_apex_delta_ = 0.0;
         height_ = default_command_height_;
-        height_offset_ = 0.0;
+        previous_height_timestamp_.reset();
     }
 
     void update_remote_control_() {
@@ -216,27 +224,28 @@ private:
 
     void update_height_control_() {
         double rotary_knob = read_channel_(*rotary_knob_);
-        // The rotary knob spans the asymmetric height domain around the nominal height.
         if (height_invert_)
             rotary_knob = -rotary_knob;
         if (rotary_knob > 0.0)
             rotary_knob = (rotary_knob - deadzone_) / (1.0 - deadzone_);
         else if (rotary_knob < 0.0)
             rotary_knob = (rotary_knob + deadzone_) / (1.0 - deadzone_);
-        const double height_baseline =
-            default_command_height_
-            + rotary_knob
-                  * (rotary_knob >= 0.0 ? command_height_max_ - default_command_height_
-                                        : default_command_height_ - command_height_min_);
+        const auto now = *timestamp_;
+        double dt = 0.0;
+        if (previous_height_timestamp_) {
+            const auto elapsed = now - *previous_height_timestamp_;
+            if (elapsed > Clock::duration::zero() && elapsed <= std::chrono::milliseconds{20})
+                dt = std::chrono::duration<double>{elapsed}.count();
+        }
+        // Do not integrate a startup/reset interval or catch up after a gap.
+        // Centered input holds the accumulated height in both AUTO and SPIN.
+        previous_height_timestamp_ = now;
+        height_ += rotary_knob * height_rate_max_ * dt;
         const auto& keyboard = *keyboard_;
         if (!last_keyboard_.r && keyboard.r)
-            height_offset_ += height_step_;
+            height_ += height_step_;
         if (!last_keyboard_.f && keyboard.f)
-            height_offset_ -= height_step_;
-        height_offset_ = std::clamp(
-            height_offset_, command_height_min_ - height_baseline,
-            command_height_max_ - height_baseline);
-        height_ = height_baseline + height_offset_;
+            height_ -= height_step_;
         height_ = std::clamp(height_, command_height_min_, command_height_max_);
         *chassis_control_height_ = height_;
     }
@@ -248,6 +257,7 @@ private:
     InputInterface<bool> remote_fresh_;
     InputInterface<double> rotary_knob_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<Clock::time_point> timestamp_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<double> chassis_control_height_;
@@ -270,6 +280,7 @@ private:
     double command_height_min_ = 0.23;
     double command_height_max_ = 0.43;
     double default_command_height_ = 0.305;
+    double height_rate_max_ = 0.02;
     double height_step_ = 0.01;
     bool angular_z_invert_ = false;
     bool height_invert_ = true;
@@ -280,7 +291,7 @@ private:
     WheelLegArmSequence arm_sequence_;
     bool reset_active_ = false;
     double height_ = 0.0;
-    double height_offset_ = 0.0;
+    std::optional<Clock::time_point> previous_height_timestamp_;
 };
 
 } // namespace rmcs_core::controller::chassis
