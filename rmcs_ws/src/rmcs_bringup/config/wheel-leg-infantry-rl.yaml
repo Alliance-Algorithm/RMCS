@@ -162,7 +162,6 @@ rl_controller:
     # and its encoder/gyro response thresholds. It is a conditional support
     # estimate; queued CAN torque and motor-current truth are not substituted
     # for measured contact. Hardware readiness stays false pending validation.
-    # See docs/zh-cn/wheel_leg_v6_recovery_alignment_20261003.md.
     height_transition_seconds: 6.0
     wheel_radius: 0.06
     wheel_track: 0.4373
@@ -177,7 +176,7 @@ rl_controller:
     # The physical 105-degree zero and IMU mounting were confirmed. V6 six-axis
     # mapping and multipoint mechanism verification have not yet been completed.
     calibration_ready: false
-    # Reference: frozen V6 deployment/v6_pair_from_dev_rmcs_rl.json.
+    # Calibration: .script/identification/calibration/v6_pair_from_dev_rmcs_rl.json.
     # Driver API already applies reversed with bias=0. V6 axes invert the V5
     # model axes, hence q_v6 = -q_api + offset. Never reverse the raw angle twice.
     leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
