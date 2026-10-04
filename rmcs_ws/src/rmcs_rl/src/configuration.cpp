@@ -164,13 +164,13 @@ RlController::RlController()
     recovery_enabled_ = get_parameter_or("recovery_enabled", false);
     recovery_profile_ready_ = get_parameter_or("recovery_profile_ready", false);
     const auto profile_name =
-        get_parameter_or<std::string>("policy_profile", std::string{DeployedPolicyContract::kName});
+        get_parameter_or<std::string>("control_profile", std::string{DeployedPolicyContract::kName});
     if (profile_name == kV6PolicyProfile.name)
         policy_profile_ = kV6PolicyProfile;
     else if (profile_name == kV5PolicyProfile.name)
         policy_profile_ = kV5PolicyProfile;
     else
-        throw std::runtime_error("Unknown frozen policy profile: " + profile_name);
+        throw std::runtime_error("Unknown wheel-leg control profile: " + profile_name);
 
     strict_feedback_ = policy_profile_.name == kV6PolicyProfile.name || recovery_enabled_;
     RecoverySensorGuardConfig sensor_config;
@@ -279,7 +279,7 @@ RlController::RlController()
     std::ranges::copy(nominal, nominal_.begin());
     for (std::size_t i = 0; i < nominal_.size(); ++i)
         if (std::abs(nominal_[i] - policy_profile_.nominal[i]) > 1e-9)
-            throw std::runtime_error("Nominal position does not match the frozen policy profile");
+            throw std::runtime_error("Nominal position does not match the wheel-leg control profile");
     imu_to_base_ =
         Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>{imu_alignment.data()};
 
@@ -428,16 +428,17 @@ RlController::RlController()
         recovery_observer_.emplace(mechanism, observer_config);
     }
 
-    const std::string model_path = get_parameter_or<std::string>("rl_model_path", "");
+    const std::string model_path = get_parameter_or<std::string>(
+        "model_path", get_parameter_or<std::string>("rl_model_path", ""));
     if (!model_path.empty()) {
         auto path = std::filesystem::path{model_path};
         if (!path.is_absolute())
             path = std::filesystem::path{ament_index_cpp::get_package_share_directory("rmcs_rl")}
                  / path;
-        policy_ = std::make_unique<OnnxPolicy>(path.string(), policy_profile_.sha256);
+        policy_ = std::make_unique<OnnxPolicy>(path.string());
         RCLCPP_INFO(
-            get_logger(), "Policy profile %s, SHA256 %s, 50Hz policy / 200Hz feedback PD",
-            std::string{policy_profile_.name}.c_str(), std::string{policy_profile_.sha256}.c_str());
+            get_logger(), "ONNX model %s, %s control, 50Hz policy / 200Hz feedback PD",
+            path.string().c_str(), std::string{policy_profile_.name}.c_str());
         policy_ready_ = true;
     }
     // Configuration is copied into fixed control-loop state at construction.
