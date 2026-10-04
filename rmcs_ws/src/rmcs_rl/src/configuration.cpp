@@ -208,6 +208,8 @@ RlController::RlController()
     v6_takeover_blend_seconds_ = get_parameter_or("v6_takeover_blend_seconds", 0.0);
     hinge_margin_ = get_parameter_or("hinge_margin", 0.03);
     height_transition_seconds_ = get_parameter_or("height_transition_seconds", 6.0);
+    height_command_is_reference_ = get_parameter_or("height_command_is_reference", false);
+    height_reference_rate_max_ = get_parameter_or("height_reference_rate_max", 0.02);
     wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
     wheel_track_ = get_parameter_or("wheel_track", 0.4373);
     inference_frequency_ =
@@ -229,6 +231,7 @@ RlController::RlController()
         v6_takeover_blend_seconds_,
         hinge_margin_,
         height_transition_seconds_,
+        height_reference_rate_max_,
         wheel_radius_,
         wheel_track_,
         recovery_dm_rated_output_rpm_,
@@ -241,6 +244,7 @@ RlController::RlController()
         || prepare_max_tilt_rad_ <= 0 || prepare_max_tilt_rad_ >= std::numbers::pi / 2
         || prepare_max_angular_velocity_ <= 0 || prepare_max_joint_velocity_ <= 0
         || prepare_stable_seconds_ <= 0 || hinge_margin_ < 0 || height_transition_seconds_ <= 0
+        || height_reference_rate_max_ <= 0
         || wheel_radius_ <= 0 || wheel_track_ <= 0 || recovery_dm_rated_output_rpm_ <= 0
         || recovery_dm_rated_torque_nm_ <= 0
         || recovery_dm_rated_torque_nm_ > recovery_dm_peak_torque_nm_
