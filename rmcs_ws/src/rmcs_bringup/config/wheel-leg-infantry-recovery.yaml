@@ -170,7 +170,7 @@ rl_controller:
     v6_recovery_capture_max_tilt_rad: 0.6981317007977318
     v6_recovery_capture_height_min: 0.20
     # Raise the slow folding/planting ramp; retain native push/capture speeds.
-    v6_recovery_fold_plant_speed_rad_s: 2.0
+    v6_recovery_fold_plant_speed_rad_s: 3.0
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
     recovery_motor_age_s: 0.02
     recovery_imu_age_s: 0.02
