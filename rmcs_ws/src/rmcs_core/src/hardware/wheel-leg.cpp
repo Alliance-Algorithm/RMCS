@@ -435,8 +435,11 @@ private:
             constexpr std::array kReceiveIndex{2, 4, 3, 5, 0, 1};
             for (std::size_t i = 0; i < kReceiveIndex.size(); ++i) {
                 const auto& snapshot = motor_feedback_[kReceiveIndex[i]].latest();
+                const bool changed = snapshot.sequence != *feedback_sequence_outputs_[i];
                 *feedback_sequence_outputs_[i] = snapshot.sequence;
                 *feedback_ns_outputs_[i] = snapshot.steady_ns;
+                if (!changed)
+                    continue;
                 auto& frame = *feedback_frame_outputs_[i];
                 frame.fill(0);
                 if (snapshot.sequence != 0) {
@@ -450,11 +453,12 @@ private:
 
         void publish_imu_feedback() {
             const auto& imu = imu_feedback_.read();
+            const bool changed = imu.sequence != *imu_sequence_output_;
             *imu_sequence_output_ = imu.sequence;
             *imu_last_output_ = imu.steady_ns;
             *gyro_board_ticks_output_ = imu.board_quarter_us;
             imu_last_ns_.store(static_cast<std::int64_t>(imu.steady_ns), std::memory_order_relaxed);
-            if (imu.sequence != 0) {
+            if (imu.sequence != 0 && changed) {
                 *imu_quaternion_ = imu.value.orientation.normalized();
                 *imu_angular_velocity_ = imu.value.gyro_body;
                 const Eigen::Vector3d gravity =
