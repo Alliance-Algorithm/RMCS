@@ -223,7 +223,9 @@ void RlController::compute_motor_torques_() {
         // Inference may stall after update() sampled the recovery interval.
         // Reject that same output and measure peak exposure at actuation time.
         const auto now = Clock::now();
-        const auto elapsed = recovery_actuation_interval_.sample(now);
+        const auto elapsed = recovery_actuation_interval_.sample(
+            now, std::chrono::duration_cast<Clock::duration>(
+                     std::chrono::duration<double>{1.0 / pd_frequency_}));
         if (!recovery_interval_.fresh(now) || !elapsed) {
             latch_fault_(RecoveryFailure::kInvalidFeedback);
             return;

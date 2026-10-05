@@ -190,8 +190,10 @@ private:
     std::size_t last_reset_count_ = 0;
     std::size_t last_policy_tick_ = 0;
     std::optional<std::size_t> last_pd_tick_;
+    std::optional<std::size_t> last_recovery_tick_;
     std::size_t policy_divisor_ = 20;
     std::size_t pd_divisor_ = 5;
+    std::size_t recovery_divisor_ = 5;
     State state_ = State::kInit;
     Clock::time_point jump_start_{};
     Clock::time_point rl_start_{};
@@ -216,6 +218,7 @@ private:
     double wheel_radius_ = 0.06;
     double wheel_track_ = 0.4373;
     double inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;
+    double pd_frequency_ = DeployedPolicyContract::kControlFrequencyHz;
     double prepare_kp_ = 80.0;
     double prepare_kd_ = 2.0;
     double prepare_max_velocity_ = 1.0;
