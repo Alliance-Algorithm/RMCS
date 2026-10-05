@@ -1,12 +1,12 @@
 #pragma once
 
+#include "closed_chain_support_observer.hpp"
 #include "control_interval.hpp"
+#include "joint_reference_recovery_controller.hpp"
 #include "policy.hpp"
 #include "recovery_controller.hpp"
 #include "recovery_observer.hpp"
 #include "recovery_sensor_guard.hpp"
-#include "v6_recovery_controller.hpp"
-#include "v6_recovery_observer.hpp"
 
 #include <array>
 #include <chrono>
@@ -57,9 +57,9 @@ private:
     void enter_(State next);
     void latch_fault_(std::optional<RecoveryFailure> reason = std::nullopt);
     bool advance_recovery_();
-    bool advance_v6_recovery_();
-    V6RecoveryFeedback v6_recovery_feedback_() const;
-    std::optional<V6RecoveryFeedback> observe_v6_recovery_();
+    bool advance_joint_reference_recovery_();
+    JointReferenceRecoveryFeedback joint_reference_recovery_feedback_() const;
+    std::optional<JointReferenceRecoveryFeedback> observe_joint_reference_recovery_();
     RecoverySensorData recovery_sensor_data_() const;
     RecoveryPhase recovery_phase_() const;
     bool recovery_motion_hold_() const;
@@ -70,9 +70,9 @@ private:
     Eigen::Quaterniond world_base_orientation_() const;
     std::optional<RecoveryFeedback> observe_recovery_();
     bool update_prepare_();
-    bool v6_upright_capture_ready_(double max_tilt_rad) const;
-    bool v6_upright_capture_ready_(double max_tilt_rad, double max_angular_velocity) const;
-    bool v6_recovery_capture_ready_() const;
+    bool upright_capture_ready_(double max_tilt_rad) const;
+    bool upright_capture_ready_(double max_tilt_rad, double max_angular_velocity) const;
+    bool recovery_capture_ready_() const;
     void update_command_reference_();
     bool assemble_observation_(bool shadow_recovery = false);
     std::expected<void, std::string>
@@ -122,7 +122,7 @@ private:
     OutputInterface<int> recovery_sensor_issue_output_, recovery_sensor_mask_output_;
     OutputInterface<double> recovery_motor_age_output_, recovery_imu_age_output_;
     OutputInterface<double> recovery_acceleration_age_output_, recovery_blend_output_;
-    OutputInterface<double> v6_takeover_blend_output_;
+    OutputInterface<double> takeover_blend_output_;
     OutputInterface<double> recovery_height_output_;
     OutputInterface<double> inference_time_us_;
     OutputInterface<double> pd_time_us_;
@@ -152,7 +152,7 @@ private:
     bool timing_ready_ = false;
     bool recovery_enabled_ = false;
     bool recovery_profile_ready_ = false;
-    bool v6_native_profile_ready_ = false;
+    bool joint_reference_profile_ready_ = false;
     bool recovery_started_ = false;
     bool strict_feedback_ = true;
     bool policy_targets_valid_ = false;
@@ -170,20 +170,20 @@ private:
     std::array<double, 4> dm_feedback_position_max_{};
     Vector6 targets_ = Vector6::Zero();
     Vector6 policy_targets_ = Vector6::Zero();
-    Vector6 v6_takeover_targets_ = Vector6::Zero();
-    Eigen::Vector4d v6_prepare_target_ = Eigen::Vector4d::Zero();
+    Vector6 takeover_targets_ = Vector6::Zero();
+    Eigen::Vector4d prepare_target_ = Eigen::Vector4d::Zero();
     RecoveryController recovery_;
-    std::optional<V6RecoveryController> v6_recovery_;
-    std::optional<V6RecoveryObserver> v6_recovery_observer_;
+    std::optional<JointReferenceRecoveryController> joint_reference_recovery_;
+    std::optional<ClosedChainSupportObserver> support_observer_;
     RecoveryPeakBudget recovery_peak_budget_;
     RecoveryCommand recovery_command_;
     std::optional<RecoveryObserver> recovery_observer_;
     RecoveryFeedback last_recovery_feedback_;
-    V6RecoveryFeedback v6_recovery_feedback_data_;
+    JointReferenceRecoveryFeedback joint_reference_feedback_;
     RecoverySensorGuard recovery_sensor_guard_;
     RecoverySensorStatus recovery_sensor_status_;
     RecoveryFailure recovery_failure_latched_ = RecoveryFailure::kNone;
-    int v6_recovery_failure_latched_ = 0;
+    int joint_reference_failure_latched_ = 0;
     PolicyObservation observation_{};
     PolicyAction previous_action_{};
     PolicyAction policy_action_{};
@@ -219,6 +219,7 @@ private:
     double wheel_track_ = 0.4373;
     double inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;
     double pd_frequency_ = DeployedPolicyContract::kControlFrequencyHz;
+    double recovery_frequency_ = DeployedPolicyContract::kControlFrequencyHz;
     double prepare_kp_ = 80.0;
     double prepare_kd_ = 2.0;
     double prepare_max_velocity_ = 1.0;
@@ -227,14 +228,14 @@ private:
     double prepare_max_angular_velocity_ = 0.35;
     double prepare_max_joint_velocity_ = 0.5;
     double prepare_stable_seconds_ = 0.25;
-    double v6_capture_max_leg_error_rad_ = 0.15;
-    double v6_capture_max_angular_velocity_ = 1.0;
-    double v6_capture_max_leg_velocity_ = 2.0;
-    double v6_capture_max_wheel_velocity_ = 5.0;
-    double v6_recovery_capture_max_tilt_rad_ = 0.2;
-    double v6_recovery_capture_max_angular_velocity_ = 1.0;
-    double v6_takeover_blend_seconds_ = 0.0;
-    double v6_takeover_blend_fraction_ = 0.0;
+    double capture_max_leg_error_rad_ = 0.15;
+    double capture_max_angular_velocity_ = 1.0;
+    double capture_max_leg_velocity_ = 2.0;
+    double capture_max_wheel_velocity_ = 5.0;
+    double recovery_capture_max_tilt_rad_ = 0.2;
+    double recovery_capture_max_angular_velocity_ = 1.0;
+    double takeover_blend_seconds_ = 0.0;
+    double takeover_blend_fraction_ = 0.0;
     double hinge_margin_ = 0.03;
     double recovery_dm_rated_output_rpm_ = 100.0;
     double recovery_dm_rated_torque_nm_ = 20.0;

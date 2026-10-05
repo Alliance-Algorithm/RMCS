@@ -1,19 +1,25 @@
-#include "v6_recovery_observer.hpp"
+#include "closed_chain_support_observer.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <stdexcept>
 
 #include <eigen3/Eigen/Geometry>
 
 namespace rmcs::rl {
-V6RecoveryObserver::V6RecoveryObserver(std::array<V6RecoverySideGeometry, 2> geometry)
+ClosedChainSupportObserver::ClosedChainSupportObserver(
+    std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds)
     : geometry_{std::move(geometry)} {
+    if (!std::isfinite(period_seconds)
+        || (std::abs(period_seconds - 0.001) > 1e-12 && std::abs(period_seconds - 0.005) > 1e-12))
+        throw std::invalid_argument("Closed-chain observation period must be 1 ms or 5 ms");
+    period_seconds_ = std::abs(period_seconds - 0.001) <= 1e-12 ? 0.001 : 0.005;
     reset();
 }
 
-void V6RecoveryObserver::reset() {
+void ClosedChainSupportObserver::reset() {
     initialized_ = geometry_valid_ = plausible_ = confirmed_ = false;
     winding_.setZero();
     previous_velocity_.setZero();
@@ -21,17 +27,39 @@ void V6RecoveryObserver::reset() {
     previous_pulse_.setZero();
     evidence_ = {};
     bad_samples_ = {};
+    bad_elapsed_seconds_ = {};
     for (auto& side : evidence_age_)
         side.fill(std::numeric_limits<float>::infinity());
+    for (auto& side : evidence_elapsed_seconds_)
+        side.fill(std::numeric_limits<double>::infinity());
     lost_seconds_ = 0.0f;
+    lost_elapsed_seconds_ = 0.0;
+    probe_elapsed_seconds_ = 0.0;
     reference_tick_ = 0;
 }
 
-V6RecoveryFeedback V6RecoveryObserver::observe(
-    const RecoverySensorData&, const V6RecoveryVector6& raw_q, const V6RecoveryVector6& dq,
-    const Eigen::Vector3d& gravity, const Eigen::Vector3d& gyro,
-    const Eigen::Vector3d& acceleration, V6RecoveryPhase phase) {
-    constexpr float dt = 0.005f, tau = 2.0f * std::numbers::pi_v<float>;
+JointReferenceRecoveryFeedback ClosedChainSupportObserver::observe(
+    const RecoverySensorData& sensors, const JointReferenceRecoveryVector6& raw_q,
+    const JointReferenceRecoveryVector6& dq, const Eigen::Vector3d& gravity,
+    const Eigen::Vector3d& gyro, const Eigen::Vector3d& acceleration,
+    JointReferenceRecoveryPhase phase) {
+    return observe(sensors, raw_q, dq, gravity, gyro, acceleration, phase, period_seconds_);
+}
+
+JointReferenceRecoveryFeedback ClosedChainSupportObserver::observe(
+    const RecoverySensorData&, const JointReferenceRecoveryVector6& raw_q,
+    const JointReferenceRecoveryVector6& dq, const Eigen::Vector3d& gravity,
+    const Eigen::Vector3d& gyro, const Eigen::Vector3d& acceleration,
+    JointReferenceRecoveryPhase phase, double elapsed_seconds) {
+    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0 || elapsed_seconds > 0.020) {
+        reset();
+        JointReferenceRecoveryFeedback feedback;
+        feedback.q.setConstant(std::numeric_limits<double>::quiet_NaN());
+        return feedback;
+    }
+    const bool fixed_period = period_seconds_ == 0.005;
+    const float dt = fixed_period ? 0.005f : static_cast<float>(elapsed_seconds);
+    constexpr float tau = 2.0f * std::numbers::pi_v<float>;
     const Eigen::Matrix<float, 6, 1> raw = raw_q.cast<float>();
     if (!initialized_) {
         q_ = raw;
@@ -99,7 +127,10 @@ V6RecoveryFeedback V6RecoveryObserver::observe(
     const Eigen::Vector2f velocity = dq.tail<2>().cast<float>();
     const Eigen::Vector2f wheel_acceleration = (velocity - previous_velocity_) / dt;
     const float gyro_acceleration = (omega - previous_gyro_).norm() / dt;
-    lost_seconds_ = plausible_ ? 0.0f : lost_seconds_ + dt;
+    if (fixed_period)
+        lost_seconds_ = plausible_ ? 0.0f : lost_seconds_ + dt;
+    else
+        lost_elapsed_seconds_ = plausible_ ? 0.0 : lost_elapsed_seconds_ + elapsed_seconds;
     confirmed_ = plausible_;
     for (int side = 0; side < 2; ++side) {
         const bool tested = plausible_ && std::abs(previous_pulse_[side]) >= 0.14f;
@@ -108,23 +139,43 @@ V6RecoveryFeedback V6RecoveryObserver::observe(
         for (int direction = 0; direction < 2; ++direction) {
             const bool test_direction =
                 tested && (previous_pulse_[side] > 0.0f) == (direction != 0);
-            evidence_age_[side][direction] += dt;
-            if (test_direction) {
-                bad_samples_[side][direction] = loaded ? 0 : bad_samples_[side][direction] + 1;
-                if (loaded) {
-                    evidence_[side][direction] = true;
-                    evidence_age_[side][direction] = 0.0f;
+            if (fixed_period) {
+                // Retain the frozen 200 Hz float and sample-count arithmetic.
+                evidence_age_[side][direction] += dt;
+                if (test_direction) {
+                    bad_samples_[side][direction] = loaded ? 0 : bad_samples_[side][direction] + 1;
+                    if (loaded) {
+                        evidence_[side][direction] = true;
+                        evidence_age_[side][direction] = 0.0f;
+                    }
                 }
+                evidence_[side][direction] &=
+                    bad_samples_[side][direction] < 2 && lost_seconds_ < 0.05f;
+                confirmed_ &= evidence_[side][direction] && evidence_age_[side][direction] < 0.6f;
+            } else {
+                // The 1 kHz path measures bad response, loss and expiry in time.
+                constexpr double epsilon = 1e-12;
+                evidence_elapsed_seconds_[side][direction] += elapsed_seconds;
+                if (test_direction) {
+                    bad_elapsed_seconds_[side][direction] =
+                        loaded ? 0.0 : bad_elapsed_seconds_[side][direction] + elapsed_seconds;
+                    if (loaded) {
+                        evidence_[side][direction] = true;
+                        evidence_elapsed_seconds_[side][direction] = 0.0;
+                    }
+                }
+                evidence_[side][direction] &=
+                    bad_elapsed_seconds_[side][direction] + epsilon < 0.010
+                    && lost_elapsed_seconds_ + epsilon < 0.050;
+                confirmed_ &= evidence_[side][direction]
+                           && evidence_elapsed_seconds_[side][direction] + epsilon < 0.600;
             }
-            evidence_[side][direction] &=
-                bad_samples_[side][direction] < 2 && lost_seconds_ < 0.05f;
-            confirmed_ &= evidence_[side][direction] && evidence_age_[side][direction] < 0.6f;
         }
     }
     previous_velocity_ = velocity;
     previous_gyro_ = omega;
     previous_pulse_.setZero();
-    V6RecoveryFeedback feedback;
+    JointReferenceRecoveryFeedback feedback;
     feedback.q = q_.cast<double>();
     feedback.dq = dq;
     feedback.gravity = gravity;
@@ -132,19 +183,35 @@ V6RecoveryFeedback V6RecoveryObserver::observe(
     feedback.estimated_height = heights_.minCoeff();
     feedback.support = plausible_;
     feedback.support_confirmed = confirmed_;
-    feedback.body_clear =
-        (confirmed_ || phase == V6RecoveryPhase::kBlend || phase == V6RecoveryPhase::kRl)
-        && plausible_ && heights_.minCoeff() > 0.27f;
+    feedback.body_clear = (confirmed_ || phase == JointReferenceRecoveryPhase::kBlend
+                           || phase == JointReferenceRecoveryPhase::kRl)
+                       && plausible_ && heights_.minCoeff() > 0.27f;
     return feedback;
 }
 
-Eigen::Vector2d V6RecoveryObserver::probe_command(bool scripted_and_released) {
+Eigen::Vector2d ClosedChainSupportObserver::probe_command(bool scripted_and_released) {
+    return probe_command(scripted_and_released, period_seconds_);
+}
+
+Eigen::Vector2d
+    ClosedChainSupportObserver::probe_command(bool scripted_and_released, double elapsed_seconds) {
+    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0 || elapsed_seconds > 0.020) {
+        reset();
+        return Eigen::Vector2d::Zero();
+    }
     previous_pulse_.setZero();
     if (scripted_and_released && plausible_ && !confirmed_) {
-        const auto stage = (reference_tick_ / 3) % 4;
+        const auto stage =
+            period_seconds_ == 0.005
+                ? (reference_tick_ / 3) % 4
+                : static_cast<std::uint64_t>(std::floor((probe_elapsed_seconds_ + 1e-12) / 0.015))
+                      % 4;
         previous_pulse_[stage / 2] = stage % 2 == 0 ? 0.18f : -0.18f;
     }
-    ++reference_tick_;
+    if (period_seconds_ == 0.005)
+        ++reference_tick_;
+    else
+        probe_elapsed_seconds_ = std::fmod(probe_elapsed_seconds_ + elapsed_seconds, 0.060);
     return previous_pulse_.cast<double>();
 }
 } // namespace rmcs::rl

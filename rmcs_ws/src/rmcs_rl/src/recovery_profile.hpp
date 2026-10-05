@@ -1,6 +1,6 @@
 #pragma once
 
-#include "v6_recovery_controller.hpp"
+#include "joint_reference_recovery_controller.hpp"
 
 #include <array>
 #include <filesystem>
@@ -8,7 +8,7 @@
 
 namespace rmcs::rl {
 
-struct V6RecoverySideGeometry {
+struct ClosedChainLegGeometry {
     std::vector<float> delta_rad;
     std::vector<Eigen::Vector3f> wheel_center_b_m;
     Eigen::Vector3f hip_origin_b_m;
@@ -20,10 +20,10 @@ struct V6RecoverySideGeometry {
 
 // Immutable geometry and references bound to the 2026-10-03 V6 candidate.
 // Loading these simulation candidates never grants hardware readiness.
-struct V6RecoveryProfile {
-    V6RecoveryConfig controller;
-    std::array<V6RecoverySideGeometry, 2> geometry;
-    static V6RecoveryProfile
+struct RecoveryProfile {
+    JointReferenceRecoveryConfig controller;
+    std::array<ClosedChainLegGeometry, 2> geometry;
+    static RecoveryProfile
         load(const std::filesystem::path& profile, const std::filesystem::path& lookup);
 };
 

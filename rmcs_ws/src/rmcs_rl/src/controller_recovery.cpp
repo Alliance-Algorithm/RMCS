@@ -1,5 +1,5 @@
+#include "chassis_body_geometry.hpp"
 #include "rl_controller.hpp"
-#include "v6_recovery_body_geometry.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,11 +11,12 @@ bool RlController::update_prepare_() {
     const double dt = 1.0 / *update_rate_;
     const bool v6 = policy_profile_.name == kV6PolicyProfile.name;
     const Eigen::Vector4d goal =
-        v6 ? v6_prepare_target_ : Eigen::Map<const Eigen::Vector4d>{nominal_.data()};
-    const Eigen::Vector4d delta = v6 ? V6RecoveryController::paired_delta(goal, targets_.head<4>())
-                                     : (goal - targets_.head<4>()).unaryExpr([](double x) {
-                                           return std::remainder(x, 2 * std::numbers::pi);
-                                       });
+        v6 ? prepare_target_ : Eigen::Map<const Eigen::Vector4d>{nominal_.data()};
+    const Eigen::Vector4d delta =
+        v6 ? JointReferenceRecoveryController::paired_delta(goal, targets_.head<4>())
+           : (goal - targets_.head<4>()).unaryExpr([](double x) {
+                 return std::remainder(x, 2 * std::numbers::pi);
+             });
     bool reached = true;
     for (int i = 0; i < 4; ++i) {
         targets_[i] +=
@@ -30,7 +31,7 @@ bool RlController::update_prepare_() {
         // V6 never waits for a non-balancing controller to demonstrate static
         // balance. Fresh sensors, drive readiness and the real hinge bounds
         // remain mandatory; the legacy dwell below is unchanged.
-        return v6_upright_capture_ready_(prepare_max_tilt_rad_);
+        return upright_capture_ready_(prepare_max_tilt_rad_);
     }
     const Eigen::Quaterniond q_world_base = world_base_orientation_();
     const double gravity_z = (q_world_base.conjugate() * -Eigen::Vector3d::UnitZ()).z();
@@ -46,22 +47,21 @@ bool RlController::update_prepare_() {
         >= std::chrono::duration<double>{prepare_stable_seconds_};
 }
 
-bool RlController::v6_upright_capture_ready_(double max_tilt_rad) const {
-    return v6_upright_capture_ready_(max_tilt_rad, v6_capture_max_angular_velocity_);
+bool RlController::upright_capture_ready_(double max_tilt_rad) const {
+    return upright_capture_ready_(max_tilt_rad, capture_max_angular_velocity_);
 }
 
-bool RlController::v6_upright_capture_ready_(
-    double max_tilt_rad, double max_angular_velocity) const {
+bool RlController::upright_capture_ready_(double max_tilt_rad, double max_angular_velocity) const {
     const double gravity_z =
         (world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ()).z();
     if (!feedback_valid_ || !recovery_sensor_status_.valid || -gravity_z < std::cos(max_tilt_rad)
         || (imu_to_base_ * *gyro_).norm() > max_angular_velocity
-        || dq_.head<4>().cwiseAbs().maxCoeff() > v6_capture_max_leg_velocity_
-        || dq_.tail<2>().cwiseAbs().maxCoeff() > v6_capture_max_wheel_velocity_)
+        || dq_.head<4>().cwiseAbs().maxCoeff() > capture_max_leg_velocity_
+        || dq_.tail<2>().cwiseAbs().maxCoeff() > capture_max_wheel_velocity_)
         return false;
     for (int i = 0; i < 4; ++i)
         if (std::abs(std::remainder(nominal_[i] - q_[i], 2 * std::numbers::pi))
-            > v6_capture_max_leg_error_rad_)
+            > capture_max_leg_error_rad_)
             return false;
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side;
@@ -73,7 +73,7 @@ bool RlController::v6_upright_capture_ready_(
     return true;
 }
 
-bool RlController::v6_recovery_capture_ready_() const {
+bool RlController::recovery_capture_ready_() const {
     const Eigen::Vector3d gravity =
         world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
     const Eigen::Vector3d omega = imu_to_base_ * *gyro_;
@@ -86,8 +86,8 @@ bool RlController::v6_recovery_capture_ready_() const {
         return false;
     // Shell contact belongs to the recovery script. Veto only the transfer to
     // the flat actor when either conditional wheel plane lies above the shell.
-    if (v6_recovery_feedback_data_.estimated_height + 0.003
-        < v6_recovery_body_geometry::support_depth(gravity.cast<float>()))
+    if (joint_reference_feedback_.estimated_height + 0.003
+        < body_geometry::support_depth(gravity.cast<float>()))
         return false;
     const bool upright = -gravity.z() >= std::cos(prepare_max_tilt_rad_);
     if (-gravity.z() < std::cos(std::numbers::pi / 6.0)) {
@@ -100,9 +100,9 @@ bool RlController::v6_recovery_capture_ready_() const {
         if (tilt_rate_numerator > max_outward_tilt_rate * sin_tilt)
             return false;
     }
-    return v6_upright_capture_ready_(
-        v6_recovery_capture_max_tilt_rad_,
-        upright ? v6_recovery_capture_max_angular_velocity_ : v6_capture_max_angular_velocity_);
+    return upright_capture_ready_(
+        recovery_capture_max_tilt_rad_,
+        upright ? recovery_capture_max_angular_velocity_ : capture_max_angular_velocity_);
 }
 
 RecoverySensorData RlController::recovery_sensor_data_() const {
@@ -149,12 +149,12 @@ std::optional<RecoveryFeedback> RlController::observe_recovery_() {
 
 bool RlController::advance_recovery_() {
     if (policy_profile_.name == kV6PolicyProfile.name) {
-        const auto feedback = observe_v6_recovery_();
-        if (!feedback || !v6_recovery_)
+        const auto feedback = observe_joint_reference_recovery_();
+        if (!feedback || !joint_reference_recovery_)
             return false;
-        v6_recovery_feedback_data_ = *feedback;
+        joint_reference_feedback_ = *feedback;
         if (!recovery_started_) {
-            v6_recovery_->reset(feedback->q);
+            joint_reference_recovery_->reset(feedback->q);
             recovery_started_ = true;
         }
         // The actor decodes against the previous reference winding before the
@@ -205,34 +205,37 @@ bool RlController::advance_recovery_() {
     return true;
 }
 
-std::optional<V6RecoveryFeedback> RlController::observe_v6_recovery_() {
-    if (!v6_recovery_observer_ || !v6_recovery_ || !recovery_sensor_status_.valid
+std::optional<JointReferenceRecoveryFeedback> RlController::observe_joint_reference_recovery_() {
+    if (!support_observer_ || !joint_reference_recovery_ || !recovery_sensor_status_.valid
         || !acceleration_.ready() || !acceleration_->allFinite())
         return std::nullopt;
     const Eigen::Quaterniond world_base = world_base_orientation_();
-    const auto feedback = v6_recovery_observer_->observe(
+    const auto feedback = support_observer_->observe(
         recovery_sensor_data_(), q_, dq_, world_base.conjugate() * -Eigen::Vector3d::UnitZ(),
         imu_to_base_ * *gyro_, imu_to_base_ * *acceleration_,
-        recovery_started_ ? v6_recovery_->command().phase : V6RecoveryPhase::kSelect);
+        recovery_started_ ? joint_reference_recovery_->command().phase
+                          : JointReferenceRecoveryPhase::kSelect,
+        recovery_dt_);
     return feedback;
 }
 
-V6RecoveryFeedback RlController::v6_recovery_feedback_() const {
-    auto feedback = v6_recovery_feedback_data_;
+JointReferenceRecoveryFeedback RlController::joint_reference_recovery_feedback_() const {
+    auto feedback = joint_reference_feedback_;
     feedback.q = q_;
     feedback.dq = dq_;
     return feedback;
 }
 
-bool RlController::advance_v6_recovery_() {
-    if (!v6_recovery_ || !v6_recovery_observer_)
+bool RlController::advance_joint_reference_recovery_() {
+    if (!joint_reference_recovery_ || !support_observer_)
         return false;
-    v6_recovery_feedback_data_.rl_capture_ready = v6_recovery_capture_ready_();
-    const auto& command = v6_recovery_->update(v6_recovery_feedback_data_);
-    v6_recovery_feedback_data_.wheel_probe_torque =
-        v6_recovery_observer_->probe_command(command.scripted && command.release_finished);
+    joint_reference_feedback_.rl_capture_ready = recovery_capture_ready_();
+    const auto& command =
+        joint_reference_recovery_->update(joint_reference_feedback_, recovery_dt_);
+    joint_reference_feedback_.wheel_probe_torque = support_observer_->probe_command(
+        command.scripted && command.release_finished, recovery_dt_);
     if (command.failed) {
-        v6_recovery_failure_latched_ = command.failure_code;
+        joint_reference_failure_latched_ = command.failure_code;
         switch (command.failure_code) {
         case 1: recovery_failure_latched_ = RecoveryFailure::kInvalidFeedback; break;
         case 2: recovery_failure_latched_ = RecoveryFailure::kNoReorientation; break;
@@ -245,16 +248,18 @@ bool RlController::advance_v6_recovery_() {
         return false;
     }
     if (command.pure_rl && state_ == State::kPrepare) {
-        RCLCPP_INFO(get_logger(), "V6 self-righting handover: policy owns all six axes, motion %s",
-                    command.motion_hold ? "held" : "released");
+        RCLCPP_INFO(
+            get_logger(), "Self-righting handover: policy owns all six axes, motion %s",
+            command.motion_hold ? "held" : "released");
         enter_(State::kRl);
     }
     return true;
 }
 
 bool RlController::recovery_motion_hold_() const {
-    if (policy_profile_.name == kV6PolicyProfile.name && recovery_started_ && v6_recovery_)
-        return v6_recovery_->command().motion_hold;
+    if (policy_profile_.name == kV6PolicyProfile.name && recovery_started_
+        && joint_reference_recovery_)
+        return joint_reference_recovery_->command().motion_hold;
     return hold_recovery_command(
         recovery_started_, state_ == State::kPrepare,
         std::chrono::duration<double>(recovery_update_time_ - recovery_rl_start_).count(),
@@ -262,22 +267,22 @@ bool RlController::recovery_motion_hold_() const {
 }
 
 RecoveryPhase RlController::recovery_phase_() const {
-    if (policy_profile_.name != kV6PolicyProfile.name || !v6_recovery_)
+    if (policy_profile_.name != kV6PolicyProfile.name || !joint_reference_recovery_)
         return recovery_.phase();
     if (!recovery_started_)
         return RecoveryPhase::kIdle;
-    switch (v6_recovery_->command().phase) {
-    case V6RecoveryPhase::kSelect: return RecoveryPhase::kIdle;
-    case V6RecoveryPhase::kFold: return RecoveryPhase::kFold;
-    case V6RecoveryPhase::kPlant: return RecoveryPhase::kPlant;
-    case V6RecoveryPhase::kOrbit: return RecoveryPhase::kOrbit;
-    case V6RecoveryPhase::kThrust: return RecoveryPhase::kThrust;
-    case V6RecoveryPhase::kSide: return RecoveryPhase::kSideSwing;
-    case V6RecoveryPhase::kCapture: return RecoveryPhase::kCapture;
-    case V6RecoveryPhase::kPrepare: return RecoveryPhase::kPrepare;
-    case V6RecoveryPhase::kBlend: return RecoveryPhase::kBlend;
-    case V6RecoveryPhase::kRl: return RecoveryPhase::kComplete;
-    case V6RecoveryPhase::kFailed: return RecoveryPhase::kFailed;
+    switch (joint_reference_recovery_->command().phase) {
+    case JointReferenceRecoveryPhase::kSelect: return RecoveryPhase::kIdle;
+    case JointReferenceRecoveryPhase::kFold: return RecoveryPhase::kFold;
+    case JointReferenceRecoveryPhase::kPlant: return RecoveryPhase::kPlant;
+    case JointReferenceRecoveryPhase::kOrbit: return RecoveryPhase::kOrbit;
+    case JointReferenceRecoveryPhase::kThrust: return RecoveryPhase::kThrust;
+    case JointReferenceRecoveryPhase::kSide: return RecoveryPhase::kSideSwing;
+    case JointReferenceRecoveryPhase::kCapture: return RecoveryPhase::kCapture;
+    case JointReferenceRecoveryPhase::kPrepare: return RecoveryPhase::kPrepare;
+    case JointReferenceRecoveryPhase::kBlend: return RecoveryPhase::kBlend;
+    case JointReferenceRecoveryPhase::kRl: return RecoveryPhase::kComplete;
+    case JointReferenceRecoveryPhase::kFailed: return RecoveryPhase::kFailed;
     }
     return RecoveryPhase::kFailed;
 }
