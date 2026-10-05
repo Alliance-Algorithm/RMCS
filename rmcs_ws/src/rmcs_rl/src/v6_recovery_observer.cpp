@@ -91,8 +91,10 @@ V6RecoveryFeedback V6RecoveryObserver::observe(
         height_valid &= in_domain && std::isfinite(heights_[side]) && heights_[side] > 0.0f;
     }
     const float acceleration_norm = acceleration.cast<float>().norm();
+    // Allow a small roll/asymmetric-leg capture window. These are conditional
+    // wheel-plane heights, not proof that both wheels touch the ground.
     plausible_ = height_valid && heights_.minCoeff() > 0.12f
-              && std::abs(heights_[0] - heights_[1]) < 0.035f && acceleration_norm > 6.0f
+              && std::abs(heights_[0] - heights_[1]) < 0.045f && acceleration_norm > 6.0f
               && acceleration_norm < 16.0f && omega.norm() < 8.0f;
     const Eigen::Vector2f velocity = dq.tail<2>().cast<float>();
     const Eigen::Vector2f wheel_acceleration = (velocity - previous_velocity_) / dt;

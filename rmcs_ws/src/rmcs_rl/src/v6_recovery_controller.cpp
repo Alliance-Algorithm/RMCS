@@ -327,9 +327,15 @@ const V6RecoveryCommand& V6RecoveryController::update(const V6RecoveryFeedback& 
     ready_ticks_ = ready ? ready_ticks_ + 1 : 0;
     // A valid measured capture ends the current script, even before PREPARE.
     // Use the current phase so an earlier failure cannot be cleared here.
+    // Dynamic capture uses conditional support and the caller's motion bounds.
+    // Bidirectional probes remain part of static handover; their acceleration
+    // test cannot require a balancing wheel to settle before a moving capture.
+    // Acquire several actual sensor frames before trusting a cold IMU/filter
+    // baseline. This is startup sensing time, not a standing-stability dwell.
     const bool captured_for_rl = enabled_ && phase_ < V6RecoveryPhase::kBlend
+        && age_ticks_ >= ticks_(0.06)
         && config_.dynamic_takeover
-        && feedback.rl_capture_ready && feedback.support && feedback.support_confirmed
+        && feedback.rl_capture_ready && feedback.support
         && height > static_cast<float>(config_.dynamic_capture_height_min)
         && height < static_cast<float>(config_.handover_height_max);
     if (captured_for_rl || (preparing && ready_ticks_ >= ticks_(0.1)))

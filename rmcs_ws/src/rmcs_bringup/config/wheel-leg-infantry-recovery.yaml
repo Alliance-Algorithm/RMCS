@@ -165,9 +165,12 @@ rl_controller:
     # Reuse the ordinary V6 leg/velocity capture envelope below, with separate
     # recovery tilt/height bounds while the body is still rising.
     v6_recovery_dynamic_takeover: true
-    # Capture on measured leg pose while the body is still rising. Wheel-probe
-    # support is required; the ordinary RL fall guard applies after takeover.
+    # Capture on measured leg pose and conditional FK/IMU support while rising.
+    # Do not wait for settled wheel probes; retain the ordinary RL fall guard.
     v6_recovery_capture_max_tilt_rad: 0.6981317007977318
+    # Within the ordinary upright domain, capture a moving body before it tips.
+    # Outside it retain 1 rad/s; above 30 deg reject outward tilt beyond tolerance.
+    v6_recovery_capture_max_angular_velocity: 2.0
     v6_recovery_capture_height_min: 0.20
     # Raise the slow folding/planting ramp; retain native push/capture speeds.
     v6_recovery_fold_plant_speed_rad_s: 3.0

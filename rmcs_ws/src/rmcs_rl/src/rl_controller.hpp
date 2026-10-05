@@ -71,6 +71,8 @@ private:
     std::optional<RecoveryFeedback> observe_recovery_();
     bool update_prepare_();
     bool v6_upright_capture_ready_(double max_tilt_rad) const;
+    bool v6_upright_capture_ready_(double max_tilt_rad, double max_angular_velocity) const;
+    bool v6_recovery_capture_ready_() const;
     void update_command_reference_();
     bool assemble_observation_(bool shadow_recovery = false);
     std::expected<void, std::string>
@@ -227,6 +229,7 @@ private:
     double v6_capture_max_leg_velocity_ = 2.0;
     double v6_capture_max_wheel_velocity_ = 5.0;
     double v6_recovery_capture_max_tilt_rad_ = 0.2;
+    double v6_recovery_capture_max_angular_velocity_ = 1.0;
     double v6_takeover_blend_seconds_ = 0.0;
     double v6_takeover_blend_fraction_ = 0.0;
     double hinge_margin_ = 0.03;
