@@ -325,6 +325,7 @@ RlController::RlController()
             || (imu_to_base_.transpose() * imu_to_base_ - Eigen::Matrix3d::Identity()).norm()
                    > 1e-3))
         throw std::runtime_error("imu_to_base must be a calibrated rotation matrix");
+    base_to_imu_orientation_ = Eigen::Quaterniond{imu_to_base_.transpose()};
 
     if (policy_profile_.name == kV6PolicyProfile.name) {
         const auto resolve = [](const std::string& name) {

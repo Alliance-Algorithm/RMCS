@@ -10,7 +10,7 @@ namespace rmcs::rl {
 Eigen::Quaterniond RlController::world_base_orientation_() const {
     // Eigen composes body -> world with base -> body. The CAD export rotation
     // already belongs to the frozen asset and must not be applied here.
-    return orientation_->normalized() * Eigen::Quaterniond{imu_to_base_.transpose()};
+    return orientation_->normalized() * base_to_imu_orientation_;
 }
 
 bool RlController::read_model_state_() {
