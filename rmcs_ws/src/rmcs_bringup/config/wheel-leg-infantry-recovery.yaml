@@ -152,30 +152,31 @@ rl_controller:
     # Compatible V6 actors share the robot control contract.
     model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
-    # Recompute all six host PD efforts every 1 ms; recovery references stay 200 Hz.
+    # Update feedback PD and recovery references every 1 ms; policy targets stay at 50 Hz.
     pd_frequency: 1000.0
+    recovery_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
     # Keep the frozen native references and 40..105-degree geometry unchanged.
-    v6_recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
-    v6_height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
+    recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
+    height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
     recovery_enabled: true
     recovery_profile_ready: true
     # At the measured capture condition, switch all six axes to actor effort
     # in that same recovery tick, accepting motion commands immediately.
-    v6_recovery_blend_seconds: 0.0
-    v6_recovery_release_motion_on_takeover: true
+    recovery_blend_seconds: 0.0
+    recovery_release_motion_on_takeover: true
     # Reuse the ordinary V6 leg/velocity capture envelope below, with separate
     # recovery tilt/height bounds while the body is still rising.
-    v6_recovery_dynamic_takeover: true
+    recovery_dynamic_takeover: true
     # Capture on measured leg pose and conditional FK/IMU support while rising.
     # Do not wait for settled wheel probes; retain the ordinary RL fall guard.
-    v6_recovery_capture_max_tilt_rad: 0.6981317007977318
+    recovery_capture_max_tilt_rad: 0.6981317007977318
     # Within the ordinary upright domain, capture a moving body before it tips.
     # Outside it retain 1 rad/s; above 30 deg reject outward tilt beyond tolerance.
-    v6_recovery_capture_max_angular_velocity: 2.0
-    v6_recovery_capture_height_min: 0.20
+    recovery_capture_max_angular_velocity: 2.0
+    recovery_capture_height_min: 0.20
     # Raise the slow folding/planting ramp; retain native push/capture speeds.
-    v6_recovery_fold_plant_speed_rad_s: 3.0
+    recovery_fold_plant_speed_rad_s: 3.0
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
     recovery_motor_age_s: 0.02
     recovery_imu_age_s: 0.02
@@ -257,13 +258,13 @@ rl_controller:
     # gyro/axis speed, strict sample freshness and measured hinge limits still
     # gate entry. These engineering capture bounds do not qualify hardware.
     # Ordinary entry uses prepare_max_tilt_rad; recovery has its own tilt bound.
-    v6_capture_max_leg_error_rad: 0.25
-    v6_capture_max_angular_velocity: 1.0
-    v6_capture_max_leg_velocity: 4.0
-    v6_capture_max_wheel_velocity: 10.0
+    capture_max_leg_error_rad: 0.25
+    capture_max_angular_velocity: 1.0
+    capture_max_leg_velocity: 4.0
+    capture_max_wheel_velocity: 10.0
     # RL inference starts at capture regardless of this effort-only window.
     # 0 selects direct takeover; optional six-axis smoothstep is bounded to 0.3 s.
-    v6_takeover_blend_seconds: 0.0
+    takeover_blend_seconds: 0.0
 
 wheel_leg_chassis_controller:
   ros__parameters:

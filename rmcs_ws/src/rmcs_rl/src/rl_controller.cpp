@@ -38,13 +38,13 @@ void RlController::before_updating() {
     // Calculate divisors on the first update instead.
     last_reset_count_ = *reset_count_;
     const bool native_profile_ready =
-        policy_profile_.name != kV6PolicyProfile.name || v6_native_profile_ready_;
+        policy_profile_.name != kV6PolicyProfile.name || joint_reference_profile_ready_;
     if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_
         || !native_profile_ready)
         RCLCPP_WARN(
             get_logger(),
             "RL disarmed: calibration_ready=%d, soft_limits_ready=%d, imu_alignment_ready=%d, "
-            "policy_ready=%d, v6_profile_ready=%d",
+            "policy_ready=%d, recovery_profile_ready=%d",
             calibration_ready_, soft_limits_ready_, imu_alignment_ready_, policy_ready_,
             native_profile_ready);
     if (!recovery_enabled_)
@@ -75,8 +75,8 @@ void RlController::enter_(State next) {
     prepare_stable_since_.reset();
     if (next != State::kRl) {
         clear_outputs_();
-        v6_takeover_targets_.setZero();
-        v6_takeover_blend_fraction_ = 0.0;
+        takeover_targets_.setZero();
+        takeover_blend_fraction_ = 0.0;
         *inference_time_us_ = 0.0;
         *pd_time_us_ = 0.0;
         previous_action_.fill(0);
@@ -89,8 +89,8 @@ void RlController::enter_(State next) {
     if (next == State::kIdle || next == State::kInit) {
         *enable_request_ = false;
         recovery_.reset();
-        if (v6_recovery_)
-            v6_recovery_->reset(q_, false);
+        if (joint_reference_recovery_)
+            joint_reference_recovery_->reset(q_, false);
         recovery_peak_budget_.reset();
         recovery_interval_.reset();
         recovery_actuation_interval_.reset();
@@ -101,8 +101,8 @@ void RlController::enter_(State next) {
         recovery_sensor_guard_.reset();
         if (recovery_observer_)
             recovery_observer_->reset();
-        if (v6_recovery_observer_)
-            v6_recovery_observer_->reset();
+        if (support_observer_)
+            support_observer_->reset();
         recovery_started_ = false;
         recovery_upright_seconds_ = 0.0;
         policy_targets_valid_ = false;
@@ -112,10 +112,10 @@ void RlController::enter_(State next) {
         height_start_ = *timestamp_;
     } else if (next == State::kPrepare) {
         recovery_.reset();
-        if (v6_recovery_)
-            v6_recovery_->reset(q_, false);
-        if (v6_recovery_observer_)
-            v6_recovery_observer_->reset();
+        if (joint_reference_recovery_)
+            joint_reference_recovery_->reset(q_, false);
+        if (support_observer_)
+            support_observer_->reset();
         recovery_started_ = false;
         recovery_upright_seconds_ = 0.0;
         motor_feedback_initialized_ = false;
@@ -129,8 +129,8 @@ void RlController::enter_(State next) {
         // Freeze the last preparation pose, not its old torque. The optional
         // V6 takeover recomputes this PD at the configured feedback cadence.
         if (!recovery_started_ && policy_profile_.name == kV6PolicyProfile.name) {
-            v6_takeover_targets_ = targets_;
-            v6_takeover_targets_.tail<2>().setZero();
+            takeover_targets_ = targets_;
+            takeover_targets_.tail<2>().setZero();
         }
         if (!recovery_started_)
             last_policy_tick_ = std::numeric_limits<std::size_t>::max();
@@ -151,38 +151,40 @@ void RlController::update_state_output_() {
     *recovery_motor_age_output_ = recovery_sensor_status_.maximum_motor_age_ms;
     *recovery_imu_age_output_ = recovery_sensor_status_.imu_age_ms;
     *recovery_acceleration_age_output_ = recovery_sensor_status_.acceleration_age_ms;
-    const bool native = policy_profile_.name == kV6PolicyProfile.name && v6_recovery_;
+    const bool native = policy_profile_.name == kV6PolicyProfile.name && joint_reference_recovery_;
     *recovery_native_phase_output_ =
-        native && recovery_started_ ? std::to_underlying(v6_recovery_->command().phase)
-        : native && v6_recovery_failure_latched_ != 0 ? std::to_underlying(V6RecoveryPhase::kFailed)
-                                                      : -1;
+        native && recovery_started_ ? std::to_underlying(joint_reference_recovery_->command().phase)
+        : native && joint_reference_failure_latched_ != 0
+            ? std::to_underlying(JointReferenceRecoveryPhase::kFailed)
+            : -1;
     *recovery_native_route_output_ =
-        native && recovery_started_ ? std::to_underlying(v6_recovery_->command().route) : -1;
-    *recovery_native_failure_output_ = v6_recovery_failure_latched_;
+        native && recovery_started_ ? std::to_underlying(joint_reference_recovery_->command().route)
+                                    : -1;
+    *recovery_native_failure_output_ = joint_reference_failure_latched_;
     *recovery_native_motion_released_output_ =
-        native && recovery_started_ && v6_recovery_->command().motion_released;
-    *recovery_contact_output_ = recovery_started_
-                             && (native ? v6_recovery_feedback_data_.support
-                                        : last_recovery_feedback_.contact_candidate);
+        native && recovery_started_ && joint_reference_recovery_->command().motion_released;
+    *recovery_contact_output_ =
+        recovery_started_
+        && (native ? joint_reference_feedback_.support : last_recovery_feedback_.contact_candidate);
     *recovery_height_output_ = !recovery_started_ ? 0.0
-                             : native             ? v6_recovery_feedback_data_.estimated_height
+                             : native             ? joint_reference_feedback_.estimated_height
                              : last_recovery_feedback_.geometry_valid
                                  ? last_recovery_feedback_.height_if_grounded
                                  : 0.0;
     *recovery_blend_output_ = !recovery_started_   ? 0.0
-                            : native               ? v6_recovery_->command().blend
+                            : native               ? joint_reference_recovery_->command().blend
                             : state_ == State::kRl ? 1.0
                                                    : recovery_command_.blend;
-    *v6_takeover_blend_output_ = v6_takeover_blend_fraction_;
+    *takeover_blend_output_ = takeover_blend_fraction_;
     *state_output_ = std::to_underlying(state_);
     *recovery_phase_output_ = std::to_underlying(recovery_phase_());
     *recovery_failure_output_ = std::to_underlying(recovery_failure_latched_);
     *recovery_support_output_ = recovery_started_
-                             && (native ? v6_recovery_observer_->support_confirmed()
+                             && (native ? support_observer_->support_confirmed()
                                         : last_recovery_feedback_.support_confirmed);
-    *recovery_geometry_output_ = recovery_started_
-                              && (native ? v6_recovery_observer_->geometry_valid()
-                                         : last_recovery_feedback_.geometry_valid);
+    *recovery_geometry_output_ =
+        recovery_started_
+        && (native ? support_observer_->geometry_valid() : last_recovery_feedback_.geometry_valid);
     *recovery_motion_hold_output_ = recovery_motion_hold_();
 }
 
@@ -216,15 +218,14 @@ void RlController::update() {
     recovery_update_time_ = Clock::now();
     if (!timing_ready_) {
         const double rate = *update_rate_;
-        if (!almost_integer(rate / inference_frequency_)
-            || !almost_integer(rate / pd_frequency_)
-            || !almost_integer(rate / DeployedPolicyContract::kControlFrequencyHz))
+        if (!almost_integer(rate / inference_frequency_) || !almost_integer(rate / pd_frequency_)
+            || !almost_integer(rate / recovery_frequency_))
             throw std::runtime_error(
-                "RMCS update_rate must be an integer multiple of PD, 200Hz recovery and 50Hz policy");
+                "RMCS update_rate must be an integer multiple of PD, recovery and policy "
+                "frequencies");
         policy_divisor_ = static_cast<std::size_t>(std::llround(rate / inference_frequency_));
         pd_divisor_ = static_cast<std::size_t>(std::llround(rate / pd_frequency_));
-        recovery_divisor_ = static_cast<std::size_t>(
-            std::llround(rate / DeployedPolicyContract::kControlFrequencyHz));
+        recovery_divisor_ = static_cast<std::size_t>(std::llround(rate / recovery_frequency_));
         timing_ready_ = true;
     }
     const int requested = *state_command_;
@@ -233,7 +234,7 @@ void RlController::update() {
     if (reset) {
         fault_latched_ = false;
         recovery_failure_latched_ = RecoveryFailure::kNone;
-        v6_recovery_failure_latched_ = 0;
+        joint_reference_failure_latched_ = 0;
         enter_(State::kIdle);
     }
     if (requested == 0) {
@@ -263,11 +264,11 @@ void RlController::update() {
             "Requested motion exceeds the active policy capability profile");
     if ((requested != 2 && requested != 3 && !automatic) || unsupported_command || fault_latched_
         || !policy_ready_ || !calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_
-        || (policy_profile_.name == kV6PolicyProfile.name && !v6_native_profile_ready_)
+        || (policy_profile_.name == kV6PolicyProfile.name && !joint_reference_profile_ready_)
         || (recovery_enabled_
             && (!recovery_profile_ready_
                 || (policy_profile_.name == kV6PolicyProfile.name
-                    && (!v6_recovery_ || !v6_recovery_observer_))))
+                    && (!joint_reference_recovery_ || !support_observer_))))
         || !read_model_state_()) {
         if (requested >= 2 && calibration_ready_ && soft_limits_ready_ && policy_ready_
             && imu_alignment_ready_)
@@ -293,10 +294,13 @@ void RlController::update() {
 
     const std::size_t tick = *update_count_;
     const bool pd_due = !last_pd_tick_ || tick - *last_pd_tick_ >= pd_divisor_;
-    const bool recovery_due = recovery_enabled_
+    const bool recovery_due =
+        recovery_enabled_
         && (!last_recovery_tick_ || tick - *last_recovery_tick_ >= recovery_divisor_);
     if (recovery_due) {
-        const auto elapsed = recovery_interval_.sample(recovery_update_time_);
+        const auto elapsed = recovery_interval_.sample(
+            recovery_update_time_, std::chrono::duration_cast<Clock::duration>(
+                                       std::chrono::duration<double>{1.0 / recovery_frequency_}));
         if (!elapsed) {
             latch_fault_(RecoveryFailure::kInvalidFeedback);
             update_state_output_();
@@ -358,14 +362,12 @@ void RlController::update() {
                 update_state_output_();
                 return;
             }
-            if (requested == 3 && recovery_due && recovery_observer_
-                && !observe_recovery_()) {
+            if (requested == 3 && recovery_due && recovery_observer_ && !observe_recovery_()) {
                 // Contact evidence must not survive a gap in IMU feedback.
                 recovery_observer_->reset();
                 last_recovery_feedback_ = {};
             }
-            // Even while waiting for the first MIT, recovery observation stays
-            // at 200 Hz independently of the PD actuation cadence.
+            // Waiting for the first MIT does not change the recovery cadence.
             if (pd_due)
                 last_pd_tick_ = tick;
             if (recovery_update_time_ - enable_wait_start_ > std::chrono::seconds{1}) {
@@ -399,10 +401,9 @@ void RlController::update() {
             }
         }
     }
-    // Keep native reference integration and probe timing at their 5 ms period.
-    // Each faster PD update below uses these targets with the latest q/dq.
+    // Recovery and PD share a tick when their configured frequencies match.
     if (recovery_due && recovery_started_ && policy_profile_.name == kV6PolicyProfile.name
-        && !advance_v6_recovery_()) {
+        && !advance_joint_reference_recovery_()) {
         latch_fault_();
         update_state_output_();
         return;

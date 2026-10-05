@@ -150,8 +150,8 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
             // Limit pending commands on release from recovery as well.
             const double max_step =
                 height_reference_rate_max_ * DeployedPolicyContract::kPolicyPeriodSeconds;
-            height_reference_ += std::clamp(
-                *height_command_ - height_reference_, -max_step, max_step);
+            height_reference_ +=
+                std::clamp(*height_command_ - height_reference_, -max_step, max_step);
             height_from_ = height_reference_;
             height_target_ = *height_command_;
             height_start_ = *timestamp_;

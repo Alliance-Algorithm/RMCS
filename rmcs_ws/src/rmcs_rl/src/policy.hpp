@@ -14,7 +14,7 @@ namespace rmcs::rl {
 struct DeployedPolicyContract {
     static constexpr std::string_view kName = "v6";
     static constexpr double kPolicyFrequencyHz = 50.0;
-    // Frozen training/recovery reference cadence; host PD is configured separately.
+    // Frozen training cadence; deployed PD and recovery periods are configured separately.
     static constexpr double kControlFrequencyHz = 200.0;
     static constexpr double kPolicyPeriodSeconds = 1.0 / kPolicyFrequencyHz;
     static constexpr double kControlPeriodSeconds = 1.0 / kControlFrequencyHz;

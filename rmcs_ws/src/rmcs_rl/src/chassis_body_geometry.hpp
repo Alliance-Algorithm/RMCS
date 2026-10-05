@@ -6,7 +6,7 @@
 
 #include <eigen3/Eigen/Core>
 
-namespace rmcs::rl::v6_recovery_body_geometry {
+namespace rmcs::rl::body_geometry {
 
 // Sealed V6 CAD: model/纯底盘_v6_232mm_stop105/urdf.
 // Asset manifest SHA256: 875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba.
@@ -104,4 +104,4 @@ inline constexpr std::array<std::array<float, 3>, 152> kVertices{{
     return depth;
 }
 
-} // namespace rmcs::rl::v6_recovery_body_geometry
+} // namespace rmcs::rl::body_geometry

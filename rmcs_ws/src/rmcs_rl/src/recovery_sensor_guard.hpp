@@ -40,7 +40,7 @@ struct RecoverySensorStatus {
     double acceleration_age_ms = -1.0;
 };
 
-// Repeated snapshots are allowed while fresh, but never advance evidence.
+// Repeated snapshots are allowed while fresh; support evidence belongs to the observer.
 // All comparisons use the hardware callback's steady clock, not scheduled ticks.
 class RecoverySensorGuard {
 public:
