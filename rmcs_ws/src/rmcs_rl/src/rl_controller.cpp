@@ -95,6 +95,7 @@ void RlController::enter_(State next) {
         recovery_interval_.reset();
         recovery_actuation_interval_.reset();
         last_pd_tick_.reset();
+        last_recovery_tick_.reset();
         motor_control_started_ = false;
         motor_feedback_initialized_ = false;
         recovery_sensor_guard_.reset();
@@ -126,7 +127,7 @@ void RlController::enter_(State next) {
         enable_wait_start_ = Clock::now();
     } else if (next == State::kRl) {
         // Freeze the last preparation pose, not its old torque. The optional
-        // V6 takeover recomputes this PD with every fresh 200 Hz feedback.
+        // V6 takeover recomputes this PD at the configured feedback cadence.
         if (!recovery_started_ && policy_profile_.name == kV6PolicyProfile.name) {
             v6_takeover_targets_ = targets_;
             v6_takeover_targets_.tail<2>().setZero();
@@ -216,11 +217,13 @@ void RlController::update() {
     if (!timing_ready_) {
         const double rate = *update_rate_;
         if (!almost_integer(rate / inference_frequency_)
+            || !almost_integer(rate / pd_frequency_)
             || !almost_integer(rate / DeployedPolicyContract::kControlFrequencyHz))
             throw std::runtime_error(
-                "RMCS update_rate must be an integer multiple of 200Hz and 50Hz");
+                "RMCS update_rate must be an integer multiple of PD, 200Hz recovery and 50Hz policy");
         policy_divisor_ = static_cast<std::size_t>(std::llround(rate / inference_frequency_));
-        pd_divisor_ = static_cast<std::size_t>(
+        pd_divisor_ = static_cast<std::size_t>(std::llround(rate / pd_frequency_));
+        recovery_divisor_ = static_cast<std::size_t>(
             std::llround(rate / DeployedPolicyContract::kControlFrequencyHz));
         timing_ready_ = true;
     }
@@ -290,7 +293,9 @@ void RlController::update() {
 
     const std::size_t tick = *update_count_;
     const bool pd_due = !last_pd_tick_ || tick - *last_pd_tick_ >= pd_divisor_;
-    if (recovery_enabled_ && pd_due) {
+    const bool recovery_due = recovery_enabled_
+        && (!last_recovery_tick_ || tick - *last_recovery_tick_ >= recovery_divisor_);
+    if (recovery_due) {
         const auto elapsed = recovery_interval_.sample(recovery_update_time_);
         if (!elapsed) {
             latch_fault_(RecoveryFailure::kInvalidFeedback);
@@ -298,6 +303,7 @@ void RlController::update() {
             return;
         }
         recovery_dt_ = *elapsed;
+        last_recovery_tick_ = tick;
     }
     if ((state_ == State::kRl && recovery_started_)
         || (policy_profile_.name == kV6PolicyProfile.name
@@ -309,7 +315,7 @@ void RlController::update() {
             update_state_output_();
             return;
         }
-        if (pd_due && recovery_started_) {
+        if (recovery_due && recovery_started_) {
             if (policy_profile_.name == kV6PolicyProfile.name) {
                 if (!advance_recovery_()) {
                     latch_fault_(RecoveryFailure::kInvalidFeedback);
@@ -352,14 +358,14 @@ void RlController::update() {
                 update_state_output_();
                 return;
             }
-            if (recovery_enabled_ && requested == 3 && pd_due && recovery_observer_
+            if (requested == 3 && recovery_due && recovery_observer_
                 && !observe_recovery_()) {
                 // Contact evidence must not survive a gap in IMU feedback.
                 recovery_observer_->reset();
                 last_recovery_feedback_ = {};
             }
-            // Even while waiting for the first MIT, observation runs only on
-            // the control cadence, not once per executor tick with a fake 5 ms.
+            // Even while waiting for the first MIT, recovery observation stays
+            // at 200 Hz independently of the PD actuation cadence.
             if (pd_due)
                 last_pd_tick_ = tick;
             if (recovery_update_time_ - enable_wait_start_ > std::chrono::seconds{1}) {
@@ -369,7 +375,7 @@ void RlController::update() {
             return;
         }
         if (recovery_enabled_ && requested == 3) {
-            if (pd_due) {
+            if (recovery_due) {
                 if (!advance_recovery_()) {
                     latch_fault_();
                     update_state_output_();
@@ -393,22 +399,26 @@ void RlController::update() {
             }
         }
     }
+    // Keep native reference integration and probe timing at their 5 ms period.
+    // Each faster PD update below uses these targets with the latest q/dq.
+    if (recovery_due && recovery_started_ && policy_profile_.name == kV6PolicyProfile.name
+        && !advance_v6_recovery_()) {
+        latch_fault_();
+        update_state_output_();
+        return;
+    }
     if (pd_due) {
-        if (recovery_started_ && policy_profile_.name == kV6PolicyProfile.name
-            && !advance_v6_recovery_()) {
-            latch_fault_();
-            update_state_output_();
-            return;
-        }
         const auto pd_start = Clock::now();
         motor_control_started_ = true;
         compute_motor_torques_();
-        if (state_ == State::kPrepare || state_ == State::kRl)
+        if (state_ == State::kPrepare || state_ == State::kRl) {
             *pd_time_us_ =
                 std::chrono::duration<double, std::micro>{Clock::now() - pd_start}.count();
-        last_pd_tick_ = tick;
+            last_pd_tick_ = tick;
+        }
     }
-    // Other ticks hold the last PD effort; send it again on the CAN bus at 1kHz.
+    // A lower configured PD rate holds its last effort between actuation ticks.
+    // With pd_frequency=1000 and a 1 kHz executor, recompute on every tick.
     // clear_outputs_ above is only for states that cannot execute the PD.
     update_state_output_();
 }

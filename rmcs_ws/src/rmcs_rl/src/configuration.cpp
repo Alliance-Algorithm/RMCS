@@ -214,8 +214,10 @@ RlController::RlController()
     wheel_track_ = get_parameter_or("wheel_track", 0.4373);
     inference_frequency_ =
         get_parameter_or("rl_inference_frequency", DeployedPolicyContract::kPolicyFrequencyHz);
+    pd_frequency_ = get_parameter_or("pd_frequency", DeployedPolicyContract::kControlFrequencyHz);
     const std::array parameters{
         inference_frequency_,
+        pd_frequency_,
         prepare_kp_,
         prepare_kd_,
         prepare_max_velocity_,
@@ -239,7 +241,10 @@ RlController::RlController()
         recovery_dm_peak_torque_nm_,
     };
     if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
-        || inference_frequency_ != DeployedPolicyContract::kPolicyFrequencyHz || prepare_kp_ <= 0
+        || inference_frequency_ != DeployedPolicyContract::kPolicyFrequencyHz
+        || pd_frequency_ < DeployedPolicyContract::kControlFrequencyHz || pd_frequency_ > 1000.0
+        || std::fmod(pd_frequency_, DeployedPolicyContract::kControlFrequencyHz) != 0.0
+        || prepare_kp_ <= 0
         || prepare_kd_ < 0 || prepare_max_velocity_ <= 0 || prepare_reach_threshold_ <= 0
         || prepare_max_tilt_rad_ <= 0 || prepare_max_tilt_rad_ >= std::numbers::pi / 2
         || prepare_max_angular_velocity_ <= 0 || prepare_max_joint_velocity_ <= 0
@@ -249,7 +254,7 @@ RlController::RlController()
         || recovery_dm_rated_torque_nm_ <= 0
         || recovery_dm_rated_torque_nm_ > recovery_dm_peak_torque_nm_
         || recovery_dm_peak_torque_nm_ > 40.0)
-        throw std::runtime_error("Invalid policy frequency, PREPARE thresholds, or robot geometry");
+        throw std::runtime_error("Invalid policy/PD frequency, PREPARE thresholds, or robot geometry");
     // These are bounded upright takeover envelopes, not recovery parameters.
     // Startup overrides may tighten them, but cannot turn flat capture into a
     // folded-pose or high-speed recovery entry.
@@ -449,8 +454,10 @@ RlController::RlController()
                  / path;
         policy_ = std::make_unique<OnnxPolicy>(path.string());
         RCLCPP_INFO(
-            get_logger(), "ONNX model %s, %s control, 50Hz policy / 200Hz feedback PD",
-            path.string().c_str(), std::string{policy_profile_.name}.c_str());
+            get_logger(), "ONNX model %s, %s control, %.0fHz policy / %.0fHz feedback PD / "
+                          "%.0fHz recovery",
+            path.string().c_str(), std::string{policy_profile_.name}.c_str(),
+            inference_frequency_, pd_frequency_, DeployedPolicyContract::kControlFrequencyHz);
         policy_ready_ = true;
     }
     // Configuration is copied into fixed control-loop state at construction.
