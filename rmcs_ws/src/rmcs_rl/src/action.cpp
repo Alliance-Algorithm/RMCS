@@ -18,8 +18,9 @@ std::expected<void, std::string>
     }
     Vector6 targets = policy_targets_;
     const bool v6 = policy_profile_.name == kV6PolicyProfile.name;
-    const Vector6 control_q =
-        v6 && recovery_started_ && v6_recovery_ ? v6_recovery_->project_feedback(q_) : q_;
+    const Vector6 control_q = v6 && recovery_started_ && joint_reference_recovery_
+                                ? joint_reference_recovery_->project_feedback(q_)
+                                : q_;
     for (int i = 0; i < 4; ++i) {
         const double desired = nominal_[i] + DeployedPolicyContract::kLegActionScale * clipped[i];
         targets[i] = control_q[i] + std::remainder(desired - control_q[i], 2 * std::numbers::pi);
@@ -96,10 +97,10 @@ void RlController::compute_motor_torques_() {
         return;
     }
     const bool native = policy_profile_.name == kV6PolicyProfile.name;
-    const bool native_recovery = native && recovery_started_ && v6_recovery_;
+    const bool native_recovery = native && recovery_started_ && joint_reference_recovery_;
     const bool scripted = state_ == State::kPrepare && recovery_started_ && !native_recovery;
     const bool blending = scripted && recovery_command_.phase == RecoveryPhase::kBlend;
-    const bool v6_takeover =
+    const bool upright_takeover =
         state_ == State::kRl && !recovery_started_ && policy_profile_.name == kV6PolicyProfile.name;
     Eigen::Vector4d tau = Eigen::Vector4d::Zero();
     Eigen::Vector2d wheel_tau = Eigen::Vector2d::Zero();
@@ -108,7 +109,7 @@ void RlController::compute_motor_torques_() {
             latch_fault_();
             return;
         }
-        const Vector6 continuous_q = v6_recovery_->project_feedback(q_);
+        const Vector6 continuous_q = joint_reference_recovery_->project_feedback(q_);
         Vector6 actor;
         actor.head<4>() =
             (policy_profile_.leg_kp * (policy_targets_.head<4>() - continuous_q.head<4>())
@@ -118,7 +119,8 @@ void RlController::compute_motor_torques_() {
         actor.tail<2>() = (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
                               .cwiseMax(-policy_profile_.wheel_torque_limit)
                               .cwiseMin(policy_profile_.wheel_torque_limit);
-        const Vector6 effort = v6_recovery_->torques(v6_recovery_feedback_(), actor);
+        const Vector6 effort =
+            joint_reference_recovery_->torques(joint_reference_recovery_feedback_(), actor);
         tau = effort.head<4>();
         wheel_tau = effort.tail<2>();
     } else if (scripted) {
@@ -143,7 +145,7 @@ void RlController::compute_motor_torques_() {
         for (int i = 0; i < 4; ++i) {
             policy_tau[i] = policy_profile_.leg_kp * (policy_targets_[i] - q_[i])
                           - policy_profile_.leg_kd * dq_[i];
-            if (!v6_takeover)
+            if (!upright_takeover)
                 policy_tau[i] = std::clamp(
                     policy_tau[i], -DeployedPolicyContract::kLegTorqueLimit,
                     DeployedPolicyContract::kLegTorqueLimit);
@@ -152,20 +154,20 @@ void RlController::compute_motor_torques_() {
             policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>());
         // V6 clips each native PD output. The historical V5 recovery blend
         // clips only its final API output; retain that regression contract.
-        if (policy_profile_.name == kV6PolicyProfile.name && !v6_takeover)
+        if (policy_profile_.name == kV6PolicyProfile.name && !upright_takeover)
             policy_wheel = policy_wheel.cwiseMax(-policy_profile_.wheel_torque_limit)
                                .cwiseMin(policy_profile_.wheel_torque_limit);
-        if (v6_takeover) {
+        if (upright_takeover) {
             // The actor runs from the first RL tick even when alpha is zero;
             // only physical effort is blended. Both PDs use current feedback,
             // and the six-axis mix precedes native clipping and API mapping.
             const double elapsed = std::chrono::duration<double>(*timestamp_ - rl_start_).count();
-            const double t = v6_takeover_blend_seconds_ > 0.0
-                               ? std::clamp(elapsed / v6_takeover_blend_seconds_, 0.0, 1.0)
+            const double t = takeover_blend_seconds_ > 0.0
+                               ? std::clamp(elapsed / takeover_blend_seconds_, 0.0, 1.0)
                                : 1.0;
             const double alpha = t * t * (3.0 - 2.0 * t);
             const Eigen::Vector4d prepare_tau =
-                policy_profile_.leg_kp * (v6_takeover_targets_.head<4>() - q_.head<4>())
+                policy_profile_.leg_kp * (takeover_targets_.head<4>() - q_.head<4>())
                 - policy_profile_.leg_kd * dq_.head<4>();
             const Eigen::Vector2d prepare_wheel = -policy_profile_.wheel_kp * dq_.tail<2>();
             tau = ((1.0 - alpha) * prepare_tau + alpha * policy_tau)
@@ -174,7 +176,7 @@ void RlController::compute_motor_torques_() {
             wheel_tau = ((1.0 - alpha) * prepare_wheel + alpha * policy_wheel)
                             .cwiseMax(-policy_profile_.wheel_torque_limit)
                             .cwiseMin(policy_profile_.wheel_torque_limit);
-            v6_takeover_blend_fraction_ = alpha;
+            takeover_blend_fraction_ = alpha;
         } else if (blending) {
             tau = (1.0 - recovery_command_.blend) * tau + recovery_command_.blend * policy_tau;
             wheel_tau = (1.0 - recovery_command_.blend) * wheel_tau
@@ -262,7 +264,7 @@ void RlController::compute_motor_torques_() {
             std::clamp(motor_tau_wheel, -*max_torque_inputs_[4 + i], *max_torque_inputs_[4 + i]);
     }
     if (native_recovery) {
-        const Vector6 history = v6_recovery_->effective_action_history(
+        const Vector6 history = joint_reference_recovery_->effective_action_history(
             Eigen::Map<const Eigen::Matrix<float, 6, 1>>{policy_action_.data()}.cast<double>());
         for (int i = 0; i < 6; ++i)
             previous_action_[i] = static_cast<float>(history[i]);

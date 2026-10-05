@@ -1,4 +1,4 @@
-#include "v6_recovery_profile.hpp"
+#include "recovery_profile.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -56,13 +56,14 @@ Eigen::Matrix<double, Size, 1> vector(const Json& data) {
     return result;
 }
 
-V6RecoveryVector6 policy_order(const Json& value) {
+JointReferenceRecoveryVector6 policy_order(const Json& value) {
     const auto source = vector<6>(value);
-    return V6RecoveryVector6{source[0], source[1], source[3], source[4], source[2], source[5]};
+    return JointReferenceRecoveryVector6{source[0], source[1], source[3],
+                                         source[4], source[2], source[5]};
 }
 } // namespace
 
-V6RecoveryProfile V6RecoveryProfile::load(
+RecoveryProfile RecoveryProfile::load(
     const std::filesystem::path& profile_path, const std::filesystem::path& lookup_path) {
     const auto profile = frozen_json(
         profile_path, "5b09a3bb27285ab7571bd133151d7118091997309ccc9d59c6b1259836dc1eef");
@@ -71,7 +72,7 @@ V6RecoveryProfile V6RecoveryProfile::load(
     if (profile.at("schema") != "v6_recovery_profiles_v1"
         || lookup.at("schema") != "v6_closedchain_height_lookup_v1")
         throw std::runtime_error("Unsupported frozen V6 recovery schema");
-    V6RecoveryProfile result;
+    RecoveryProfile result;
     auto& controller = result.controller;
     const auto& prepare = profile.at("prepare_reference");
     const auto geometry = policy_order(prepare.at("geometry_control6_rad"));
@@ -88,8 +89,8 @@ V6RecoveryProfile V6RecoveryProfile::load(
         policy_order(profile.at("targets").at("thrust").at("control6_rad")).head<4>();
     controller.root_axis_signs = vector<4>(profile.at("axis_signs"));
     controller.wheel_axis_signs = vector<2>(profile.at("wheel_axis_signs"));
-    controller.rl_nominal =
-        V6RecoveryVector6{-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0};
+    controller.rl_nominal = JointReferenceRecoveryVector6{
+        -0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0};
     for (std::size_t side = 0; side < 2; ++side) {
         auto& table = result.geometry[side];
         const auto& data = lookup.at("sides").at(side == 0 ? "left" : "right");

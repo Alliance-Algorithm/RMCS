@@ -148,13 +148,14 @@ rl_controller:
     # Compatible V6 actors share the robot control contract.
     model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
-    # Recompute all six host PD efforts every 1 ms; policy targets stay at 50 Hz.
+    # Update feedback PD and recovery references every 1 ms; policy targets stay at 50 Hz.
     pd_frequency: 1000.0
+    recovery_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
     # Frozen V6 references/geometry are runtime candidates; these files do not
     # grant motor calibration or real-robot recovery readiness.
-    v6_recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
-    v6_height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
+    recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
+    height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
     recovery_enabled: false
     recovery_profile_ready: false
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
@@ -238,13 +239,13 @@ rl_controller:
     # gyro/axis speed, strict sample freshness and measured hinge limits still
     # gate entry. These engineering capture bounds do not qualify hardware.
     # prepare_max_tilt_rad remains the capture tilt bound (0.2 rad).
-    v6_capture_max_leg_error_rad: 0.15
-    v6_capture_max_angular_velocity: 1.0
-    v6_capture_max_leg_velocity: 2.0
-    v6_capture_max_wheel_velocity: 5.0
+    capture_max_leg_error_rad: 0.15
+    capture_max_angular_velocity: 1.0
+    capture_max_leg_velocity: 2.0
+    capture_max_wheel_velocity: 5.0
     # RL inference starts at capture regardless of this effort-only window.
     # 0 selects direct takeover; optional six-axis smoothstep is bounded to 0.3 s.
-    v6_takeover_blend_seconds: 0.0
+    takeover_blend_seconds: 0.0
 
 wheel_leg_chassis_controller:
   ros__parameters:

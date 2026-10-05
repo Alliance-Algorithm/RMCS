@@ -43,9 +43,9 @@ ament_auto_add_library(${PROJECT_NAME} SHARED
   src/onnx_policy.cpp
   src/recovery_controller.cpp
   src/recovery_observer.cpp
-  src/v6_recovery_controller.cpp
-  src/v6_recovery_profile.cpp
-  src/v6_recovery_observer.cpp
+  src/joint_reference_recovery_controller.cpp
+  src/recovery_profile.cpp
+  src/closed_chain_support_observer.cpp
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${ORT_ROOT}/include)
 target_link_libraries(${PROJECT_NAME} ${ORT_ROOT}/lib/libonnxruntime.so OpenSSL::Crypto nlohmann_json::nlohmann_json)
