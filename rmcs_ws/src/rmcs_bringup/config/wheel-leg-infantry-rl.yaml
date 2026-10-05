@@ -148,6 +148,8 @@ rl_controller:
     # Compatible V6 actors share the robot control contract.
     model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
+    # Recompute all six host PD efforts every 1 ms; policy targets stay at 50 Hz.
+    pd_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
     # Frozen V6 references/geometry are runtime candidates; these files do not
     # grant motor calibration or real-robot recovery readiness.

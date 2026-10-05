@@ -17,10 +17,11 @@ public:
         valid_ = true;
     }
 
-    std::optional<double> sample(Clock::time_point now) noexcept {
+    std::optional<double> sample(
+        Clock::time_point now, Clock::duration initial_interval = kInitialInterval) noexcept {
         if (!valid_)
             return std::nullopt;
-        const auto elapsed = previous_ ? now - *previous_ : kInitialInterval;
+        const auto elapsed = previous_ ? now - *previous_ : initial_interval;
         if (elapsed <= Clock::duration::zero() || elapsed > kMaximumInterval) {
             valid_ = false;
             return std::nullopt;

@@ -152,6 +152,8 @@ rl_controller:
     # Compatible V6 actors share the robot control contract.
     model_path: "models/wheel_leg/policy.onnx"
     rl_inference_frequency: 50.0
+    # Recompute all six host PD efforts every 1 ms; recovery references stay 200 Hz.
+    pd_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
     # Keep the frozen native references and 40..105-degree geometry unchanged.
     v6_recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
@@ -159,7 +161,7 @@ rl_controller:
     recovery_enabled: true
     recovery_profile_ready: true
     # At the measured capture condition, switch all six axes to actor effort
-    # in that same 200 Hz control tick, accepting motion commands immediately.
+    # in that same recovery tick, accepting motion commands immediately.
     v6_recovery_blend_seconds: 0.0
     v6_recovery_release_motion_on_takeover: true
     # Reuse the ordinary V6 leg/velocity capture envelope below, with separate
