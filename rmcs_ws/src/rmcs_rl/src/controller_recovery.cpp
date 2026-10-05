@@ -52,10 +52,17 @@ bool RlController::upright_capture_ready_(double max_tilt_rad) const {
 }
 
 bool RlController::upright_capture_ready_(double max_tilt_rad, double max_angular_velocity) const {
-    const double gravity_z =
-        (world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ()).z();
-    if (!feedback_valid_ || !recovery_sensor_status_.valid || -gravity_z < std::cos(max_tilt_rad)
-        || (imu_to_base_ * *gyro_).norm() > max_angular_velocity
+    const Eigen::Vector3d gravity =
+        world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
+    const Eigen::Vector3d angular_velocity = imu_to_base_ * *gyro_;
+    return upright_capture_ready_(max_tilt_rad, max_angular_velocity, gravity, angular_velocity);
+}
+
+bool RlController::upright_capture_ready_(
+    double max_tilt_rad, double max_angular_velocity, const Eigen::Vector3d& gravity,
+    const Eigen::Vector3d& angular_velocity) const {
+    if (!feedback_valid_ || !recovery_sensor_status_.valid || -gravity.z() < std::cos(max_tilt_rad)
+        || angular_velocity.norm() > max_angular_velocity
         || dq_.head<4>().cwiseAbs().maxCoeff() > capture_max_leg_velocity_
         || dq_.tail<2>().cwiseAbs().maxCoeff() > capture_max_wheel_velocity_)
         return false;
@@ -102,7 +109,8 @@ bool RlController::recovery_capture_ready_() const {
     }
     return upright_capture_ready_(
         recovery_capture_max_tilt_rad_,
-        upright ? recovery_capture_max_angular_velocity_ : capture_max_angular_velocity_);
+        upright ? recovery_capture_max_angular_velocity_ : capture_max_angular_velocity_, gravity,
+        omega);
 }
 
 RecoverySensorData RlController::recovery_sensor_data_() const {
@@ -136,7 +144,7 @@ std::optional<RecoveryFeedback> RlController::observe_recovery_() {
         || !acceleration_->allFinite())
         return std::nullopt;
     const auto sensors = recovery_sensor_data_();
-    const Eigen::Quaterniond world_base = world_base_orientation_();
+    const Eigen::Quaterniond& world_base = *sensors.world_base_orientation;
     const Eigen::Vector3d gravity = world_base.conjugate() * -Eigen::Vector3d::UnitZ();
     const Eigen::Vector3d gyro = imu_to_base_ * *gyro_;
     const Eigen::Vector3d acceleration = imu_to_base_ * *acceleration_;
@@ -209,10 +217,11 @@ std::optional<JointReferenceRecoveryFeedback> RlController::observe_joint_refere
     if (!support_observer_ || !joint_reference_recovery_ || !recovery_sensor_status_.valid
         || !acceleration_.ready() || !acceleration_->allFinite())
         return std::nullopt;
-    const Eigen::Quaterniond world_base = world_base_orientation_();
+    const auto sensors = recovery_sensor_data_();
+    const Eigen::Quaterniond& world_base = *sensors.world_base_orientation;
     const auto feedback = support_observer_->observe(
-        recovery_sensor_data_(), q_, dq_, world_base.conjugate() * -Eigen::Vector3d::UnitZ(),
-        imu_to_base_ * *gyro_, imu_to_base_ * *acceleration_,
+        sensors, q_, dq_, world_base.conjugate() * -Eigen::Vector3d::UnitZ(), imu_to_base_ * *gyro_,
+        imu_to_base_ * *acceleration_,
         recovery_started_ ? joint_reference_recovery_->command().phase
                           : JointReferenceRecoveryPhase::kSelect,
         recovery_dt_);

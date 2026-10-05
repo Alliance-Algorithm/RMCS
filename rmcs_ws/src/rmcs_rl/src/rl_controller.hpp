@@ -72,6 +72,9 @@ private:
     bool update_prepare_();
     bool upright_capture_ready_(double max_tilt_rad) const;
     bool upright_capture_ready_(double max_tilt_rad, double max_angular_velocity) const;
+    bool upright_capture_ready_(
+        double max_tilt_rad, double max_angular_velocity, const Eigen::Vector3d& gravity,
+        const Eigen::Vector3d& angular_velocity) const;
     bool recovery_capture_ready_() const;
     void update_command_reference_();
     bool assemble_observation_(bool shadow_recovery = false);
@@ -161,6 +164,7 @@ private:
     // IMU body axes -> frozen policy base_link. The source CAD's +90 degree
     // yaw was already applied when exporting the X-forward training asset.
     Eigen::Matrix3d imu_to_base_ = Eigen::Matrix3d::Identity();
+    Eigen::Quaterniond base_to_imu_orientation_ = Eigen::Quaterniond::Identity();
 
     Vector6 q_ = Vector6::Zero();
     Vector6 dq_ = Vector6::Zero();
