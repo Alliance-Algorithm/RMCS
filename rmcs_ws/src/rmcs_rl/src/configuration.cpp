@@ -338,10 +338,16 @@ RlController::RlController()
             "v6_recovery_capture_height_min", recovery_config.dynamic_capture_height_min);
         v6_recovery_capture_max_tilt_rad_ =
             get_parameter_or("v6_recovery_capture_max_tilt_rad", prepare_max_tilt_rad_);
+        v6_recovery_capture_max_angular_velocity_ =
+            get_parameter_or("v6_recovery_capture_max_angular_velocity", v6_capture_max_angular_velocity_);
         if (!std::isfinite(v6_recovery_capture_max_tilt_rad_)
             || v6_recovery_capture_max_tilt_rad_ <= 0.0
             || v6_recovery_capture_max_tilt_rad_ > 40.0 * std::numbers::pi / 180.0)
             throw std::runtime_error("V6 recovery capture tilt must be within 40 degrees");
+        if (!std::isfinite(v6_recovery_capture_max_angular_velocity_)
+            || v6_recovery_capture_max_angular_velocity_ < v6_capture_max_angular_velocity_
+            || v6_recovery_capture_max_angular_velocity_ > 2.0)
+            throw std::runtime_error("V6 upright recovery capture angular velocity must be within 2 rad/s");
         recovery_config.prepare_speed_rad_s = get_parameter_or(
             "v6_recovery_fold_plant_speed_rad_s", recovery_config.prepare_speed_rad_s);
         if (!std::isfinite(recovery_config.prepare_speed_rad_s)
@@ -351,11 +357,13 @@ RlController::RlController()
         v6_recovery_.emplace(recovery_config);
         RCLCPP_INFO(
             get_logger(), "V6 self-righting takeover: %s, bounded upright capture=%d, "
-                          "FOLD/PLANT %.2f rad/s, capture %.1f deg above %.2f m, motion %s",
+                          "FOLD/PLANT %.2f rad/s, capture %.1f deg above %.2f m, "
+                          "upright gyro %.2f rad/s, motion %s",
             recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
             recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
             v6_recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
             recovery_config.dynamic_capture_height_min,
+            v6_recovery_capture_max_angular_velocity_,
             recovery_config.release_motion_on_takeover ? "released at takeover" : "held until stable");
         v6_recovery_observer_.emplace(native.geometry);
         v6_prepare_target_ = native.controller.nominal;

@@ -1,4 +1,5 @@
 #include "rl_controller.hpp"
+#include "v6_recovery_body_geometry.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -46,11 +47,15 @@ bool RlController::update_prepare_() {
 }
 
 bool RlController::v6_upright_capture_ready_(double max_tilt_rad) const {
+    return v6_upright_capture_ready_(max_tilt_rad, v6_capture_max_angular_velocity_);
+}
+
+bool RlController::v6_upright_capture_ready_(
+    double max_tilt_rad, double max_angular_velocity) const {
     const double gravity_z =
         (world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ()).z();
-    if (!feedback_valid_ || !recovery_sensor_status_.valid
-        || -gravity_z < std::cos(max_tilt_rad)
-        || (imu_to_base_ * *gyro_).norm() > v6_capture_max_angular_velocity_
+    if (!feedback_valid_ || !recovery_sensor_status_.valid || -gravity_z < std::cos(max_tilt_rad)
+        || (imu_to_base_ * *gyro_).norm() > max_angular_velocity
         || dq_.head<4>().cwiseAbs().maxCoeff() > v6_capture_max_leg_velocity_
         || dq_.tail<2>().cwiseAbs().maxCoeff() > v6_capture_max_wheel_velocity_)
         return false;
@@ -60,12 +65,44 @@ bool RlController::v6_upright_capture_ready_(double max_tilt_rad) const {
             return false;
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side;
-        const double relative = hinge_coeff_[hip] * q_[hip]
-                              + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
+        const double relative =
+            hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
         if (relative < hinge_min_[side] || relative > hinge_max_[side])
             return false;
     }
     return true;
+}
+
+bool RlController::v6_recovery_capture_ready_() const {
+    const Eigen::Vector3d gravity =
+        world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
+    const Eigen::Vector3d omega = imu_to_base_ * *gyro_;
+    if (!acceleration_.ready())
+        return false;
+    const Eigen::Vector3d specific_acceleration = imu_to_base_ * *acceleration_;
+    // Magnitude alone also accepts a downward reaction during free fall.
+    // Capture needs a supporting acceleration opposite the measured gravity.
+    if (!specific_acceleration.allFinite() || specific_acceleration.dot(-gravity) < 6.0)
+        return false;
+    // Shell contact belongs to the recovery script. Veto only the transfer to
+    // the flat actor when either conditional wheel plane lies above the shell.
+    if (v6_recovery_feedback_data_.estimated_height + 0.003
+        < v6_recovery_body_geometry::support_depth(gravity.cast<float>()))
+        return false;
+    const bool upright = -gravity.z() >= std::cos(prepare_max_tilt_rad_);
+    if (-gravity.z() < std::cos(std::numbers::pi / 6.0)) {
+        // Near the fall guard, reject outward tilt beyond the noise tolerance.
+        // Compare without dividing by sin(tilt); preserve the earlier leg-pose
+        // capture window below 30 degrees while the script raises the body.
+        constexpr double max_outward_tilt_rate = 0.05;
+        const double sin_tilt = std::hypot(gravity.x(), gravity.y());
+        const double tilt_rate_numerator = gravity.x() * omega.y() - gravity.y() * omega.x();
+        if (tilt_rate_numerator > max_outward_tilt_rate * sin_tilt)
+            return false;
+    }
+    return v6_upright_capture_ready_(
+        v6_recovery_capture_max_tilt_rad_,
+        upright ? v6_recovery_capture_max_angular_velocity_ : v6_capture_max_angular_velocity_);
 }
 
 RecoverySensorData RlController::recovery_sensor_data_() const {
@@ -190,8 +227,7 @@ V6RecoveryFeedback RlController::v6_recovery_feedback_() const {
 bool RlController::advance_v6_recovery_() {
     if (!v6_recovery_ || !v6_recovery_observer_)
         return false;
-    v6_recovery_feedback_data_.rl_capture_ready =
-        v6_upright_capture_ready_(v6_recovery_capture_max_tilt_rad_);
+    v6_recovery_feedback_data_.rl_capture_ready = v6_recovery_capture_ready_();
     const auto& command = v6_recovery_->update(v6_recovery_feedback_data_);
     v6_recovery_feedback_data_.wheel_probe_torque =
         v6_recovery_observer_->probe_command(command.scripted && command.release_finished);
