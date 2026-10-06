@@ -91,12 +91,13 @@ public:
             PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
         *yaw_velocity_ = gimbal_board_->yaw_velocity();
 
-        // 打印日志供确定 roll_folded_angle roll_unfold_angle top_yaw_folded_angle pitch_folded_angle
+        const auto barrel_direction = *barrel_direction_;
+        const auto pitch_world_angle = std::atan2(
+            -barrel_direction.z(), std::hypot(barrel_direction.x(), barrel_direction.y()));
         RCLCPP_INFO_THROTTLE(
-            get_logger(), *get_clock(), 200, "roll %f pitch %f yaw %f",
-            gimbal_board_->gimbal_roll_motor_.angle(),
-            gimbal_board_->gimbal_pitch_motor_.angle(),
-            gimbal_board_->gimbal_top_yaw_motor_.angle());
+            get_logger(), *get_clock(), 200, "roll %f top_yaw %f pitch_world %f",
+            gimbal_board_->gimbal_roll_motor_.angle(), gimbal_board_->gimbal_top_yaw_motor_.angle(),
+            pitch_world_angle);
     }
 
 private:
@@ -209,19 +210,19 @@ private:
 
             board_->start_transmit()
                 .can_transmit(
-                    Spec::kCans.kCan0,
+                    Spec::kCans.kCan3,
                     {
                         .can_id = 0x141,
                         .can_data = gimbal_roll_motor_.generate_torque_command().as_bytes(),
                     })
                 .can_transmit(
-                    Spec::kCans.kCan0,
+                    Spec::kCans.kCan3,
                     {
                         .can_id = 0x142,
                         .can_data = gimbal_pitch_motor_.generate_torque_command().as_bytes(),
                     })
                 .can_transmit(
-                    Spec::kCans.kCan1,
+                    Spec::kCans.kCan2,
                     {
                         .can_id = 0x1FE,
                         .can_data =
@@ -234,28 +235,15 @@ private:
                                 .as_bytes(),
                     })
                 .can_transmit(
-                    Spec::kCans.kCan2,
+                    Spec::kCans.kCan1,
                     {
                         .can_id = gimbal_right_friction_.send_id(),
                         .can_data =
                             CanPacket8{
-                                CanPacket8::PaddingQuarter{},
+                                gimbal_bullet_feeder_.generate_command(),
                                 gimbal_top_friction_.generate_command(),
                                 gimbal_left_friction_.generate_command(),
                                 gimbal_right_friction_.generate_command(),
-                            }
-                                .as_bytes(),
-                    })
-                .can_transmit(
-                    Spec::kCans.kCan3,
-                    {
-                        .can_id = gimbal_bullet_feeder_.send_id(),
-                        .can_data =
-                            CanPacket8{
-                                gimbal_bullet_feeder_.generate_command(),
-                                CanPacket8::PaddingQuarter{},
-                                CanPacket8::PaddingQuarter{},
-                                CanPacket8::PaddingQuarter{},
                             }
                                 .as_bytes(),
                     });
@@ -268,22 +256,24 @@ private:
             const auto& can_id = data.can_id;
             const auto& can_data = data.can_data;
 
-            if (can == Spec::kCans.kCan0) {
+            if (can == Spec::kCans.kCan3) {
                 if (can_id == 0x141) {
                     gimbal_roll_motor_.store_status(can_data);
                 } else if (can_id == 0x142) {
                     gimbal_pitch_motor_.store_status(can_data);
                 }
 
-                monitor_.tick("Gimbal::Can0", can_id);
-            } else if (can == Spec::kCans.kCan1) {
+                monitor_.tick("Gimbal::Can3", can_id);
+            } else if (can == Spec::kCans.kCan2) {
                 if (can_id == 0x205) {
                     gimbal_top_yaw_motor_.store_status(can_data);
                 }
 
-                monitor_.tick("Gimbal::Can1", can_id);
-            } else if (can == Spec::kCans.kCan2) {
-                if (can_id == 0x202) {
+                monitor_.tick("Gimbal::Can2", can_id);
+            } else if (can == Spec::kCans.kCan1) {
+                if (can_id == 0x201) {
+                    gimbal_bullet_feeder_.store_status(can_data);
+                } else if (can_id == 0x202) {
                     gimbal_top_friction_.store_status(can_data);
                 } else if (can_id == 0x203) {
                     gimbal_left_friction_.store_status(can_data);
@@ -291,13 +281,7 @@ private:
                     gimbal_right_friction_.store_status(can_data);
                 }
 
-                monitor_.tick("Gimbal::Can2", can_id);
-            } else if (can == Spec::kCans.kCan3) {
-                if (can_id == 0x201) {
-                    gimbal_bullet_feeder_.store_status(can_data);
-                }
-
-                monitor_.tick("Gimbal::Can3", can_id);
+                monitor_.tick("Gimbal::Can1", can_id);
             }
         }
 
@@ -450,7 +434,7 @@ private:
 
             board_->start_transmit()
                 .can_transmit(
-                    Spec::kCans.kCan0,
+                    Spec::kCans.kCan3,
                     {
                         .can_id = chassis_wheel_motors_[0].send_id(),
                         .can_data =
@@ -463,7 +447,7 @@ private:
                                 .as_bytes(),
                     })
                 .can_transmit(
-                    Spec::kCans.kCan1,
+                    Spec::kCans.kCan2,
                     {
                         .can_id = 0x1FE,
                         .can_data =
@@ -476,7 +460,7 @@ private:
                                 .as_bytes(),
                     })
                 .can_transmit(
-                    Spec::kCans.kCan2,
+                    Spec::kCans.kCan1,
                     {
                         .can_id = 0x141,
                         .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
@@ -490,25 +474,25 @@ private:
             const auto& can_id = data.can_id;
             const auto& can_data = data.can_data;
 
-            if (can == Spec::kCans.kCan0) {
+            if (can == Spec::kCans.kCan3) {
                 /*^^*/ chassis_wheel_motors_[0].match_then_store_status(can_id, can_data)
                     || chassis_wheel_motors_[1].match_then_store_status(can_id, can_data)
                     || chassis_wheel_motors_[2].match_then_store_status(can_id, can_data)
                     || chassis_wheel_motors_[3].match_then_store_status(can_id, can_data);
 
-                monitor_.tick("Chassis::Can0", can_id);
-            } else if (can == Spec::kCans.kCan1) {
+                monitor_.tick("Chassis::Can3", can_id);
+            } else if (can == Spec::kCans.kCan2) {
                 if (can_id == 0x300) {
                     supercap_.store_status(can_data);
                 }
 
-                monitor_.tick("Chassis::Can1", can_id);
-            } else if (can == Spec::kCans.kCan2) {
+                monitor_.tick("Chassis::Can2", can_id);
+            } else if (can == Spec::kCans.kCan1) {
                 if (can_id == 0x141) {
                     gimbal_bottom_yaw_motor_.store_status(can_data);
                 }
 
-                monitor_.tick("Chassis::Can2", can_id);
+                monitor_.tick("Chassis::Can1", can_id);
             }
         }
 
