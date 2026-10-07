@@ -37,7 +37,7 @@ rmcs_executor:
 foldable_sentry:
   ros__parameters:
     board_serial_chassis_board: ""
-    board_serial_gimbal_board: ""
+    board_serial_gimbal_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
 
     roll_motor_zero_point: 11427
     top_yaw_motor_zero_point: 2638

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <concepts>
@@ -108,9 +109,12 @@ private:
             std::string_view board_serial = {})
             : tf_(sentry.tf_)
             , bmi088_{device::Bmi088Ekf::Config{
-                  .body_to_sensor =
-                      Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
-                          .toRotationMatrix()}}
+                    .body_to_sensor = (Eigen::Matrix3d{} <<
+                        0,  0,  1,
+                        -1,  0,  0,
+                        0, -1,  0
+                    ).finished(),
+                }}
             , gimbal_roll_motor_(sentry, sentry_command, "/gimbal/roll")
             , gimbal_top_yaw_motor_(sentry, sentry_command, "/gimbal/top_yaw")
             , gimbal_pitch_motor_(sentry, sentry_command, "/gimbal/pitch")
@@ -424,7 +428,8 @@ private:
 
             if (const auto snapshot = bmi088_.snapshot()) {
                 const auto& q = snapshot->orientation;
-                *chassis_pitch_imu_ = -std::asin(2.0 * (q.w() * q.y() - q.z() * q.x()));
+                const auto sin_pitch = std::clamp(2.0 * (q.w() * q.y() - q.z() * q.x()), -1.0, 1.0);
+                *chassis_pitch_imu_ = -std::asin(sin_pitch);
                 *chassis_yaw_velocity_imu_ = snapshot->gyro_body.z();
             }
         }
