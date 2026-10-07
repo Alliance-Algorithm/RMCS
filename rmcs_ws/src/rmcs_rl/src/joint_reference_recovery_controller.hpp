@@ -8,9 +8,10 @@
 
 namespace rmcs::rl {
 
-// Frozen native source: 2778206b5905c2760ccc381f2592b08e1cad611a,
-// wheeled_tasks/chassis/{recovery,recovery_training}.py. All public six-vectors
-// use policy order LH, LA, RH, RA, LW, RW; angles and efforts are output-side.
+// Native references: 2778206b5905c2760ccc381f2592b08e1cad611a,
+// wheeled_tasks/chassis/{recovery,recovery_training}.py. Deployment uses a
+// single side stroke and direct measured capture. Public six-vectors use policy
+// order LH, LA, RH, RA, LW, RW; angles and efforts are output-side.
 using JointReferenceRecoveryVector6 = Eigen::Matrix<double, 6, 1>;
 
 enum class JointReferenceRecoveryPhase : std::uint8_t {
@@ -204,6 +205,7 @@ private:
     Vector4f thrust_anchor_ = Vector4f::Zero();
     Vector4f side_start_ = Vector4f::Zero();
     Vector4f side_direction_ = Vector4f::Zero();
+    int side_lower_leg_ = 0;
     JointReferenceRecoveryPhase phase_ = JointReferenceRecoveryPhase::kRl;
     JointReferenceRecoveryRoute route_ = JointReferenceRecoveryRoute::kUpright;
     std::uint64_t age_ticks_ = 0, phase_ticks_ = 0, ready_ticks_ = 0;

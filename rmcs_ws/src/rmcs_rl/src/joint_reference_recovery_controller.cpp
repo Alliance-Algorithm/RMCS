@@ -116,6 +116,7 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
     thrust_anchor_.setZero();
     side_start_.setZero();
     side_direction_.setZero();
+    side_lower_leg_ = 0;
 }
 
 void JointReferenceRecoveryController::reset(
@@ -266,12 +267,16 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
     durations_.unsupported = unsupported ? durations_.unsupported + dt : 0.0;
     if (unsupported
         && reached_(
-            unsupported_ticks_, durations_.unsupported, config_.reroute_support_lost_seconds)
-        && reroute_count_ < config_.max_reroutes) {
-        ++reroute_count_;
-        unsupported_ticks_ = 0;
-        durations_.unsupported = 0.0;
-        enter_(JointReferenceRecoveryPhase::kSelect);
+            unsupported_ticks_, durations_.unsupported, config_.reroute_support_lost_seconds)) {
+        if (route_ == JointReferenceRecoveryRoute::kSide) {
+            // A failed side capture must not restart a full sagittal revolution.
+            fail_(2);
+        } else if (reroute_count_ < config_.max_reroutes) {
+            ++reroute_count_;
+            unsupported_ticks_ = 0;
+            durations_.unsupported = 0.0;
+            enter_(JointReferenceRecoveryPhase::kSelect);
+        }
     }
     const bool near_upright = tilt < radians(15.0) && height > 0.20f;
     JointReferenceRecoveryRoute selected =
@@ -284,6 +289,8 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         selected = JointReferenceRecoveryRoute::kUpright;
     if (phase_ == JointReferenceRecoveryPhase::kSelect) {
         route_ = selected;
+        if (route_ == JointReferenceRecoveryRoute::kSide)
+            side_lower_leg_ = gravity.y() >= 0.0f ? 0 : 1;
         enter_(
             near_upright ? JointReferenceRecoveryPhase::kPrepare
                          : JointReferenceRecoveryPhase::kFold);
@@ -329,8 +336,14 @@ JointReferenceRecoveryController::JointGoal
     const bool blending = phase == JointReferenceRecoveryPhase::kBlend;
     const Vector4f axes = config_.root_axis_signs.cast<float>();
     Vector4f goal = config_.nominal.cast<float>();
-    if (folding)
+    if (folding) {
         goal = config_.fold.cast<float>();
+        if (route_ == JointReferenceRecoveryRoute::kSide) {
+            // Lengthen the upper leg before the grounded leg provides the roll impulse.
+            const int upper = 1 - side_lower_leg_;
+            goal.segment<2>(2 * upper) = config_.thrust.segment<2>(2 * upper).cast<float>();
+        }
+    }
     if ((preparing || capturing || blending) && supported && tilt < radians(85.0)) {
         const float extension = std::clamp((tilt - radians(12.0)) / radians(43.0), 0.0f, 1.0f);
         goal = config_.nominal.cast<float>()
@@ -354,15 +367,11 @@ JointReferenceRecoveryController::JointGoal
     }
     if (thrusting)
         goal = thrust_anchor_ - (continuous_pitch_ - plant_pitch_) * axes.cwiseInverse();
-    const float side_duration =
-        static_cast<float>(config_.side_angle_rad / config_.side_speed_rad_s);
     if (side) {
-        float stroke = elapsed <= side_duration
-                         ? elapsed * static_cast<float>(config_.side_speed_rad_s)
-                         : static_cast<float>(config_.side_angle_rad)
-                               - std::max(elapsed - side_duration - 0.08f, 0.0f)
-                                     * static_cast<float>(config_.side_speed_rad_s);
-        stroke = std::clamp(stroke, 0.0f, static_cast<float>(config_.side_angle_rad));
+        // A single grounded-leg stroke; returning it here rolls the body onto its back.
+        const float stroke = std::min(
+            elapsed * static_cast<float>(config_.side_speed_rad_s),
+            static_cast<float>(config_.side_angle_rad));
         goal = side_start_ + side_direction_.cwiseProduct(axes.cwiseInverse()) * stroke;
     }
     float speed = static_cast<float>(config_.prepare_speed_rad_s);
@@ -402,13 +411,10 @@ void JointReferenceRecoveryController::update_transitions_(
     const StepContext& step, const ReferenceStep& reference_step,
     const JointReferenceRecoveryFeedback& feedback, double dt) {
     const auto phase = step.phase;
-    const auto& gravity = step.gravity;
     const auto& gyro = step.gyro;
     const auto& dq = step.dq;
     const float height = step.height;
     const float tilt = step.tilt;
-    const bool near_upright = step.near_upright;
-    const auto selected = step.selected_route;
     const auto& reference = reference_step.position;
     const float remaining = reference_step.remaining;
     const float measured_error = reference_step.measured_error;
@@ -428,24 +434,17 @@ void JointReferenceRecoveryController::update_transitions_(
             enter_(JointReferenceRecoveryPhase::kOrbit);
         } else if (route_ == JointReferenceRecoveryRoute::kSide) {
             side_start_ = reference;
-            const float direction = gravity.y() >= 0.0f ? -1.0f : 1.0f;
-            side_direction_ << direction, direction, -direction, -direction;
+            side_direction_.setZero();
+            side_direction_.segment<2>(2 * side_lower_leg_).setOnes();
             enter_(JointReferenceRecoveryPhase::kSide);
         } else {
             enter_(JointReferenceRecoveryPhase::kPlant);
         }
     }
-    const bool converted =
-        side && (config_.dt == 0.005 ? step.elapsed > 0.05f : step.elapsed_seconds > 0.05 + 1e-12)
-        && std::abs(gravity.y()) < 0.65f;
-    if (converted) {
-        route_ = selected;
-        enter_(
-            near_upright ? JointReferenceRecoveryPhase::kPrepare
-                         : JointReferenceRecoveryPhase::kFold);
-    }
-    if (side && !converted
-        && phase_reached_(step, 2.0 * config_.side_angle_rad / config_.side_speed_rad_s + 0.4))
+    const bool side_upright = side && tilt < radians(65.0);
+    if (side_upright)
+        enter_(JointReferenceRecoveryPhase::kCapture);
+    if (side && !side_upright && phase_reached_(step, 2.5))
         fail_(2);
     plant_ticks_ = planting && feedback.support ? plant_ticks_ + 1 : 0;
     durations_.plant = planting && feedback.support ? durations_.plant + dt : 0.0;
