@@ -25,6 +25,7 @@
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
+#include "deformable/rl_contract.hpp"
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/bmi088_ekf.hpp"
 #include "hardware/device/board_clock_lifter.hpp"
@@ -368,6 +369,9 @@ private:
             status.register_output("/chassis/imu/roll_rate", chassis_imu_roll_rate_, 0.0);
             status.register_output(
                 "/chassis/imu/quaternion", chassis_imu_quaternion_, Eigen::Quaterniond::Identity());
+            status.register_output("/chassis/rl/gyro_b", rl_gyro_b_, Eigen::Vector3d::Zero());
+            status.register_output(
+                "/chassis/rl/encoder_twist_b", rl_encoder_twist_b_, Eigen::Vector3d::Constant(kNaN));
             rl_high_physical_angle_rad_ = status.get_parameter_or("rl_high_physical_angle_deg", 75.0)
                 * std::numbers::pi / 180.0;
             rl_low_physical_angle_rad_ = status.get_parameter_or("rl_low_physical_angle_deg", 17.0)
@@ -381,6 +385,13 @@ private:
                 rl_q_max_rad_ = 1.36;
 
             for (size_t i = 0; i < 4; ++i) {
+                const auto base = std::format("/chassis/{}_joint", DeformableInfantryOmniC::kJointName[i]);
+                status.register_output(base + "/urdf_angle", joint_urdf_angle_[i], kNaN);
+                status.register_output(base + "/urdf_velocity", joint_urdf_velocity_[i], kNaN);
+                status.register_output(base + "/feedback_current_raw", joint_current_raw_[i], kNaN);
+                status.register_output(
+                    std::format("/chassis/{}_wheel/rl_velocity", DeformableInfantryOmniC::kJointName[i]),
+                    wheel_rl_velocity_[i], kNaN);
                 status.register_output(
                     std::format(
                         "/chassis/{}_joint/physical_angle", DeformableInfantryOmniC::kJointName[i]),
@@ -421,6 +432,7 @@ private:
         void update() {
             imu_.update_status();
             *chassis_yaw_velocity_imu_ = imu_.gz();
+            *rl_gyro_b_ = Eigen::Vector3d{imu_.gx(), imu_.gy(), imu_.gz()};
             {
                 const double q0 = imu_.q0();
                 const double q1 = imu_.q1();
@@ -456,6 +468,16 @@ private:
                 update_joint_physical_feedback_(
                     i, joint_physical_angle_[i], joint_physical_velocity_[i]);
 
+            Eigen::Vector4d urdf_q, wheel_speed;
+            constexpr std::size_t kCornerForLeg[4] = {3, 0, 1, 2};
+            for (std::size_t leg = 0; leg < 4; ++leg) {
+                const auto corner = kCornerForLeg[leg];
+                *wheel_rl_velocity_[corner] = wheel_status_received_[corner].load(std::memory_order_relaxed)
+                    ? chassis_wheel_motors_[corner].velocity() : kNaN;
+                urdf_q[leg] = *joint_urdf_angle_[corner];
+                wheel_speed[leg] = *wheel_rl_velocity_[corner];
+            }
+            *rl_encoder_twist_b_ = deformable_rl::encoder_twist(urdf_q, wheel_speed);
             update_geometry_feedback_();
 
             dr16_.update_status();
@@ -603,6 +625,12 @@ private:
         OutputInterface<double> chassis_imu_roll_rate_;
         OutputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
 
+        OutputInterface<Eigen::Vector3d> rl_gyro_b_;
+        OutputInterface<Eigen::Vector3d> rl_encoder_twist_b_;
+        std::array<OutputInterface<double>, 4> joint_urdf_angle_;
+        std::array<OutputInterface<double>, 4> joint_urdf_velocity_;
+        std::array<OutputInterface<double>, 4> joint_current_raw_;
+        std::array<OutputInterface<double>, 4> wheel_rl_velocity_;
         std::array<OutputInterface<double>, 4> joint_physical_angle_;
         std::array<OutputInterface<double>, 4> joint_physical_velocity_;
         std::array<OutputInterface<double>, 4> joint_rl_angle_;
@@ -626,6 +654,7 @@ private:
         // State
 
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
+        std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
 
         const double kChassisRadiusBase;
         const double kRodLength;
@@ -660,6 +689,7 @@ private:
                 return;
             if (data.can_id == 0x201) {
                 chassis_wheel_motors_[index].store_status(data.can_data);
+                wheel_status_received_[index].store(true, std::memory_order_relaxed);
             } else if (data.can_id == 0x141) {
                 chassis_joint_motors_[index].store_status(data.can_data);
                 joint_status_received_[index].store(true, std::memory_order_relaxed);
@@ -675,6 +705,9 @@ private:
                 *velocity_output = kNaN;
                 *joint_rl_angle_[index] = kNaN;
                 *joint_rl_velocity_[index] = kNaN;
+                *joint_urdf_angle_[index] = kNaN;
+                *joint_urdf_velocity_[index] = kNaN;
+                *joint_current_raw_[index] = kNaN;
                 return;
             }
 
@@ -689,6 +722,9 @@ private:
 
             *angle_output = physical_angle;
             *velocity_output = physical_velocity;
+            *joint_urdf_angle_[index] = deformable_rl::kPhysicalZero - physical_angle;
+            *joint_urdf_velocity_[index] = -physical_velocity;
+            *joint_current_raw_[index] = chassis_joint_motors_[index].current_raw();
 
             // RL coordinate: 0 at the highest posture, rl_q_max_rad at the lowest posture.
             const double rl_scale =

@@ -42,6 +42,12 @@ pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
 if(BUILD_TESTING)
     find_package(ament_cmake_gtest REQUIRED)
+    ament_add_gtest(deformable_rl_contract_test test/deformable_rl_contract_test.cpp)
+    target_include_directories(deformable_rl_contract_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_compile_definitions(deformable_rl_contract_test PRIVATE
+        DEFORMABLE_RL_TEST_CONFIG="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/deformable-infantry-omni-rl.yaml")
+    ament_target_dependencies(deformable_rl_contract_test rclcpp pluginlib rmcs_executor)
+
     ament_add_gtest(dm_motor_test test/dm_motor_test.cpp)
     target_include_directories(dm_motor_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     ament_target_dependencies(dm_motor_test rmcs_executor)
