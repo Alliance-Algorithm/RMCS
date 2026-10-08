@@ -9,6 +9,8 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "deformable/rl_contract.hpp"
+
 namespace rmcs_core::controller::chassis {
 
 class DeformableRlSuspension
@@ -32,9 +34,19 @@ public:
         const auto output_error_suffix =
             get_parameter_or<std::string>("output_error_suffix", "/rl_control_angle_error");
 
+        const auto action_contract = get_parameter_or<std::string>("action_contract_version", "legacy_v1");
+        if (action_contract != "legacy_v1" && action_contract != "minangle_physical_v3")
+            throw std::invalid_argument("unsupported deformable RL action contract");
+        use_v3_ = action_contract == "minangle_physical_v3";
+        target_rate_limit_ = get_parameter_or("leg_target_rate_limit", 2.0);
+        if (use_v3_ && (!std::isfinite(target_rate_limit_) || target_rate_limit_ <= 0.0))
+            throw std::invalid_argument("V3 leg_target_rate_limit must be finite and positive");
         leg_action_scale_ = get_parameter_or("leg_action_scale", 0.15);
         q_target_min_rad_ = get_parameter_or("q_target_min_rad", 0.0);
         q_target_max_rad_ = get_parameter_or("q_target_max_rad", 1.0563);
+        if (use_v3_ && (!std::isfinite(q_target_min_rad_) || !std::isfinite(q_target_max_rad_)
+            || q_target_min_rad_ >= q_target_max_rad_))
+            throw std::invalid_argument("invalid V3 URDF joint limits");
         if (q_target_min_rad_ > q_target_max_rad_)
             std::swap(q_target_min_rad_, q_target_max_rad_);
 
@@ -49,6 +61,7 @@ public:
             return joint_base_path + "/" + kJointName[corner] + joint_suffix + suffix;
         };
 
+        register_input("/predefined/update_rate", update_rate_, false);
         register_input(rl_base + "/valid", valid_, false);
         register_input(rl_base + "/healthy", healthy_, false);
         register_input("/chassis/active_suspension/active", active_suspension_);
@@ -74,6 +87,8 @@ public:
     }
 
     void before_updating() override {
+        if (!update_rate_.ready())
+            update_rate_.make_and_bind_directly(1000.0);
         if (!valid_.ready())
             valid_.make_and_bind_directly(0.0);
         if (!healthy_.ready())
@@ -109,27 +124,43 @@ public:
         const double low_physical = *low_physical_angle_;
         const double q_max = *q_max_rad_;
         const double span = high_physical - low_physical;
-        const bool calibration_ok = std::isfinite(high_physical) && std::isfinite(low_physical)
-                                 && std::isfinite(q_max) && q_max > 0.0 && span > 1e-9;
+        const bool calibration_ok = use_v3_
+            ? std::isfinite(q_cmd) && q_target_min_rad_ <= q_cmd && q_cmd <= q_target_max_rad_
+            : std::isfinite(high_physical) && std::isfinite(low_physical)
+                && std::isfinite(q_max) && q_max > 0.0 && span > 1e-9;
+        const double dt = std::isfinite(*update_rate_) && *update_rate_ > 0.0
+            ? 1.0 / *update_rate_ : kNaN;
+        if (!authoritative || !calibration_ok || !std::isfinite(q_cmd) || !std::isfinite(dt)) {
+            publish_nan_targets_();
+            return;
+        }
+        // A single invalid corner must relinquish the entire four-leg trajectory.
+        for (std::size_t leg = 0; leg < kLegCount; ++leg) {
+            if (!std::isfinite(*physical_angle_[kCornerForLeg[leg]]) || !std::isfinite(*action_[leg])) {
+                publish_nan_targets_();
+                return;
+            }
+        }
 
         for (std::size_t leg = 0; leg < kLegCount; ++leg) {
             const auto corner = kCornerForLeg[leg];
             const double physical = *physical_angle_[corner];
             const double raw_action = *action_[leg];
 
-            if (!authoritative || !calibration_ok || !std::isfinite(q_cmd)
-                || !std::isfinite(physical) || !std::isfinite(raw_action)) {
-                *target_angle_[corner] = kNaN;
-                *target_velocity_[corner] = kNaN;
-                *target_acceleration_[corner] = kNaN;
-                *angle_error_[corner] = kNaN;
-                continue;
+            const double q_target = use_v3_
+                ? deformable_rl::suspension_target(raw_action, q_cmd, q_target_min_rad_, q_target_max_rad_)
+                : std::clamp(q_cmd + leg_action_scale_ * raw_action, q_target_min_rad_, q_target_max_rad_);
+            double p_target = std::clamp(
+                use_v3_ ? deformable_rl::kPhysicalZero - q_target : high_physical - q_target * span / q_max,
+                physical_min_rad_, physical_max_rad_);
+            if (use_v3_) {
+                if (!std::isfinite(previous_target_[corner]))
+                    previous_target_[corner] = physical;
+                const double max_change = target_rate_limit_ * dt;
+                p_target = previous_target_[corner]
+                    + std::clamp(p_target - previous_target_[corner], -max_change, max_change);
+                previous_target_[corner] = p_target;
             }
-
-            const double q_target = std::clamp(
-                q_cmd + leg_action_scale_ * raw_action, q_target_min_rad_, q_target_max_rad_);
-            const double p_target = std::clamp(
-                high_physical - q_target * span / q_max, physical_min_rad_, physical_max_rad_);
             *target_angle_[corner] = p_target;
             *target_velocity_[corner] = kNaN;
             *target_acceleration_[corner] = kNaN;
@@ -162,6 +193,7 @@ private:
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
     void publish_nan_targets_() {
+        previous_target_.fill(kNaN);
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             *target_angle_[corner] = kNaN;
             *target_velocity_[corner] = kNaN;
@@ -170,6 +202,7 @@ private:
         }
     }
 
+    InputInterface<double> update_rate_;
     InputInterface<double> valid_;
     InputInterface<double> healthy_;
     InputInterface<bool> active_suspension_;
@@ -186,6 +219,9 @@ private:
     std::array<OutputInterface<double>, kCornerCount> target_acceleration_;
     std::array<OutputInterface<double>, kCornerCount> angle_error_;
 
+    bool use_v3_ = false;
+    double target_rate_limit_ = 2.0;
+    std::array<double, kCornerCount> previous_target_{};
     double leg_action_scale_ = 0.15;
     double q_target_min_rad_ = 0.0;
     double q_target_max_rad_ = 1.0563;

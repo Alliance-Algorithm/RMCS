@@ -115,8 +115,9 @@ chassis_controller:
     wireless_charging_offset_deg: 135.0
     wireless_charging_speed_limit: 0.6
     wireless_charging_angular_velocity_limit: 10.0
-    rl_q_cmd_high_rad: 0.0          # RL 高档基准（= Q_HIGH），low_prone 未激活时下发
-    rl_q_cmd_low_rad: 1.0563        # RL 低档基准（= Q_LOW），low_prone 激活时下发
+    # V3 训练使用固定 17° 基准；传统 Q/min-max 姿态逻辑仍由上游管理。
+    rl_q_cmd_high_rad: 1.0646473192622632
+    rl_q_cmd_low_rad: 1.0646473192622632
 
 # 传统未开主动悬挂：只跟 Q/min-max 姿态，无 IMU PID / 校正 / 标定。
 deformable_posture_trajectory:
@@ -140,9 +141,10 @@ deformable_rl_suspension:
     output_acceleration_suffix: "/rl_target_physical_acceleration"
     output_error_suffix: "/rl_control_angle_error"
 
-    leg_action_scale: 0.15
-    q_target_min_rad: 0.0
-    q_target_max_rad: 1.0563
+    action_contract_version: "minangle_physical_v3"
+    leg_target_rate_limit: 2.0              # rad/s，匹配训练目标角限速
+    q_target_min_rad: 0.05235635310555198    # 75° physical angle
+    q_target_max_rad: 1.0821006117822065     # 16° physical angle
 
 deformable_suspension_arbiter:
   ros__parameters:
@@ -157,7 +159,8 @@ rl_bridge:
     policy_rate: 100.0                     # = 训练控制频率（sim dt 1/200 × decimation 2）
     max_action_age: 0.02                   # 缺省 = 2 / policy_rate
 
-    rl_obs_size: 26
+    rl_obs_size: 256                       # 8 × 32，最旧帧在前
+    history_length: 8
     rl_action_size: 4
 
     # 使能取自上游 DeformableChassis；桥不得读消费侧输出，否则成环。
@@ -166,27 +169,32 @@ rl_bridge:
     invalid_value: "nan"                   # 必须加引号！
     reset_interface: "/chassis/deformable/reset_count"
 
-    # 关节序 = 训练 DOF 序：RF, LF, LB, RB。角度/速度来自硬件的 RL 坐标输出，
-    # 力矩用硬件实测 /torque（不再是下游关节控制器的 control_torque）。
+    # RF, LF, LB, RB；URDF q=CAD零角-physical_angle，电流沿配置后的关节轴。
     joint_names: [right_front_joint, left_front_joint, left_back_joint, right_back_joint]
     joint_base_path: "/chassis"
-    joint_angle_suffix: "/rl_angle"
-    joint_velocity_suffix: "/rl_velocity"
-    joint_torque_suffix: "/torque"
+    joint_angle_suffix: "/urdf_angle"
+    joint_velocity_suffix: "/urdf_velocity"
 
     observation_terms:
-      - index=0  path=/chassis/deformable/rl_q_cmd clip=-1:2
-      - index=1  path=/chassis/control_velocity take=x clip=-3:3
-      - index=2  path=/chassis/control_velocity take=y clip=-3:3
-      - index=3  path=/chassis/control_velocity take=z clip=-3:3
-      - index=4  path=/chassis/imu/roll_rate scale=0.5 clip=-10:10
-      - index=5  path=/chassis/imu/pitch_rate scale=-0.5 clip=-10:10
-      - index=6  path=/chassis/yaw/velocity_imu scale=0.5 clip=-10:10
-      - index=7  path=/chassis/imu/quaternion transform=projected_gravity clip=-1:1
-      - index=10 type=joint_pos  joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint clip=-0.5:2
-      - index=14 type=joint_vel  joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.1 clip=-30:30
-      - index=18 type=joint_torque joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.05 clip=-60:60
-      - index=22 type=last_action clip=-1.5:1.5
+      - index=0 path=/chassis/deformable/rl_q_cmd name=urdf_q_cmd clip=-10:10
+      - index=1 path=/chassis/control_velocity take=x name=drive_command_b_x clip=-10:10
+      - index=2 path=/chassis/control_velocity take=y name=drive_command_b_y clip=-10:10
+      - index=3 path=/chassis/control_velocity take=z scale=0.25 name=drive_command_b_yaw clip=-10:10
+      - index=4 path=/chassis/rl/gyro_b take=vec3 scale=0.5 name=gyro_b clip=-10:10
+      - index=7 path=/chassis/imu/quaternion transform=projected_gravity name=projected_gravity_b clip=-10:10
+      - index=10 type=joint_pos joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint name=leg_urdf_q_rf_lf_lb_rb clip=-10:10
+      - index=14 type=joint_vel joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.1 name=leg_urdf_qd_rf_lf_lb_rb clip=-10:10
+      - index=18 path=/chassis/right_front_joint/feedback_current_raw scale=0.00048828125 name=feedback_current_raw_rf clip=-10:10
+      - index=19 path=/chassis/left_front_joint/feedback_current_raw scale=0.00048828125 name=feedback_current_raw_lf clip=-10:10
+      - index=20 path=/chassis/left_back_joint/feedback_current_raw scale=0.00048828125 name=feedback_current_raw_lb clip=-10:10
+      - index=21 path=/chassis/right_back_joint/feedback_current_raw scale=0.00048828125 name=feedback_current_raw_rb clip=-10:10
+      - index=22 type=last_action indices=0,1,2,3 clip=-1:1
+      - index=26 path=/chassis/right_front_wheel/rl_velocity scale=0.05 name=wheel_encoder_rf clip=-10:10
+      - index=27 path=/chassis/left_front_wheel/rl_velocity scale=0.05 name=wheel_encoder_lf clip=-10:10
+      - index=28 path=/chassis/left_back_wheel/rl_velocity scale=0.05 name=wheel_encoder_lb clip=-10:10
+      - index=29 path=/chassis/right_back_wheel/rl_velocity scale=0.05 name=wheel_encoder_rb clip=-10:10
+      - index=30 path=/chassis/rl/encoder_twist_b take=x name=encoder_twist_b_x clip=-10:10
+      - index=31 path=/chassis/rl/encoder_twist_b take=y name=encoder_twist_b_y clip=-10:10
 
     action_terms:
       - index=0 output=/chassis/rl/action/joint_leg_1
@@ -199,11 +207,13 @@ rl_bridge:
 policy_server:
   ros__parameters:
     rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable_sps_V1.onnx"
+    rl_model_path: "models/deformable_v3_transformer.onnx"
     input_name: "obs"
     output_name: "actions"
-    model_type: "auto"
-    rl_obs_size: 26        # 必须与 rl_bridge.rl_obs_size 一致（启动期尺寸交叉校验）
+    model_type: "transformer"
+    sequence_length: 8
+    feature_size: 32
+    rl_obs_size: 256       # 与 rl_bridge 一致；模型输入 [1,8,32]
     rl_action_size: 4
     normalization_from_metadata: true
     publish_status: false
