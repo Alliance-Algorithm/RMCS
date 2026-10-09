@@ -1,0 +1,33 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::Test -> test
+
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+test:
+  ros__parameters:
+    board_serial_gimbal_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
+
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 30.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 0.700
+    ki: 0.0
+    kd: 0.0
