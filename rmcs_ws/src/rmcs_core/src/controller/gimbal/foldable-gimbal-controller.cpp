@@ -136,6 +136,8 @@ public:
             input_.navigation_toward.make_and_bind_directly(kVecNaN);
             RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
         }
+        if (!input_.chassis_aligned.ready())
+            input_.chassis_aligned.make_and_bind_directly(true);
         last_fold_request_ =
             input_.gimbal_fold_request.ready() ? *input_.gimbal_fold_request : false;
 
@@ -255,6 +257,7 @@ private:
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
             component.register_input("/gimbal/fold/request", gimbal_fold_request, false);
+            component.register_input("/chassis/aligned", chassis_aligned, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -314,6 +317,7 @@ private:
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
         InputInterface<bool> gimbal_fold_request;
+        InputInterface<bool> chassis_aligned;
     } input_{*this};
 
     struct Output {
@@ -332,6 +336,8 @@ private:
             component.register_output("/gimbal/fold/state", fold_state, 0);
             component.register_output("/gimbal/fold/active", fold_active, false);
             component.register_output(
+                "/gimbal/fold/chassis_alignment_request", chassis_alignment_request, false);
+            component.register_output(
                 "/foldable_gimbal/friction_flag", foldable_gimbal_friction_flag, false);
         }
 
@@ -346,6 +352,7 @@ private:
 
         OutputInterface<int> fold_state;
         OutputInterface<bool> fold_active;
+        OutputInterface<bool> chassis_alignment_request;
         OutputInterface<bool> foldable_gimbal_friction_flag;
     } output_{*this};
 
@@ -375,8 +382,8 @@ private:
     double fold_ready_elapsed_ = 0.0;
 
     double fold_ready_time_ = 0.2;
-    double fold_velocity_tolerance_ = 0.05;
-    double fold_angle_tolerance_ = 0.05;
+    double fold_velocity_tolerance_ = 0.1;
+    double fold_angle_tolerance_ = 0.1;
 
     std::chrono::steady_clock::time_point last_update_timestamp_{};
 
@@ -562,7 +569,8 @@ private:
 
     auto update_move_to_fold_pose(const std::pair<double, double>& actual_yaw_pitch, double dt)
         -> void {
-        fold_ready_elapsed_ = fold_pose_reached(actual_yaw_pitch) ? fold_ready_elapsed_ + dt : 0.0;
+        const bool ready = fold_pose_reached(actual_yaw_pitch) && *input_.chassis_aligned;
+        fold_ready_elapsed_ = ready ? fold_ready_elapsed_ + dt : 0.0;
         if (fold_ready_elapsed_ >= fold_ready_time_) {
             fold_ready_elapsed_ = 0.0;
             fold_state_ = FoldState::Folding;
@@ -645,6 +653,7 @@ private:
     auto publish_fold_state() -> void {
         *output_.fold_state = static_cast<int>(fold_state_);
         *output_.fold_active = fold_state_ != FoldState::UnFold;
+        *output_.chassis_alignment_request = fold_state_ == FoldState::MovingToFoldPose;
         *output_.foldable_gimbal_friction_flag = fold_state_ == FoldState::UnFold;
     }
 

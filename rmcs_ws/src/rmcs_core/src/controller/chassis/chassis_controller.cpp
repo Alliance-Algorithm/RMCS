@@ -1,6 +1,7 @@
 #include "controller/pid/pid_calculator.hpp"
 
 #include <cmath>
+#include <memory>
 #include <numbers>
 
 #include <eigen3/Eigen/Geometry>
@@ -38,6 +39,7 @@ public:
         register_input("/chassis/cross/direction", chassis_cross_direction_, false);
         register_input("/chassis/cross/speed", chassis_cross_speed_, false);
         register_input("/chassis/climber/measure_yaw", chassis_measure_yaw_, false);
+        register_input("/gimbal/fold/chassis_alignment_request", gimbal_alignment_request_, false);
 
         register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
         register_input("/rmcs_navigation/chassis_velocity", navigation_command_velocity_, false);
@@ -47,6 +49,7 @@ public:
         register_output("/chassis/control_angle", chassis_control_angle_, kNaN);
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::ALIGNMENT);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
+        aligned_output_component_->register_output("/chassis/aligned", aligned_, false);
     }
 
     void before_updating() override {
@@ -67,6 +70,9 @@ public:
         }
         if (!chassis_measure_yaw_.ready()) {
             chassis_measure_yaw_.make_and_bind_directly(kNaN);
+        }
+        if (!gimbal_alignment_request_.ready()) {
+            gimbal_alignment_request_.make_and_bind_directly(false);
         }
 
         if (!navigation_enable_control_.ready()) {
@@ -131,6 +137,9 @@ public:
                     mode = ChassisMode::AUTO;
                 }
 
+                if (*gimbal_alignment_request_)
+                    mode = ChassisMode::ALIGNMENT;
+
                 update_spin_stuck_watchdog(mode);
                 *mode_ = mode;
             }
@@ -141,6 +150,10 @@ public:
         last_switch_right_ = switch_right;
         last_switch_left_ = switch_left;
         last_keyboard_ = keyboard;
+
+        *aligned_ = *mode_ == rmcs_msgs::ChassisMode::ALIGNMENT && chassis_yaw_velocity_imu_.ready()
+                 && std::abs(alignment_error_) <= alignment_angle_tolerance
+                 && std::abs(*chassis_yaw_velocity_imu_) <= alignment_velocity_tolerance;
     }
 
     void reset_all_controls() {
@@ -271,6 +284,7 @@ public:
             const double angle2 = signed_angle(speed, line2);
             const double min = (std::abs(angle1) < std::abs(angle2)) ? angle1 : angle2;
 
+            alignment_error_ = min;
             angular_velocity = following_velocity_controller_.update(-min);
         } break;
 
@@ -331,11 +345,21 @@ public:
     }
 
 private:
+    struct AlignedOutputComponent : public rmcs_executor::Component {
+        auto update() -> void override {}
+    };
+
+    std::shared_ptr<Component> aligned_output_component_{
+        create_partner_component<AlignedOutputComponent>(get_component_name() + "_aligned_output"),
+    };
+
     static constexpr double kInf = std::numeric_limits<double>::infinity();
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
     const double translational_velocity_max{node::param_or("translational_velocity_max", 10.0)};
     const double angular_velocity_max{node::param_or("angular_velocity_max", 16.0)};
+    const double alignment_angle_tolerance{node::param_or("alignment_angle_tolerance", 0.2)};
+    const double alignment_velocity_tolerance{node::param_or("alignment_velocity_tolerance", 0.2)};
 
     InputInterface<Eigen::Vector2d> joystick_right_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
@@ -354,12 +378,16 @@ private:
     InputInterface<double> chassis_cross_speed_;
     InputInterface<double> chassis_measure_yaw_;
 
+    InputInterface<bool> gimbal_alignment_request_;
+
     InputInterface<bool> navigation_enable_control_;
     InputInterface<Eigen::Vector2d> navigation_command_velocity_;
     InputInterface<rmcs_msgs::ChassisMode> navigation_chassis_behavior_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
+    OutputInterface<bool> aligned_;
     bool spinning_forward_ = true;
+    double alignment_error_ = kNaN;
 
     std::size_t spin_stuck_count_ = 0;
     std::size_t spin_reverse_cooldown_ = 0;

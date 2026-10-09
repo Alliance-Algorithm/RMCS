@@ -94,10 +94,12 @@ chassis_controller:
     following_velocity_kp: 7.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
+    alignment_angle_tolerance: 0.2
+    alignment_velocity_tolerance: 0.2
 
 sentry_tunnel_cross:
   ros__parameters:
-    speed: 0.5
+    speed: 1.2
     duration: 2.0
     pre_drive_delay: 0.2
     fold_timeout: 5.0
