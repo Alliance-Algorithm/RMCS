@@ -18,7 +18,7 @@ value_broadcaster:
 hardware_motor_test:
   ros__parameters:
     # ---- 板子 ----
-    board_serial: "AF-8AE3-4EC1-03C3-C494-88FE-2DC4-3018-0298"
+    board_serial: ""
 
     # ---- CAN 口 / 电机类型映射 ----
     # 每个口一个条目 "can_index:FAMILY"；FAMILY 取 DM8009 / LK4010i10 / GM6020 / M3508。
