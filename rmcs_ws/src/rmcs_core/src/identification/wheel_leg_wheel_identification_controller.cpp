@@ -196,7 +196,7 @@ private:
         if (!finite(kp_) || !finite(ki) || !finite(kd) || !finite(feedforward)
             || !finite(torque_cap_) || !finite(speed_cap_) || !finite(arm_dwell_s_)
             || !finite(feedback_timeout_s_) || !finite(max_tick_gap_s_) || !finite(current_limit_a_)
-            || current_limit_a_ <= 0 || current_limit_a_ > 20 || ratio != 15.8 || control_hz != 1000
+            || current_limit_a_ <= 0 || current_limit_a_ > 20 || ratio != 15.62 || control_hz != 1000
             || reference_hz != WheelProbePlan::kReferenceHz || kp_ <= 0 || ki != 0 || kd != 0
             || feedforward != 0 || torque_cap_ <= 0
             || std::abs(torque_cap_ - current_limit_a_ * kOutputNmPerAmp) > 1e-9
@@ -256,7 +256,7 @@ private:
     void set_phase(Phase value) { *phase_ = std::to_underlying(value); }
 
     // Must match DjiMotor's M3508 conversion and the actual installed ratio.
-    static constexpr double kOutputNmPerAmp = 15.8 * (0.3 * 187. / 3591.);
+    static constexpr double kOutputNmPerAmp = 15.62 * (0.3 * 187. / 3591.);
     WheelProbePlan load_plan() {
         WheelProbeConfig config;
         if (get_parameter("trajectory_revision").as_string() != WheelProbePlan::kRevision)

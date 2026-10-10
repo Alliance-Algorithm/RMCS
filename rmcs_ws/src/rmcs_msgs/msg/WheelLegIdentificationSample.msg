@@ -35,7 +35,7 @@ float64[6] torque_fb_api
 # expose current, so their entries are NaN. Never infer DM current from torque.
 float64[6] feedback_current_a
 # 0=unavailable, 1=DM drive-reported estimated torque,
-# 2=M3508 raw current converted to output-shaft torque using configured 15.8 ratio.
+# 2=M3508 raw current converted to output-shaft torque using the configured reduction.
 uint8[6] feedback_torque_source
 float64[6] max_torque_api
 # DM temperature is reported by the driver. Wheel temperature is unavailable
