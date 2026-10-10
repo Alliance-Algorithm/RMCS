@@ -403,7 +403,7 @@ RlController::RlController()
         }
         if ((wheel_scale_.cwiseAbs().array() - 1.0).abs().maxCoeff() > 0.01)
             throw std::runtime_error(
-                "Wheel output coordinates already include DjiMotor's 15.8 reduction ratio");
+                "Wheel output coordinates already include DjiMotor's configured reduction ratio");
         RecoveryConfig profile;
         profile.orbit_speed = get_parameter("recovery_orbit_speed").as_double();
         profile.side_speed = get_parameter("recovery_side_speed").as_double();

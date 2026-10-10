@@ -284,10 +284,10 @@ wheel_leg_identification_recorder:
     sample_frequency_hz: 1000.0
     bus_voltage_source: 'not bound on this board: NaN means unavailable'
     dm_feedback_torque_source: DM driver MIT torque report, estimate, not load cell
-    wheel_feedback_torque_source: M3508 reported motor current via installed 15.8
+    wheel_feedback_torque_source: M3508 reported motor current via installed 15.62
       reduction
     motor_feedback_reference: DM reducer-output Nm assumed pending scale check; M3508
-      wheel-output Nm after 15.8
+      wheel-output Nm after 15.62
     api_motor_reversed:
     - true
     - true
@@ -296,7 +296,7 @@ wheel_leg_identification_recorder:
     wheel_motor_reversed:
     - true
     - true
-    wheel_reduction_ratio: 15.8
+    wheel_reduction_ratio: 15.62
     encoder_zero_inner_knee_deg: 105.0
     recording_run: L01
     calibration_sha256: da5cffb42b4760eb7bd858a7c294305469539862bd288c611666905c42684e35

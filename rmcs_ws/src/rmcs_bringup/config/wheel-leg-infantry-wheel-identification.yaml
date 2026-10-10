@@ -23,7 +23,7 @@ wheel_leg:
 wheel_leg_wheel_identification_controller:
   ros__parameters:
     # Both wheels are M3508 (CAN0, IDs 1/2); DjiMotor already divides angular
-    # speed by the installed 15.8 ratio and reports output-shaft rad/s / Nm.
+    # speed by the installed 15.62 ratio and reports output-shaft rad/s / Nm.
     # Body supported, legs airborne: no assumption that wheel carriers are fixed.
     trajectory_revision: "wheel_multiband_v2"
     control_frequency_hz: 1000.0
@@ -43,10 +43,10 @@ wheel_leg_wheel_identification_controller:
     wheel_velocity_ki: 0.0
     wheel_velocity_kd: 0.0
     wheel_feedforward: 0.0
-    wheel_reduction_ratio: 15.8
-    wheel_current_limit_a: 18.230894198876328
-    # Reference output cap converted through installed 15.8 ratio; driver full
-    # scale remains 20 A / 4.936675 Nm. Neither is a measured shaft torque rating.
+    wheel_reduction_ratio: 15.62
+    wheel_current_limit_a: 18.440981327928682
+    # Reference output cap converted through installed 15.62 ratio; driver full
+    # scale remains 20 A / 4.880434 Nm. Neither is a measured shaft torque rating.
     wheel_torque_cap: 4.5
     wheel_feedback_speed_cap: 40.0
     arm_dwell_s: 0.5
@@ -75,11 +75,11 @@ wheel_leg_identification_recorder:
     sample_frequency_hz: 1000.0
     bus_voltage_source: "not bound on this board: NaN means unavailable"
     dm_feedback_torque_source: "DM driver MIT torque report, estimate, not load cell"
-    wheel_feedback_torque_source: "M3508 reported motor current via installed 15.8 reduction"
-    motor_feedback_reference: "DM reducer-output Nm assumed pending scale check; M3508 wheel-output Nm after 15.8"
+    wheel_feedback_torque_source: "M3508 reported motor current via installed 15.62 reduction"
+    motor_feedback_reference: "DM reducer-output Nm assumed pending scale check; M3508 wheel-output Nm after 15.62"
     api_motor_reversed: [true, true, true, true]
     wheel_motor_reversed: [true, true]
-    wheel_reduction_ratio: 15.8
+    wheel_reduction_ratio: 15.62
     encoder_zero_inner_knee_deg: 105.0
 
 value_broadcaster:

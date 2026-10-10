@@ -372,11 +372,13 @@ private:
                 throw std::invalid_argument(
                     "DM MIT ranges must contain four positive finite values");
 
+            // The stock M3508 gearbox is removed; the external gearbox provides
+            // the full reduction from the motor encoder to the wheel.
             for (auto&& [motor, id] : std::views::zip(wheel_motors_, kMotorIds))
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::kM3508, id}
                         .set_reversed()
-                        .set_reduction_ratio(15.8)
+                        .set_reduction_ratio(15.62)
                         .enable_multi_turn_angle());
 
             const auto configure_joint = [&](device::DmMotor& motor, std::size_t index,
