@@ -12,6 +12,10 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::DeformableInfantry -> referee_ui_infantry
 
       - rmcs_core::controller::gimbal::DeformableInfantryGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::NnPidController -> yaw_velocity_nn_pid_controller
+      - rmcs_core::controller::pid::NnPidController -> pitch_velocity_nn_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -235,26 +239,6 @@ gimbal_controller:
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 10.0
-    yaw_angle_ki: 0.0
-    yaw_angle_kd: 0.0
-
-    yaw_velocity_kp: 13.0
-    yaw_velocity_ki: 0.02
-    yaw_velocity_kd: 0.0
-    yaw_velocity_integral_min: -5.0
-    yaw_velocity_integral_max: 5.0
-
-    pitch_angle_kp: 35.0
-    pitch_angle_ki: 0.02
-    pitch_angle_kd: 0.3
-    pitch_angle_integral_min: -0.5
-    pitch_angle_integral_max: 0.5
-
-    pitch_velocity_kp: 2.0
-    pitch_velocity_ki: 0.0
-    pitch_velocity_kd: 0.0
-
     yaw_ref_velocity_gain: 1.0
     pitch_ref_velocity_gain: 1.0
 
@@ -266,7 +250,87 @@ gimbal_controller:
     pitch_gravity_ff_gain: 2.575
     pitch_gravity_ff_phase: 1.784
 
-    pitch_torque_control: true
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    feedforward: /gimbal/yaw/ref_velocity_ff
+    control: /gimbal/yaw/velocity_ref
+    kp: 10.0
+    ki: 0.0
+    kd: 0.0
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    feedforward: /gimbal/pitch/ref_velocity_ff
+    control: /gimbal/pitch/velocity_ref
+    kp: 35.0
+    ki: 0.02
+    kd: 0.3
+    integral_min: -0.5
+    integral_max: 0.5
+
+yaw_velocity_nn_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/velocity_ref
+    feedforward: /gimbal/yaw/torque_ff
+    control: /gimbal/yaw/control_torque
+    gain_monitor_prefix: /gimbal/yaw/velocity_nn
+
+    kp: 13.0
+    ki: 0.02
+    kd: 0.0
+    integral_min: -5.0
+    integral_max: 5.0
+    output_min: -4.5
+    output_max: 4.5
+
+    kp_delta_limit: 2.6
+    ki_delta_limit: 0.01
+    kd_delta_limit: 0.05
+    error_scale: 2.0
+    integral_scale: 5.0
+    difference_scale: 0.1
+    learning_rate: 0.001
+    plant_sensitivity: 1.0
+    learning_interval: 10
+    learning_error_limit: 2.0
+    gradient_limit: 1.0
+    weight_limit: 3.0
+    hidden_size: 5
+    seed: 6020
+
+pitch_velocity_nn_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/velocity_ref
+    feedforward: /gimbal/pitch/torque_ff
+    control: /gimbal/pitch/control_torque
+    gain_monitor_prefix: /gimbal/pitch/velocity_nn
+
+    kp: 2.0
+    ki: 0.0
+    kd: 0.0
+    integral_min: -5.0
+    integral_max: 5.0
+    output_min: -4.5
+    output_max: 4.5
+
+    kp_delta_limit: 0.4
+    ki_delta_limit: 0.0
+    kd_delta_limit: 0.05
+    error_scale: 2.0
+    integral_scale: 5.0
+    difference_scale: 0.1
+    learning_rate: 0.001
+    plant_sensitivity: 1.0
+    learning_interval: 10
+    learning_error_limit: 2.0
+    gradient_limit: 1.0
+    weight_limit: 3.0
+    hidden_size: 5
+    seed: 6021
 
 friction_wheel_controller:
   ros__parameters:
