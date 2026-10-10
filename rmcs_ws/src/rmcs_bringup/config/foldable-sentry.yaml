@@ -36,12 +36,12 @@ rmcs_executor:
 
 foldable_sentry:
   ros__parameters:
-    board_serial_chassis_board: ""
+    board_serial_chassis_board: "AF-79CF-C275-34AA-F714-8CC6-E363-5B59-FB4E"
     board_serial_gimbal_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
 
-    roll_motor_zero_point: 11427
-    top_yaw_motor_zero_point: 2638
-    pitch_motor_zero_point: 50022
+    roll_motor_zero_point: 14733
+    top_yaw_motor_zero_point: 3433
+    pitch_motor_zero_point: 28369
     bottom_yaw_motor_zero_point: 0
 
 auto_aim_capturer:
@@ -114,13 +114,13 @@ value_broadcaster:
 gimbal_controller:
   ros__parameters:
     # 折叠/展开姿态角，按实车标定。
-    roll_folded_angle: 0.158
-    roll_unfold_angle: 2.948
-    top_yaw_folded_angle: 6.214
-    pitch_folded_angle: 0.053
+    roll_folded_angle: 3.264
+    roll_unfold_angle: 6.2808
+    top_yaw_folded_angle: 6.218
+    pitch_folded_angle: -0.04
 
-    pitch_upper_limit: -0.495
-    pitch_lower_limit: 0.770
+    pitch_upper_limit: -0.550
+    pitch_lower_limit: 0.530
 
     fold_ready_time: 0.1
     fold_velocity_tolerance: 0.2
