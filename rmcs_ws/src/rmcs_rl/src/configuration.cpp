@@ -178,6 +178,16 @@ RlController::RlController()
     else
         throw std::runtime_error("Unknown wheel-leg control profile: " + profile_name);
 
+    policy_profile_.forward_limit = get_parameter_or("vx_max", policy_profile_.forward_limit);
+    policy_profile_.positive_yaw_limit =
+        get_parameter_or("yaw_rate_max", policy_profile_.positive_yaw_limit);
+    // V6 uses symmetric yaw commands; retain the legacy reverse-spin envelope.
+    policy_profile_.negative_yaw_limit = policy_profile_.name == kV6PolicyProfile.name
+                                           ? policy_profile_.positive_yaw_limit
+                                           : std::min(
+                                                 policy_profile_.negative_yaw_limit,
+                                                 policy_profile_.positive_yaw_limit);
+
     strict_feedback_ = policy_profile_.name == kV6PolicyProfile.name || recovery_enabled_;
     RecoverySensorGuardConfig sensor_config;
     sensor_config.motor_age_seconds = get_parameter_or("recovery_motor_age_s", 0.02);
@@ -224,6 +234,9 @@ RlController::RlController()
     recovery_frequency_ =
         get_parameter_or("recovery_frequency", DeployedPolicyContract::kControlFrequencyHz);
     const std::array parameters{
+        policy_profile_.forward_limit,
+        policy_profile_.negative_yaw_limit,
+        policy_profile_.positive_yaw_limit,
         inference_frequency_,
         pd_frequency_,
         recovery_frequency_,
@@ -250,6 +263,8 @@ RlController::RlController()
         recovery_dm_peak_torque_nm_,
     };
     if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
+        || policy_profile_.forward_limit <= 0 || policy_profile_.negative_yaw_limit <= 0
+        || policy_profile_.positive_yaw_limit <= 0
         || inference_frequency_ != DeployedPolicyContract::kPolicyFrequencyHz
         || pd_frequency_ < DeployedPolicyContract::kControlFrequencyHz || pd_frequency_ > 1000.0
         || std::fmod(pd_frequency_, DeployedPolicyContract::kControlFrequencyHz) != 0.0
@@ -264,7 +279,7 @@ RlController::RlController()
         || recovery_dm_rated_torque_nm_ > recovery_dm_peak_torque_nm_
         || recovery_dm_peak_torque_nm_ > 40.0)
         throw std::runtime_error(
-            "Invalid policy/PD/recovery frequency, PREPARE thresholds, or robot geometry");
+            "Invalid motion limits, policy/PD/recovery frequency, PREPARE thresholds, or robot geometry");
     // These are bounded upright takeover envelopes, not recovery parameters.
     // Startup overrides may tighten them, but cannot turn flat capture into a
     // folded-pose or high-speed recovery entry.

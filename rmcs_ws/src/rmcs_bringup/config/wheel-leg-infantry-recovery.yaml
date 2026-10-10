@@ -151,6 +151,9 @@ rl_controller:
   ros__parameters:
     # Compatible V6 actors share the robot control contract.
     model_path: "models/wheel_leg/policy.onnx"
+    # Keep the RL command envelope aligned with the chassis limits below.
+    vx_max: 0.5
+    yaw_rate_max: 1.0
     rl_inference_frequency: 50.0
     # Update feedback PD and recovery references every 1 ms; policy targets stay at 50 Hz.
     pd_frequency: 1000.0
