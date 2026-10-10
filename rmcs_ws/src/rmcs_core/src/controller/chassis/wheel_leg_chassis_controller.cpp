@@ -143,16 +143,22 @@ private:
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
         const rmcs_msgs::Keyboard& keyboard) {
         using rmcs_msgs::Switch;
-        const bool spin_switch = switch_left == Switch::MIDDLE && switch_right == Switch::DOWN;
-        const bool spin_switch_edge =
-            spin_switch
-            && (last_switch_left_ != Switch::MIDDLE || last_switch_right_ != Switch::DOWN);
+        // Match the common chassis input: the right switch enters DOWN once
+        // while the left switch stays MIDDLE. Holding DOWN does not retrigger.
+        const bool spin_switch_edge = switch_left == Switch::MIDDLE
+                                   && last_switch_right_ == Switch::MIDDLE
+                                   && switch_right == Switch::DOWN;
         if (spin_switch_edge || (!last_keyboard_.c && keyboard.c)) {
             if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST) {
                 *mode_ = rmcs_msgs::ChassisMode::AUTO;
+                node::info("Chassis mode: AUTO");
             } else {
                 *mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
                 spinning_forward_ = !spinning_forward_;
+                const double yaw_rate = spinning_forward_ ? spin_yaw_rate_ : -spin_yaw_rate_;
+                node::info(
+                    "Chassis mode: SPIN, yaw command {} rad/s",
+                    angular_z_invert_ ? -yaw_rate : yaw_rate);
             }
         }
     }
