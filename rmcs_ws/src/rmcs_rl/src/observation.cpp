@@ -145,7 +145,7 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
         !shadow_recovery && (policy_profile_.name != kV6PolicyProfile.name || !hold_command);
     if (height_command_is_reference_) {
         if (height_command_active) {
-            // The chassis integrates the height knob. Follow that continuous
+            // The chassis integrates the height input. Follow that continuous
             // reference without restarting a full transition for every sample.
             // Limit pending commands on release from recovery as well.
             const double max_step =
