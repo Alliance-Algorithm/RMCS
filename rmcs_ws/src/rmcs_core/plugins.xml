@@ -19,6 +19,7 @@
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::HeroSteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelStatus" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::OmniWheelStatus" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::ChassisClimberController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SentryClimber" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SentryTunnelCross" base_class_type="rmcs_executor::Component" />

@@ -40,4 +40,16 @@ target_link_libraries(${PROJECT_NAME} librmcs-sdk)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(chassis_motion_filter_test test/chassis_motion_filter_test.cpp)
+    target_include_directories(chassis_motion_filter_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../rmcs_msgs/include)
+    # Exercise the component's private filter without introducing a public solver header.
+    target_compile_definitions(chassis_motion_filter_test PRIVATE RMCS_CHASSIS_MOTION_FILTER_TEST)
+    # Keep assertions enabled for this standalone test in release builds too.
+    target_compile_options(chassis_motion_filter_test PRIVATE -UNDEBUG)
+    add_test(NAME chassis_motion_filter_test COMMAND chassis_motion_filter_test)
+endif()
+
 ament_auto_package()

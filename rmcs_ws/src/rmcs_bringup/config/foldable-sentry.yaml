@@ -24,6 +24,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
+      - rmcs_core::controller::chassis::OmniWheelStatus -> omni_wheel_status
 
       # - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -105,6 +106,28 @@ sentry_tunnel_cross:
     fold_timeout: 5.0
     unfold_timeout: 5.0
 
+# Read-only motion observer. These parameters do not change motor control.
+omni_wheel_status:
+  ros__parameters:
+    wheel_radius: 0.07
+    chassis_radius_x: 0.3
+    chassis_radius_y: 0.3
+    linear_response_time: 0.3
+    angular_response_time: 0.2
+    linear_acceleration_limit: 3.0
+    angular_acceleration_limit: 12.0
+    linear_process_noise: 1.0
+    angular_process_noise: 1.0
+    wheel_velocity_noise: 0.03
+    imu_yaw_rate_noise: 0.03
+    feedback_timeout: 0.05
+    prediction_timeout: 0.1
+    translation_enter: 0.05
+    translation_exit: 0.03
+    rotation_enter: 0.1
+    rotation_exit: 0.06
+    log_state: true
+
 value_broadcaster:
   ros__parameters:
     forward_list:
@@ -113,7 +136,14 @@ value_broadcaster:
       - /gimbal/roll/control_torque
       - /gimbal/roll/torque
       - /gimbal/roll/temperature
-
+      - /chassis/motion/vx
+      - /chassis/motion/vy
+      - /chassis/motion/wz
+      - /chassis/motion/speed
+      - /chassis/motion/raw/vx
+      - /chassis/motion/raw/vy
+      - /chassis/motion/raw/wz
+      - /chassis/motion/raw/speed
 
 gimbal_controller:
   ros__parameters:

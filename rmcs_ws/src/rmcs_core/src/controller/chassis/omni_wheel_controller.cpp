@@ -46,6 +46,11 @@ public:
             "/chassis/right_back_wheel/control_torque", right_back_control_torque_, nan_);
         register_output(
             "/chassis/right_front_wheel/control_torque", right_front_control_torque_, nan_);
+
+        register_output("/chassis/motion/raw/vx", raw_velocity_x_, nan_);
+        register_output("/chassis/motion/raw/vy", raw_velocity_y_, nan_);
+        register_output("/chassis/motion/raw/wz", raw_yaw_rate_, nan_);
+        register_output("/chassis/motion/raw/speed", raw_speed_, nan_);
     }
 
     void before_updating() override {
@@ -55,17 +60,23 @@ public:
     }
 
     void update() override {
-        if (std::isnan(chassis_control_velocity_->vector[0])) {
-            reset_all_controls();
-            return;
-        }
-
         Eigen::Vector4d wheel_velocities = {
             *left_front_velocity_, *left_back_velocity_,  //
             *right_back_velocity_, *right_front_velocity_ //
         };
 
         const auto chassis_velocity = calculate_chassis_velocity(wheel_velocities);
+        // Original wheel-only solution, without EKF; keep diagnostics updating when disabled.
+        *raw_velocity_x_ = chassis_velocity.x();
+        *raw_velocity_y_ = chassis_velocity.y();
+        *raw_yaw_rate_ = chassis_velocity.z();
+        *raw_speed_ = std::hypot(chassis_velocity.x(), chassis_velocity.y());
+
+        if (std::isnan(chassis_control_velocity_->vector[0])) {
+            reset_all_controls();
+            return;
+        }
+
         auto chassis_control_torque = calculate_chassis_control_torque(chassis_velocity);
         const auto wheel_pid_torques =
             calculate_wheel_pid_torques(wheel_velocities, chassis_velocity);
@@ -214,6 +225,11 @@ private:
     pid::MatrixPidCalculator<4> wheel_velocity_pid_;
 
     QcpSolver qcp_solver_;
+
+    OutputInterface<double> raw_velocity_x_;
+    OutputInterface<double> raw_velocity_y_;
+    OutputInterface<double> raw_yaw_rate_;
+    OutputInterface<double> raw_speed_;
 
     OutputInterface<double> left_front_control_torque_;
     OutputInterface<double> left_back_control_torque_;

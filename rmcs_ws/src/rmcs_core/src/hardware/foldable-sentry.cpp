@@ -1,12 +1,15 @@
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <numbers>
 #include <print>
 #include <ranges>
@@ -24,8 +27,10 @@
 #include <rmcs_description/tunnel_sentry_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/board_clock.hpp>
+#include <rmcs_msgs/chassis_motion_state.hpp>
 #include <rmcs_msgs/imu_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
+#include <rmcs_utility/endian_promise.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
@@ -358,6 +363,12 @@ private:
     };
 
     class ChassisBoard final : public librmcs::board::RmcsBoardLite::Callback {
+        static constexpr double kWheelReductionRatio = 13.0;
+        // Matches the reversed M3508 configuration below: rotor rpm -> output-shaft rad/s.
+        static constexpr double kWheelVelocityCoefficient =
+            -1.0 / kWheelReductionRatio / 60.0 * 2.0 * std::numbers::pi;
+        static constexpr double kNoFeedback = std::numeric_limits<double>::quiet_NaN();
+
     public:
         explicit ChassisBoard(
             FoldableSentry& sentry, rmcs_executor::Component& sentry_command,
@@ -381,6 +392,8 @@ private:
             sentry.register_output("/referee/serial", referee_serial_);
             sentry.register_output("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, 0.0);
             sentry.register_output("/chassis/pitch_imu", chassis_pitch_imu_, 0.0);
+            sentry.register_output(
+                "/chassis/motion/feedback", motion_feedback_, motion_feedback_snapshot_);
 
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
@@ -401,7 +414,7 @@ private:
             for (auto&& [motor, id] : std::views::zip(chassis_wheel_motors_, kWheelIds)) {
                 motor.configure(
                     DjiMotor::Config{DjiMotor::Type::kM3508, id}
-                        .set_reduction_ratio(13.0)
+                        .set_reduction_ratio(kWheelReductionRatio)
                         .enable_multi_turn_angle()
                         .set_reversed());
             }
@@ -435,6 +448,9 @@ private:
                 *chassis_pitch_imu_ = -std::asin(sin_pitch);
                 *chassis_yaw_velocity_imu_ = snapshot->gyro_body.z();
             }
+
+            const std::lock_guard feedback_lock{motion_feedback_mutex_};
+            *motion_feedback_ = motion_feedback_snapshot_;
         }
 
         void command_update() {
@@ -488,6 +504,18 @@ private:
                     || chassis_wheel_motors_[2].match_then_store_status(can_id, can_data)
                     || chassis_wheel_motors_[3].match_then_store_status(can_id, can_data);
 
+                if (can_data.size() == 8 && can_id >= 0x201 && can_id <= 0x204) {
+                    rmcs_utility::be_int16_t raw_velocity;
+                    std::memcpy(&raw_velocity, can_data.data() + 2, sizeof(raw_velocity));
+                    const auto wheel_index = static_cast<std::size_t>(can_id - 0x201);
+                    const auto stamp = rmcs_msgs::ChassisMotionFeedback::Clock::now();
+                    const std::lock_guard feedback_lock{motion_feedback_mutex_};
+                    motion_feedback_snapshot_.wheel_velocity[wheel_index] =
+                        kWheelVelocityCoefficient * static_cast<double>(raw_velocity);
+                    motion_feedback_snapshot_.wheel_stamp[wheel_index] = stamp;
+                    ++motion_feedback_snapshot_.wheel_sequence[wheel_index];
+                }
+
                 monitor_.tick("Chassis::Can3", can_id);
             } else if (can == Spec::kCans.kCan2) {
                 if (can_id == 0x300) {
@@ -529,7 +557,16 @@ private:
             if (!timestamp.has_value())
                 return;
 
-            bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+            const auto snapshot =
+                bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+            if (!snapshot)
+                return;
+
+            const auto stamp = rmcs_msgs::ChassisMotionFeedback::Clock::now();
+            const std::lock_guard feedback_lock{motion_feedback_mutex_};
+            motion_feedback_snapshot_.yaw_rate = snapshot->gyro_body.z();
+            motion_feedback_snapshot_.imu_stamp = stamp;
+            ++motion_feedback_snapshot_.imu_sequence;
         }
 
         OutputInterface<rmcs_description::tunnel_sentry::Tf>& tf_;
@@ -546,6 +583,13 @@ private:
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         OutputInterface<double> chassis_yaw_velocity_imu_;
         OutputInterface<double> chassis_pitch_imu_;
+
+        std::mutex motion_feedback_mutex_;
+        rmcs_msgs::ChassisMotionFeedback motion_feedback_snapshot_{
+            .wheel_velocity = {kNoFeedback, kNoFeedback, kNoFeedback, kNoFeedback},
+            .yaw_rate = kNoFeedback,
+        };
+        OutputInterface<rmcs_msgs::ChassisMotionFeedback> motion_feedback_;
 
         StatusMonitor monitor_{};
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
