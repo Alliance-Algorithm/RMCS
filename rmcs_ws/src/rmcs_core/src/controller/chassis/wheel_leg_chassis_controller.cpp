@@ -86,7 +86,6 @@ private:
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/wheel_leg/dr16_fresh", remote_fresh_);
-        register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/predefined/timestamp", timestamp_);
 
@@ -115,7 +114,7 @@ private:
         height_step_ = get_parameter_or<double>("height_step", 0.01);
 
         angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
-        height_invert_ = get_parameter_or<bool>("height_invert", true);
+        height_invert_ = get_parameter_or<bool>("height_invert", false);
         jump_enabled_ = get_parameter_or<bool>("jump_enabled", false);
 
         const std::array values{
@@ -229,13 +228,13 @@ private:
     }
 
     void update_height_control_() {
-        double rotary_knob = read_channel_(*rotary_knob_);
+        double height_input = read_channel_(joystick_left_->x());
         if (height_invert_)
-            rotary_knob = -rotary_knob;
-        if (rotary_knob > 0.0)
-            rotary_knob = (rotary_knob - deadzone_) / (1.0 - deadzone_);
-        else if (rotary_knob < 0.0)
-            rotary_knob = (rotary_knob + deadzone_) / (1.0 - deadzone_);
+            height_input = -height_input;
+        if (height_input > 0.0)
+            height_input = (height_input - deadzone_) / (1.0 - deadzone_);
+        else if (height_input < 0.0)
+            height_input = (height_input + deadzone_) / (1.0 - deadzone_);
         const auto now = *timestamp_;
         double dt = 0.0;
         if (previous_height_timestamp_) {
@@ -246,7 +245,7 @@ private:
         // Do not integrate a startup/reset interval or catch up after a gap.
         // Centered input holds the accumulated height in both AUTO and SPIN.
         previous_height_timestamp_ = now;
-        height_ += rotary_knob * height_rate_max_ * dt;
+        height_ += height_input * height_rate_max_ * dt;
         const auto& keyboard = *keyboard_;
         if (!last_keyboard_.r && keyboard.r)
             height_ += height_step_;
@@ -261,7 +260,6 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<bool> remote_fresh_;
-    InputInterface<double> rotary_knob_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
     InputInterface<Clock::time_point> timestamp_;
 
@@ -289,7 +287,7 @@ private:
     double height_rate_max_ = 0.02;
     double height_step_ = 0.01;
     bool angular_z_invert_ = false;
-    bool height_invert_ = true;
+    bool height_invert_ = false;
     bool jump_enabled_ = false;
 
     bool spinning_forward_ = true;
