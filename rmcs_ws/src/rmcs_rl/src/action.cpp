@@ -252,7 +252,7 @@ void RlController::compute_motor_torques_() {
             std::clamp(motor_tau[i], -*max_torque_inputs_[i], *max_torque_inputs_[i]);
 
     for (int i = 0; i < 2; ++i) {
-        // DjiMotor's installed 15.8 ratio converts motor current to wheel-output
+        // DjiMotor's configured ratio converts motor current to wheel-output
         // torque. The model wheel target is already a wheel-output speed.
         const double motor_tau_wheel = wheel_scale_[i] * wheel_tau[i];
         if (!std::isfinite(motor_tau_wheel)) {

@@ -209,7 +209,7 @@ rl_controller:
     leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
                          0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
     leg_model_offsets: [1.6, 2.93, -1.6, -2.93]
-    # DjiMotor applies the installed 15.8 ratio to wheel-side feedback/torque.
+    # DjiMotor applies the hardware reduction ratio to wheel-side feedback/torque.
     # The policy target is already a wheel-output speed: do not multiply it again.
     # V6 preserves the V5 wheel axes in source; individual hardware signs await measurement.
     wheel_model_scale: [1.0, 1.0]

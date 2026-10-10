@@ -148,11 +148,11 @@ wheel_leg_identification_recorder:
     sample_frequency_hz: 1000.0
     bus_voltage_source: "not bound on this board: NaN means unavailable"
     dm_feedback_torque_source: "DM driver MIT torque report, estimate, not load cell"
-    wheel_feedback_torque_source: "M3508 reported motor current via installed 15.8 reduction"
-    motor_feedback_reference: "DM reducer-output Nm assumed pending scale check; M3508 wheel-output Nm after 15.8"
+    wheel_feedback_torque_source: "M3508 reported motor current via installed 15.62 reduction"
+    motor_feedback_reference: "DM reducer-output Nm assumed pending scale check; M3508 wheel-output Nm after 15.62"
     api_motor_reversed: [true, true, true, true]
     wheel_motor_reversed: [true, true]
-    wheel_reduction_ratio: 15.8
+    wheel_reduction_ratio: 15.62
     # Already zeroed inside each DM at the 105-degree physical inner-knee pose.
     # This field is run provenance, NOT a model active-axis offset.
     encoder_zero_inner_knee_deg: 105.0
