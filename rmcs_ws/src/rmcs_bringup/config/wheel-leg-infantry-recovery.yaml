@@ -168,18 +168,27 @@ rl_controller:
     # in that same recovery tick, accepting motion commands immediately.
     recovery_blend_seconds: 0.0
     recovery_release_motion_on_takeover: true
-    # Reuse the ordinary V6 leg/velocity capture envelope below, with separate
-    # recovery tilt/height bounds while the body is still rising.
+    # Share the ordinary V6 velocity guards, with separate recovery pose bounds
+    # while the supported body is still rising.
     recovery_dynamic_takeover: true
     # Wheel-assisted capture raises the supported body into the actor's entry
     # window. Transfer directly without requiring settled wheel probes.
-    recovery_capture_max_tilt_rad: 0.2617993877991494
+    recovery_capture_max_tilt_rad: 0.5235987755982988
+    recovery_capture_max_leg_error_rad: 0.45
     # Within the ordinary upright domain, capture a moving body before it tips.
     # Outside it retain 1 rad/s; above 30 deg reject outward tilt beyond tolerance.
     recovery_capture_max_angular_velocity: 2.0
     recovery_capture_height_min: 0.20
-    # Raise the slow folding/planting ramp; retain native push/capture speeds.
-    recovery_fold_plant_speed_rad_s: 3.0
+    recovery_capture_height_max: 0.29
+    # Folded 50-degree knee reference; measured knees must stay at or below
+    # 60 degrees at takeover. G0 maps inner knee angle to each motor difference.
+    # These are policy-order model references, independent of the motor zero.
+    recovery_capture_joint_positions: [-0.2521074033177618, -0.11790932322695527,
+                                       0.2518308496732414, 0.11764252669871]
+    recovery_capture_hinge_max: [0.3784673759566423, 0.37845928134324935]
+    # Fast fold/plant and orbit; push/capture retain 4 rad/s and side uses 6 rad/s.
+    recovery_fold_plant_speed_rad_s: 6.0
+    recovery_orbit_speed_rad_s: 6.0
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
     recovery_motor_age_s: 0.02
     recovery_imu_age_s: 0.02

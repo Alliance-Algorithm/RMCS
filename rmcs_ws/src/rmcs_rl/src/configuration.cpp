@@ -182,11 +182,10 @@ RlController::RlController()
     policy_profile_.positive_yaw_limit =
         get_parameter_or("yaw_rate_max", policy_profile_.positive_yaw_limit);
     // V6 uses symmetric yaw commands; retain the legacy reverse-spin envelope.
-    policy_profile_.negative_yaw_limit = policy_profile_.name == kV6PolicyProfile.name
-                                           ? policy_profile_.positive_yaw_limit
-                                           : std::min(
-                                                 policy_profile_.negative_yaw_limit,
-                                                 policy_profile_.positive_yaw_limit);
+    policy_profile_.negative_yaw_limit =
+        policy_profile_.name == kV6PolicyProfile.name
+            ? policy_profile_.positive_yaw_limit
+            : std::min(policy_profile_.negative_yaw_limit, policy_profile_.positive_yaw_limit);
 
     strict_feedback_ = policy_profile_.name == kV6PolicyProfile.name || recovery_enabled_;
     RecoverySensorGuardConfig sensor_config;
@@ -279,7 +278,8 @@ RlController::RlController()
         || recovery_dm_rated_torque_nm_ > recovery_dm_peak_torque_nm_
         || recovery_dm_peak_torque_nm_ > 40.0)
         throw std::runtime_error(
-            "Invalid motion limits, policy/PD/recovery frequency, PREPARE thresholds, or robot geometry");
+            "Invalid motion limits, policy/PD/recovery frequency, PREPARE thresholds, or robot "
+            "geometry");
     // These are bounded upright takeover envelopes, not recovery parameters.
     // Startup overrides may tighten them, but cannot turn flat capture into a
     // folded-pose or high-speed recovery entry.
@@ -367,10 +367,43 @@ RlController::RlController()
             recovery_parameter("recovery_release_motion_on_takeover", false);
         recovery_config.dynamic_capture_height_min = recovery_parameter(
             "recovery_capture_height_min", recovery_config.dynamic_capture_height_min);
+        recovery_config.dynamic_capture_height_max = recovery_parameter(
+            "recovery_capture_height_max", recovery_config.dynamic_capture_height_max);
+        const auto capture_positions = recovery_parameter(
+            "recovery_capture_joint_positions",
+            std::vector<double>{
+                recovery_config.nominal.data(), recovery_config.nominal.data() + 4});
+        if (capture_positions.size() != 4
+            || !std::ranges::all_of(capture_positions, [](double v) { return std::isfinite(v); }))
+            throw std::runtime_error("Recovery capture requires four finite joint positions");
+        recovery_capture_reference_ = Eigen::Map<const Eigen::Vector4d>{capture_positions.data()};
+        const auto capture_hinge_max = recovery_parameter(
+            "recovery_capture_hinge_max",
+            std::vector<double>{hinge_max_.begin(), hinge_max_.end()});
+        if (capture_hinge_max.size() != 2)
+            throw std::runtime_error("Recovery capture requires two calibrated hinge limits");
+        for (int side = 0; side < 2; ++side) {
+            const double maximum = capture_hinge_max[side];
+            const int hip = 2 * side;
+            const double reference_hinge =
+                hinge_coeff_[hip] * recovery_capture_reference_[hip]
+                + hinge_coeff_[hip + 1] * recovery_capture_reference_[hip + 1] + hinge_bias_[side];
+            if (!std::isfinite(maximum) || maximum <= hinge_min_[side] || maximum > hinge_max_[side]
+                || reference_hinge < hinge_min_[side] || reference_hinge > maximum)
+                throw std::runtime_error(
+                    "Recovery capture reference exceeds calibrated hinge limits");
+            recovery_capture_hinge_max_[side] = maximum;
+        }
+        if (recovery_config.dynamic_takeover) {
+            recovery_config.nominal = recovery_capture_reference_;
+            recovery_config.support = recovery_capture_reference_;
+        }
         recovery_capture_max_tilt_rad_ =
             recovery_parameter("recovery_capture_max_tilt_rad", prepare_max_tilt_rad_);
         recovery_capture_max_angular_velocity_ = recovery_parameter(
             "recovery_capture_max_angular_velocity", capture_max_angular_velocity_);
+        recovery_capture_max_leg_error_rad_ =
+            recovery_parameter("recovery_capture_max_leg_error_rad", capture_max_leg_error_rad_);
         if (!std::isfinite(recovery_capture_max_tilt_rad_) || recovery_capture_max_tilt_rad_ <= 0.0
             || recovery_capture_max_tilt_rad_ > 40.0 * std::numbers::pi / 180.0)
             throw std::runtime_error("V6 recovery capture tilt must be within 40 degrees");
@@ -379,22 +412,35 @@ RlController::RlController()
             || recovery_capture_max_angular_velocity_ > 2.0)
             throw std::runtime_error(
                 "V6 upright recovery capture angular velocity must be within 2 rad/s");
+        if (!std::isfinite(recovery_capture_max_leg_error_rad_)
+            || recovery_capture_max_leg_error_rad_ <= 0.0
+            || recovery_capture_max_leg_error_rad_ > 0.50)
+            throw std::runtime_error("Recovery capture leg error must be within 0.50 rad");
         recovery_config.prepare_speed_rad_s = recovery_parameter(
             "recovery_fold_plant_speed_rad_s", recovery_config.prepare_speed_rad_s);
         if (!std::isfinite(recovery_config.prepare_speed_rad_s)
             || recovery_config.prepare_speed_rad_s <= 0.0
-            || recovery_config.prepare_speed_rad_s > recovery_config.push_speed_rad_s)
-            throw std::runtime_error("V6 FOLD/PLANT speed must not exceed the native push speed");
+            || recovery_config.prepare_speed_rad_s > 6.0)
+            throw std::runtime_error("Recovery FOLD/PLANT speed must be within 6 rad/s");
+        recovery_config.orbit_speed_rad_s =
+            recovery_parameter("recovery_orbit_speed_rad_s", recovery_config.orbit_speed_rad_s);
+        if (!std::isfinite(recovery_config.orbit_speed_rad_s)
+            || recovery_config.orbit_speed_rad_s <= 0.0 || recovery_config.orbit_speed_rad_s > 6.0)
+            throw std::runtime_error("Recovery ORBIT speed must be within 6 rad/s");
         joint_reference_recovery_.emplace(recovery_config);
         RCLCPP_INFO(
             get_logger(),
             "Self-righting takeover: %s, bounded upright capture=%d, "
-            "FOLD/PLANT %.2f rad/s, capture %.1f deg above %.2f m, "
-            "upright gyro %.2f rad/s, motion %s",
+            "FOLD/PLANT %.2f, ORBIT %.2f rad/s, capture %.1f deg at %.2f..%.2f m, "
+            "hinge maxima %.3f/%.3f rad, "
+            "leg error %.2f rad, upright gyro %.2f rad/s, motion %s",
             recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
             recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
+            recovery_config.orbit_speed_rad_s,
             recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
-            recovery_config.dynamic_capture_height_min, recovery_capture_max_angular_velocity_,
+            recovery_config.dynamic_capture_height_min, recovery_config.dynamic_capture_height_max,
+            recovery_capture_hinge_max_[0], recovery_capture_hinge_max_[1],
+            recovery_capture_max_leg_error_rad_, recovery_capture_max_angular_velocity_,
             recovery_config.release_motion_on_takeover ? "released at takeover"
                                                        : "held until stable");
         support_observer_.emplace(native.geometry, recovery_config.dt);

@@ -55,20 +55,26 @@ bool RlController::upright_capture_ready_(double max_tilt_rad, double max_angula
     const Eigen::Vector3d gravity =
         world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
     const Eigen::Vector3d angular_velocity = imu_to_base_ * *gyro_;
-    return upright_capture_ready_(max_tilt_rad, max_angular_velocity, gravity, angular_velocity);
+    return upright_capture_ready_(
+        {.max_tilt_rad = max_tilt_rad,
+         .max_angular_velocity = max_angular_velocity,
+         .max_leg_error_rad = capture_max_leg_error_rad_,
+         .reference = Eigen::Map<const Eigen::Vector4d>{nominal_.data()}},
+        gravity, angular_velocity);
 }
 
 bool RlController::upright_capture_ready_(
-    double max_tilt_rad, double max_angular_velocity, const Eigen::Vector3d& gravity,
+    const CaptureLimits& limits, const Eigen::Vector3d& gravity,
     const Eigen::Vector3d& angular_velocity) const {
-    if (!feedback_valid_ || !recovery_sensor_status_.valid || -gravity.z() < std::cos(max_tilt_rad)
-        || angular_velocity.norm() > max_angular_velocity
+    if (!feedback_valid_ || !recovery_sensor_status_.valid
+        || -gravity.z() < std::cos(limits.max_tilt_rad)
+        || angular_velocity.norm() > limits.max_angular_velocity
         || dq_.head<4>().cwiseAbs().maxCoeff() > capture_max_leg_velocity_
         || dq_.tail<2>().cwiseAbs().maxCoeff() > capture_max_wheel_velocity_)
         return false;
     for (int i = 0; i < 4; ++i)
-        if (std::abs(std::remainder(nominal_[i] - q_[i], 2 * std::numbers::pi))
-            > capture_max_leg_error_rad_)
+        if (std::abs(std::remainder(limits.reference[i] - q_[i], 2 * std::numbers::pi))
+            > limits.max_leg_error_rad)
             return false;
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side;
@@ -81,6 +87,15 @@ bool RlController::upright_capture_ready_(
 }
 
 bool RlController::recovery_capture_ready_() const {
+    // Hinge differences determine actual knee extension independently of the
+    // leg's common rotation. A low reference alone cannot limit a spring-loaded leg.
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side;
+        const double relative =
+            hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
+        if (relative > recovery_capture_hinge_max_[side])
+            return false;
+    }
     const Eigen::Vector3d gravity =
         world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
     const Eigen::Vector3d omega = imu_to_base_ * *gyro_;
@@ -108,9 +123,12 @@ bool RlController::recovery_capture_ready_() const {
             return false;
     }
     return upright_capture_ready_(
-        recovery_capture_max_tilt_rad_,
-        upright ? recovery_capture_max_angular_velocity_ : capture_max_angular_velocity_, gravity,
-        omega);
+        {.max_tilt_rad = recovery_capture_max_tilt_rad_,
+         .max_angular_velocity =
+             upright ? recovery_capture_max_angular_velocity_ : capture_max_angular_velocity_,
+         .max_leg_error_rad = recovery_capture_max_leg_error_rad_,
+         .reference = recovery_capture_reference_},
+        gravity, omega);
 }
 
 RecoverySensorData RlController::recovery_sensor_data_() const {

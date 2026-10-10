@@ -54,6 +54,13 @@ private:
     using Clock = std::chrono::steady_clock;
     using Vector6 = Eigen::Matrix<double, 6, 1>;
 
+    struct CaptureLimits {
+        double max_tilt_rad;
+        double max_angular_velocity;
+        double max_leg_error_rad;
+        Eigen::Vector4d reference;
+    };
+
     void enter_(State next);
     void latch_fault_(std::optional<RecoveryFailure> reason = std::nullopt);
     bool advance_recovery_();
@@ -73,7 +80,7 @@ private:
     bool upright_capture_ready_(double max_tilt_rad) const;
     bool upright_capture_ready_(double max_tilt_rad, double max_angular_velocity) const;
     bool upright_capture_ready_(
-        double max_tilt_rad, double max_angular_velocity, const Eigen::Vector3d& gravity,
+        const CaptureLimits& limits, const Eigen::Vector3d& gravity,
         const Eigen::Vector3d& angular_velocity) const;
     bool recovery_capture_ready_() const;
     void update_command_reference_();
@@ -238,6 +245,9 @@ private:
     double capture_max_wheel_velocity_ = 5.0;
     double recovery_capture_max_tilt_rad_ = 0.2;
     double recovery_capture_max_angular_velocity_ = 1.0;
+    double recovery_capture_max_leg_error_rad_ = 0.25;
+    Eigen::Vector4d recovery_capture_reference_ = Eigen::Vector4d::Zero();
+    std::array<double, 2> recovery_capture_hinge_max_{};
     double takeover_blend_seconds_ = 0.0;
     double takeover_blend_fraction_ = 0.0;
     double hinge_margin_ = 0.03;
