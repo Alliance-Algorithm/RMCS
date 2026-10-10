@@ -51,6 +51,7 @@ struct JointReferenceRecoveryConfig {
     // End any script at the caller's bounded upright capture before stabilization.
     bool dynamic_takeover = false;
     double dynamic_capture_height_min = 0.27;
+    double dynamic_capture_height_max = 0.36;
     // Deployment may accept driver commands as soon as the actor owns all axes.
     bool release_motion_on_takeover = false;
     double stable_seconds = 1.0;
@@ -205,6 +206,7 @@ private:
     Vector4f thrust_anchor_ = Vector4f::Zero();
     Vector4f side_start_ = Vector4f::Zero();
     Vector4f side_direction_ = Vector4f::Zero();
+    Vector4f side_fold_ = Vector4f::Zero();
     int side_lower_leg_ = 0;
     JointReferenceRecoveryPhase phase_ = JointReferenceRecoveryPhase::kRl;
     JointReferenceRecoveryRoute route_ = JointReferenceRecoveryRoute::kUpright;

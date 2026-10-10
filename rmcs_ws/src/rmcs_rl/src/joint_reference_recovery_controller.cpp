@@ -30,6 +30,7 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
     const std::array values{
         config.dt,
         config.dynamic_capture_height_min,
+        config.dynamic_capture_height_max,
         config.stable_seconds,
         config.max_script_seconds,
         config.prepare_speed_rad_s,
@@ -57,6 +58,8 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
         || (config.dynamic_takeover && config.blend_seconds != 0.0)
         || config.dynamic_capture_height_min < 0.20
         || config.dynamic_capture_height_min > config.handover_height_min
+        || config.dynamic_capture_height_min >= config.dynamic_capture_height_max
+        || config.dynamic_capture_height_max > config.handover_height_max
         || config.stable_seconds < 1.0 || config.max_script_seconds > 8.0 || config.max_reroutes < 0
         || config.max_reroutes > 1 || config.handover_height_min >= config.handover_height_max
         || config.handover_tilt_rad >= config.reroute_tilt_rad
@@ -116,6 +119,7 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
     thrust_anchor_.setZero();
     side_start_.setZero();
     side_direction_.setZero();
+    side_fold_.setZero();
     side_lower_leg_ = 0;
 }
 
@@ -289,8 +293,24 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         selected = JointReferenceRecoveryRoute::kUpright;
     if (phase_ == JointReferenceRecoveryPhase::kSelect) {
         route_ = selected;
-        if (route_ == JointReferenceRecoveryRoute::kSide)
+        if (route_ == JointReferenceRecoveryRoute::kSide) {
             side_lower_leg_ = gravity.y() >= 0.0f ? 0 : 1;
+            side_direction_.setZero();
+            // A backward-canted side fall needs a rearward stroke. A forward
+            // stroke amplifies its pitch before it can produce the roll impulse.
+            const float direction = config_.dynamic_takeover && gravity.x() < -0.1f ? -1.0f : 1.0f;
+            side_direction_.segment<2>(2 * side_lower_leg_).setConstant(direction);
+            // Preserve each leg's measured heading while setting its length.
+            // Rotating to an absolute fold pose can pitch a canted side fall
+            // onto its back before the grounded leg has delivered its stroke.
+            side_fold_ = config_.thrust.cast<float>();
+            for (int side = 0; side < 2; ++side) {
+                const int hip = 2 * side;
+                const float offset =
+                    (continuous_q_.segment<2>(hip).sum() - side_fold_.segment<2>(hip).sum()) / 2.0f;
+                side_fold_.segment<2>(hip).array() += offset;
+            }
+        }
         enter_(
             near_upright ? JointReferenceRecoveryPhase::kPrepare
                          : JointReferenceRecoveryPhase::kFold);
@@ -339,9 +359,12 @@ JointReferenceRecoveryController::JointGoal
     if (folding) {
         goal = config_.fold.cast<float>();
         if (route_ == JointReferenceRecoveryRoute::kSide) {
-            // Lengthen the upper leg before the grounded leg provides the roll impulse.
-            const int upper = 1 - side_lower_leg_;
-            goal.segment<2>(2 * upper) = config_.thrust.segment<2>(2 * upper).cast<float>();
+            if (config_.dynamic_takeover) {
+                goal = side_fold_;
+            } else {
+                const int upper = 1 - side_lower_leg_;
+                goal.segment<2>(2 * upper) = config_.thrust.segment<2>(2 * upper).cast<float>();
+            }
         }
     }
     if ((preparing || capturing || blending) && supported && tilt < radians(85.0)) {
@@ -431,16 +454,14 @@ void JointReferenceRecoveryController::update_transitions_(
     const bool plant_capture = config_.dynamic_takeover
                             && route_ == JointReferenceRecoveryRoute::kPlant
                             && (folding || planting) && feedback.support && height > 0.22f
-                            && tilt < radians(40.0) && gyro.norm() < 1.0f
-                            && paired_delta_(
-                                   config_.rl_nominal.head<4>().cast<float>(), continuous_q_.head<4>())
-                                       .cwiseAbs()
-                                       .maxCoeff()
-                                   < 0.35f;
+                            && tilt < radians(40.0) && gyro.norm() < 8.0f;
     if (plant_capture)
         enter_(JointReferenceRecoveryPhase::kCapture);
+    // A moving recovery must continue as soon as the measured fold is reached.
+    // Holding an unbalanced body here loses the impulse needed by the next stroke.
+    const double fold_min_seconds = config_.dynamic_takeover ? 0.06 : 0.3;
     if (!plant_capture && folding && remaining < 0.02f && measured_error < 0.2f
-        && phase_reached_(step, 0.3)) {
+        && phase_reached_(step, fold_min_seconds)) {
         if (route_ == JointReferenceRecoveryRoute::kOrbitPositive
             || route_ == JointReferenceRecoveryRoute::kOrbitNegative) {
             orbit_start_ = reference;
@@ -448,8 +469,6 @@ void JointReferenceRecoveryController::update_transitions_(
             enter_(JointReferenceRecoveryPhase::kOrbit);
         } else if (route_ == JointReferenceRecoveryRoute::kSide) {
             side_start_ = reference;
-            side_direction_.setZero();
-            side_direction_.segment<2>(2 * side_lower_leg_).setOnes();
             enter_(JointReferenceRecoveryPhase::kSide);
         } else {
             enter_(JointReferenceRecoveryPhase::kPlant);
@@ -502,14 +521,15 @@ void JointReferenceRecoveryController::update_transitions_(
     // test cannot require a balancing wheel to settle before a moving capture.
     // Acquire several actual sensor frames before trusting a cold IMU/filter
     // baseline. This is startup sensing time, not a standing-stability dwell.
-    const bool captured_for_rl = !plant_capture && enabled_
-                              && phase_ < JointReferenceRecoveryPhase::kBlend
-                              && reached_(age_ticks_, durations_.age, 0.06)
-                              && config_.dynamic_takeover && feedback.rl_capture_ready
-                              && feedback.support
-                              && height > static_cast<float>(config_.dynamic_capture_height_min)
-                              && height < static_cast<float>(config_.handover_height_max);
-    if (captured_for_rl || (preparing && reached_(ready_ticks_, durations_.ready, 0.1)))
+    const bool captured_for_rl =
+        !plant_capture && enabled_ && phase_ < JointReferenceRecoveryPhase::kBlend
+        && reached_(age_ticks_, durations_.age, 0.06) && config_.dynamic_takeover
+        && feedback.rl_capture_ready && feedback.support
+        && height > static_cast<float>(config_.dynamic_capture_height_min)
+        && height < static_cast<float>(config_.dynamic_capture_height_max);
+    if (captured_for_rl
+        || (!config_.dynamic_takeover && preparing
+            && reached_(ready_ticks_, durations_.ready, 0.1)))
         enter_(
             config_.blend_seconds == 0.0 ? JointReferenceRecoveryPhase::kRl
                                          : JointReferenceRecoveryPhase::kBlend);
