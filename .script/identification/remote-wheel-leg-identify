@@ -31,6 +31,10 @@ start-pd-loaded|record-pd-loaded|start-wheels|start-v6|record-v6)
     profile="/workspaces/RMCS/rmcs_ws/src/rmcs_bringup/config/$robot.yaml"
     remote_profile="/rmcs_install/share/rmcs_bringup/config/$robot.yaml"
     python3 /workspaces/RMCS/.script/identification/check_wheel_leg_profile.py "$profile"
+    if [[ "$robot" == wheel-leg-infantry-wheel-identification ]]; then
+        ratio_label="$(python3 -c 'import sys,yaml; p=yaml.safe_load(open(sys.argv[1])); print(format(p["wheel_leg_wheel_identification_controller"]["ros__parameters"]["wheel_reduction_ratio"], "g").replace(".", "p"))' "$profile")"
+        run_prefix="wheels-r$ratio_label"
+    fi
     if [[ "$robot" == wheel-leg-infantry-pair-pd-loaded-identification ]]; then
         side="$(python3 -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["wheel_leg_pair_identification_controller"]["ros__parameters"]["side"])' "$profile")"
         run_prefix="$side-pair-pd-loaded"
@@ -310,6 +314,8 @@ try:
             record_expected = profile["wheel_leg_identification_recorder"]["ros__parameters"]
             keys = ("experiment_kind", "record_on_double_middle", "trajectory_revision", "control_frequency_hz",
                     "reference_frequency_hz", "sample_frequency_hz", "wheel_reduction_ratio", "wheels_off_ground")
+            if wheel:
+                keys += ("wheel_motor_reversed", "asset_manifest_sha256", "asset_path")
             if calibrated:
                 keys = tuple(record_expected)
             record_fields = {key: field_for(record_expected[key]) for key in keys}
