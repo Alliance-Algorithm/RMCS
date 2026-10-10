@@ -426,7 +426,21 @@ void JointReferenceRecoveryController::update_transitions_(
     const bool preparing = phase == JointReferenceRecoveryPhase::kPrepare;
     const bool capturing = phase == JointReferenceRecoveryPhase::kCapture;
     const bool blending = phase == JointReferenceRecoveryPhase::kBlend;
-    if (folding && remaining < 0.02f && measured_error < 0.2f && phase_reached_(step, 0.3)) {
+    // Start wheel-assisted capture before the planting arc carries a supported
+    // leg pose past the actor's entry window. Keep this transition for one tick.
+    const bool plant_capture = config_.dynamic_takeover
+                            && route_ == JointReferenceRecoveryRoute::kPlant
+                            && (folding || planting) && feedback.support && height > 0.22f
+                            && tilt < radians(40.0) && gyro.norm() < 1.0f
+                            && paired_delta_(
+                                   config_.rl_nominal.head<4>().cast<float>(), continuous_q_.head<4>())
+                                       .cwiseAbs()
+                                       .maxCoeff()
+                                   < 0.35f;
+    if (plant_capture)
+        enter_(JointReferenceRecoveryPhase::kCapture);
+    if (!plant_capture && folding && remaining < 0.02f && measured_error < 0.2f
+        && phase_reached_(step, 0.3)) {
         if (route_ == JointReferenceRecoveryRoute::kOrbitPositive
             || route_ == JointReferenceRecoveryRoute::kOrbitNegative) {
             orbit_start_ = reference;
@@ -448,11 +462,11 @@ void JointReferenceRecoveryController::update_transitions_(
         fail_(2);
     plant_ticks_ = planting && feedback.support ? plant_ticks_ + 1 : 0;
     durations_.plant = planting && feedback.support ? durations_.plant + dt : 0.0;
-    const bool planted = planting && remaining < 0.15f && measured_error < 0.2f
+    const bool planted = !plant_capture && planting && remaining < 0.15f && measured_error < 0.2f
                       && reached_(plant_ticks_, durations_.plant, 0.06);
     if (planted)
         enter_(JointReferenceRecoveryPhase::kPrepare);
-    if (planting && !planted && phase_reached_(step, 2.5))
+    if (!plant_capture && planting && !planted && phase_reached_(step, 2.5))
         fail_(3);
     const bool orbit_contact = orbiting && feedback.support && tilt < radians(145.0)
                             && height > 0.12f && orbit_angle_ > 3.7f;
@@ -488,7 +502,8 @@ void JointReferenceRecoveryController::update_transitions_(
     // test cannot require a balancing wheel to settle before a moving capture.
     // Acquire several actual sensor frames before trusting a cold IMU/filter
     // baseline. This is startup sensing time, not a standing-stability dwell.
-    const bool captured_for_rl = enabled_ && phase_ < JointReferenceRecoveryPhase::kBlend
+    const bool captured_for_rl = !plant_capture && enabled_
+                              && phase_ < JointReferenceRecoveryPhase::kBlend
                               && reached_(age_ticks_, durations_.age, 0.06)
                               && config_.dynamic_takeover && feedback.rl_capture_ready
                               && feedback.support
