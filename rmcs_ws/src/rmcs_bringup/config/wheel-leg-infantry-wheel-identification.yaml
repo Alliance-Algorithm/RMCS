@@ -37,8 +37,7 @@ wheel_leg_wheel_identification_controller:
     wheel_step_repetitions: 2
     wheel_chirp_s: 12.0
     wheel_validation_s: 12.0
-    # Intermediate-gain trial between measured Kp=0.2 and reference Kp=0.6.
-    # Keep the reference +/-4.5 Nm cap and the identical trajectory for comparison.
+    # Match deployed wheel P and keep the same excitation for gearbox comparison.
     wheel_velocity_kp: 0.6   # Nm / (output-shaft rad/s); candidate, not released gains
     wheel_velocity_ki: 0.0
     wheel_velocity_kd: 0.0
@@ -61,8 +60,8 @@ wheel_leg_identification_recorder:
     experiment_kind: "wheel"
     trajectory_revision: "wheel_multiband_v2"
     record_on_double_middle: true
-    asset_manifest_sha256: "dbec8e586cf29d9540db7040b133b3ff1170c1c700ff05eda64d94d8561c3dec"
-    asset_path: "model/纯底盘_v5_232mm/urdf/manifest.json"
+    asset_manifest_sha256: "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba"
+    asset_path: "model/纯底盘_v6_232mm_stop105/urdf/manifest.json"
     gas_springs_installed: true
     support_fixture: "rigid_fixed_frame"
     wheels_off_ground: true
