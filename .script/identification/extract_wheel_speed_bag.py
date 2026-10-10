@@ -15,7 +15,13 @@ import numpy as np
 import yaml
 
 
-def audit(arrays, params, manifest):
+def audit(arrays, params, manifest, wheel_motor_reversed=(True, True)):
+    ratio = float(params["wheel_reduction_ratio"])
+    if not np.isfinite(ratio) or ratio <= 0:
+        raise ValueError("Archived wheel reduction ratio must be positive and finite")
+    if len(wheel_motor_reversed) != 2 or any(type(v) is not bool for v in wheel_motor_reversed):
+        raise ValueError("Archived wheel directions must contain two booleans")
+    signs = np.where(wheel_motor_reversed, -1., 1.)
     active = arrays["phase"] == 2
     ids = arrays["segment_id"][active]
     expected_ids = list(range(len(manifest["segments"])))
@@ -58,13 +64,20 @@ def audit(arrays, params, manifest):
     raw = arrays["tx_frame_bytes"][active, 32:40].astype(np.int32)
     counts = np.stack([raw[:, 0]*256+raw[:, 1], raw[:, 2]*256+raw[:, 3]], axis=1)
     counts = np.where(counts >= 32768, counts-65536, counts)
-    full_scale = 20*15.8*.3*187/3591
-    encoded = -counts*full_scale/16384
+    full_scale = 20*ratio*.3*187/3591
+    encoded = signs*counts*full_scale/16384
     quantum = full_scale/16384
     encoding_error = float(np.max(np.abs(encoded-requested)))
     frame_error = float(np.max(np.abs(encoded-arrays["tau_frame_api"][active, 4:6])))
     if not np.isfinite(encoding_error) or encoding_error > quantum*.501 or frame_error > 1e-9:
         reasons.append("raw C620 current packet differs from requested/recorded effort")
+    feedback = arrays["feedback_frame_bytes"][active, 32:48].astype(np.int32).reshape(-1, 2, 8)
+    rpm = feedback[:, :, 2]*256+feedback[:, :, 3]
+    rpm = np.where(rpm >= 32768, rpm-65536, rpm)
+    decoded_speed = signs*rpm/ratio/60*2*np.pi
+    speed_conversion_error = float(np.max(np.abs(decoded_speed-speed)))
+    if not np.isfinite(speed_conversion_error) or speed_conversion_error > 1e-9:
+        reasons.append("raw M3508 RPM differs from output-shaft speed for the archived reduction")
     t_ns = arrays["control_steady_ns"][active].astype(np.int64)
     intervals = np.diff(t_ns)*1e-9
     tick_gaps = int(np.count_nonzero(np.diff(arrays["tick"][active].astype(np.int64)) != 1))
@@ -84,6 +97,9 @@ def audit(arrays, params, manifest):
             "speed_rmse": np.sqrt(np.mean(error**2, axis=0)).tolist(),
             "peak_abs_leg_velocity": np.max(np.abs(arrays["dq_api"][active, :4][mask]), axis=0).tolist()})
     return {"status": "complete_for_analysis" if not reasons else "inspect_before_fitting", "reasons": reasons,
+        "wheel_reduction_ratio": ratio, "wheel_motor_reversed": list(wheel_motor_reversed),
+        "wheel_output_nm_per_amp": full_scale/20,
+        "raw_rpm_conversion_max_error_rad_s": speed_conversion_error,
         "samples": int(len(active)), "running_samples": int(active.sum()), "segments": segments,
         "p_algebra_max_error_nm": p_error, "limit_algebra_max_error_nm": limit_error,
         "raw_current_encoding_max_error_nm": encoding_error, "frame_telemetry_max_error_nm": frame_error,
@@ -110,6 +126,9 @@ def main():
         raise SystemExit("Recorded message schema differs from installed type; use the matching installation")
     profile = yaml.safe_load((args.run/"profile.yaml").read_text())
     params = profile["wheel_leg_wheel_identification_controller"]["ros__parameters"]
+    recorder = profile["wheel_leg_identification_recorder"]["ros__parameters"]
+    if params["wheel_reduction_ratio"] != recorder["wheel_reduction_ratio"]:
+        raise SystemExit("Controller and recorder reduction ratios disagree")
     manifest = json.loads((args.run/"trajectory-plan.json").read_text())
     if params["trajectory_revision"] != manifest["revision"]:
         raise SystemExit("Trajectory manifest/profile mismatch")
@@ -140,7 +159,7 @@ def main():
     if i != n: raise SystemExit("Bag count differs from sealed metadata")
     args.output.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(args.output/"wheel_1khz.npz", **data)
-    report = audit(data, params, manifest)
+    report = audit(data, params, manifest, recorder["wheel_motor_reversed"])
     report.update(source_run=str(args.run), profile_sha256=hashlib.sha256((args.run/"profile.yaml").read_bytes()).hexdigest())
     (args.output/"wheel_quality.json").write_text(json.dumps(report, indent=2, allow_nan=False)+"\n")
     print(json.dumps({k:v for k,v in report.items() if k != "segments"}, indent=2), flush=True)

@@ -2,13 +2,14 @@
 """Fit effective wheel resistance on settled platforms, then test coast dynamics.
 
 No gains or training configuration are changed. Nm use the archived nominal
-M3508 torque constant and 15.8 transmission, not a shaft torque sensor.
+M3508 torque constant and transmission ratio, not a shaft torque sensor.
 """
 import argparse
 import json
 from pathlib import Path
 
 import numpy as np
+import yaml
 from scipy.optimize import lsq_linear, minimize_scalar
 import matplotlib
 matplotlib.use('Agg')
@@ -58,6 +59,11 @@ def main():
     parser.add_argument('arrays',type=Path)
     parser.add_argument('output',type=Path)
     args=parser.parse_args()
+    profile=yaml.safe_load((args.run/'profile.yaml').read_text())
+    ratio=float(profile['wheel_leg_wheel_identification_controller']['ros__parameters']['wheel_reduction_ratio'])
+    recorder=profile['wheel_leg_identification_recorder']['ros__parameters']
+    if not np.isfinite(ratio) or ratio<=0 or ratio!=recorder['wheel_reduction_ratio']:
+        raise SystemExit('Archived controller/recorder reduction ratios must agree and be positive')
     source=np.load(args.arrays)
     active=source['phase']==2
     d={k:source[k][active] for k in ('control_steady_ns','segment_id','wheel_velocity_target_api',
@@ -68,8 +74,10 @@ def main():
     args.output.mkdir(parents=True,exist_ok=True)
     plt.rcParams.update({'font.family':'Microsoft YaHei','axes.unicode_minus':False,'font.size':10})
     report={'source_run':str(args.run),'status':'diagnostic_estimates_not_released_to_training',
+        'wheel_reduction_ratio':ratio,'wheel_output_nm_per_amp':ratio*.3*187/3591,
+        'asset_manifest_sha256':recorder['asset_manifest_sha256'],
         'assumptions':['Body supported; all DM drives disabled; carrier q/dq must remain quiet in accepted windows.',
-            'Torque uses nominal M3508 motor Kt and installed 15.8 ratio, with no load-cell calibration.',
+            f'Torque uses nominal M3508 motor Kt and archived {ratio:g} ratio, with no load-cell calibration.',
             'Airborne data do not identify tyre/ground friction or the loaded torque-speed envelope.'],
         'fitting_split':'Settled single-wheel plateaus fit resistance. Coast releases from 5/20 rad/s fit inertia; releases from 10 rad/s are reserved to check that estimate.',
         'wheels':[]}

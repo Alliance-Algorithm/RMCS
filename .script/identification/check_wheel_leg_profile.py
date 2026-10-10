@@ -136,13 +136,13 @@ def check(profile: dict) -> list[str]:
                 errors.append(f"{key}: finite wheel experiment value required")
         for key, expected in (("trajectory_revision", "wheel_multiband_v2"),
                               ("control_frequency_hz", 1000.), ("reference_frequency_hz", 50.),
-                              ("wheel_reduction_ratio", 15.8), ("wheel_velocity_ki", 0.),
+                              ("wheel_reduction_ratio", 15.62), ("wheel_velocity_ki", 0.),
                               ("wheel_velocity_kd", 0.), ("wheel_feedforward", 0.)):
             if params.get(key) != expected:
                 errors.append(f"wheel controller {key} must be {expected!r}")
         for key, expected in (("trajectory_revision", "wheel_multiband_v2"),
                               ("control_frequency_hz", 1000.), ("sample_frequency_hz", 1000.),
-                              ("reference_frequency_hz", 50.), ("wheel_reduction_ratio", 15.8),
+                              ("reference_frequency_hz", 50.), ("wheel_reduction_ratio", 15.62),
                               ("wheels_off_ground", True)):
             if recorder.get(key) != expected:
                 errors.append(f"wheel recorder {key} must be {expected!r}")
@@ -157,8 +157,10 @@ def check(profile: dict) -> list[str]:
         amps, cap = params.get("wheel_current_limit_a"), params.get("wheel_torque_cap")
         if finite(amps) and not 0 < amps <= 20:
             errors.append("wheel_current_limit_a must be in (0,20] for C620")
-        if finite(amps) and finite(cap) and not math.isclose(cap, amps*15.8*.3*187/3591, abs_tol=1e-9, rel_tol=0):
-            errors.append("wheel_torque_cap disagrees with current limit / installed 15.8 conversion")
+        ratio = params.get("wheel_reduction_ratio")
+        if finite(amps) and finite(cap) and finite(ratio) and not math.isclose(
+                cap, amps*ratio*.3*187/3591, abs_tol=1e-9, rel_tol=0):
+            errors.append("wheel_torque_cap disagrees with current limit / installed reduction conversion")
         for key, lower, upper in (("wheel_velocity_kp", 0., math.inf),
                                   ("wheel_feedback_speed_cap", 30., math.inf),
                                   ("arm_dwell_s", .1-1e-10, math.inf),
