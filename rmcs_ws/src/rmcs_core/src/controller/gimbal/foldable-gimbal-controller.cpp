@@ -136,8 +136,6 @@ public:
             input_.navigation_toward.make_and_bind_directly(kVecNaN);
             RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
         }
-        if (!input_.chassis_aligned.ready())
-            input_.chassis_aligned.make_and_bind_directly(true);
         last_fold_request_ =
             input_.gimbal_fold_request.ready() ? *input_.gimbal_fold_request : false;
 
@@ -148,19 +146,19 @@ public:
         last_rotary_knob_switch_ = *input_.rotary_knob_switch;
         fold_state_ = FoldState::UnFold;
         fold_ready_elapsed_ = 0.0;
-        locked_bottom_yaw_target_ = current_bottom_world_yaw();
+        fold_bottom_yaw_target_ = *input_.bottom_yaw_angle;
         publish_fold_state();
     }
 
     auto update() -> void override {
-        const auto actual_yaw_pitch = current_barrel_yaw_pitch();
+        const auto actual_yaw = current_barrel_yaw_pitch().first;
         *output_.yaw_angle = *input_.bottom_yaw_angle;
-        *output_.yaw_velocity = compute_actual_yaw_velocity(actual_yaw_pitch.first);
+        *output_.yaw_velocity = compute_actual_yaw_velocity(actual_yaw);
 
         if (!input_.enable_control()) {
             enter_disabled_state();
             last_rotary_knob_switch_ = *input_.rotary_knob_switch;
-            locked_bottom_yaw_target_ = current_bottom_world_yaw();
+            fold_bottom_yaw_target_ = *input_.bottom_yaw_angle;
             publish_fold_state();
             return;
         }
@@ -181,21 +179,21 @@ public:
             apply_roll_control(roll_unfold_angle_);
             break;
         case FoldState::MovingToFoldPose:
-            update_fold_pose_control(actual_yaw_pitch);
+            update_fold_pose_control();
             apply_roll_control(roll_unfold_angle_);
-            update_move_to_fold_pose(actual_yaw_pitch, dt);
+            update_move_to_fold_pose(dt);
             break;
         case FoldState::Folding:
-            update_fold_pose_control(actual_yaw_pitch);
+            update_fold_pose_control();
             apply_roll_control(roll_folded_angle_);
             update_folding(dt);
             break;
         case FoldState::Folded:
-            update_fold_pose_control(actual_yaw_pitch);
+            update_fold_pose_control();
             apply_roll_control(roll_folded_angle_);
             break;
         case FoldState::UnFolding:
-            update_fold_pose_control(actual_yaw_pitch);
+            update_fold_pose_control();
             apply_roll_control(roll_unfold_angle_);
             update_unfolding(dt);
             break;
@@ -257,7 +255,6 @@ private:
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
             component.register_input("/gimbal/fold/request", gimbal_fold_request, false);
-            component.register_input("/chassis/aligned", chassis_aligned, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -317,7 +314,6 @@ private:
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
         InputInterface<bool> gimbal_fold_request;
-        InputInterface<bool> chassis_aligned;
     } input_{*this};
 
     struct Output {
@@ -336,8 +332,6 @@ private:
             component.register_output("/gimbal/fold/state", fold_state, 0);
             component.register_output("/gimbal/fold/active", fold_active, false);
             component.register_output(
-                "/gimbal/fold/chassis_alignment_request", chassis_alignment_request, false);
-            component.register_output(
                 "/foldable_gimbal/friction_flag", foldable_gimbal_friction_flag, false);
         }
 
@@ -352,7 +346,6 @@ private:
 
         OutputInterface<int> fold_state;
         OutputInterface<bool> fold_active;
-        OutputInterface<bool> chassis_alignment_request;
         OutputInterface<bool> foldable_gimbal_friction_flag;
     } output_{*this};
 
@@ -377,7 +370,7 @@ private:
 
     FoldState fold_state_ = FoldState::UnFold;
 
-    double locked_bottom_yaw_target_ = 0.0;
+    double fold_bottom_yaw_target_ = 0.0;
 
     double fold_ready_elapsed_ = 0.0;
 
@@ -468,10 +461,15 @@ private:
         return std::atan2(vector.y(), vector.x());
     }
 
+    static auto nearest_quarter_turn(double angle) -> double {
+        constexpr auto kQuarterTurn = std::numbers::pi_v<double> / 2.0;
+        return kQuarterTurn * std::round(angle / kQuarterTurn);
+    }
+
     auto switch_fold_state() -> void {
         switch (fold_state_) {
         case FoldState::UnFold:
-            locked_bottom_yaw_target_ = current_bottom_world_yaw();
+            fold_bottom_yaw_target_ = nearest_quarter_turn(*input_.bottom_yaw_angle);
             fold_ready_elapsed_ = 0.0;
             fold_state_ = FoldState::MovingToFoldPose;
             break;
@@ -548,17 +546,17 @@ private:
             limit_rad(stored_pitch_target_ - current_pitch));
     }
 
-    auto update_fold_pose_control(const std::pair<double, double>& actual_yaw_pitch) -> void {
+    auto update_fold_pose_control() -> void {
         apply_control(
-            limit_rad(locked_bottom_yaw_target_ - current_bottom_world_yaw()),
+            limit_rad(fold_bottom_yaw_target_ - *input_.bottom_yaw_angle),
             limit_rad(top_yaw_folded_angle_ - *input_.top_yaw_angle),
-            limit_rad(pitch_folded_angle_ - actual_yaw_pitch.second));
+            limit_rad(pitch_folded_angle_ - *input_.pitch_angle), 0.0, false);
     }
 
-    auto fold_pose_reached(const std::pair<double, double>& actual_yaw_pitch) const -> bool {
+    auto fold_pose_reached() const -> bool {
         const auto top_yaw_error = limit_rad(top_yaw_folded_angle_ - *input_.top_yaw_angle);
-        const auto bottom_error = limit_rad(locked_bottom_yaw_target_ - current_bottom_world_yaw());
-        const auto pitch_error = limit_rad(pitch_folded_angle_ - actual_yaw_pitch.second);
+        const auto bottom_error = limit_rad(fold_bottom_yaw_target_ - *input_.bottom_yaw_angle);
+        const auto pitch_error = limit_rad(pitch_folded_angle_ - *input_.pitch_angle);
         return std::abs(top_yaw_error) <= fold_angle_tolerance_
             && std::abs(bottom_error) <= fold_angle_tolerance_
             && std::abs(pitch_error) <= fold_angle_tolerance_
@@ -567,9 +565,8 @@ private:
             && std::abs(*input_.pitch_velocity) <= fold_velocity_tolerance_;
     }
 
-    auto update_move_to_fold_pose(const std::pair<double, double>& actual_yaw_pitch, double dt)
-        -> void {
-        const bool ready = fold_pose_reached(actual_yaw_pitch) && *input_.chassis_aligned;
+    auto update_move_to_fold_pose(double dt) -> void {
+        const bool ready = fold_pose_reached();
         fold_ready_elapsed_ = ready ? fold_ready_elapsed_ + dt : 0.0;
         if (fold_ready_elapsed_ >= fold_ready_time_) {
             fold_ready_elapsed_ = 0.0;
@@ -598,9 +595,9 @@ private:
     }
 
     auto finish_unfolding() -> void {
-        const auto [current_yaw, current_pitch] = current_barrel_yaw_pitch();
         stored_bottom_yaw_target_ = current_bottom_world_yaw();
-        stored_pitch_target_ = std::clamp(current_pitch, upper_limit_, lower_limit_);
+        stored_pitch_target_ =
+            std::clamp(limit_rad(*input_.pitch_angle), upper_limit_, lower_limit_);
         top_yaw_angle_pid_.reset();
         top_yaw_velocity_pid_.reset();
         bottom_yaw_angle_pid_.reset();
@@ -653,15 +650,14 @@ private:
     auto publish_fold_state() -> void {
         *output_.fold_state = static_cast<int>(fold_state_);
         *output_.fold_active = fold_state_ != FoldState::UnFold;
-        *output_.chassis_alignment_request = fold_state_ == FoldState::MovingToFoldPose;
         *output_.foldable_gimbal_friction_flag = fold_state_ == FoldState::UnFold;
     }
 
     auto apply_control(
         double bottom_yaw_error, double top_yaw_error, double pitch_error,
-        double top_yaw_feedforward = 0.0) -> void {
-        const auto current_bottom_velocity =
-            *input_.bottom_yaw_velocity + *input_.chassis_yaw_velocity_imu;
+        double top_yaw_feedforward = 0.0, bool compensate_chassis_velocity = true) -> void {
+        const auto current_bottom_velocity = *input_.bottom_yaw_velocity
+            + (compensate_chassis_velocity ? *input_.chassis_yaw_velocity_imu : 0.0);
 
         const auto bottom_velocity_ref = bottom_yaw_angle_pid_.update(bottom_yaw_error);
         const auto top_velocity_ref =

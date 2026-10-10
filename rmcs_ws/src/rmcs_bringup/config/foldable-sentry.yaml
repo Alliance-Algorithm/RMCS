@@ -32,7 +32,7 @@ rmcs_executor:
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       # - rmcs::AutoAimComponent -> auto_aim_component
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
 foldable_sentry:
   ros__parameters:
@@ -42,7 +42,7 @@ foldable_sentry:
     roll_motor_zero_point: 14733
     top_yaw_motor_zero_point: 3433
     pitch_motor_zero_point: 28369
-    bottom_yaw_motor_zero_point: 0
+    bottom_yaw_motor_zero_point: 45494
 
 auto_aim_capturer:
   ros__parameters:
@@ -110,21 +110,25 @@ value_broadcaster:
     forward_list:
       - /gimbal/roll/angle
       - /gimbal/roll/velocity
+      - /gimbal/roll/control_torque
+      - /gimbal/roll/torque
+      - /gimbal/roll/temperature
+
 
 gimbal_controller:
   ros__parameters:
     # 折叠/展开姿态角，按实车标定。
     roll_folded_angle: 3.264
     roll_unfold_angle: 6.2808
-    top_yaw_folded_angle: 6.218
-    pitch_folded_angle: -0.04
+    top_yaw_folded_angle: 6.21
+    pitch_folded_angle: 0.505
 
     pitch_upper_limit: -0.550
     pitch_lower_limit: 0.530
 
-    fold_ready_time: 0.1
-    fold_velocity_tolerance: 0.2
-    fold_angle_tolerance: 0.2
+    fold_ready_time: 0.05
+    fold_velocity_tolerance: 0.4
+    fold_angle_tolerance: 0.4
 
     top_yaw_velocity_ff_gain: 0.0
     top_yaw_ff_cutoff_hz: 0.0
@@ -199,8 +203,8 @@ gimbal_controller:
 
     roll_angle_output_min: -10.0
     roll_angle_output_max: 10.0
-    roll_velocity_output_min: -5.0
-    roll_velocity_output_max: 5.0
+    roll_velocity_output_min: -15.0
+    roll_velocity_output_max: 15.0
 
 # top_yaw 位置正弦扫频：展开状态下由右拨杆 MIDDLE->UP 触发（保持 UP 运行），
 # 扫频期间通过 /gimbal/top_yaw/control_torque_test 覆盖云台控制器的 top_yaw 力矩，

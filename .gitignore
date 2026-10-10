@@ -67,6 +67,10 @@ id_rsa.pub
 # Recording files
 record/
 
+# Top yaw sweep identification data
+top_yaw_sweep_*.csv
+top_yaw_sweep_report/
+
 # Docker Compose override (personal config)
 docker-compose.override.yml
 

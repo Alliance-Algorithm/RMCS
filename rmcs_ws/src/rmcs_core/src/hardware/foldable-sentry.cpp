@@ -97,13 +97,12 @@ public:
             fast_tf::cast<OdomGimbalImu>(BaseLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
         *chassis_measure_yaw_ = std::atan2(chassis_direction->y(), chassis_direction->x());
 
-        const auto barrel_direction = *barrel_direction_;
-        const auto pitch_world_angle = std::atan2(
-            -barrel_direction.z(), std::hypot(barrel_direction.x(), barrel_direction.y()));
+     
         RCLCPP_INFO_THROTTLE(
-            get_logger(), *get_clock(), 200, "roll %f top_yaw %f pitch_world %f",
+            get_logger(), *get_clock(), 200, "roll %f top_yaw %f pitch %f",
             gimbal_board_->gimbal_roll_motor_.angle(), gimbal_board_->gimbal_top_yaw_motor_.angle(),
-            pitch_world_angle);
+            gimbal_board_->gimbal_pitch_motor_.angle()
+        );
     }
 
 private:
@@ -145,7 +144,6 @@ private:
 
             gimbal_bullet_feeder_.configure(
                 DjiMotor::Config{DjiMotor::Type::kM2006, 1}
-                    .set_reversed()
                     .set_reduction_ratio(36.0));
 
             gimbal_top_friction_.configure(
@@ -472,7 +470,7 @@ private:
                 .can_transmit(
                     Spec::kCans.kCan1,
                     {
-                        .can_id = 0x141,
+                        .can_id = 0x142,
                         .can_data = gimbal_bottom_yaw_motor_.generate_command().as_bytes(),
                     });
         }
@@ -498,7 +496,7 @@ private:
 
                 monitor_.tick("Chassis::Can2", can_id);
             } else if (can == Spec::kCans.kCan1) {
-                if (can_id == 0x141) {
+                if (can_id == 0x142) {
                     gimbal_bottom_yaw_motor_.store_status(can_data);
                 }
 

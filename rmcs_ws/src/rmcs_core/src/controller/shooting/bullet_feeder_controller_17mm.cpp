@@ -37,7 +37,7 @@ public:
         single_shot_max_stop_delay_ = static_cast<int>(
             std::round(1000.0 * get_parameter("single_shot_max_stop_delay").as_double()));
 
-        register_input("/gimbal/friction_ready", friction_ready_);
+        register_input("/gimbal/friction_ready", friction_ready_, false);
         register_input("/gimbal/bullet_fired", bullet_fired_);
         register_input(
             "/gimbal/control_bullet_allowance/limited_by_heat",
@@ -109,7 +109,10 @@ public:
                     single_shot_stop_counter_ = 0;
 
                 if (*friction_ready_) {
-                    if (shoot_mode == ShootMode::AUTOMATIC) {
+                    
+                }
+
+                if (shoot_mode == ShootMode::AUTOMATIC) {
                         auto aiming_enable = mouse_->right || (switch_right == Switch::UP);
                         auto attack_intent = mouse_->left || (switch_left == Switch::DOWN);
                         auto triggered = aiming_enable ? *should_shoot_ : attack_intent;
@@ -119,7 +122,6 @@ public:
                         auto triggered = single_shot_stop_counter_ > 0;
                         bullet_allowance =
                             triggered && (*control_bullet_allowance_limited_by_heat_ > 0);
-                    }
                 }
             }
 
