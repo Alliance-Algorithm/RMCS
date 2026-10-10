@@ -173,7 +173,7 @@ rl_controller:
     height_transition_seconds: 6.0
     # The chassis supplies a continuous height reference; do not restart a step curve.
     height_command_is_reference: true
-    height_reference_rate_max: 0.02
+    height_reference_rate_max: 0.6666666666666666
     wheel_radius: 0.06
     wheel_track: 0.4373
 
@@ -260,9 +260,9 @@ wheel_leg_chassis_controller:
     command_height_min: 0.23
     command_height_max: 0.43
     default_command_height: 0.305
-    height_rate_max: 0.02
+    height_rate_max: 0.6666666666666666
     height_step: 0.01
     angular_z_invert: false
-    # RMCS DR16 convention: negative knob input is UP.
-    height_invert: true
+    # The left stick's longitudinal axis is positive when pushed UP.
+    height_invert: false
     jump_enabled: false
