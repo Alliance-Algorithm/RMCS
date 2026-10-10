@@ -168,9 +168,9 @@ rl_controller:
     # Reuse the ordinary V6 leg/velocity capture envelope below, with separate
     # recovery tilt/height bounds while the body is still rising.
     recovery_dynamic_takeover: true
-    # Capture on measured leg pose and conditional FK/IMU support while rising.
-    # Do not wait for settled wheel probes; retain the ordinary RL fall guard.
-    recovery_capture_max_tilt_rad: 0.6981317007977318
+    # Wheel-assisted capture raises the supported body into the actor's entry
+    # window. Transfer directly without requiring settled wheel probes.
+    recovery_capture_max_tilt_rad: 0.2617993877991494
     # Within the ordinary upright domain, capture a moving body before it tips.
     # Outside it retain 1 rad/s; above 30 deg reject outward tilt beyond tolerance.
     recovery_capture_max_angular_velocity: 2.0
