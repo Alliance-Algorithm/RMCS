@@ -146,7 +146,7 @@ private:
 
     void plan_and_visualize() {
         obstacle_course_.set_operation(
-            "energy_unit_left_front", obstacle::CollisionObjectOperation::ADD);
+            "energy_unit_left_back", obstacle::CollisionObjectOperation::IDLE);
 
         obstacle_course_.apply_collision();
 
@@ -155,8 +155,9 @@ private:
         if (const auto current = arm_action_machine_.get_trajectory())
             previous_id = current->request_id;
 
-        arm_action_machine_.process({Action::Step::makePose(target, Action::MotionParams{})});
-        // arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_lf"));
+        // arm_action_machine_.process({Action::Step::makePose(target, Action::MotionParams{})});
+        arm_action_machine_.process(
+            action_dictionary_.helper_build_chunk({"extract_lf", "extract_mine", "auto_walk"}));
 
         const auto result = wait_for_plan(previous_id);
         if (!result) {

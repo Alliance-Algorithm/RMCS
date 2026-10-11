@@ -268,6 +268,31 @@ inline auto make_lunar_rover_action_parameter_map() {
              Action::MotionParams{.vel = 0.03, .acc = 0.03})}},
 
         // ---------- 组合动作 ----------
+        {"extract_mine",
+         {
+
+             Action::Step::makeLinear(
+                 Action::LinearTarget{
+                     .dir_x = 0.0,
+                     .dir_y = 0.0,
+                     .dir_z = -1.0,
+                     .distance = 0.05,
+                 },
+                 Action::MotionParams{
+                     .vel = 0.01, .acc = 0.005, .tolerance_pos = 0.003, .tolerance_ori = 0.0002}),
+             Action::Step::makeCloseGripper(),
+             Action::Step::makeLinear(
+                 Action::LinearTarget{
+                     .dir_x = 1.0,
+                     .dir_y = 0.0,
+                     .dir_z = 0.0,
+                     .distance = 0.17,
+                 },
+                 Action::MotionParams{
+                     .vel = 0.01, .acc = 0.005, .tolerance_pos = 0.003, .tolerance_ori = 0.0002}),
+
+         }},
+
         {"extract_lf",
          {
              Action::Step::makeOpenGripper(),
