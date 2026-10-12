@@ -25,14 +25,14 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
-      # - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
-      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+      - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
 
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       # - rmcs::AutoAimComponent -> auto_aim_component
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
 
 foldable_sentry:
   ros__parameters:
@@ -135,10 +135,10 @@ gimbal_controller:
     top_yaw_ff_max: 0.0
     top_yaw_ff_jump_threshold: 0.0
 
-    top_yaw_angle_kp: 40.0
+    top_yaw_angle_kp: 50.0
     top_yaw_angle_ki: 0.0
     top_yaw_angle_kd: 0.000
-    top_yaw_velocity_kp: 0.15
+    top_yaw_velocity_kp: 0.22
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
@@ -164,10 +164,10 @@ gimbal_controller:
     roll_velocity_kd: 0.0
 
     # roll 轴前馈
-    roll_reaction_ff_gain: 0.6
-    roll_accel_ff_gain: 0.004
+    roll_reaction_ff_gain: 0.4
+    roll_accel_ff_gain: 0.005
     roll_accel_ff_cutoff_hz: 30.0
-    roll_accel_ff_max: 150.0
+    roll_accel_ff_max: 200.0
     roll_accel_ff_jump_threshold: 35.0
 
     top_yaw_angle_integral_min: -187.0
@@ -212,12 +212,12 @@ gimbal_controller:
 # 注意：右拨杆 UP 用于自瞄，扫频仅用于台架识别，实车请保持 enable 为 false。
 top_yaw_sweep_controller:
   ros__parameters:
-    enable: false
+    enable: true
 
     log_directory: /workspaces/RMCS
 
-    angle_min: -0.64
-    angle_max: 0.90
+    angle_min: -0.50
+    angle_max: 1.0
 
     start_freq: 0.1
     end_freq: 10.0
