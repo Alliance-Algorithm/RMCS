@@ -109,7 +109,7 @@ private:
 
         command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
         command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
-        default_command_height_ = get_parameter_or<double>("default_command_height", 0.305);
+        default_command_height_ = get_parameter_or<double>("default_command_height", command_height_min_);
         height_rate_max_ = get_parameter_or<double>("height_rate_max", 0.02);
         height_step_ = get_parameter_or<double>("height_step", 0.01);
 
@@ -283,7 +283,7 @@ private:
     double deadzone_ = 0.08;
     double command_height_min_ = 0.23;
     double command_height_max_ = 0.43;
-    double default_command_height_ = 0.305;
+    double default_command_height_ = 0.23;
     double height_rate_max_ = 0.02;
     double height_step_ = 0.01;
     bool angular_z_invert_ = false;
