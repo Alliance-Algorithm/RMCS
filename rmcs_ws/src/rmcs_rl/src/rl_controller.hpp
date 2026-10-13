@@ -233,7 +233,7 @@ private:
     bool height_command_is_reference_ = false;
     double height_reference_rate_max_ = 0.02;
     double wheel_radius_ = 0.06;
-    double wheel_track_ = 0.4373;
+    double wheel_track_ = 0.396;
     double inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;
     double pd_frequency_ = DeployedPolicyContract::kControlFrequencyHz;
     double recovery_frequency_ = DeployedPolicyContract::kControlFrequencyHz;
