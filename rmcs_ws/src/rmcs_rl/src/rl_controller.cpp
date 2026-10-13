@@ -58,7 +58,34 @@ void RlController::clear_outputs_() {
         *output = 0.0;
 }
 
-void RlController::latch_fault_(std::optional<RecoveryFailure> reason) {
+void RlController::log_fault_(
+    std::optional<RecoveryFailure> reason, std::source_location location) const {
+    if (fault_latched_)
+        return;
+    std::array<double, 2> hinge{};
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side;
+        hinge[side] = hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1]
+                    + hinge_bias_[side];
+    }
+    RCLCPP_ERROR(
+        get_logger(),
+        "RL stopped at %s:%u: state=%d failure=%d feedback_fresh=%d sensor_valid=%d "
+        "sensor_issue=%d mask=0x%02x age_ms[motor,imu,accel]=[%.3f,%.3f,%.3f] "
+        "last_hinge=[%.4f,%.4f] dq_max[leg,wheel]=[%.3f,%.3f] gyro=%.3f height_command=%.3f",
+        location.file_name(), location.line(), static_cast<int>(state_),
+        reason ? static_cast<int>(*reason) : 0, *feedback_fresh_, recovery_sensor_status_.valid,
+        static_cast<int>(recovery_sensor_status_.issue),
+        static_cast<unsigned>(recovery_sensor_status_.invalid_mask),
+        recovery_sensor_status_.maximum_motor_age_ms, recovery_sensor_status_.imu_age_ms,
+        recovery_sensor_status_.acceleration_age_ms, hinge[0], hinge[1],
+        dq_.head<4>().cwiseAbs().maxCoeff(), dq_.tail<2>().cwiseAbs().maxCoeff(), gyro_->norm(),
+        *height_command_);
+}
+
+void RlController::latch_fault_(
+    std::optional<RecoveryFailure> reason, std::source_location location) {
+    log_fault_(reason, location);
     fault_latched_ = true;
     if (reason)
         recovery_failure_latched_ = *reason;
@@ -271,8 +298,11 @@ void RlController::update() {
                     && (!joint_reference_recovery_ || !support_observer_))))
         || !read_model_state_()) {
         if (requested >= 2 && calibration_ready_ && soft_limits_ready_ && policy_ready_
-            && imu_alignment_ready_)
+            && imu_alignment_ready_) {
+            log_fault_(
+                !feedback_valid_ ? std::optional{RecoveryFailure::kInvalidFeedback} : std::nullopt);
             fault_latched_ = true;
+        }
         if (recovery_started_ && !feedback_valid_)
             recovery_failure_latched_ = RecoveryFailure::kInvalidFeedback;
         enter_(State::kIdle);

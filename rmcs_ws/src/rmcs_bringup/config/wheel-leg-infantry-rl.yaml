@@ -259,7 +259,7 @@ wheel_leg_chassis_controller:
     deadzone: 0.08
     command_height_min: 0.23
     command_height_max: 0.42
-    default_command_height: 0.23
+    default_command_height: 0.305
     height_rate_max: 0.6333333333333333
     height_step: 0.01
     angular_z_invert: false
