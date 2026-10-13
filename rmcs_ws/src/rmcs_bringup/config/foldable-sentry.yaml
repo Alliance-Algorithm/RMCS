@@ -25,7 +25,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
-      - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
+      # - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
 
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
@@ -123,8 +123,8 @@ gimbal_controller:
     top_yaw_folded_angle: 6.21
     pitch_folded_angle: 0.505
 
-    pitch_upper_limit: -0.550
-    pitch_lower_limit: 0.530
+    pitch_upper_limit: -0.52
+    pitch_lower_limit: 0.236
 
     fold_ready_time: 0.05
     fold_velocity_tolerance: 0.4
