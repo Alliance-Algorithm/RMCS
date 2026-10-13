@@ -285,10 +285,10 @@ wheel_leg_chassis_controller:
     yaw_rate_max: 14.137166941154069
     spin_yaw_rate: 14.137166941154069
     deadzone: 0.08
-    # Start low; the left stick integrates height and holds it on release.
+    # Start at the actor's nominal height; the left stick holds changes on release.
     command_height_min: 0.23
     command_height_max: 0.42
-    default_command_height: 0.23
+    default_command_height: 0.305
     height_rate_max: 0.6333333333333333
     height_step: 0.01
     angular_z_invert: false
