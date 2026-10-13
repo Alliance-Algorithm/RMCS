@@ -1,0 +1,49 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+      - rmcs_core::controller::identification::WheelLegPassiveRecorderGate -> wheel_leg_passive_recorder_gate
+      - rmcs_core::controller::identification::WheelLegIdentificationRecorder -> wheel_leg_identification_recorder
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+wheel_leg:
+  ros__parameters:
+    board_serial: ""
+    require_enable_request: true
+    allow_set_zero: false
+    joint_control_mode: "torque"
+    # Hardware parameters in [left hip, right hip, left knee, right knee] order.
+    # No drives are enabled by this graph even if the switches are both middle.
+    # Restore the configured feedback IDs after the read-only MST_ID=0 test
+    # received no DM frames. Confirm actual IDs and feedback rates on the drive.
+    dm_master_ids: [1, 2, 1, 2]
+    dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
+    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
+    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
+    dm_control_torque_max: [5.0, 5.0, 5.0, 5.0]
+
+wheel_leg_identification_recorder:
+  ros__parameters:
+    # This is a recording label only; no motor receives a torque command.
+    side: "left"
+    # Once ros2 bag record is ready: both MIDDLE starts samples, DOWN stops them.
+    # The passive gate above NEVER requests motor enable in either switch position.
+    record_on_double_middle: true
+    encoder_zero_inner_knee_deg: 105.0
+
+value_broadcaster:
+  ros__parameters:
+    update_rate: 100.0
+    forward_list:
+      - /wheel_leg/identification/actuation_scope
+      - /wheel_leg/identification/selected/hip/angle_api
+      - /wheel_leg/identification/selected/hip/velocity_api
+      - /wheel_leg/identification/selected/hip/torque_feedback_api
+      - /wheel_leg/identification/selected/knee/angle_api
+      - /wheel_leg/identification/selected/knee/velocity_api
+      - /wheel_leg/identification/selected/knee/torque_feedback_api
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_knee_joint/angle

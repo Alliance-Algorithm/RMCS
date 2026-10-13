@@ -1,9 +1,13 @@
 #!/bin/python3
 
-import socket
-import selectors
 import os
+import re
+import select
+import selectors
+import signal
+import socket
 import subprocess
+import tempfile
 
 from colorama import Fore, Style
 
@@ -22,6 +26,9 @@ COLORED_SYNC_FLAG = (
 def create_process():
     command = [
         "unison",
+        "-ui",
+        "text",
+        "-dumbtty",
         "-ignorearchives",
         "-auto",
         "-batch",
@@ -35,13 +42,73 @@ def create_process():
         "-follow",
         "Name *",
     ]
-    pipe_r, pipe_w = os.pipe()
-    process = subprocess.Popen(
-        command,
-        stdout=pipe_w,
-        stderr=pipe_w,
-    )
-    return process, pipe_r
+    # Unison's OCaml text UI uses synchronous stdout writes. A nonblocking
+    # pipe/TTY can raise Sys_blocked_io when the terminal stops draining it.
+    # Spool to a regular file so terminal backpressure cannot reach Unison.
+    # The reader needs a separate open-file description (independent offset).
+    # Unlink after spawning; the file is reclaimed when both handles close.
+    with tempfile.NamedTemporaryFile(prefix="rmcs-unison-", buffering=0) as log:
+        reader = open(log.name, "rb", buffering=0)
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        except BaseException:
+            reader.close()
+            raise
+    return process, reader
+
+
+class SyncProgress:
+    """Recognize complete status lines, regardless of read chunk boundaries."""
+
+    def __init__(self):
+        self.pending = b""
+        self.ready = False
+
+    def feed(self, data):
+        lines = re.split(rb"[\r\n]", self.pending + data)
+        self.pending = lines.pop()
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            self.ready = line.startswith(SYNC_FLAG) or bool(re.fullmatch(
+                rb"Synchronization complete at .+\(\d+ items transferred, 0 skipped, 0 failed\)",
+                line,
+            ))
+        # A new, incomplete status line may announce another scan or an error.
+        if self.pending.strip():
+            self.ready = False
+
+
+def write_output(data):
+    remaining = memoryview(data)
+    while remaining:
+        try:
+            count = os.write(1, remaining)
+            remaining = remaining[count:]
+        except BlockingIOError:
+            select.select([], [1], [])
+
+
+def stop_process(process):
+    if process.poll() is None:
+        # Stop this wrapper's Unison/SSH/watcher group, never unrelated jobs.
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(process.pid, sig)
+            except ProcessLookupError:
+                break
+            try:
+                process.wait(timeout=3)
+                break
+            except subprocess.TimeoutExpired:
+                continue
 
 
 def create_server():
@@ -67,46 +134,57 @@ def finish_connection(conn: socket):
 
 def main():
     selector = selectors.DefaultSelector()
-
-    process, pipe_stdout = create_process()
-    selector.register(pipe_stdout, selectors.EVENT_READ, data=None)
-
     server = create_server()
     selector.register(server, selectors.EVENT_READ, data=None)
-
+    process = None
+    output = None
     clients = []
-    ready = False
+    progress = SyncProgress()
 
     try:
+        process, output = create_process()
         while True:
-            events = selector.select(timeout=1)
+            # Regular files cannot be registered with epoll. Poll the spool
+            # while servicing wait-sync connections, including quiet periods.
+            events = selector.select(timeout=0.1)
             for key, _ in events:
                 if key.fileobj == server:
                     conn, _ = server.accept()
-                    if ready:
+                    clients.append(conn)
+            # Drain all currently available output before reporting success:
+            # a completion line may be followed by an error in the same batch.
+            while stdout := output.read(65536):
+                progress.feed(stdout)
+                write_output(stdout.replace(SYNC_FLAG, COLORED_SYNC_FLAG))
+            code = process.poll()
+            if code is not None:
+                # The child may have flushed its final line between the EOF
+                # read above and poll(). Reap that output before deciding.
+                while stdout := output.read(65536):
+                    progress.feed(stdout)
+                    write_output(stdout.replace(SYNC_FLAG, COLORED_SYNC_FLAG))
+                # Reap failure before acknowledging any waiting deployment.
+                if code == 0 and progress.ready:
+                    for conn in clients:
                         finish_connection(conn)
-                    else:
-                        clients.append(conn)
-                else:
-                    stdout = os.read(pipe_stdout, 1024)
-                    if stdout.startswith(SYNC_FLAG):
-                        ready = True
-                        stdout = COLORED_SYNC_FLAG + stdout[len(SYNC_FLAG) :]
-                        for conn in clients:
-                            finish_connection(conn)
-                        clients = []
-                    else:
-                        ready = False
-                    os.write(1, stdout)
-            if process.poll() is not None:
-                break
+                    clients.clear()
+                elif code == 0:
+                    write_output(b"Unison exited before confirming synchronization.\n")
+                    return 1
+                return code if code >= 0 else 128 - code
+            if progress.ready:
+                for conn in clients:
+                    finish_connection(conn)
+                clients.clear()
     except KeyboardInterrupt:
-        try:
-            process.wait()
-        except KeyboardInterrupt:
-            print("SIGINT sent twice, force quitting.")
-            process.kill()
+        return 130
     finally:
+        if process is not None:
+            stop_process(process)
+        if output is not None:
+            output.close()
+        for conn in clients:
+            conn.close()  # EOF tells wait-sync this attempt did not complete.
         server.close()
         selector.close()
         if os.path.exists(SOCKET_PATH):
@@ -114,4 +192,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

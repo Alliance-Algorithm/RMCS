@@ -9,10 +9,14 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
+
+#include <eigen3/Eigen/Dense>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/csv_writer.hpp>
@@ -25,7 +29,6 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-constexpr auto kCenterInfoInterval = std::chrono::duration<double>(0.5);
 constexpr double kRangeTolerance = 1e-9;
 
 template <typename T>
@@ -93,17 +96,14 @@ double wrap_to_pi(double angle) {
 
 enum class RemoteMode {
     kMeasureRange,
-    kCenterHold,
     kTestCommand,
     kIdle,
 };
 
 RemoteMode decode_remote_mode(rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right) {
     using rmcs_msgs::Switch;
-    if (switch_left == Switch::MIDDLE && switch_right == Switch::DOWN)
-        return RemoteMode::kMeasureRange;
     if (switch_left == Switch::MIDDLE && switch_right == Switch::MIDDLE)
-        return RemoteMode::kCenterHold;
+        return RemoteMode::kMeasureRange;
     if (switch_left == Switch::MIDDLE && switch_right == Switch::UP)
         return RemoteMode::kTestCommand;
     return RemoteMode::kIdle;
@@ -149,6 +149,7 @@ public:
         register_input("/predefined/timestamp", timestamp_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/switch/right", switch_right_);
+        register_input("/tf", tf_);
         register_input(measured_torque_name_, measured_torque_);
         register_input(measured_velocity_name_, measured_velocity_);
         register_input(measured_angle_name_, measured_angle_);
@@ -167,7 +168,6 @@ public:
         angle_tracking_initialized_ = false;
         range_initialized_ = false;
         remote_mode_initialized_ = false;
-        next_center_info_time_ = Clock::time_point{};
     }
 
     void update() override {
@@ -178,7 +178,6 @@ public:
 
         switch (remote_mode) {
         case RemoteMode::kMeasureRange: handle_measure_range(); break;
-        case RemoteMode::kCenterHold: handle_center_hold(mode_changed); break;
         case RemoteMode::kTestCommand: handle_test_command(mode_changed); break;
         case RemoteMode::kIdle: handle_idle(); break;
         }
@@ -224,56 +223,11 @@ private:
         range_max_ = std::max(range_max_, current_continuous_angle_);
     }
 
-    void handle_center_hold(bool mode_changed) {
-        stop_test(true);
-
-        if (!range_initialized_) {
-            *control_torque_ = nan_;
-            return;
-        }
-
-        if (mode_changed) {
-            position_pid_.reset();
-            velocity_pid_.reset();
-            next_center_info_time_ = *timestamp_;
-        }
-
-        active_setpoint_ = 0.5 * (range_min_ + range_max_);
-        *control_torque_ = calculate_pid_output(active_setpoint_);
-
-        maybe_log_center_hold_info();
-    }
-
-    void maybe_log_center_hold_info() {
-        if (*timestamp_ < next_center_info_time_)
-            return;
-
-        const double control_error = active_setpoint_ - current_continuous_angle_;
-        RCLCPP_INFO(
-            get_logger(),
-            "Center hold error=%.6f rad, setpoint=%.6f rad, angle=%.6f rad, range=[%.6f, %.6f] rad",
-            control_error, wrap_to_pi(active_setpoint_), current_wrapped_angle_,
-            wrap_to_pi(range_min_), wrap_to_pi(range_max_));
-
-        do {
-            next_center_info_time_ +=
-                std::chrono::duration_cast<Clock::duration>(kCenterInfoInterval);
-        } while (*timestamp_ >= next_center_info_time_);
-    }
-
     void handle_test_command(bool mode_changed) {
         if (mode_changed) {
-            if (last_remote_mode_ == RemoteMode::kCenterHold) {
-                if (!start_test()) {
-                    *control_torque_ = nan_;
-                    return;
-                }
-            } else if (!test_setpoint_valid_) {
+            if (!start_test()) {
                 *control_torque_ = nan_;
                 return;
-            } else {
-                position_pid_.reset();
-                velocity_pid_.reset();
             }
         }
 
@@ -334,7 +288,8 @@ private:
             csv_writer_.open(path);
             csv_writer_.write_row(
                 "update_count", "elapsed_s", control_torque_name_, measured_torque_name_,
-                measured_velocity_name_, measured_angle_name_);
+                measured_velocity_name_, measured_angle_name_, "imu_pitch_angle",
+                "imu_yaw_angle");
             csv_writer_.flush();
         } catch (const std::exception& exception) {
             const auto path_string = path.string();
@@ -364,10 +319,19 @@ private:
         const double elapsed_s =
             std::max(0.0, std::chrono::duration<double>(*timestamp_ - test_start_time_).count());
 
+        const auto [imu_yaw, imu_pitch] = imu_yaw_pitch();
+
         csv_writer_.write_row(
             *update_count_, elapsed_s, *control_torque_, *measured_torque_, *measured_velocity_,
-            current_wrapped_angle_);
+            current_wrapped_angle_, imu_pitch, imu_yaw);
         csv_writer_.flush();
+    }
+
+    std::pair<double, double> imu_yaw_pitch() const {
+        auto dir = fast_tf::cast<rmcs_description::OdomImu>(
+            rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        return {
+            std::atan2(dir->y(), dir->x()), std::asin(std::clamp(dir->z(), -1.0, 1.0))};
     }
 
     void finish_test_sequence() {
@@ -430,6 +394,7 @@ private:
     InputInterface<Clock::time_point> timestamp_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_description::Tf> tf_;
     InputInterface<double> measured_torque_;
     InputInterface<double> measured_velocity_;
     InputInterface<double> measured_angle_;
@@ -450,7 +415,6 @@ private:
 
     bool remote_mode_initialized_ = false;
     RemoteMode last_remote_mode_ = RemoteMode::kIdle;
-    Clock::time_point next_center_info_time_{};
 
     double active_setpoint_ = 0.0;
     bool test_setpoint_valid_ = false;

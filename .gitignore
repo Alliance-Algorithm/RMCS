@@ -85,3 +85,11 @@ CLAUDE.md
 # MuJoCo runtime log and colcon install manifest
 MUJOCO_LOG.TXT
 rmcs_ws/symlink_install_manifest.txt
+
+# Local wheel-leg documentation, validation and simulation records
+/docs/zh-cn/artifacts/
+/docs/zh-cn/wheel_leg_*.md
+/.script/simulation/
+/.script/tests/
+/.script/identification/test_*.py
+/rmcs_ws/src/rmcs_core/test/

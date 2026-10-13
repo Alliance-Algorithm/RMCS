@@ -8,6 +8,7 @@
 #include <memory>
 #include <numbers>
 #include <ranges>
+#include <sstream>
 #include <span>
 #include <string>
 #include <tuple>
@@ -204,7 +205,7 @@ private:
                 pitch_encoder_angle);
         }
 
-        void command_update() const {
+        void command_update() {
             auto builder = board_->start_transmit();
             {
                 auto packet = gimbal_pitch_motor_.generate_torque_command();
@@ -217,21 +218,21 @@ private:
             }
             {
                 auto packet = device::CanPacket8{uint64_t{0}};
-                packet << gimbal_right_friction_;
+                packet << gimbal_left_friction_;
                 builder.can_transmit(
                     Spec::kCans.kCan1, //
                     {
-                        .can_id = gimbal_right_friction_.send_id(),
+                        .can_id = gimbal_left_friction_.send_id(),
                         .can_data = packet.as_bytes(),
                     });
             }
             {
                 auto packet = device::CanPacket8{uint64_t{0}};
-                packet << gimbal_left_friction_;
+                packet << gimbal_right_friction_;
                 builder.can_transmit(
                     Spec::kCans.kCan2, //
                     {
-                        .can_id = gimbal_left_friction_.send_id(),
+                        .can_id = gimbal_right_friction_.send_id(),
                         .can_data = packet.as_bytes(),
                     });
             }
@@ -245,10 +246,10 @@ private:
                     gimbal_pitch_motor_.store_status(data.can_data);
                 monitor_.tick("Top::Can0", data.can_id);
             } else if (can == Spec::kCans.kCan1) {
-                gimbal_right_friction_.match_then_store_status(data.can_id, data.can_data);
+                gimbal_left_friction_.match_then_store_status(data.can_id, data.can_data);
                 monitor_.tick("Top::Can1", data.can_id);
             } else if (can == Spec::kCans.kCan2) {
-                gimbal_left_friction_.match_then_store_status(data.can_id, data.can_data);
+                gimbal_right_friction_.match_then_store_status(data.can_id, data.can_data);
                 monitor_.tick("Top::Can2", data.can_id);
             }
         }
@@ -365,6 +366,20 @@ private:
             status.register_output("/chassis/imu/roll", chassis_imu_roll_, 0.0);
             status.register_output("/chassis/imu/pitch_rate", chassis_imu_pitch_rate_, 0.0);
             status.register_output("/chassis/imu/roll_rate", chassis_imu_roll_rate_, 0.0);
+            status.register_output(
+                "/chassis/imu/quaternion", chassis_imu_quaternion_, Eigen::Quaterniond::Identity());
+            rl_high_physical_angle_rad_ = status.get_parameter_or("rl_high_physical_angle_deg", 59.0)
+                * std::numbers::pi / 180.0;
+            rl_low_physical_angle_rad_ = status.get_parameter_or("rl_low_physical_angle_deg", 5.0)
+                * std::numbers::pi / 180.0;
+            rl_q_max_rad_ = status.get_parameter_or("rl_q_max_rad", 1.36);
+            if (!(rl_high_physical_angle_rad_ > rl_low_physical_angle_rad_)) {
+                rl_high_physical_angle_rad_ = 59.0 * std::numbers::pi / 180.0;
+                rl_low_physical_angle_rad_  = 5.0 * std::numbers::pi / 180.0;
+            }
+            if (!(rl_q_max_rad_ > 0.0))
+                rl_q_max_rad_ = 1.36;
+
             for (size_t i = 0; i < 4; ++i) {
                 status.register_output(
                     std::format(
@@ -375,15 +390,26 @@ private:
                         "/chassis/{}_joint/physical_velocity",
                         DeformableInfantryOmniB::kJointName[i]),
                     joint_physical_velocity_[i], kNaN);
+                status.register_output(
+                    std::format(
+                        "/chassis/{}_joint/rl_angle", DeformableInfantryOmniB::kJointName[i]),
+                    joint_rl_angle_[i], kNaN);
+                status.register_output(
+                    std::format(
+                        "/chassis/{}_joint/rl_velocity", DeformableInfantryOmniB::kJointName[i]),
+                    joint_rl_velocity_[i], kNaN);
             }
+            status.register_output(
+                "/chassis/rl/calibration/high_physical_angle_rad", rl_high_physical_angle_,
+                rl_high_physical_angle_rad_);
+            status.register_output(
+                "/chassis/rl/calibration/low_physical_angle_rad", rl_low_physical_angle_,
+                rl_low_physical_angle_rad_);
+            status.register_output(
+                "/chassis/rl/calibration/q_max_rad", rl_q_max_, rl_q_max_rad_);
             status.register_output("/chassis/encoder/alpha", encoder_alpha_, kNaN);
             status.register_output("/chassis/encoder/alpha_dot", encoder_alpha_dot_, kNaN);
             status.register_output("/chassis/radius", radius_, kDefaultRadius);
-
-            status.get_parameter_or("debug_log_supercap", debug_log_supercap_, false);
-            status.get_parameter_or("debug_log_wheel_motor", debug_log_wheel_motor_, false);
-            status.get_parameter_or(
-                "debug_log_deformable_joint_motor", debug_log_deformable_joint_motor_, false);
 
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = true;
@@ -413,6 +439,11 @@ private:
                 *chassis_imu_roll_ = standard_roll;
                 *chassis_imu_pitch_rate_ = -imu_.gy();
                 *chassis_imu_roll_rate_ = imu_.gx();
+
+                // Raw attitude quaternion for the RL bridge (projected gravity). Same frame
+                // convention as the other RL hardware (body -> world, Z-up after the IMU
+                // coordinate mapping above).
+                *chassis_imu_quaternion_ = Eigen::Quaterniond{q0, q1, q2, q3}.normalized();
             }
 
             for (auto& motor : chassis_wheel_motors_)
@@ -425,15 +456,11 @@ private:
                     i, joint_physical_angle_[i], joint_physical_velocity_[i]);
 
             update_geometry_feedback_();
-            if (debug_log_wheel_motor_ || debug_log_deformable_joint_motor_)
-                log_chassis_feedback_once_per_second_();
 
             dr16_.update_status();
             gimbal_yaw_motor_.update_status();
             if (supercap_status_received_.load(std::memory_order_relaxed))
                 supercap_.update_status();
-            if (debug_log_supercap_)
-                log_supercap_feedback_once_per_second_();
             gimbal_bullet_feeder_.update_status();
 
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
@@ -469,18 +496,17 @@ private:
                             }
                                 .as_bytes(),
                     });
+                auto packet_can2_200 = device::CanPacket8{
+                    chassis_wheel_motors_[kRightBack].generate_command(),
+                    device::CanPacket8::PaddingQuarter{},
+                    gimbal_bullet_feeder_.generate_command(),
+                    device::CanPacket8::PaddingQuarter{},
+                };
                 builder.can_transmit(
                     Spec::kCans.kCan2,         //
                     {
                         .can_id = 0x200,
-                        .can_data =
-                            device::CanPacket8{
-                                chassis_wheel_motors_[kRightBack].generate_command(),
-                                device::CanPacket8::PaddingQuarter{},
-                                gimbal_bullet_feeder_.generate_command(),
-                                device::CanPacket8::PaddingQuarter{},
-                            }
-                                .as_bytes(),
+                        .can_data = packet_can2_200.as_bytes(),
                     });
                 builder.can_transmit(
                     Spec::kCans.kCan3,         //
@@ -495,11 +521,12 @@ private:
                             }
                                 .as_bytes(),
                     });
+                auto packet_can2_142 = gimbal_yaw_motor_.generate_command();
                 builder.can_transmit(
                     Spec::kCans.kCan2,         //
                     {
                         .can_id = 0x142,
-                        .can_data = gimbal_yaw_motor_.generate_command().as_bytes(),
+                        .can_data = packet_can2_142.as_bytes(),
                     });
                 builder.can_transmit(
                     Spec::kCans.kCan1,         //
@@ -533,14 +560,16 @@ private:
                                 .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
                             });
                         break;
-                    case kRightBack:
+                    case kRightBack: {
+                        auto packet = chassis_joint_motors_[i].generate_command();
                         builder.can_transmit(
                             Spec::kCans.kCan2, //
                             {
                                 .can_id = 0x141,
-                                .can_data = chassis_joint_motors_[i].generate_command().as_bytes(),
+                                .can_data = packet.as_bytes(),
                             });
                         break;
+                    }
                     case kRightFront:
                         builder.can_transmit(
                             Spec::kCans.kCan3, //
@@ -571,9 +600,20 @@ private:
         OutputInterface<double> chassis_imu_roll_;
         OutputInterface<double> chassis_imu_pitch_rate_;
         OutputInterface<double> chassis_imu_roll_rate_;
+        OutputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
 
         std::array<OutputInterface<double>, 4> joint_physical_angle_;
         std::array<OutputInterface<double>, 4> joint_physical_velocity_;
+        std::array<OutputInterface<double>, 4> joint_rl_angle_;
+        std::array<OutputInterface<double>, 4> joint_rl_velocity_;
+
+        OutputInterface<double> rl_high_physical_angle_;
+        OutputInterface<double> rl_low_physical_angle_;
+        OutputInterface<double> rl_q_max_;
+
+        double rl_high_physical_angle_rad_ = 59.0 * std::numbers::pi / 180.0;
+        double rl_low_physical_angle_rad_  = 5.0 * std::numbers::pi / 180.0;
+        double rl_q_max_rad_               = 1.36;
 
         OutputInterface<double> encoder_alpha_;
         OutputInterface<double> encoder_alpha_dot_;
@@ -584,19 +624,11 @@ private:
 
         // State
 
-        std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
-
-        bool debug_log_supercap_ = false;
-        bool debug_log_wheel_motor_ = false;
-        bool debug_log_deformable_joint_motor_ = false;
 
         const double kChassisRadiusBase;
         const double kRodLength;
         const double kDefaultRadius;
-
-        Clock::time_point next_chassis_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
-        Clock::time_point next_supercap_feedback_log_time_{Clock::now() + std::chrono::seconds(1)};
 
         // Device
 
@@ -617,7 +649,6 @@ private:
             device::LkMotor{status_, command_, "/chassis/right_front_joint"},
         };
 
-        std::atomic<device::CanPacket8> latest_supercap_status_{device::CanPacket8{uint64_t{0}}};
         std::atomic<bool> supercap_status_received_{false};
         device::Supercap supercap_{status_, command_};
 
@@ -628,7 +659,6 @@ private:
                 return;
             if (data.can_id == 0x201) {
                 chassis_wheel_motors_[index].store_status(data.can_data);
-                wheel_status_received_[index].store(true, std::memory_order_relaxed);
             } else if (data.can_id == 0x141) {
                 chassis_joint_motors_[index].store_status(data.can_data);
                 joint_status_received_[index].store(true, std::memory_order_relaxed);
@@ -642,6 +672,8 @@ private:
             if (!joint_status_received_[index].load(std::memory_order_relaxed)) {
                 *angle_output = kNaN;
                 *velocity_output = kNaN;
+                *joint_rl_angle_[index] = kNaN;
+                *joint_rl_velocity_[index] = kNaN;
                 return;
             }
 
@@ -650,8 +682,18 @@ private:
             };
             const auto to_physical_velocity = [](double motor_velocity) { return -motor_velocity; };
 
-            *angle_output = to_physical_angle(chassis_joint_motors_[index].angle());
-            *velocity_output = to_physical_velocity(chassis_joint_motors_[index].velocity());
+            const double physical_angle = to_physical_angle(chassis_joint_motors_[index].angle());
+            const double physical_velocity =
+                to_physical_velocity(chassis_joint_motors_[index].velocity());
+
+            *angle_output = physical_angle;
+            *velocity_output = physical_velocity;
+
+            // RL coordinate: 0 at the highest posture, rl_q_max_rad at the lowest posture.
+            const double rl_scale =
+                rl_q_max_rad_ / (rl_high_physical_angle_rad_ - rl_low_physical_angle_rad_);
+            *joint_rl_angle_[index] = (rl_high_physical_angle_rad_ - physical_angle) * rl_scale;
+            *joint_rl_velocity_[index] = -physical_velocity * rl_scale;
         }
 
         void update_geometry_feedback_() {
@@ -678,91 +720,6 @@ private:
             *radius_ = (kChassisRadiusBase + kRodLength * alpha_rad.array().cos()).mean();
         }
 
-        void log_chassis_feedback_once_per_second_() {
-            const auto now = Clock::now();
-            if (now < next_chassis_feedback_log_time_)
-                return;
-
-            const auto wheel_rx = [this](size_t index) {
-                return wheel_status_received_[index].load(std::memory_order_relaxed) ? 'Y' : 'N';
-            };
-            const auto joint_rx = [this](size_t index) {
-                return joint_status_received_[index].load(std::memory_order_relaxed) ? 'Y' : 'N';
-            };
-
-            if (debug_log_wheel_motor_) {
-                std::string wheel_rx_str;
-                for (size_t i = 0; i < 4; ++i) {
-                    if (i > 0)
-                        wheel_rx_str.push_back(' ');
-                    wheel_rx_str.push_back(wheel_rx(i));
-                }
-                RCLCPP_INFO(
-                    status_.get_logger(),
-                    "[wheel motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
-                    "encoder(deg) lf=% .1f lb=% .1f rb=% .1f rf=% .1f | "
-                    "rx=[%s]",
-                    chassis_wheel_motors_[kLeftFront].angle(),
-                    chassis_wheel_motors_[kLeftBack].angle(),
-                    chassis_wheel_motors_[kRightBack].angle(),
-                    chassis_wheel_motors_[kRightFront].angle(),
-                    chassis_wheel_motors_[kLeftFront].angle(),
-                    chassis_wheel_motors_[kLeftBack].angle(),
-                    chassis_wheel_motors_[kRightBack].angle(),
-                    chassis_wheel_motors_[kRightFront].angle(), wheel_rx_str.c_str());
-            }
-
-            if (debug_log_deformable_joint_motor_) {
-                std::string joint_rx_str;
-                for (size_t i = 0; i < 4; ++i) {
-                    if (i > 0)
-                        joint_rx_str.push_back(' ');
-                    joint_rx_str.push_back(joint_rx(i));
-                }
-                RCLCPP_INFO(
-                    status_.get_logger(),
-                    "[deformable joint motor] angle(rad) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
-                    "velocity(rad/s) lf=% .3f lb=% .3f rb=% .3f rf=% .3f | "
-                    "rx=[%s]",
-                    *joint_physical_angle_[kLeftFront], *joint_physical_angle_[kLeftBack],
-                    *joint_physical_angle_[kRightBack], *joint_physical_angle_[kRightFront],
-                    *joint_physical_velocity_[kLeftFront], *joint_physical_velocity_[kLeftBack],
-                    *joint_physical_velocity_[kRightBack], *joint_physical_velocity_[kRightFront],
-                    joint_rx_str.c_str());
-            }
-
-            next_chassis_feedback_log_time_ = now + std::chrono::seconds(1);
-        }
-
-        void log_supercap_feedback_once_per_second_() {
-            const auto now = Clock::now();
-            if (now < next_supercap_feedback_log_time_)
-                return;
-
-            const bool supercap_rx = supercap_status_received_.load(std::memory_order_relaxed);
-            auto supercap_raw_packet = latest_supercap_status_.load(std::memory_order_relaxed);
-            const auto supercap_raw_bytes = supercap_raw_packet.as_bytes();
-
-            RCLCPP_INFO(
-                status_.get_logger(),
-                "[supercap] can1 rx=%c id=0x300 enabled=%d supercap_v=% .3f chassis_v=% .3f "
-                "power=% .3f raw=[%02X %02X %02X %02X %02X %02X %02X %02X]",
-                supercap_rx ? 'Y' : 'N', supercap_rx ? (supercap_.supercap_enabled() ? 1 : 0) : -1,
-                supercap_rx ? supercap_.supercap_voltage() : kNaN,
-                supercap_rx ? supercap_.chassis_voltage() : kNaN,
-                supercap_rx ? supercap_.chassis_power() : kNaN,
-                std::to_integer<unsigned int>(supercap_raw_bytes[0]),
-                std::to_integer<unsigned int>(supercap_raw_bytes[1]),
-                std::to_integer<unsigned int>(supercap_raw_bytes[2]),
-                std::to_integer<unsigned int>(supercap_raw_bytes[3]),
-                std::to_integer<unsigned int>(supercap_raw_bytes[4]),
-                std::to_integer<unsigned int>(supercap_raw_bytes[5]),
-                std::to_integer<unsigned int>(supercap_raw_bytes[6]),
-                std::to_integer<unsigned int>(supercap_raw_bytes[7]));
-
-            next_supercap_feedback_log_time_ = now + std::chrono::seconds(1);
-        }
-
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission)
                 return;
@@ -773,9 +730,6 @@ private:
                 process_chassis_can_receive_(1, data);
                 if (!data.is_extended_can_id && !data.is_remote_transmission
                     && data.can_id == 0x300) {
-                    if (data.can_data.size() == 8)
-                        latest_supercap_status_.store(
-                            device::CanPacket8{data.can_data}, std::memory_order_relaxed);
                     supercap_.store_status(data.can_data);
                     supercap_status_received_.store(true, std::memory_order_relaxed);
                 }
@@ -784,9 +738,9 @@ private:
                 process_chassis_can_receive_(2, data);
                 if (data.is_extended_can_id || data.is_remote_transmission)
                     return;
-                if (data.can_id == 0x142)
+                if (data.can_id == 0x142) {
                     gimbal_yaw_motor_.store_status(data.can_data);
-                else if (data.can_id == 0x203)
+                } else if (data.can_id == 0x203)
                     gimbal_bullet_feeder_.store_status(data.can_data);
                 monitor_.tick("Bottom::Can2", data.can_id);
             } else if (can == Spec::kCans.kCan3) {

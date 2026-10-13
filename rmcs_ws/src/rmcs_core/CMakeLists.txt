@@ -105,4 +105,8 @@ if(RMCS_ENABLE_MUJOCO_SIM)
     pluginlib_export_plugin_description_file(rmcs_executor plugins_mujoco.xml)
 endif()
 
+add_executable(wheel_leg_recording_preview tools/wheel_leg_recording_preview.cpp)
+target_include_directories(wheel_leg_recording_preview PRIVATE ${PROJECT_SOURCE_DIR}/src)
+install(TARGETS wheel_leg_recording_preview DESTINATION lib/${PROJECT_NAME})
+
 ament_auto_package()
