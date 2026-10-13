@@ -226,7 +226,7 @@ RlController::RlController()
     height_command_is_reference_ = get_parameter_or("height_command_is_reference", false);
     height_reference_rate_max_ = get_parameter_or("height_reference_rate_max", 0.02);
     wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
-    wheel_track_ = get_parameter_or("wheel_track", 0.4373);
+    wheel_track_ = get_parameter_or("wheel_track", 0.396);
     inference_frequency_ =
         get_parameter_or("rl_inference_frequency", DeployedPolicyContract::kPolicyFrequencyHz);
     pd_frequency_ = get_parameter_or("pd_frequency", DeployedPolicyContract::kControlFrequencyHz);
