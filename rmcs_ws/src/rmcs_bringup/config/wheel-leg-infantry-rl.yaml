@@ -146,10 +146,10 @@ wheel_leg:
 rl_controller:
   ros__parameters:
     # Compatible V6 actors share the robot control contract.
-    model_path: "models/wheel_leg/policy.onnx"
+    model_path: "models/wheel_leg/flat.onnx"
     # Keep the RL command envelope aligned with the chassis limits below.
-    vx_max: 0.5
-    yaw_rate_max: 1.0
+    vx_max: 2.7
+    yaw_rate_max: 14.137166941154069
     rl_inference_frequency: 50.0
     # Update feedback PD and recovery references every 1 ms; policy targets stay at 50 Hz.
     pd_frequency: 1000.0
@@ -252,15 +252,15 @@ rl_controller:
 
 wheel_leg_chassis_controller:
   ros__parameters:
-    vx_max: 0.5
+    vx_max: 2.7
     vy_max: 0.0
-    yaw_rate_max: 1.0
-    spin_yaw_rate: 1.0
+    yaw_rate_max: 14.137166941154069
+    spin_yaw_rate: 14.137166941154069
     deadzone: 0.08
     command_height_min: 0.23
-    command_height_max: 0.43
+    command_height_max: 0.42
     default_command_height: 0.23
-    height_rate_max: 0.6666666666666666
+    height_rate_max: 0.6333333333333333
     height_step: 0.01
     angular_z_invert: false
     # The left stick's longitudinal axis is positive when pushed UP.
