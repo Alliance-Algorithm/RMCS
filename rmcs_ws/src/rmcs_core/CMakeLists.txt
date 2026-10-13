@@ -42,6 +42,8 @@ pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
 if(BUILD_TESTING)
     find_package(ament_cmake_gtest REQUIRED)
+    ament_add_gtest(deformable_suspension_guard_test test/deformable_suspension_guard_test.cpp)
+    target_include_directories(deformable_suspension_guard_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     ament_add_gtest(deformable_rl_contract_test test/deformable_rl_contract_test.cpp)
     target_include_directories(deformable_rl_contract_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     target_compile_definitions(deformable_rl_contract_test PRIVATE

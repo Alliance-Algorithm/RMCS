@@ -370,6 +370,8 @@ private:
             status.register_output(
                 "/chassis/imu/quaternion", chassis_imu_quaternion_, Eigen::Quaterniond::Identity());
             status.register_output("/chassis/rl/gyro_b", rl_gyro_b_, Eigen::Vector3d::Zero());
+            status.register_output("/chassis/imu/specific_force_b", specific_force_b_, Eigen::Vector3d::Constant(kNaN));
+            status.register_output("/chassis/imu/sample_age", imu_sample_age_, kNaN);
             status.register_output(
                 "/chassis/rl/encoder_twist_b", rl_encoder_twist_b_, Eigen::Vector3d::Constant(kNaN));
             rl_high_physical_angle_rad_ = status.get_parameter_or("rl_high_physical_angle_deg", 75.0)
@@ -433,6 +435,9 @@ private:
             imu_.update_status();
             *chassis_yaw_velocity_imu_ = imu_.gz();
             *rl_gyro_b_ = Eigen::Vector3d{imu_.gx(), imu_.gy(), imu_.gz()};
+            // Bmi088's mapped acceleration getters are in g; expose SI specific force.
+            *specific_force_b_ = 9.80665 * Eigen::Vector3d{imu_.ax(), imu_.ay(), imu_.az()};
+            *imu_sample_age_ = imu_.sample_age_seconds();
             {
                 const double q0 = imu_.q0();
                 const double q1 = imu_.q1();
@@ -626,6 +631,8 @@ private:
         OutputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
 
         OutputInterface<Eigen::Vector3d> rl_gyro_b_;
+        OutputInterface<Eigen::Vector3d> specific_force_b_;
+        OutputInterface<double> imu_sample_age_;
         OutputInterface<Eigen::Vector3d> rl_encoder_twist_b_;
         std::array<OutputInterface<double>, 4> joint_urdf_angle_;
         std::array<OutputInterface<double>, 4> joint_urdf_velocity_;
