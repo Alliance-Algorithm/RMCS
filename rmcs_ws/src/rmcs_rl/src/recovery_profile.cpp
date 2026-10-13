@@ -13,35 +13,31 @@
 namespace rmcs::rl {
 namespace {
 using Json = nlohmann::json;
-constexpr std::string_view kAsset =
+constexpr std::string_view kLegacyAsset =
     "875fa71e89d4d669af0a5471b2334f878d302e06f1b354fc245b95cb5d6f29ba";
+constexpr std::string_view kCurrentAsset =
+    "088e699266fa3dc666379a911b23a30e2038ab3d7f113cab4dcd4bdd0a14279b";
 
-Json frozen_json(const std::filesystem::path& path, std::string_view expected) {
+Json frozen_json(const std::filesystem::path& path, std::string_view expected,
+                 std::string_view alternative = {}) {
     std::ifstream file{path, std::ios::binary};
     if (!file)
-        throw std::runtime_error("Cannot read frozen V6 profile: " + path.string());
+        throw std::runtime_error("Cannot read frozen recovery profile: " + path.string());
     const std::string bytes{std::istreambuf_iterator<char>{file}, {}};
     std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
     unsigned int size = 0;
     if (EVP_Digest(bytes.data(), bytes.size(), digest.data(), &size, EVP_sha256(), nullptr) != 1
         || size != 32)
-        throw std::runtime_error("Cannot calculate V6 profile SHA256");
+        throw std::runtime_error("Cannot calculate recovery profile SHA256");
     constexpr std::string_view hex = "0123456789abcdef";
     std::string actual;
     for (unsigned int i = 0; i < size; ++i) {
         actual += hex[digest[i] >> 4];
         actual += hex[digest[i] & 15];
     }
-    if (actual != expected)
-        throw std::runtime_error("V6 profile SHA256 mismatch: " + path.string());
-    auto data = Json::parse(bytes);
-    if (data.at("asset_manifest_sha256") != kAsset
-        || data.at("control_joint_names")
-               != Json::array(
-                   {"L_joint1", "LL_joint1", "L_joint3", "R_joint1", "RR_joint1", "R_joint3"})
-        || data.at("passive_knee_domain_deg") != Json::array({40.0, 105.0}))
-        throw std::runtime_error("Frozen V6 asset/order/closure domain mismatch");
-    return data;
+    if (actual != expected && (alternative.empty() || actual != alternative))
+        throw std::runtime_error("Recovery profile SHA256 mismatch: " + path.string());
+    return Json::parse(bytes);
 }
 
 template <int Size>
@@ -66,12 +62,31 @@ JointReferenceRecoveryVector6 policy_order(const Json& value) {
 RecoveryProfile RecoveryProfile::load(
     const std::filesystem::path& profile_path, const std::filesystem::path& lookup_path) {
     const auto profile = frozen_json(
-        profile_path, "5b09a3bb27285ab7571bd133151d7118091997309ccc9d59c6b1259836dc1eef");
+        profile_path, "5b09a3bb27285ab7571bd133151d7118091997309ccc9d59c6b1259836dc1eef",
+        "b966a5f65246775bd185d27871c3f42783ec25ee73e8df2d6ee3efbc769b9400");
+    const bool current = profile.at("schema") == "v6_recovery_profiles_v2";
+    // A profile selects one exact lookup; cross-version pairs remain invalid.
     const auto lookup = frozen_json(
-        lookup_path, "c3e215187828fae328e3df3af1728897feb6695616ec8b9bdd4322433ea00282");
-    if (profile.at("schema") != "v6_recovery_profiles_v1"
+        lookup_path, current
+            ? "91c43e8ea7da828155537ee3e64c3f45ccde7a475d002065da4829205027dfa1"
+            : "c3e215187828fae328e3df3af1728897feb6695616ec8b9bdd4322433ea00282");
+    if (profile.at("schema") != (current ? "v6_recovery_profiles_v2" : "v6_recovery_profiles_v1")
         || lookup.at("schema") != "v6_closedchain_height_lookup_v1")
-        throw std::runtime_error("Unsupported frozen V6 recovery schema");
+        throw std::runtime_error("Unsupported frozen recovery schema");
+    const auto asset = current ? kCurrentAsset : kLegacyAsset;
+    const auto order = Json::array(
+        {"L_joint1", "LL_joint1", "L_joint3", "R_joint1", "RR_joint1", "R_joint3"});
+    if (profile.at("asset_manifest_sha256") != asset
+        || lookup.at("asset_manifest_sha256") != asset
+        || profile.at("model_spec_sha256") != lookup.at("model_spec_sha256")
+        || profile.at("control_joint_names") != order
+        || lookup.at("control_joint_names") != order
+        || profile.at("passive_knee_domain_deg") != Json::array({40.0, 105.0})
+        || lookup.at("passive_knee_domain_deg") != Json::array({40.0, current ? 107.0 : 105.0})
+        || (current && profile.at("physical_knee_domain_deg") != Json::array({40.0, 107.0})))
+        throw std::runtime_error("Frozen recovery asset/order/closure domain mismatch");
+    // The current profile retains the old pose-generation domain. Its lookup
+    // covers the physical stop; neither domain changes the encoder zero.
     RecoveryProfile result;
     auto& controller = result.controller;
     const auto& prepare = profile.at("prepare_reference");

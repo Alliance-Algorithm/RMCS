@@ -18,7 +18,7 @@ struct ClosedChainLegGeometry {
     float wheel_radius_m = 0.06f;
 };
 
-// Immutable geometry and references bound to the 2026-10-03 V6 candidate.
+// Immutable geometry and references bound to authenticated mechanical assets.
 // Loading these simulation candidates never grants hardware readiness.
 struct RecoveryProfile {
     JointReferenceRecoveryConfig controller;
