@@ -1,0 +1,157 @@
+<mujoco model="wheelleg">
+  <compiler angle="radian" meshdir="./"/>
+
+  <option timestep="0.001" integrator="implicitfast"/>
+
+  <asset>
+    <mesh name="base_link" file="meshes/base_link.STL"/>
+    <mesh name="L_link1" file="meshes/L_link1.STL"/>
+    <mesh name="L_link2" file="meshes/L_link2.STL"/>
+    <mesh name="L_link3" file="meshes/L_link3.STL"/>
+    <mesh name="LLL_link2" file="meshes/LLL_link2.STL"/>
+    <mesh name="LLL_link1" file="meshes/LLL_link1.STL"/>
+    <mesh name="R_link1" file="meshes/R_link1.STL"/>
+    <mesh name="R_link2" file="meshes/R_link2.STL"/>
+    <mesh name="R_link3" file="meshes/R_link3.STL"/>
+    <mesh name="RRR_link2" file="meshes/RRR_link2.STL"/>
+    <mesh name="RRR_link1" file="meshes/RRR_link1.STL"/>
+    <mesh name="LL_link1" file="meshes/LL_link1.STL"/>
+    <mesh name="LL_link2" file="meshes/LL_link2.STL"/>
+    <mesh name="LL_link3" file="meshes/LL_link3.STL"/>
+    <mesh name="LL_link4" file="meshes/LL_link4.STL"/>
+    <mesh name="RR_link1" file="meshes/RR_link1.STL"/>
+    <mesh name="RR_link2" file="meshes/RR_link2.STL"/>
+    <mesh name="RR_link3" file="meshes/RR_link3.STL"/>
+    <mesh name="RR_link4" file="meshes/RR_link4.STL"/>
+  </asset>
+
+  <worldbody>
+    <geom name="ground" size="0 0 0.05" type="plane" rgba="0.35 0.35 0.4 1"/>
+    <body name="base_link">
+      <inertial pos="0.00028751 0.0091751 -0.049915" quat="0.0207143 0.705504 0.0168296 0.708203" mass="11.62" diaginertia="0.255481 0.177783 0.125997"/>
+      <joint name="base_free" type="free"/>
+      <geom type="mesh" contype="2" rgba="0.79216 0.81961 0.93333 1" mesh="base_link"/>
+      <body name="L_link1" pos="0.1838 0 -0.00083697" quat="0.498847 0.501149 0.501151 0.498849">
+        <inertial pos="0.095035 0.0033671 -0.0074867" quat="0.00896344 0.70705 -0.00896344 0.70705" mass="0.161" diaginertia="0.001 0.000945558 7.74421e-05"/>
+        <joint name="L_joint1" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-3.67321e-06 0.00460366 0.999989"/>
+        <geom type="mesh" contype="2" rgba="1 1 1 1" mesh="L_link1"/>
+        <site name="L_P_mate" size="0.001" pos="0.10517 0.00501432 0.00420345"/>
+        <body name="L_link2" pos="0.21 0 0" quat="0.382173 0 0 -0.924091">
+          <inertial pos="0.15963 8.3417e-05 0.011927" quat="0.0238133 0.720919 0.0120134 0.692506" mass="0.45" diaginertia="0.00496777 0.00490132 0.000157915"/>
+          <joint name="L_joint2" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00324908 -0.00326147 0.999989"/>
+          <geom type="mesh" contype="2" rgba="0.79216 0.81961 0.93333 1" mesh="L_link2"/>
+          <site name="L_E_mate" size="0.001" pos="-0.0652939 -0.0166886 -0.00399324"/>
+          <body name="L_link3" pos="0.25 0 0.015" quat="0.707105 0 0 -0.707108">
+            <inertial pos="0 0 0.020472" quat="0.5 0.5 -0.5 0.5" mass="0.2" diaginertia="0.000575 0.000296 0.000296"/>
+            <joint name="L_joint3" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="0.00326148 -0.00324906 0.999989" limited="false"/>
+            <geom type="mesh" contype="0" conaffinity="0" rgba="0.84314 0.81569 0.75294 1" mesh="L_link3"/>
+            <geom name="L_link3_collision" size="0.06 0.0125" type="cylinder" contype="2" friction="2 0.01 0.0005"/>
+          </body>
+        </body>
+      </body>
+      <body name="R_link1" pos="-0.1828 0 0.00083241" quat="0.498847 0.501149 0.501151 0.498849">
+        <inertial pos="0.095035 0.0033671 0.0074867" quat="0.00896344 0.70705 -0.00896344 0.70705" mass="0.161" diaginertia="0.001 0.000945558 7.74421e-05"/>
+        <joint name="R_joint1" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-3.67321e-06 0.00460366 0.999989"/>
+        <geom type="mesh" contype="2" rgba="1 1 1 1" mesh="R_link1"/>
+        <site name="R_P_mate" size="0.001" pos="0.105113 0.00456473 -0.00380588"/>
+        <body name="R_link2" pos="0.21 0 0" quat="0.382173 0 0 -0.924091">
+          <inertial pos="0.15963 8.3412e-05 -0.011927" quat="-0.0120134 0.692506 -0.0238133 0.720919" mass="0.45" diaginertia="0.00496777 0.00490132 0.000157915"/>
+          <joint name="R_jonit2" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00324908 -0.00326147 0.999989"/>
+          <geom type="mesh" contype="2" rgba="0.79216 0.81961 0.93333 1" mesh="R_link2"/>
+          <site name="R_E_mate" size="0.001" pos="-0.0652931 -0.0166892 0.00400653"/>
+          <body name="R_link3" pos="0.25 0 -0.015" quat="-3.67321e-06 0 0 -1">
+            <inertial pos="0 0 -0.020472" quat="0.5 0.5 -0.5 0.5" mass="0.2" diaginertia="0.000575 0.000296 0.000296"/>
+            <joint name="R_joint3" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="0.00324905 0.00326149 0.999989" limited="false"/>
+            <geom type="mesh" contype="0" conaffinity="0" rgba="0.84314 0.81569 0.75294 1" mesh="R_link3"/>
+            <geom name="R_link3_collision" size="0.06 0.0125" type="cylinder" contype="2" friction="2 0.01 0.0005"/>
+          </body>
+        </body>
+      </body>
+      <body name="LL_link1" pos="0.195 0 -0.00088797" quat="0.582053 -0.400467 0.584733 -0.398658">
+        <inertial pos="0.051943 0 -0.0053948" quat="0 0.707107 0 0.707107" mass="0.041" diaginertia="0.000107 9.4e-05 1.4e-05"/>
+        <joint name="L_crank" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00168177 -0.00425182 0.99999"/>
+        <geom type="mesh" contype="0" conaffinity="0" rgba="1 1 1 1" mesh="LL_link1"/>
+        <body name="LL_link2" pos="0.1134 0 0" quat="0.382173 0 0 0.924091">
+          <inertial pos="0.0675 -0.0031995 -0.014" quat="0.5 0.5 0.5 0.5" mass="0.084" diaginertia="0.000157 0.000157 1e-06"/>
+          <joint name="LL_joint2" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00181266 0.00419769 0.99999"/>
+          <geom type="mesh" contype="0" conaffinity="0" rgba="0.79216 0.81961 0.93333 1" mesh="LL_link2"/>
+          <body name="LL_link3" pos="0.135 0 0" quat="0.80084 0 0 0.598879">
+            <inertial pos="0.098135 -0.0046889 -0.0072398" quat="0 0.707107 0 0.707107" mass="0.041" diaginertia="0.000115667 0.000115667 0.000115667"/>
+            <joint name="LL_joint3" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="0.00351405 0.00292537 0.99999"/>
+            <geom type="mesh" contype="0" conaffinity="0" rgba="1 1 1 1" mesh="LL_link3"/>
+            <site name="L_P_hole" size="0.001" pos="0.133034 -0.0019921 -0.00700019"/>
+            <body name="LL_link4" pos="0.20051 0 0" quat="0.906927 0 0 -0.421288">
+              <inertial pos="0.048484 0.0014867 -0.015201" quat="0 0.707107 0 0.707107" mass="0.064" diaginertia="6.4e-05 6.3e-05 1e-06"/>
+              <joint name="LL_link4" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="3.12463e-05 0.00457224 0.99999"/>
+              <geom type="mesh" contype="0" conaffinity="0" rgba="0.79216 0.81961 0.93333 1" mesh="LL_link4"/>
+              <site name="L_E_hole" size="0.001" pos="0.0972575 7.93258e-05 -0.0152001"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="RR_link1" pos="-0.194 0 0.00088342" quat="0.582053 -0.400467 0.584733 -0.398658">
+        <inertial pos="0.051943 0 0.0046052" quat="0 0.707107 0 0.707107" mass="0.041" diaginertia="0.000107 9.4e-05 1.4e-05"/>
+        <joint name="R_crank" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00168177 -0.00425182 0.99999"/>
+        <geom type="mesh" contype="0" conaffinity="0" rgba="1 1 1 1" mesh="RR_link1"/>
+        <body name="RR_link2" pos="0.1134 0 0" quat="0.382173 0 0 0.924091">
+          <inertial pos="0.0675 -0.0031995 0.014" quat="0.5 0.5 0.5 0.5" mass="0.084" diaginertia="0.000157 0.000157 1e-06"/>
+          <joint name="RR_joint2" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00181266 0.00419769 0.99999"/>
+          <geom type="mesh" contype="0" conaffinity="0" rgba="0.79216 0.81961 0.93333 1" mesh="RR_link2"/>
+          <body name="RR_link3" pos="0.135 0 0" quat="0.80084 0 0 0.598879">
+            <inertial pos="0.098135 -0.0046889 0.0071602" quat="0 0.707107 0 0.707107" mass="0.041" diaginertia="0.000115333 0.000115333 0.000115333"/>
+            <joint name="RR_joint3" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="0.00351405 0.00292537 0.99999"/>
+            <geom type="mesh" contype="0" conaffinity="0" rgba="1 1 1 1" mesh="RR_link3"/>
+            <site name="R_P_hole" size="0.001" pos="0.132654 -0.0022378 0.00739071"/>
+            <body name="RR_link4" pos="0.20051 0 0" quat="0.906927 0 0 -0.421288">
+              <inertial pos="0.048484 0.0014867 0.015199" quat="0 0.707107 0 0.707107" mass="0.064" diaginertia="6.4e-05 6.3e-05 1e-06"/>
+              <joint name="RR_joint4" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="3.12463e-05 0.00457224 0.99999"/>
+              <geom type="mesh" contype="0" conaffinity="0" rgba="0.79216 0.81961 0.93333 1" mesh="RR_link4"/>
+              <site name="R_E_hole" size="0.001" pos="0.0972575 7.93258e-05 0.0151999"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="zgantry">
+      <inertial pos="0 0 0" mass="1e-06" diaginertia="1e-09 1e-09 1e-09"/>
+      <joint name="zgantry_slide_z" type="slide"/>
+    </body>
+    <body name="planar_carrier">
+      <inertial pos="0 0 0" mass="1e-06" diaginertia="1e-09 1e-09 1e-09"/>
+      <joint name="planar_slide_y" type="slide" axis="0 1 0"/>
+      <joint name="planar_slide_z" type="slide"/>
+      <joint name="planar_pitch" axis="1 0 0"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <connect name="L_P" site1="L_P_hole" site2="L_P_mate" solref="0.001" solimp="0.95 0.99"/>
+    <connect name="L_E" site1="L_E_hole" site2="L_E_mate" solref="0.001" solimp="0.95 0.99"/>
+    <connect name="R_P" site1="R_P_hole" site2="R_P_mate" solref="0.001" solimp="0.95 0.99"/>
+    <connect name="R_E" site1="R_E_hole" site2="R_E_mate" solref="0.001" solimp="0.95 0.99"/>
+    <weld name="fix_base_z" body1="base_link" body2="zgantry" anchor="0 1 0" active="false"/>
+    <weld name="fix_base_planar" body1="base_link" body2="planar_carrier" anchor="0 1 0" active="false"/>
+    <joint name="lock_zgantry_slide_z" joint1="zgantry_slide_z" active="false"/>
+    <joint name="lock_L_joint1" joint1="L_joint1" active="false"/>
+    <joint name="lock_L_crank" joint1="L_crank" active="false"/>
+    <joint name="lock_L_joint2" joint1="L_joint2" active="false"/>
+    <joint name="lock_LL_joint2" joint1="LL_joint2" active="false"/>
+    <joint name="lock_LL_joint3" joint1="LL_joint3" active="false"/>
+    <joint name="lock_LL_link4" joint1="LL_link4" active="false"/>
+    <joint name="lock_R_joint1" joint1="R_joint1" active="false"/>
+    <joint name="lock_R_crank" joint1="R_crank" active="false"/>
+    <joint name="lock_R_jonit2" joint1="R_jonit2" active="false"/>
+    <joint name="lock_RR_joint2" joint1="RR_joint2" active="false"/>
+    <joint name="lock_RR_joint3" joint1="RR_joint3" active="false"/>
+    <joint name="lock_RR_joint4" joint1="RR_joint4" active="false"/>
+  </equality>
+
+  <actuator>
+    <general name="L_joint1_motor" joint="L_joint1" ctrlrange="-100 100" ctrllimited="true"/>
+    <general name="L_crank_motor" joint="L_crank" ctrlrange="-100 100" ctrllimited="true"/>
+    <general name="L_joint3_motor" joint="L_joint3" ctrlrange="-100 100" ctrllimited="true"/>
+    <general name="R_joint1_motor" joint="R_joint1" ctrlrange="-100 100" ctrllimited="true"/>
+    <general name="R_crank_motor" joint="R_crank" ctrlrange="-100 100" ctrllimited="true"/>
+    <general name="R_joint3_motor" joint="R_joint3" ctrlrange="-100 100" ctrllimited="true"/>
+  </actuator>
+</mujoco>

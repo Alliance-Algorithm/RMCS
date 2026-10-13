@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <numbers>
 
 namespace rmcs_core::wheelleg {
 
@@ -20,12 +21,42 @@ namespace rmcs_core::wheelleg {
 //   * relative crank    c : crank angle measured in the thigh frame,
 //                           ``c = q_crank - q_hip`` (same for both legs).
 //   * the tabulated crank is the native joint angle at ``q_hip = 0``.
+//
+// Mechanical limits and motor zero:
+//   * the knee is mechanically limited to 40..110 deg (interior angle); it
+//     cannot straighten (max 110 deg), by design.
+//   * both coaxial hip motors (thigh and crank) are zeroed at the same pose:
+//     knee interior angle = 110 deg AND thigh perpendicular to the chassis.
+//     The model shows the thigh is perpendicular at ``q_hip = 0``, so the hip
+//     motor zero is ``q_hip = 0`` and the crank motor zero is ``crank(110deg)``.
 class LegLinkage {
 public:
     [[nodiscard]] double knee_min() const { return kBetaGrid.front(); }
     [[nodiscard]] double knee_max() const { return kBetaGrid.back(); }
     [[nodiscard]] double assembly_knee() const { return kAssemblyKnee; }
     [[nodiscard]] double assembly_crank() const { return kAssemblyCrank; }
+
+    // Physical knee limits (interior angle), in radians.
+    static constexpr double kKneeLimitMinDeg = 40.0;
+    static constexpr double kKneeLimitMaxDeg = 110.0;
+    static constexpr double kKneeMotorZeroDeg = 110.0;
+
+    [[nodiscard]] static constexpr double knee_limit_min() {
+        return kKneeLimitMinDeg * std::numbers::pi / 180.0;
+    }
+    [[nodiscard]] static constexpr double knee_limit_max() {
+        return kKneeLimitMaxDeg * std::numbers::pi / 180.0;
+    }
+    [[nodiscard]] static constexpr double knee_motor_zero() {
+        return kKneeMotorZeroDeg * std::numbers::pi / 180.0;
+    }
+
+    // Relative crank at the motor zero (encoder reads 0 here).
+    [[nodiscard]] double crank_motor_zero() const {
+        double crank = 0.0;
+        (void)crank_from_knee(knee_motor_zero(), crank);
+        return crank;
+    }
 
     // Reduced knee -> relative crank. Returns false outside [knee_min, knee_max].
     [[nodiscard]] bool crank_from_knee(double knee, double& crank) const {

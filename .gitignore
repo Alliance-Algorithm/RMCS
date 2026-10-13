@@ -80,7 +80,6 @@ develop_ws
 .mimo/
 CLAUDE.md
 
-/rmcs_ws/src/rmcs_core/models/wheelleg
 /source
 
 # MuJoCo runtime log and colcon install manifest

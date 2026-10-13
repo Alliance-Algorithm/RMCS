@@ -153,6 +153,7 @@ public:
     void update() override {
         apply_control_();
         apply_constraints_();
+        apply_gas_spring_();
 
         // Commissioning disturbance: a forward force impulse on the base.
         if (base_body_id_ >= 0) {
@@ -163,6 +164,7 @@ public:
         }
 
         mj_step(model_, data_);
+        enforce_knee_hard_stop_();
         publish_state_();
         maybe_publish_state_();
 
@@ -337,8 +339,23 @@ private:
         // opposite to the trajectory controller's reduced-hip sense).
         hip_sign_ = node::param_or("hip_sign", -1.0);
         hip_zero_ = node::param_or("hip_zero", std::numbers::pi);
-        knee_zero_l_ = node::param_or("knee_zero_l", 0.784469);
-        knee_zero_r_ = node::param_or("knee_zero_r", 0.784469);
+        // The motors are zeroed at (knee interior angle = 110 deg, thigh
+        // perpendicular to the chassis). The model has the thigh perpendicular
+        // at q_hip = 0, so the hip zero is q_hip = 0 and the crank zero is the
+        // tabulated crank at 110 deg. knee_zero_* keeps the reduced knee zero
+        // (= 110 deg) for the real-hardware port.
+        knee_zero_l_ = node::param_or("knee_zero_l", wheelleg::LegLinkage::knee_motor_zero());
+        knee_zero_r_ = node::param_or("knee_zero_r", wheelleg::LegLinkage::knee_motor_zero());
+
+        // Mechanical knee limits (interior thigh-shank angle). These are hard
+        // limits: the leg is designed not to straighten past 110 deg and not to
+        // fold under 40 deg. Applied to the commanded knee and, optionally, as a
+        // post-step hard stop on the relative crank.
+        knee_limit_min_ = node::param_or(
+            "knee_limit_min", wheelleg::LegLinkage::knee_limit_min());
+        knee_limit_max_ = node::param_or(
+            "knee_limit_max", wheelleg::LegLinkage::knee_limit_max());
+        knee_hard_stop_ = node::param_or("knee_hard_stop", true);
 
         // Sign of the wheel command: target qdot_L3 = -wheel_dir * omega_ref.
         wheel_dir_ = node::param_or("wheel_dir", 1.0);
@@ -365,6 +382,19 @@ private:
         viewer_distance_ = node::param_or("viewer_distance", 2.5);
         viewer_azimuth_ = node::param_or("viewer_azimuth", 90.0);
         viewer_elevation_ = node::param_or("viewer_elevation", -20.0);
+
+        // Gas spring (nitrogen spring) as an external force along the two pin
+        // anchors, see apply_gas_spring_. N(u) = c0 + c2*u^2 + c3*u^3 [N], with
+        // u = full_extension - pin_distance clamped to [0, stroke]. The
+        // gas_spring_sign flips the push direction so it can be confirmed by
+        // running once.
+        gas_spring_enabled_ = node::param_or("gas_spring_enabled", true);
+        gas_spring_sign_ = node::param_or("gas_spring_sign", 1.0);
+        gas_spring_full_extension_ = node::param_or("gas_spring_full_extension", 0.232);
+        gas_spring_stroke_ = node::param_or("gas_spring_stroke", 0.08);
+        gas_spring_c0_ = node::param_or("gas_spring_c0", 280.0);
+        gas_spring_c2_ = node::param_or("gas_spring_c2", 122.7359);
+        gas_spring_c3_ = node::param_or("gas_spring_c3", 53.9698);
 
         if (dt_ <= 0.0)
             throw std::runtime_error{"wheelleg_simulation: dt must be positive"};
@@ -581,6 +611,12 @@ private:
         r_wheel_body_id_ = mj_name2id(model_, mjOBJ_BODY, "R_link3");
         l_wheel_geom_id_ = mj_name2id(model_, mjOBJ_GEOM, "L_link3_collision");
         r_wheel_geom_id_ = mj_name2id(model_, mjOBJ_GEOM, "R_link3_collision");
+        // Gas-spring anchors live on the thigh and shank meshes (see
+        // apply_gas_spring_).
+        l_thigh_body_id_ = mj_name2id(model_, mjOBJ_BODY, "L_link1");
+        l_shank_body_id_ = mj_name2id(model_, mjOBJ_BODY, "L_link2");
+        r_thigh_body_id_ = mj_name2id(model_, mjOBJ_BODY, "R_link1");
+        r_shank_body_id_ = mj_name2id(model_, mjOBJ_BODY, "R_link2");
         if (base_free_joint_id_ < 0 || base_body_id_ < 0)
             throw std::runtime_error{
                 "wheelleg_simulation: model must expose a base_free joint on base_link"};
@@ -601,6 +637,19 @@ private:
         // crank is c = q_crank - q_hip (see leg_transmission.hpp).
         linkage_l_ = std::make_unique<wheelleg::LegLinkage>();
         linkage_r_ = std::make_unique<wheelleg::LegLinkage>();
+
+        // Relative-crank bounds for the mechanical knee limits, and the crank
+        // motor zero (encoder reads 0 there). Used by the command clamp and the
+        // optional post-step hard stop.
+        (void)linkage_l_->crank_from_knee(knee_limit_min_, crank_limit_min_);
+        (void)linkage_l_->crank_from_knee(knee_limit_max_, crank_limit_max_);
+        crank_motor_zero_ = linkage_l_->crank_motor_zero();
+        info(
+            "knee limits: {:.1f}..{:.1f} deg -> crank c {:.4f}..{:.4f} rad; "
+            "motor zero (knee {:.0f} deg): hip q={:.4f}, crank c={:.4f}",
+            knee_limit_min_ * 180.0 / std::numbers::pi,
+            knee_limit_max_ * 180.0 / std::numbers::pi, crank_limit_min_, crank_limit_max_,
+            wheelleg::LegLinkage::kKneeMotorZeroDeg, hip_motor_zero_, crank_motor_zero_);
     }
 
     void initialize_pose_() {
@@ -839,7 +888,7 @@ private:
                                 double assembly_crank, std::size_t thigh_joint) -> double {
             const double knee_rel = knee_rel_sign_ * command.knee_angle + offset;
             const double clamped =
-                std::clamp(knee_rel, linkage.knee_min(), linkage.knee_max());
+                std::clamp(knee_rel, knee_limit_min_, knee_limit_max_);
             double crank = 0.0;
             if (!linkage.crank_from_knee(clamped, crank))
                 return kNaN;
@@ -975,6 +1024,128 @@ private:
 
     void set_torque_(std::size_t index, double torque, double limit) {
         data_->ctrl[actuator_ids_[index]] = std::clamp(torque, -limit, limit);
+    }
+
+    // Mechanical knee hard stop: the relative crank c = q_crank - q_hip must
+    // stay within [crank(40deg), crank(110deg)]. Enforced after the step as a
+    // position/velocity projection, standing in for the physical stop; the
+    // commanded target is clamped separately in crank_target.
+    void enforce_knee_hard_stop_() {
+        if (!knee_hard_stop_ || model_ == nullptr || data_ == nullptr)
+            return;
+        const std::array<std::size_t, 2> hips{kLJoint1, kRJoint1};
+        const std::array<std::size_t, 2> cranks{kLCrank, kRCrank};
+        bool clamped = false;
+        for (int i = 0; i < 2; ++i) {
+            const int hip_joint = joint_ids_[hips[i]];
+            const int crank_joint = joint_ids_[cranks[i]];
+            const int hip_q = model_->jnt_qposadr[hip_joint];
+            const int crank_q = model_->jnt_qposadr[crank_joint];
+            const int hip_d = model_->jnt_dofadr[hip_joint];
+            const int crank_d = model_->jnt_dofadr[crank_joint];
+            const double q_hip = data_->qpos[hip_q];
+            const double c = data_->qpos[crank_q] - q_hip;
+            if (c < crank_limit_min_ || c > crank_limit_max_) {
+                data_->qpos[crank_q] = std::clamp(c, crank_limit_min_, crank_limit_max_) + q_hip;
+                const double d_c = data_->qvel[crank_d] - data_->qvel[hip_d];
+                const bool moving_out =
+                    (c > crank_limit_max_ && d_c > 0.0) || (c < crank_limit_min_ && d_c < 0.0);
+                if (moving_out)
+                    data_->qvel[crank_d] -= d_c;
+                clamped = true;
+            }
+        }
+        if (clamped)
+            mj_forward(model_, data_);
+    }
+
+    // Transform a point given in a body's local frame to world coordinates.
+    // MuJoCo stores xmat row-major with the body axes as its columns, so
+    // world = R @ local with R[i][k] = xmat[3*i + k].
+    void body_local_to_world_(int body, const double* local, double* world) const {
+        const double* rotation = data_->xmat + 9 * body;
+        for (int i = 0; i < 3; ++i)
+            world[i] = data_->xpos[3 * body + i] + rotation[3 * i] * local[0]
+                     + rotation[3 * i + 1] * local[1] + rotation[3 * i + 2] * local[2];
+    }
+
+    // Write a force acting at a world point into xfrc_applied as a wrench about
+    // the body CoM (xfrc_applied is applied at xipos).
+    void apply_point_force_(int body, const double* point, const double* force) const {
+        const double* com = data_->xipos + 3 * body;
+        const double rx = point[0] - com[0];
+        const double ry = point[1] - com[1];
+        const double rz = point[2] - com[2];
+        double* wrench = data_->xfrc_applied + 6 * body;
+        wrench[0] = force[0];
+        wrench[1] = force[1];
+        wrench[2] = force[2];
+        wrench[3] = ry * force[2] - rz * force[1];
+        wrench[4] = rz * force[0] - rx * force[2];
+        wrench[5] = rx * force[1] - ry * force[0];
+    }
+
+    // Gas spring (nitrogen spring) as an external force along the two pin
+    // anchors. The SolidWorks rigid links are not modelled (they would
+    // over-constrain the six-bar), so the spring is applied here as a pure
+    // force: the pins are pushed apart with the measured characteristic
+    //   N(u) = c0 + c2*u^2 + c3*u^3 [N],  u = full_extension - pin_distance,
+    // clamped to the stroke. The anchors are the V5 URDF joint origins on the
+    // thigh (L_link1/R_link1) and shank (L_link2/R_link2); gas_spring_sign flips
+    // the direction so it can be confirmed by a single run.
+    void apply_gas_spring_() {
+        if (!gas_spring_enabled_ || model_ == nullptr || data_ == nullptr)
+            return;
+
+        const std::array<int, 2> thigh_body{l_thigh_body_id_, r_thigh_body_id_};
+        const std::array<int, 2> shank_body{l_shank_body_id_, r_shank_body_id_};
+        const std::array<std::array<double, 3>, 2> thigh_anchor{{
+            {0.01559, -0.048559, -0.002}, {0.01559, -0.048559, 0.002}}};
+        const std::array<std::array<double, 3>, 2> shank_anchor{{
+            {0.050754, 0.005, -0.002}, {0.050754, 0.005, 0.002}}};
+
+        for (int i = 0; i < 2; ++i) {
+            const int tb = thigh_body[i];
+            const int sb = shank_body[i];
+            if (tb < 0 || sb < 0)
+                continue;
+
+            double p_thigh[3];
+            double p_shank[3];
+            body_local_to_world_(tb, thigh_anchor[i].data(), p_thigh);
+            body_local_to_world_(sb, shank_anchor[i].data(), p_shank);
+
+            const double dx = p_shank[0] - p_thigh[0];
+            const double dy = p_shank[1] - p_thigh[1];
+            const double dz = p_shank[2] - p_thigh[2];
+            const double length = std::sqrt(dx * dx + dy * dy + dz * dz);
+            if (length < 1e-9)
+                continue;
+
+            const double u =
+                std::clamp(gas_spring_full_extension_ - length, 0.0, gas_spring_stroke_);
+            const double force =
+                gas_spring_c0_ + gas_spring_c2_ * u * u + gas_spring_c3_ * u * u * u;
+            const double scale = gas_spring_sign_ * force / length;
+            const double f[3] = {scale * dx, scale * dy, scale * dz};
+            const double nf[3] = {-f[0], -f[1], -f[2]};
+
+            // Apply each force at its anchor, expressed as a wrench at the
+            // body CoM (xfrc_applied acts at xipos).
+            apply_point_force_(sb, p_shank, f);
+            apply_point_force_(tb, p_thigh, nf);
+
+            if (i == 0) {
+                gas_spring_length_ = length;
+                gas_spring_force_ = force;
+                gas_spring_compression_ = u;
+            }
+        }
+        if (step_count_ % 500 == 0)
+            info(
+                "gas spring L: pin_len={:.4f} u={:.4f} F={:.1f} N (sign={:+.0f})",
+                gas_spring_length_, gas_spring_compression_, gas_spring_force_,
+                gas_spring_sign_);
     }
 
     // World-frame vehicle CoM from the body inertials (exact, both legs).
@@ -1340,6 +1511,10 @@ private:
     int r_wheel_body_id_ = -1;
     int l_wheel_geom_id_ = -1;
     int r_wheel_geom_id_ = -1;
+    int l_thigh_body_id_ = -1;
+    int l_shank_body_id_ = -1;
+    int r_thigh_body_id_ = -1;
+    int r_shank_body_id_ = -1;
     int base_dof_adr_ = -1;
     int base_qpos_adr_ = -1;
     std::array<int, 12> leg_lock_ids_{};
@@ -1379,6 +1554,16 @@ private:
     double disturbance_duration_ = 0.0;
     bool gravity_feedforward_ = true;
     bool gravity_ff_analytic_ = true;
+    bool gas_spring_enabled_ = true;
+    double gas_spring_sign_ = 1.0;
+    double gas_spring_full_extension_ = 0.232;
+    double gas_spring_stroke_ = 0.08;
+    double gas_spring_c0_ = 280.0;
+    double gas_spring_c2_ = 122.7359;
+    double gas_spring_c3_ = 53.9698;
+    double gas_spring_length_ = 0.0;
+    double gas_spring_compression_ = 0.0;
+    double gas_spring_force_ = 0.0;
     double total_mass_ = 13.702;
     double gravity_ = 9.81;
     double dbg_hip_torque_ = 0.0;
@@ -1406,8 +1591,15 @@ private:
 
     double hip_sign_ = -1.0;
     double hip_zero_ = std::numbers::pi;
-    double knee_zero_l_ = 0.784469;
-    double knee_zero_r_ = 0.784469;
+    double knee_zero_l_ = 1.9198621771937625;
+    double knee_zero_r_ = 1.9198621771937625;
+    double knee_limit_min_ = 0.6981317007977318;
+    double knee_limit_max_ = 1.9198621771937625;
+    bool knee_hard_stop_ = true;
+    double crank_limit_min_ = 0.0;
+    double crank_limit_max_ = 0.0;
+    double hip_motor_zero_ = 0.0;
+    double crank_motor_zero_ = 0.0;
     double thigh_length_ = 0.21;
     double shank_length_ = 0.25005;
     double wheel_dir_ = 1.0;

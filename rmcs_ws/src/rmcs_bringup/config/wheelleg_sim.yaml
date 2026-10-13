@@ -22,7 +22,11 @@ wheelleg_sim:
     crank_kd: 2.0
     wheel_kp: 20.0
     gravity_feedforward: true
-    joint_damping: 0.1
+    # Leg joint viscous damping. 0.1 leaves a sustained leg limit cycle (hip/crank
+    # ~2-3 deg plus a high-freq buzz); 0.3 fully damps it with no change to the
+    # equilibrium. Real gas-spring seals/bearings add friction, so the higher
+    # value is also more physical.
+    joint_damping: 0.3
     hip_armature: 0.005
     constraint_timeconst: 0.002
     constraint_dampratio: 1.0
@@ -34,8 +38,13 @@ wheelleg_sim:
     shank_length: 0.25005
     hip_sign: -1.0
     hip_zero: 3.14159265358979
-    knee_zero_l: 0.784469
-    knee_zero_r: 0.784469
+    # Motor zero: knee interior angle 110 deg, thigh perpendicular to chassis.
+    knee_zero_l: 1.9198621771937625
+    knee_zero_r: 1.9198621771937625
+    # Mechanical knee limits (interior thigh-shank angle), hard: 40..110 deg.
+    knee_limit_min: 0.6981317007977318
+    knee_limit_max: 1.9198621771937625
+    knee_hard_stop: true
     wheel_dir: 1.0
     state_pitch_sign: 1.0
     state_shank_sign: 1.0
@@ -52,6 +61,18 @@ wheelleg_sim:
     state_topic: /wheelleg/simulation/state
     lock_leg: false
     gravity_ff_analytic: false
+    # Nitrogen gas spring (BKB0.45-080-205, 10 MPa): modelled as a force along
+    # the two pin anchors (thigh/shank). N(u) = c0 + c2*u^2 + c3*u^3 [N], u is
+    # the compression u = full_extension - pin_distance, clamped to [0, stroke].
+    # gas_spring_sign flips the push direction; run once and check whether the
+    # robot is pushed up (leg extends) or down, then set the sign.
+    gas_spring_enabled: true
+    gas_spring_sign: 1.0
+    gas_spring_full_extension: 0.232
+    gas_spring_stroke: 0.08
+    gas_spring_c0: 280.0
+    gas_spring_c2: 122.7359
+    gas_spring_c3: 53.9698
     disturbance_force: 0.0
     disturbance_start: 3.0
     disturbance_duration: 0.2
@@ -62,7 +83,8 @@ wheelleg_motion_planner:
     dt: 0.001
     # twist (default): follow /wheelleg/move/velocity + /wheelleg/move/yaw_rate
     # square / patrol: commissioning test behaviours (below)
-    behavior: stadium
+    # twist with no /wheelleg/move/* publisher = idle, the robot just stands.
+    behavior: twist
     max_velocity: 5.0
     max_yaw_rate: 12.0
     channel_kp: 10.0
@@ -128,6 +150,10 @@ wheelleg_trajectory_controller:
     shank_com_offset: 0.15344
     body_com_offset: 0.00918
     knee_branch_sign: -1.0
+    # Hard knee limits in the controller's signed convention (beta = -interior):
+    # interior 40..110 deg => beta -110..-40 deg.
+    knee_angle_min: -1.9198621771937625
+    knee_angle_max: -0.6981317007977318
     d_max: 100.0
     gravity: 9.81
     leg_motion_coupling: 0.0
