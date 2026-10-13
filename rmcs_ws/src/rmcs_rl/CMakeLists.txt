@@ -56,6 +56,8 @@ install(FILES ${POLICY_MODELS} DESTINATION share/${PROJECT_NAME}/models/wheel_le
 install(FILES
   models/wheel_leg/deployment/v6_recovery_profiles_v1.json
   models/wheel_leg/deployment/v6_height_lookup_v1.json
+  models/wheel_leg/deployment/v7_recovery_profiles_107_v2.json
+  models/wheel_leg/deployment/v7_height_lookup_107.json
   DESTINATION share/${PROJECT_NAME}/models/wheel_leg/deployment)
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
