@@ -29,6 +29,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::DeformableOmniWheelController -> deformable_chassis_controller
 
       - rmcs_core::controller::chassis::DeformablePostureTrajectory -> deformable_posture_trajectory
+      - rmcs_core::controller::chassis::DeformableSuspensionGuard -> deformable_suspension_guard
       - rmcs_core::controller::chassis::DeformableRlSuspension -> deformable_rl_suspension
       - rmcs_core::controller::chassis::DeformableSuspensionArbiter -> deformable_suspension_arbiter
 
@@ -133,6 +134,17 @@ deformable_posture_trajectory:
     target_physical_velocity_limit: 180.0
     target_physical_acceleration_limit: 720.0
 
+deformable_suspension_guard:
+  ros__parameters:
+    flat_enter_angle_deg: 3.0
+    flat_exit_angle_deg: 3.5
+    support_plane_tolerance_m: 0.006
+    flat_confirmation_s: 0.1
+    attitude_time_constant_s: 0.25
+    acceleration_time_constant_s: 0.05
+    acceleration_fusion_scale: 0.5
+    max_imu_age_s: 0.02
+
 # RL 主动悬挂旁路：只在 active && valid && healthy 时写 rl_target_*，否则 NaN。
 deformable_rl_suspension:
   ros__parameters:
@@ -160,8 +172,10 @@ deformable_suspension_arbiter:
 rl_bridge:
   ros__parameters:
     rl_base: "/chassis/rl"
-    policy_rate: 100.0                     # = 训练控制频率（sim dt 1/200 × decimation 2）
-    max_action_age: 0.02                   # 缺省 = 2 / policy_rate
+    policy_rate: 200.0                     # 每 5 ms 推理
+    history_rate: 100.0                    # 保留训练的 10 ms 历史帧间隔
+    max_action_age: 0.01                   # 最多两个推理周期
+    flat_hold_interface: "/chassis/rl/flat_hold"
 
     rl_obs_size: 256                       # 8 × 32，最旧帧在前
     history_length: 8
@@ -185,7 +199,7 @@ rl_bridge:
       - index=2 path=/chassis/control_velocity take=y name=drive_command_b_y clip=-10:10
       - index=3 path=/chassis/control_velocity take=z scale=0.25 name=drive_command_b_yaw clip=-10:10
       - index=4 path=/chassis/rl/gyro_b take=vec3 scale=0.5 name=gyro_b clip=-10:10
-      - index=7 path=/chassis/imu/quaternion transform=projected_gravity name=projected_gravity_b clip=-10:10
+      - index=7 path=/chassis/rl/compensated_gravity_b take=vec3 name=projected_gravity_b clip=-10:10
       - index=10 type=joint_pos joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint name=leg_urdf_q_rf_lf_lb_rb clip=-10:10
       - index=14 type=joint_vel joints=right_front_joint,left_front_joint,left_back_joint,right_back_joint scale=0.1 name=leg_urdf_qd_rf_lf_lb_rb clip=-10:10
       - index=18 path=/chassis/right_front_joint/feedback_current_raw scale=0.00048828125 name=feedback_current_raw_rf clip=-10:10
