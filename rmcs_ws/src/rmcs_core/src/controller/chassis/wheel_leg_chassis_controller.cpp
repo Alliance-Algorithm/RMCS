@@ -47,6 +47,10 @@ public:
 
         const bool both_down = switch_left == Switch::DOWN && switch_right == Switch::DOWN;
         const bool any_unknown = switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
+        if (any_unknown && arm_sequence_.armed())
+            RCLCPP_WARN(
+                get_logger(), "Armed chassis disarmed: DR16 fresh=%d, switches=[%d,%d]",
+                *remote_fresh_, static_cast<int>(switch_left), static_cast<int>(switch_right));
 
         // Power-on hold: stay at kInit(0) until the operator first moves a switch.
         if (!switch_activity_seen_

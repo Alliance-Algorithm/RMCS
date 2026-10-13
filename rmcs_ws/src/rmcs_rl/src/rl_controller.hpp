@@ -15,6 +15,7 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <string>
 
 #include <eigen3/Eigen/Dense>
@@ -62,7 +63,12 @@ private:
     };
 
     void enter_(State next);
-    void latch_fault_(std::optional<RecoveryFailure> reason = std::nullopt);
+    void latch_fault_(
+        std::optional<RecoveryFailure> reason = std::nullopt,
+        std::source_location location = std::source_location::current());
+    void log_fault_(
+        std::optional<RecoveryFailure> reason,
+        std::source_location location = std::source_location::current()) const;
     bool advance_recovery_();
     bool advance_joint_reference_recovery_();
     JointReferenceRecoveryFeedback joint_reference_recovery_feedback_() const;
