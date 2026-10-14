@@ -36,11 +36,13 @@
         <joint name="L_joint1" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-3.67321e-06 0.00460366 0.999989"/>
         <geom type="mesh" contype="2" rgba="1 1 1 1" mesh="L_link1"/>
         <site name="L_P_mate" size="0.001" pos="0.10517 0.00501432 0.00420345"/>
+        <site name="L_spring_a" size="0.001" pos="0.01559 -0.048559 -0.002"/>
         <body name="L_link2" pos="0.21 0 0" quat="0.382173 0 0 -0.924091">
           <inertial pos="0.15963 8.3417e-05 0.011927" quat="0.0238133 0.720919 0.0120134 0.692506" mass="0.45" diaginertia="0.00496777 0.00490132 0.000157915"/>
           <joint name="L_joint2" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00324908 -0.00326147 0.999989"/>
           <geom type="mesh" contype="2" rgba="0.79216 0.81961 0.93333 1" mesh="L_link2"/>
           <site name="L_E_mate" size="0.001" pos="-0.0652939 -0.0166886 -0.00399324"/>
+          <site name="L_spring_b" size="0.001" pos="0.050754 0.005 -0.002"/>
           <body name="L_link3" pos="0.25 0 0.015" quat="0.707105 0 0 -0.707108">
             <inertial pos="0 0 0.020472" quat="0.5 0.5 -0.5 0.5" mass="0.2" diaginertia="0.000575 0.000296 0.000296"/>
             <joint name="L_joint3" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="0.00326148 -0.00324906 0.999989" limited="false"/>
@@ -54,11 +56,13 @@
         <joint name="R_joint1" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-3.67321e-06 0.00460366 0.999989"/>
         <geom type="mesh" contype="2" rgba="1 1 1 1" mesh="R_link1"/>
         <site name="R_P_mate" size="0.001" pos="0.105113 0.00456473 -0.00380588"/>
+        <site name="R_spring_a" size="0.001" pos="0.01559 -0.048559 0.002"/>
         <body name="R_link2" pos="0.21 0 0" quat="0.382173 0 0 -0.924091">
           <inertial pos="0.15963 8.3412e-05 -0.011927" quat="-0.0120134 0.692506 -0.0238133 0.720919" mass="0.45" diaginertia="0.00496777 0.00490132 0.000157915"/>
           <joint name="R_jonit2" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="-0.00324908 -0.00326147 0.999989"/>
           <geom type="mesh" contype="2" rgba="0.79216 0.81961 0.93333 1" mesh="R_link2"/>
           <site name="R_E_mate" size="0.001" pos="-0.0652931 -0.0166892 0.00400653"/>
+          <site name="R_spring_b" size="0.001" pos="0.050754 0.005 0.002"/>
           <body name="R_link3" pos="0.25 0 -0.015" quat="-3.67321e-06 0 0 -1">
             <inertial pos="0 0 -0.020472" quat="0.5 0.5 -0.5 0.5" mass="0.2" diaginertia="0.000575 0.000296 0.000296"/>
             <joint name="R_joint3" range="-3.14 3.14" actuatorfrcrange="-100 100" axis="0.00324905 0.00326149 0.999989" limited="false"/>
@@ -145,6 +149,22 @@
     <joint name="lock_RR_joint3" joint1="RR_joint3" active="false"/>
     <joint name="lock_RR_joint4" joint1="RR_joint4" active="false"/>
   </equality>
+
+  <!-- Gas-spring stroke hard limit: the pin-to-pin distance is bounded by the
+       spring's mechanical range [full_extension - stroke, full_extension] =
+       [0.152, 0.232] m. The spring FORCE is applied by the simulation bridge;
+       this tendon only enforces the end-stop so the leg cannot extend past the
+       spring (or compress it past bottom-out). -->
+  <tendon>
+    <spatial name="L_spring" width="0.001" limited="true" range="0.152 0.232" solreflimit="0.001 1" solimplimit="0.95 0.99 0.001">
+      <site site="L_spring_a"/>
+      <site site="L_spring_b"/>
+    </spatial>
+    <spatial name="R_spring" width="0.001" limited="true" range="0.152 0.232" solreflimit="0.001 1" solimplimit="0.95 0.99 0.001">
+      <site site="R_spring_a"/>
+      <site site="R_spring_b"/>
+    </spatial>
+  </tendon>
 
   <actuator>
     <general name="L_joint1_motor" joint="L_joint1" ctrlrange="-100 100" ctrllimited="true"/>

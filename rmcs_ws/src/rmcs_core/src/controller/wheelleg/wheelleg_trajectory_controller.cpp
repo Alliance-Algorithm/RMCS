@@ -44,14 +44,28 @@ public:
         // Body-frame forward speed/distance for the posture-based outer loop.
         register_input("/wheelleg/state/velocity", state_velocity_);
         register_input("/wheelleg/state/distance", state_distance_);
+        // Second leg DOF (leg orientation): the shank angle phi. When a producer
+        // publishes it, the pose is taken from solve_pose_(L0, phi) instead of
+        // the single-DOF "CoM over axle" solve (see update()).
+        register_input("/wheelleg/task/shank", shank_command_, false);
+        // Recovery leg length (second height source), blended by alpha_r.
+        register_input("/wheelleg/task/leg_length", leg_length_recovery_, false);
         // Yaw-rate command, for the turning posture gate.
         register_input("/wheelleg/command/yaw_rate", yaw_rate_command_, false);
+        // Task layer (step 2): alpha_r blend (1 = balance, 0 = recovery) set by
+        // the recovery source, and the wheel-contact gate.
+        register_input("/wheelleg/task/recovery", recovery_command_, false);
+        register_input("/wheelleg/state/contact_normal_l", contact_normal_l_, false);
+        register_input("/wheelleg/state/contact_normal_r", contact_normal_r_, false);
 
         register_output("/wheelleg/reference/wheel_velocity", reference_wheel_velocity_, kNaN);
         register_output("/wheelleg/reference/pitch", reference_pitch_, kNaN);
         register_output("/wheelleg/reference/shank_angle", reference_shank_angle_, kNaN);
         register_output("/wheelleg/reference/knee_angle", reference_knee_angle_, kNaN);
         register_output("/wheelleg/reference/hip_angle", reference_hip_angle_, kNaN);
+        // Wheel-balance enable: false while recovering (alpha_r = 0) so the
+        // balance ADRC does not drive/park the wheels before they are loaded.
+        register_output("/wheelleg/balance/enable", balance_enable_, true);
     }
 
     void update() override {
@@ -140,39 +154,93 @@ public:
         leg_length_command =
             std::clamp(base_leg_length - leg_motion_coupling_ * velocity_command, 0.22, 0.45);
 
-        auto target = solve_target_(velocity_command, leg_length_command);
+        // ---- Task layer (step 2) ---------------------------------------------
+        // The leg has two DOF: length L0 (the height task, above) and orientation
+        // (the shank angle phi). The orientation is produced by blending two
+        // tasks:
+        //   * balance  : phi from the static "CoM over the axle" solve, i.e.
+        //                d -> d_ref = a*h/g; only meaningful while the wheels
+        //                carry the body (they are the only pitch authority);
+        //   * recovery : an externally supplied leg pose (/wheelleg/task/shank),
+        //                used while the ground/chassis carries the body and the
+        //                wheels have no authority.
+        // `/wheelleg/task/recovery` is the blend factor alpha_r (1 = balance,
+        // 0 = recovery); it is driven by the recovery source or a hand command.
+        const double rec = (recovery_command_.ready() && std::isfinite(*recovery_command_))
+                             ? std::clamp(*recovery_command_, 0.0, 1.0)
+                             : 1.0;
+        // Height task: blend the planner's leg length with the recovery leg
+        // length by alpha_r, so the recovery source drives L0 during get-up too.
+        const double recovery_length =
+            (leg_length_recovery_.ready() && std::isfinite(*leg_length_recovery_))
+                ? *leg_length_recovery_ : leg_length_command;
+        leg_length_command = std::clamp(
+            rec * leg_length_command + (1.0 - rec) * recovery_length, 0.22, 0.45);
 
-        // Posture (gait): d_ref = a*h/g realised as an *equivalent-leg
-        // inclination* offset (leaning the whole leg), which moves the CoM
-        // offset d efficiently without crouching the leg. The map d -> leg angle
-        // is accel_theta_ff_ (rad per m); a small leg-length term is kept for
-        // extra offset authority.
+        const Target balance_target = solve_target_(velocity_command, leg_length_command);
+        const double recovery_shank =
+            (shank_command_.ready() && std::isfinite(*shank_command_)) ? *shank_command_
+                                                                       : balance_target.shank;
+        const double shank_target = rec * balance_target.shank + (1.0 - rec) * recovery_shank;
+        // Remember the blend and the measured pitch for the pitch-reference gate
+        // in publish_reference_ (hold the measured pitch during recovery so the
+        // balance ring does not fight while the wheels have no authority).
+        recovery_blend_ = rec;
+        last_pitch_ = state.pitch;
+
+        // 2-DOF pose: length from the height task, orientation from the fused
+        // orientation task (this is where solve_pose_ replaces the single-DOF
+        // solve with a genuinely 2-DOF map).
+        Target target = solve_pose_(velocity_command, leg_length_command, shank_target);
+
+        // Posture (gait): d_ref = a*h/g realised as an equivalent-leg
+        // inclination offset (leaning the whole leg), which moves the CoM offset
+        // d efficiently without crouching. Faded out by alpha_r so the
+        // acceleration posture does not fight a recovery pose. The gait is
+        // measured relative to the balance target, then added on top of the
+        // fused pose.
         gait_dknee_ = 0.0;
         gait_dshank_ = 0.0;
         gait_dhip_ = 0.0;
         {
             const double d_ref = a_cmd * com_height_ / gravity_;
             const double d_err = d_ref - state.com_offset;
-            gait_dhip_ = posture_gate * (accel_theta_ff_ * d_ref + accel_kv_ * d_err);
+            gait_dhip_ = rec * posture_gate * (accel_theta_ff_ * d_ref + accel_kv_ * d_err);
             const double gait_dl =
-                posture_gate * (accel_leg_ff_ * d_ref + accel_d_kp_ * d_err);
+                rec * posture_gate * (accel_leg_ff_ * d_ref + accel_d_kp_ * d_err);
             const auto gait_target = solve_target_(
                 velocity_command, std::clamp(leg_length_command + gait_dl, 0.22, 0.45));
-            if (std::isfinite(gait_target.beta) && std::isfinite(target.beta)
-                && std::isfinite(gait_target.shank) && std::isfinite(target.shank)) {
-                gait_dknee_ = gait_target.beta - target.beta;
-                gait_dshank_ = gait_target.shank - target.shank;
+            if (std::isfinite(gait_target.beta) && std::isfinite(balance_target.beta)
+                && std::isfinite(gait_target.shank) && std::isfinite(balance_target.shank)) {
+                gait_dknee_ = gait_target.beta - balance_target.beta;
+                gait_dshank_ = gait_target.shank - balance_target.shank;
             }
         }
+        // (the gait offsets are added in publish_reference_, as before, so they
+        // are not folded into `target` here.)
 
-        // Static-stability guard: while the CoM offset d exceeds d_max, hold the
-        // leg length at its current value and freeze the plan restart, so the
-        // height channel does not keep feeding the CoM drift.
-        const bool guard = std::abs(state.com_offset) > d_max_;
+        // Extended gating: the static-stability guard applies only in the balance
+        // regime (alpha_r = 1) AND while the wheels carry the body. During
+        // recovery, or while the wheels are unloaded, the guard is off so the leg
+        // is free to move (a fallen start has a large CoM offset and would
+        // otherwise freeze the plan immediately). If no contact source is wired,
+        // treat the wheels as loaded so the previous behaviour is preserved.
+        const bool contact_available =
+            contact_normal_l_.ready() || contact_normal_r_.ready();
+        const bool supported = !contact_available || state.contact_l > contact_normal_eps_
+                            || state.contact_r > contact_normal_eps_;
+        const bool guard = rec >= 1.0 && supported && std::abs(state.com_offset) > d_max_;
         if (guard) {
             target.leg_length = state.leg_length;
             target.feasible = false;
         }
+
+        // Balance ADRC enable: ON when the wheels carry the body AND the robot is
+        // near upright (the balanceable regime) -- this includes the standing hold.
+        // OFF while the wheels are airborne / the body is tumbling (the get-up),
+        // where the balance has no authority and its ESO would just spin the
+        // wheels.
+        *balance_enable_ = supported && std::abs(state.pitch) < balance_enable_tilt_;
 
         // Restart the joint plan only when the commanded *equilibrium* changes
         // (leg length). The joint targets (beta/shank/hip) do not depend on the
@@ -196,6 +264,12 @@ public:
         }
 
         publish_reference_(target);
+
+        // Debug: first few ticks show the task blend and the pitch setpoint.
+        if (dbg_task_count_++ < 10)
+            info(
+                "task rec={:.3f} L0cmd={:.3f} shank={:.3f} blend={:.3f} pitch_ref={:.4f}",
+                rec, leg_length_command, shank_target, recovery_blend_, *reference_pitch_);
     }
 
 private:
@@ -209,6 +283,9 @@ private:
         double pitch_velocity = kNaN;
         double com_offset = kNaN;
         double leg_length = kNaN;
+        // Wheel-ground normal force per wheel (contact gate); 0 when absent.
+        double contact_l = 0.0;
+        double contact_r = 0.0;
     };
 
     struct Target {
@@ -306,6 +383,9 @@ private:
         accel_theta_ff_ = node::param_or("accel_theta_ff", 3.85);
         accel_kv_ = node::param_or("accel_kv", 1.0);
         d_max_ = node::param_or("d_max", 0.03);
+        // Wheel normal force above which the wheel is treated as loaded (contact
+        // gate for the static-stability guard / balance regime).
+        contact_normal_eps_ = node::param_or("contact_normal_eps", 1.0);
         gravity_ = node::param_or("gravity", 9.81);
     }
 
@@ -319,6 +399,12 @@ private:
         state.pitch_velocity = *state_pitch_velocity_;
         state.com_offset = *state_com_offset_;
         state.leg_length = *state_leg_length_;
+        state.contact_l =
+            (contact_normal_l_.ready() && std::isfinite(*contact_normal_l_)) ? *contact_normal_l_
+                                                                             : 0.0;
+        state.contact_r =
+            (contact_normal_r_.ready() && std::isfinite(*contact_normal_r_)) ? *contact_normal_r_
+                                                                             : 0.0;
 
         return std::isfinite(state.wheel_velocity) && std::isfinite(state.shank)
             && std::isfinite(state.shank_velocity) && std::isfinite(state.knee)
@@ -383,6 +469,55 @@ private:
         return target;
     }
 
+    // Step 1 of the solver extension: a 2-DOF pose map.
+    //
+    // The single-DOF solve above fixes the leg ORIENTATION by the hard
+    // "CoM over the wheel axle" condition. That is only one point of the leg's
+    // two-dimensional configuration space (执行路线1 §1: the independent leg
+    // parameters are the length L0 and the hip-wheel line angle alpha_L), and it
+    // is only meaningful while the wheels carry the body.
+    //
+    // This variant takes the second DOF (the shank angle phi, which sets the leg
+    // orientation for a given L0) as an INDEPENDENT input, so any pose in the
+    // leg's travel is reachable. Conventions match solve_target_ exactly (beta
+    // from L0, same branch sign, same hip = pi - beta - phi), so phi = balance
+    // shank reproduces the current behaviour and L0 sweeping the reach covers the
+    // whole workspace.
+    [[nodiscard]] Target
+        solve_pose_(double velocity_command, double leg_length, double shank) const {
+        Target target;
+
+        const double reach_min = std::abs(thigh_length_ - shank_length_);
+        const double reach_max = thigh_length_ + shank_length_;
+        const bool reachable = leg_length >= reach_min && leg_length <= reach_max;
+        leg_length = std::clamp(leg_length, reach_min, reach_max);
+
+        const double cos_beta = std::clamp(
+            (thigh_length_ * thigh_length_ + shank_length_ * shank_length_
+             - leg_length * leg_length)
+                / (2.0 * thigh_length_ * shank_length_),
+            -1.0, 1.0);
+        double beta = knee_branch_sign_ * std::acos(cos_beta);
+        const bool within_limits = beta >= knee_angle_min_ && beta <= knee_angle_max_;
+        if (!within_limits) {
+            beta = std::clamp(beta, knee_angle_min_, knee_angle_max_);
+            leg_length = std::sqrt(
+                thigh_length_ * thigh_length_ + shank_length_ * shank_length_
+                - 2.0 * thigh_length_ * shank_length_ * std::cos(beta));
+        }
+        const bool nonsingular = std::abs(std::sin(beta)) > singularity_epsilon_;
+
+        target.leg_length = leg_length;
+        target.beta = beta;
+        target.shank = shank;
+        // 执行路线1 §1: alpha = pi - theta - beta - phi; the pitch (theta) is set
+        // by the plan/publish stage, so the pose here is the theta = 0 reference.
+        target.hip = std::numbers::pi - beta - shank;
+        target.wheel_velocity = velocity_command / wheel_radius_;
+        target.feasible = reachable && within_limits && nonsingular;
+        return target;
+    }
+
     void start_plan_(const State& state, const Target& target) {
         pitch_plan_.reset(state.pitch, state.pitch_velocity, 0.0, 0.0, transition_time_pitch_);
         shank_plan_.reset(
@@ -392,11 +527,25 @@ private:
 
     void publish_reference_(const Target& target) {
         const double pitch_reference = pitch_plan_.value(elapsed_);
-        const double shank_reference = shank_plan_.value(elapsed_);
-        const double shank_rate = shank_plan_.derivative(elapsed_);
-        const double knee_reference = knee_plan_.value(elapsed_);
-        const double knee_rate = knee_plan_.derivative(elapsed_);
         const double velocity_reference = std::isfinite(velocity_ref_) ? velocity_ref_ : 0.0;
+
+        // Recovery: follow the recovery target DIRECTLY. It is already a smooth,
+        // time-parameterised reference, and re-planning it through the quintic
+        // would reset the plan every tick (the target moves continuously), which
+        // made the leg chatter and never track the recovery pose. The hip uses
+        // the measured body pitch during recovery so the leg pose is referenced
+        // to the real attitude, not to a planned 0.
+        const bool recovering = recovery_blend_ < 1.0 - 1e-6;
+        double shank_reference = 0.0, shank_rate = 0.0, knee_reference = 0.0, knee_rate = 0.0;
+        if (recovering) {
+            shank_reference = target.shank;
+            knee_reference = target.beta;
+        } else {
+            shank_reference = shank_plan_.value(elapsed_);
+            shank_rate = shank_plan_.derivative(elapsed_);
+            knee_reference = knee_plan_.value(elapsed_);
+            knee_rate = knee_plan_.derivative(elapsed_);
+        }
 
         // Leg-motion correction, 执行路线1_数学解析.md §7.5:
         //   x_e = L1 cos(beta+phi) - L2 cos(phi)
@@ -408,24 +557,29 @@ private:
             - thigh_projection * knee_rate;
 
         *reference_wheel_velocity_ = (velocity_reference + shank_dx) / wheel_radius_;
-        *reference_pitch_ = pitch_reference;
+        // Pitch setpoint: the planned value (-> 0) in the balance regime, the
+        // measured pitch during recovery (alpha_r = 0), so the balance ring is
+        // not fed a setpoint it cannot achieve while the wheels are unloaded.
+        *reference_pitch_ = recovery_blend_ * pitch_reference + (1.0 - recovery_blend_) * last_pitch_;
         // Acceleration posture: direct additive offset on the leg joints.
         const double shank_published = shank_reference + gait_dshank_;
         const double knee_published = knee_reference + gait_dknee_;
         *reference_shank_angle_ = shank_published;
         *reference_knee_angle_ = knee_published;
-        // §7.4: alpha_ref = pi - theta_ref - beta_ref - phi_ref (+ outer d-loop bias).
+        // §7.4: alpha_ref = pi - theta - beta_ref - phi_ref (+ outer d-loop bias).
+        // During recovery the leg must be referenced to the measured attitude.
+        const double hip_pitch = recovering ? last_pitch_ : pitch_reference;
         const double alpha_bias =
             (alpha_bias_.ready() && std::isfinite(*alpha_bias_)) ? *alpha_bias_ : 0.0;
-        *reference_hip_angle_ = std::numbers::pi - pitch_reference - knee_published
-                              - shank_published + alpha_bias + gait_dhip_;
+        *reference_hip_angle_ = std::numbers::pi - hip_pitch - knee_published - shank_published
+                              + alpha_bias + gait_dhip_;
 
         if (dbg_count_++ % 500 == 0)
             info(
                 "traj tgt L0={:.4f} beta={:.3f} shank={:.3f} hip={:.3f} | ref knee={:.3f} "
                 "hip={:.3f} shank={:.3f} | ref_wv={:.3f} state_wv={:.3f}",
                 target.leg_length, target.beta, target.shank, target.hip, knee_reference,
-                std::numbers::pi - pitch_reference - knee_reference - shank_reference,
+                std::numbers::pi - hip_pitch - knee_reference - shank_reference,
                 shank_reference, *reference_wheel_velocity_,
                 (state_wheel_velocity_.ready() ? *state_wheel_velocity_ : 0.0));
     }
@@ -447,6 +601,7 @@ private:
         *reference_shank_angle_ = kNaN;
         *reference_knee_angle_ = kNaN;
         *reference_hip_angle_ = kNaN;
+        *balance_enable_ = true;
     }
 
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
@@ -486,6 +641,10 @@ private:
     double gait_dknee_ = 0.0;
     double gait_dshank_ = 0.0;
     double gait_dhip_ = 0.0;
+    // Recovery blend (alpha_r) and the measured pitch, for the pitch-reference
+    // gate in publish_reference_.
+    double recovery_blend_ = 1.0;
+    double last_pitch_ = 0.0;
     double leg_motion_coupling_;
     double outer_kx_;
     double outer_kv_;
@@ -495,6 +654,7 @@ private:
     double accel_theta_ff_;
     double accel_kv_;
     double d_max_;
+    double contact_normal_eps_ = 1.0;
     double gravity_;
 
     InputInterface<double> command_velocity_;
@@ -510,6 +670,11 @@ private:
     InputInterface<double> state_com_offset_;
     InputInterface<double> state_leg_length_;
     InputInterface<double> alpha_bias_;
+    InputInterface<double> shank_command_;
+    InputInterface<double> leg_length_recovery_;
+    InputInterface<double> recovery_command_;
+    InputInterface<double> contact_normal_l_;
+    InputInterface<double> contact_normal_r_;
     InputInterface<double> acceleration_command_;
     InputInterface<double> state_velocity_;
     InputInterface<double> state_distance_;
@@ -520,6 +685,7 @@ private:
     OutputInterface<double> reference_shank_angle_;
     OutputInterface<double> reference_knee_angle_;
     OutputInterface<double> reference_hip_angle_;
+    OutputInterface<bool> balance_enable_;
     double body_distance_reference_ = 0.0;
     double posture_yaw_scale_ = 0.15;
     bool posture_gate_enabled_ = false;
@@ -529,6 +695,7 @@ private:
     Quintic knee_plan_;
 
     std::uint64_t dbg_count_ = 0;
+    std::uint64_t dbg_task_count_ = 0;
     bool initialized_ = false;
     double elapsed_ = 0.0;
     double planned_velocity_ = 0.0;

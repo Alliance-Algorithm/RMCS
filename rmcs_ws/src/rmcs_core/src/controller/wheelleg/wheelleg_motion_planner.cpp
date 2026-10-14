@@ -91,7 +91,9 @@ public:
             (state_roll_.ready() && std::isfinite(*state_roll_)) ? *state_roll_ : 0.0;
         *roll_error_output_ = roll_meas - bank;
 
-        *command_velocity_output_ = velocity_;
+        // Prescribed forward direction sign: the chassis-forward convention is
+        // mirrored vs the real robot, so negate the commanded body velocity.
+        *command_velocity_output_ = velocity_sign_ * velocity_;
         *command_yaw_rate_output_ = yaw_rate_;
         *command_yaw_output_ = yaw_command_;
         // The trajectory controller runs its own velocity S-curve and
@@ -274,6 +276,7 @@ private:
         behavior_ = node::param_or<std::string>("behavior", std::string{"twist"});
 
         max_velocity_ = node::param_or("max_velocity", 5.0);
+        velocity_sign_ = node::param_or("velocity_sign", 1.0);
         max_yaw_rate_ = node::param_or("max_yaw_rate", 12.0);
 
         channel_kp_ = node::param_or("channel_kp", 10.0);
@@ -347,6 +350,7 @@ private:
     std::string behavior_ = "twist";
 
     double max_velocity_ = 5.0;
+    double velocity_sign_ = 1.0;
     double max_yaw_rate_ = 12.0;
     double channel_kp_ = 10.0;
     double velocity_accel_ = 1.5;

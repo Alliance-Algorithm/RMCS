@@ -70,6 +70,10 @@ public:
         register_output("/wheelleg/state/knee_velocity", state_knee_velocity_, 0.0);
         register_output("/wheelleg/state/pitch", state_pitch_, 0.0);
         register_output("/wheelleg/state/pitch_velocity", state_pitch_velocity_, 0.0);
+        // Measured reduced hip (== raw L_joint1 in the V5.0 convention) and the
+        // base height, used by the self-righting recovery controller.
+        register_output("/wheelleg/state/hip_angle", state_hip_angle_, 0.0);
+        register_output("/wheelleg/state/base_height", state_base_height_, 0.0);
         // Task-space state (see 执行路线2 §5): leg length / leg angle and the
         // vehicle CoM relative to the wheel axle (static-stability offset d).
         register_output("/wheelleg/state/leg_length", state_leg_length_, 0.0);
@@ -362,6 +366,9 @@ private:
 
         state_pitch_sign_ = node::param_or("state_pitch_sign", 1.0);
         state_shank_sign_ = node::param_or("state_shank_sign", 1.0);
+        // Reduced hip reported to the self-righting controller (V5.0: the raw
+        // L_joint1 with an optional sign).
+        state_hip_sign_ = node::param_or("state_hip_sign", 1.0);
         // V5.0 reports the interior knee angle with the controller's -1 branch,
         // i.e. negative when bent.
         state_knee_sign_ = node::param_or("state_knee_sign", -1.0);
@@ -669,38 +676,100 @@ private:
             "leg linkage: reduced knee range [{:.3f}, {:.3f}] rad, assembly knee {:.3f}",
             linkage_l_->knee_min(), linkage_l_->knee_max(), linkage_l_->assembly_knee());
 
-        // Start at a V5.0 standing pose (hip height ~0.39 m, leg near vertical):
-        // the actuated hip/crank plus the passive six-bar closure solved at that
-        // configuration (models/wheelleg/calibrate_kinematics.py).
-        const std::array<std::pair<const char*, double>, 12> standing_pose = {{
-            {"L_joint1", -0.60000},
-            {"L_crank", 0.50000},
-            {"L_joint2", 0.83313},
-            {"LL_joint2", -0.78961},
-            {"LL_joint3", 0.53888},
-            {"LL_link4", -0.92236},
-            {"R_joint1", -0.60000},
-            {"R_crank", 0.50000},
-            {"R_jonit2", 0.84273},
-            {"RR_joint2", -0.79012},
-            {"RR_joint3", 0.54198},
-            {"RR_joint4", -0.92513},
-        }};
-        for (const auto& [name, value] : standing_pose) {
+        // Start pose, selected by `initial_pose`:
+        //   "standing" (default): V5.0 standing pose, hip height ~0.39 m.
+        //   "motor_zero": the CAD pose at the motor/encoder zero -- thigh
+        //     perpendicular to the chassis (vertical), knee interior ~105 deg,
+        //     legs up; only the chassis is placed on the ground. Use this to
+        //     inspect / verify the zero calibration against the real robot.
+        //   "legs_up": chassis grounded, legs folded in the air.
+        //   "crouched": the RL recovery `crouched`/`fold` pose (frozen V6
+        //     profile): hip L_joint1 = -0.252107, crank LL_joint1 = -0.117909,
+        //     interior knee 50 deg, wheels down. Passive closed-chain joints are
+        //     seeded from the standing pose and settle via the closure.
+        const std::string initial_pose =
+            node::param_or<std::string>("initial_pose", std::string{"standing"});
+        std::array<std::pair<const char*, double>, 12> pose;
+        if (initial_pose == "motor_zero") {
+            pose = {{
+                {"L_joint1", 1.64841}, {"L_crank", 3.01539}, {"L_joint2", 1.04927},
+                {"LL_joint2", -1.00733}, {"LL_joint3", 0.72236}, {"LL_link4", -1.17689},
+                {"R_joint1", 1.65073}, {"R_crank", 3.02434}, {"R_jonit2", 1.08313},
+                {"RR_joint2", -1.01574}, {"RR_joint3", 0.73583}, {"RR_joint4", -1.17987},
+            }};
+            data_->qpos[base_qpos + 2] = node::param_or("initial_pose_height", 0.173);
+        } else if (initial_pose == "legs_up") {
+            pose = {{
+                {"L_joint1", 2.52126}, {"L_crank", 0.55199}, {"L_joint2", -0.52882},
+                {"LL_joint2", 0.60156}, {"LL_joint3", 0.69273}, {"LL_link4", 0.80236},
+                {"R_joint1", 2.52335}, {"R_crank", 0.49563}, {"R_jonit2", -0.54813},
+                {"RR_joint2", 0.61024}, {"RR_joint3", 0.73363}, {"RR_joint4", 0.80705},
+            }};
+            data_->qpos[base_qpos + 2] = node::param_or("initial_pose_height", 0.173);
+        } else if (initial_pose == "crouched") {
+            // RL recovery crouched/fold pose (frozen V6 profile). Our reduced
+            // hip == raw L_joint1, so the same value applies to both legs; the
+            // crank is the relative crank for a 50 deg knee plus the hip. The
+            // passive joints reuse the standing seed and close via the model
+            // constraints.
+            pose = {{
+                {"L_joint1", -0.252107}, {"L_crank", -0.110}, {"L_joint2", 0.83313},
+                {"LL_joint2", -0.78961}, {"LL_joint3", 0.53888}, {"LL_link4", -0.92236},
+                {"R_joint1", -0.252107}, {"R_crank", -0.110}, {"R_jonit2", 0.84273},
+                {"RR_joint2", -0.79012}, {"RR_joint3", 0.54198}, {"RR_joint4", -0.92513},
+            }};
+            data_->qpos[base_qpos + 2] = node::param_or("initial_pose_height", 0.26);
+        } else {
+            pose = {{
+                {"L_joint1", -0.60000}, {"L_crank", 0.50000}, {"L_joint2", 0.83313},
+                {"LL_joint2", -0.78961}, {"LL_joint3", 0.53888}, {"LL_link4", -0.92236},
+                {"R_joint1", -0.60000}, {"R_crank", 0.50000}, {"R_jonit2", 0.84273},
+                {"RR_joint2", -0.79012}, {"RR_joint3", 0.54198}, {"RR_joint4", -0.92513},
+            }};
+        }
+        for (const auto& [name, value] : pose) {
             const int id = mj_name2id(model_, mjOBJ_JOINT, name);
             if (id >= 0)
                 data_->qpos[model_->jnt_qposadr[id]] = value;
         }
         mj_forward(model_, data_);
 
+        // Hand-authored poses (e.g. "crouched") may leave the passive
+        // closed-chain joints inconsistent with the actuated ones. Settle them
+        // against the structural closure with gravity off and the base held
+        // still (zeroed velocities each step), then restore. Without this the
+        // first frame snaps and can flip the robot.
+        if (initial_pose == "crouched") {
+            const double gx = model_->opt.gravity[0];
+            const double gy = model_->opt.gravity[1];
+            const double gz = model_->opt.gravity[2];
+            model_->opt.gravity[0] = model_->opt.gravity[1] = model_->opt.gravity[2] = 0.0;
+            for (int i = 0; i < model_->neq; ++i)
+                data_->eq_active[i] = 0;
+            for (const int eq : closure_eq_ids_)
+                if (eq >= 0)
+                    data_->eq_active[eq] = 1;
+            for (int k = 0; k < 2000; ++k) {
+                mj_step(model_, data_);
+                std::fill_n(data_->qvel, model_->nv, 0.0);
+            }
+            for (int i = 0; i < model_->neq; ++i)
+                data_->eq_active[i] = 0;
+            std::fill_n(data_->qvel, model_->nv, 0.0);
+            model_->opt.gravity[0] = gx;
+            model_->opt.gravity[1] = gy;
+            model_->opt.gravity[2] = gz;
+            mj_forward(model_, data_);
+        }
+
         leg_lock_ids_.fill(-1);
-        for (std::size_t i = 0; i < standing_pose.size(); ++i) {
-            const int id = mj_name2id(model_, mjOBJ_JOINT, standing_pose[i].first);
+        for (std::size_t i = 0; i < pose.size(); ++i) {
+            const int id = mj_name2id(model_, mjOBJ_JOINT, pose[i].first);
             leg_lock_ids_[i] = id;
             leg_lock_qpos_[i] = id >= 0 ? data_->qpos[model_->jnt_qposadr[id]] : 0.0;
 
-            // Point the joint-lock equality at the standing angle.
-            const std::string lock_name = std::string{"lock_"} + standing_pose[i].first;
+            // Point the joint-lock equality at the start angle.
+            const std::string lock_name = std::string{"lock_"} + pose[i].first;
             leg_lock_eq_ids_[i] = mj_name2id(model_, mjOBJ_EQUALITY, lock_name.c_str());
             if (leg_lock_eq_ids_[i] >= 0)
                 model_->eq_data[leg_lock_eq_ids_[i] * mjNEQDATA] = leg_lock_qpos_[i];
@@ -937,6 +1006,11 @@ private:
                     crank_torque_r += data_->qfrc_bias[model_->jnt_dofadr[joint_ids_[kRCrank]]];
                 }
             }
+            // Optional leg feedforward (stand-up gas-spring / static-load comp).
+            hip_torque_l += command.hip_torque_ff_l;
+            hip_torque_r += command.hip_torque_ff_r;
+            crank_torque_l += command.crank_torque_ff_l;
+            crank_torque_r += command.crank_torque_ff_r;
             if (step_count_ % 500 == 0)
                 info(
                     "reffemode hipL_tgt={:.3f} hipL={:.3f} crankL_tgt={:.3f} crankL={:.3f} "
@@ -1254,6 +1328,10 @@ private:
         *state_knee_angle_ = state_knee_sign_ * knee;
         *state_knee_velocity_ = state_knee_sign_ * knee_rate;
         *state_wheel_velocity_ = state_wheel_sign_ * omega;
+        // Reduced hip (raw L_joint1) and base height for the self-righting
+        // recovery controller.
+        *state_hip_angle_ = state_hip_sign_ * joint_position_(kLJoint1);
+        *state_base_height_ = data_->xpos[3 * base_body_id_ + 2];
 
         // Task-space state (执行路线2 §5/§8): leg length / angle and the CoM
         // offset d = (C_veh - A)_forward (static stability condition of §6).
@@ -1410,6 +1488,13 @@ private:
             // body laterally (differential leg length) to control roll.
             bool roll_bias_valid = false;
             double roll_bias = 0.0;
+            // Optional leg feedforward torques (added on top of the leg PD),
+            // e.g. the gas-spring / static-load compensation from the stand-up
+            // script. NaN when unused.
+            double hip_torque_ff_l = 0.0;
+            double hip_torque_ff_r = 0.0;
+            double crank_torque_ff_l = 0.0;
+            double crank_torque_ff_r = 0.0;
         };
 
         explicit WheelLegSimulationCommand(WheelLegSimulation& simulation)
@@ -1421,6 +1506,10 @@ private:
             register_input("/wheelleg/control/wheel_torque_l", wheel_torque_l_, false);
             register_input("/wheelleg/control/wheel_torque_r", wheel_torque_r_, false);
             register_input("/wheelleg/control/roll_bias", roll_bias_, false);
+            register_input("/wheelleg/control/hip_torque_ff_l", hip_torque_ff_l_, false);
+            register_input("/wheelleg/control/hip_torque_ff_r", hip_torque_ff_r_, false);
+            register_input("/wheelleg/control/crank_torque_ff_l", crank_torque_ff_l_, false);
+            register_input("/wheelleg/control/crank_torque_ff_r", crank_torque_ff_r_, false);
         }
 
         void update() override {
@@ -1443,7 +1532,16 @@ private:
             control_.roll_bias_valid = roll_bias_.ready() && std::isfinite(*roll_bias_);
             if (control_.roll_bias_valid)
                 control_.roll_bias = *roll_bias_;
-            control_.valid = hip_angle_.ready() && knee_angle_.ready();
+            if (hip_torque_ff_l_.ready() && std::isfinite(*hip_torque_ff_l_))
+                control_.hip_torque_ff_l = *hip_torque_ff_l_;
+            if (hip_torque_ff_r_.ready() && std::isfinite(*hip_torque_ff_r_))
+                control_.hip_torque_ff_r = *hip_torque_ff_r_;
+            if (crank_torque_ff_l_.ready() && std::isfinite(*crank_torque_ff_l_))
+                control_.crank_torque_ff_l = *crank_torque_ff_l_;
+            if (crank_torque_ff_r_.ready() && std::isfinite(*crank_torque_ff_r_))
+                control_.crank_torque_ff_r = *crank_torque_ff_r_;
+            control_.valid = hip_angle_.ready() && knee_angle_.ready()
+                          && std::isfinite(*hip_angle_) && std::isfinite(*knee_angle_);
         }
 
         [[nodiscard]] bool reference_ready() const { return hip_angle_.ready(); }
@@ -1459,6 +1557,10 @@ private:
         InputInterface<double> wheel_torque_l_;
         InputInterface<double> wheel_torque_r_;
         InputInterface<double> roll_bias_;
+        InputInterface<double> hip_torque_ff_l_;
+        InputInterface<double> hip_torque_ff_r_;
+        InputInterface<double> crank_torque_ff_l_;
+        InputInterface<double> crank_torque_ff_r_;
 
         Control control_;
     };
@@ -1606,6 +1708,7 @@ private:
 
     double state_pitch_sign_ = 1.0;
     double state_shank_sign_ = 1.0;
+    double state_hip_sign_ = 1.0;
     double state_knee_sign_ = 1.0;
     double state_wheel_sign_ = 1.0;
     double state_yaw_sign_ = 1.0;
@@ -1651,6 +1754,8 @@ private:
     OutputInterface<double> state_knee_velocity_;
     OutputInterface<double> state_pitch_;
     OutputInterface<double> state_pitch_velocity_;
+    OutputInterface<double> state_hip_angle_;
+    OutputInterface<double> state_base_height_;
     OutputInterface<double> state_leg_length_;
     OutputInterface<double> state_leg_angle_;
     OutputInterface<double> state_leg_length_l_;

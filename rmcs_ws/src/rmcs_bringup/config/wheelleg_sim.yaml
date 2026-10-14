@@ -5,6 +5,7 @@ rmcs_executor:
     - rmcs_core::hardware::WheelLegSimulation -> wheelleg_sim
     - rmcs_core::controller::wheelleg::WheelLegMotionPlanner -> wheelleg_motion_planner
     - rmcs_core::controller::wheelleg::WheelLegTrajectoryController -> wheelleg_trajectory_controller
+    - rmcs_core::controller::wheelleg::WheelLegRecoveryController -> wheelleg_recovery
     - rmcs_core::controller::adrc::AdrcController -> wheelleg_balance_controller
     - rmcs_core::controller::adrc::AdrcController -> wheelleg_yaw_controller
     - rmcs_core::controller::pid::ErrorPidController -> wheelleg_roll_controller
@@ -13,13 +14,21 @@ wheelleg_sim:
   ros__parameters:
     dt: 0.001
     initial_height: 0.392
+    # Start pose for the self-righting test: `motor_zero` = chassis grounded,
+    # legs/wheels up (the get-up start). Use `standing` for the normal driving
+    # demo.
+    initial_pose: standing
+    initial_pose_height: 0.173
     fix_base: false
     fix_base_planar: false
     fix_base_hold_z: false
-    hip_kp: 250.0
-    hip_kd: 6.0
-    crank_kp: 150.0
-    crank_kd: 2.0
+    # Leg PD from the real-robot (V6/RL) identification config:
+    # prepare_kp=160, prepare_kd=2.5 on all four leg drives. In simulation this
+    # stands in for the real motor driver's PD.
+    hip_kp: 160.0
+    hip_kd: 2.5
+    crank_kp: 160.0
+    crank_kd: 2.5
     wheel_kp: 20.0
     gravity_feedforward: true
     # Leg joint viscous damping. 0.1 leaves a sustained leg limit cycle (hip/crank
@@ -33,17 +42,20 @@ wheelleg_sim:
     hip_torque_limit: 40.0
     crank_torque_limit: 40.0
     wheel_motor_torque_limit: 3.0
-    wheel_gear_ratio: 15.764705882352942
+    # Installed wheel reduction ratio, from the real-robot (RL) config
+    # (wheel_reduction_ratio: 15.62). Was 268/17 = 15.7647.
+    wheel_gear_ratio: 15.62
     thigh_length: 0.21
     shank_length: 0.25005
     hip_sign: -1.0
     hip_zero: 3.14159265358979
-    # Motor zero: knee interior angle 110 deg, thigh perpendicular to chassis.
-    knee_zero_l: 1.9198621771937625
-    knee_zero_r: 1.9198621771937625
-    # Mechanical knee limits (interior thigh-shank angle), hard: 40..110 deg.
+    # Motor zero: knee interior angle 105 deg (real-robot encoder zero), thigh
+    # perpendicular to chassis.
+    knee_zero_l: 1.8325957145940461
+    knee_zero_r: 1.8325957145940461
+    # Mechanical knee limits (interior thigh-shank angle), hard: 40..105 deg.
     knee_limit_min: 0.6981317007977318
-    knee_limit_max: 1.9198621771937625
+    knee_limit_max: 1.8325957145940461
     knee_hard_stop: true
     wheel_dir: 1.0
     state_pitch_sign: 1.0
@@ -86,13 +98,18 @@ wheelleg_motion_planner:
     # twist with no /wheelleg/move/* publisher = idle, the robot just stands.
     behavior: twist
     max_velocity: 5.0
+    # Prescribed forward direction sign vs the chassis geometry (mirrored on the
+    # real robot): a positive command maps to velocity_sign * velocity.
+    velocity_sign: -1.0
     max_yaw_rate: 12.0
     channel_kp: 10.0
     velocity_accel: 1.5
     velocity_jerk: 4.0
     yaw_accel: 6.28
     yaw_jerk: 40.0
-    leg_length: 0.3
+    # Nominal stance length, matching the STAND chain / trajectory controller's
+    # nominal_leg_length (the recovery hands off to this).
+    leg_length: 0.334
     # behavior: square
     command_velocity_start: 3.0
     command_velocity: 0.0
@@ -132,7 +149,11 @@ wheelleg_motion_planner:
     # per-wheel normal force staying positive]) times a safety factor.
     # lat_accel_max > 0 is an optional extra hard cap (0 = auto/physical).
     friction_mu: 2.0
-    track_width: 0.396
+    # Wheel track from our own URDF (L_link3 <-> R_link3 lateral distance at the
+    # assembly pose = 0.3966 m). Used by the lateral tip-over limit
+    # a_lat <= g*w/(2h). (The real-robot RL config uses 0.4373 for its V6 chassis;
+    # keep ours model-consistent.)
+    track_width: 0.3966
     com_height: 0.26
     lat_accel_safety: 0.7
     lat_accel_max: 0.0
@@ -152,9 +173,12 @@ wheelleg_trajectory_controller:
     knee_branch_sign: -1.0
     # Hard knee limits in the controller's signed convention (beta = -interior):
     # interior 40..110 deg => beta -110..-40 deg.
-    knee_angle_min: -1.9198621771937625
+    knee_angle_min: -1.8325957145940461
     knee_angle_max: -0.6981317007977318
     d_max: 100.0
+    # Contact gate for the static-stability guard (wheel normal force above which
+    # the wheel counts as loaded). Only used when contact_normal_* is wired.
+    contact_normal_eps: 1.0
     gravity: 9.81
     leg_motion_coupling: 0.0
     outer_kx: 0.5
@@ -169,11 +193,47 @@ wheelleg_trajectory_controller:
     command_jerk_limit: 4.0
     command_vloop_kp: 10.0
     command_vloop_kd: 2.0
+wheelleg_recovery:
+  ros__parameters:
+    dt: 0.001
+    # Self-righting trajectory source: produces /wheelleg/task/{leg_length,shank,
+    # recovery}. start_on_boot=true runs the get-up immediately (test config).
+    start_on_boot: true
+    # auto = run the get-up; done = skip it and hand straight to the stand chain
+    # (for testing the alpha_r hand-off from a near-stance start).
+    start_phase: done
+    trigger_topic: /wheelleg/recovery/trigger
+    # T1 PLANT waypoint (legs down, wheels reaching the ground) and T2 STAND
+    # waypoint (standing pose). Length in m, shank in rad (执行路线1 §1 phi).
+    # T1 PLANT waypoint (legs down, wheels reaching the ground) and T2 STAND
+    # waypoint (standing pose). Length in m, shank in rad (执行路线1 §1 phi).
+    # PLANT is taken from the model FK: with the chassis grounded (base 0.173 m)
+    # a hip of ~1.65 (motor_zero, thigh up) cannot reach the ground, so the leg
+    # must first bring the hip down; (L0~0.22, shank~0.2) puts the wheel on the
+    # ground under the hip. STAND is the balance equilibrium at nominal length.
+    plant_leg_length: 0.22
+    plant_shank: 0.20
+    stand_leg_length: 0.334
+    stand_shank: 2.26
+    # Velocity-limited reference rates (the get-up plan is rate-limited, not
+    # time-limited, so the leg PD never has to yank).
+    shank_rate: 0.5     # rad/s
+    l0_rate: 0.03       # m/s
+    # Body-pitch feedback on the leg orientation (rad per rad); 0 = open loop.
+    theta_kp: 0.0
+    contact_force_eps: 1.0
+    handover_tilt_deg: 8.0
+    handoff_seconds: 0.5
+    # Hold the measured pose this long after activation before moving (also
+    # before the alpha_r hand-off). Long enough for the delayed MuJoCo viewer to
+    # catch the whole process.
+    start_hold_seconds: 5.0
 wheelleg_balance_controller:
   ros__parameters:
     measurement: /wheelleg/state/pitch
     setpoint: /wheelleg/reference/pitch
     control: /wheelleg/control/wheel_torque
+    enable: /wheelleg/balance/enable
     debug: true
     dt: 0.001
     b0: 20.0

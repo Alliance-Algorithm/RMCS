@@ -33,6 +33,12 @@
   <class type="rmcs_core::controller::wheelleg::WheelLegTrajectoryController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegWheelMixer" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegMotionPlanner" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegStandupController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegRecoveryController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegStateEstimator" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegDriveBridge" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegStandStateMachine" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegMoveStateMachine" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />

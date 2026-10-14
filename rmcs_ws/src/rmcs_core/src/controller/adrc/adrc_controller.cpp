@@ -45,6 +45,14 @@ public:
             use_feedforward_ = true;
         }
 
+        // Optional run-enable: when wired, the controller is gated off (output
+        // disabled, TD/ESO reset) while the input is false. Used by the get-up so
+        // the wheel balance does not drive the wheels before they are loaded.
+        if (has_parameter("enable")) {
+            register_input(get_parameter("enable").as_string(), enable_);
+            use_enable_ = true;
+        }
+
         kt_ = get_parameter_or("kt", 1.0);
         b0_ = get_parameter_or("b0", 1.0);
 
@@ -67,6 +75,15 @@ public:
     }
 
     void update() override {
+        if (use_enable_ && (!enable_.ready() || !*enable_)) {
+            // Disabled by the run-enable: command ZERO torque (not NaN), so the
+            // downstream mixer/bridge cannot fall back to a velocity servo.
+            *control_ = 0.0;
+            last_u_ = 0.0;
+            td_.reset();
+            eso_.reset();
+            return;
+        }
         if (!refresh_limit_()) {
             disable_output();
             return;
@@ -212,6 +229,9 @@ private:
     bool use_error_input_mode_ = false;
     bool use_dynamic_limit_ = false;
     bool use_feedforward_ = false;
+    bool use_enable_ = false;
+
+    InputInterface<bool> enable_;
 
     double b0_ = 1.0;
     double kt_ = 1.0;

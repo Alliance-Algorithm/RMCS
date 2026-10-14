@@ -23,12 +23,13 @@ namespace rmcs_core::wheelleg {
 //   * the tabulated crank is the native joint angle at ``q_hip = 0``.
 //
 // Mechanical limits and motor zero:
-//   * the knee is mechanically limited to 40..110 deg (interior angle); it
-//     cannot straighten (max 110 deg), by design.
+//   * the knee is mechanically limited to 40..105 deg (interior angle); it
+//     cannot straighten (max 105 deg), by design.
 //   * both coaxial hip motors (thigh and crank) are zeroed at the same pose:
-//     knee interior angle = 110 deg AND thigh perpendicular to the chassis.
+//     knee interior angle = 105 deg (the real-robot encoder zero,
+//     `encoder_zero_inner_knee_deg`) AND thigh perpendicular to the chassis.
 //     The model shows the thigh is perpendicular at ``q_hip = 0``, so the hip
-//     motor zero is ``q_hip = 0`` and the crank motor zero is ``crank(110deg)``.
+//     motor zero is ``q_hip = 0`` and the crank motor zero is ``crank(105deg)``.
 class LegLinkage {
 public:
     [[nodiscard]] double knee_min() const { return kBetaGrid.front(); }
@@ -38,8 +39,8 @@ public:
 
     // Physical knee limits (interior angle), in radians.
     static constexpr double kKneeLimitMinDeg = 40.0;
-    static constexpr double kKneeLimitMaxDeg = 110.0;
-    static constexpr double kKneeMotorZeroDeg = 110.0;
+    static constexpr double kKneeLimitMaxDeg = 105.0;
+    static constexpr double kKneeMotorZeroDeg = 105.0;
 
     [[nodiscard]] static constexpr double knee_limit_min() {
         return kKneeLimitMinDeg * std::numbers::pi / 180.0;
