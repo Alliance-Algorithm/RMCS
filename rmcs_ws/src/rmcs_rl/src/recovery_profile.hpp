@@ -4,6 +4,7 @@
 
 #include <array>
 #include <filesystem>
+#include <string>
 #include <vector>
 
 namespace rmcs::rl {
@@ -21,6 +22,7 @@ struct ClosedChainLegGeometry {
 // Immutable geometry and references bound to authenticated mechanical assets.
 // Loading these simulation candidates never grants hardware readiness.
 struct RecoveryProfile {
+    std::string model_spec_sha256;
     JointReferenceRecoveryConfig controller;
     std::array<ClosedChainLegGeometry, 2> geometry;
     static RecoveryProfile

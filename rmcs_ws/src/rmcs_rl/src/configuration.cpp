@@ -361,6 +361,8 @@ RlController::RlController()
             resolve(recovery_parameter(
                 "height_lookup_path",
                 std::string{"models/wheel_leg/deployment/v6_height_lookup_v1.json"})));
+        validate_leg_target_recovery_profile(
+            leg_target_winding_, recovery_enabled_, native.model_spec_sha256);
         auto recovery_config = native.controller;
         recovery_config.dt = 1.0 / recovery_frequency_;
         recovery_config.blend_seconds =
