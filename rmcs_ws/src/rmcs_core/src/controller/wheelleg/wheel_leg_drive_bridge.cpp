@@ -203,7 +203,7 @@ private:
         wheel_torque_sign_ = get_parameter("wheel_torque_sign").as_double_array();
         if (wheel_torque_sign_.size() != 2)
             throw std::invalid_argument("wheel_torque_sign requires two values");
-        wheel_torque_limit_ = get_parameter_or("wheel_torque_limit", 4.5);
+        wheel_torque_limit_ = get_parameter_or("wheel_torque_limit", 4.88);
         arm_dwell_s_ = get_parameter_or("arm_dwell_s", 0.5);
     }
 
@@ -215,7 +215,7 @@ private:
     double knee_min_ = 0.6981317007977318, knee_max_ = 1.8325957145940461;
     double knee_rel_sign_ = -1.0;
     double leg_kp_ = 160.0, leg_kd_ = 2.5, leg_torque_limit_ = 40.0;
-    double wheel_torque_limit_ = 4.5;
+    double wheel_torque_limit_ = 4.88;
     double arm_dwell_s_ = 0.5;
 
     std::array<InputInterface<double>, 4> joint_angle_;

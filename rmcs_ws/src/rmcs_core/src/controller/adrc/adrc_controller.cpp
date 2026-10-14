@@ -40,6 +40,22 @@ public:
 
         register_output(get_parameter("control").as_string(), control_);
 
+        // Internal-state debug outputs (for Foxglove / offline analysis): the
+        // ESO estimates z1..z3, the NLESF u0 and the applied u, the tracking
+        // errors, and the raw measurement/reference. Topic names are derived
+        // from the instance name, e.g. /wheelleg_balance_controller/debug/z3.
+        const std::string dbg = std::string{"/"} + get_component_name() + "/debug/";
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        register_output(dbg + "measurement", debug_meas_, nan);
+        register_output(dbg + "reference", debug_ref_, nan);
+        register_output(dbg + "e1", debug_e1_, nan);
+        register_output(dbg + "e2", debug_e2_, nan);
+        register_output(dbg + "z1", debug_z1_, nan);
+        register_output(dbg + "z2", debug_z2_, nan);
+        register_output(dbg + "z3", debug_z3_, nan);
+        register_output(dbg + "u0", debug_u0_, nan);
+        register_output(dbg + "u", debug_u_, nan);
+
         if (has_parameter("feedforward")) {
             register_input(get_parameter("feedforward").as_string(), feedforward_);
             use_feedforward_ = true;
@@ -135,6 +151,16 @@ public:
         *control_ = final_u;
         last_u_ = final_u;
 
+        *debug_meas_ = measurement;
+        *debug_ref_ = reference;
+        *debug_e1_ = e1;
+        *debug_e2_ = e2;
+        *debug_z1_ = eso_out.z1;
+        *debug_z2_ = eso_out.z2;
+        *debug_z3_ = eso_out.z3;
+        *debug_u0_ = nlesf_out.u0;
+        *debug_u_ = final_u;
+
         static int dbg_counter = 0;
         if (get_parameter_or("debug", false) && (dbg_counter++ % 500 == 0))
             RCLCPP_INFO(
@@ -221,6 +247,9 @@ private:
     InputInterface<double> feedforward_;
 
     OutputInterface<double> control_;
+
+    OutputInterface<double> debug_meas_{}, debug_ref_{}, debug_e1_{}, debug_e2_{};
+    OutputInterface<double> debug_z1_{}, debug_z2_{}, debug_z3_{}, debug_u0_{}, debug_u_{};
 
     TD td_;
     ESO eso_;

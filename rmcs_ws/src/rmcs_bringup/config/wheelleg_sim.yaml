@@ -5,11 +5,72 @@ rmcs_executor:
     - rmcs_core::hardware::WheelLegSimulation -> wheelleg_sim
     - rmcs_core::controller::wheelleg::WheelLegMotionPlanner -> wheelleg_motion_planner
     - rmcs_core::controller::wheelleg::WheelLegTrajectoryController -> wheelleg_trajectory_controller
-    - rmcs_core::controller::wheelleg::WheelLegRecoveryController -> wheelleg_recovery
     - rmcs_core::controller::adrc::AdrcController -> wheelleg_balance_controller
     - rmcs_core::controller::adrc::AdrcController -> wheelleg_yaw_controller
     - rmcs_core::controller::pid::ErrorPidController -> wheelleg_roll_controller
     - rmcs_core::controller::wheelleg::WheelLegWheelMixer -> wheelleg_wheel_mixer
+    - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+value_broadcaster:
+  ros__parameters:
+    update_rate: 100.0
+    forward_list:
+      # plant / estimated state
+      - /wheelleg/state/pitch
+      - /wheelleg/state/pitch_velocity
+      - /wheelleg/state/roll
+      - /wheelleg/state/roll_rate
+      - /wheelleg/state/yaw
+      - /wheelleg/state/yaw_rate
+      - /wheelleg/state/base_height
+      - /wheelleg/state/leg_length
+      - /wheelleg/state/leg_angle
+      - /wheelleg/state/knee_angle
+      - /wheelleg/state/knee_velocity
+      - /wheelleg/state/shank_angle
+      - /wheelleg/state/shank_velocity
+      - /wheelleg/state/com_offset
+      - /wheelleg/state/wheel_velocity
+      - /wheelleg/state/velocity
+      # references / commands
+      - /wheelleg/reference/pitch
+      - /wheelleg/reference/hip_angle
+      - /wheelleg/reference/knee_angle
+      - /wheelleg/reference/shank_angle
+      - /wheelleg/reference/wheel_velocity
+      - /wheelleg/command/velocity
+      - /wheelleg/command/leg_length
+      - /wheelleg/command/yaw
+      - /wheelleg/command/yaw_rate
+      - /wheelleg/command/roll_error
+      # controller outputs
+      - /wheelleg/control/wheel_torque
+      - /wheelleg/control/wheel_torque_diff
+      - /wheelleg/control/wheel_torque_l
+      - /wheelleg/control/wheel_torque_r
+      - /wheelleg/control/roll_bias
+      # balance ADRC internals (u = applied torque, z3 = estimated disturbance)
+      - /wheelleg_balance_controller/debug/measurement
+      - /wheelleg_balance_controller/debug/reference
+      - /wheelleg_balance_controller/debug/e1
+      - /wheelleg_balance_controller/debug/e2
+      - /wheelleg_balance_controller/debug/z1
+      - /wheelleg_balance_controller/debug/z2
+      - /wheelleg_balance_controller/debug/z3
+      - /wheelleg_balance_controller/debug/u0
+      - /wheelleg_balance_controller/debug/u
+      # yaw ADRC internals
+      - /wheelleg_yaw_controller/debug/measurement
+      - /wheelleg_yaw_controller/debug/reference
+      - /wheelleg_yaw_controller/debug/e1
+      - /wheelleg_yaw_controller/debug/e2
+      - /wheelleg_yaw_controller/debug/z1
+      - /wheelleg_yaw_controller/debug/z2
+      - /wheelleg_yaw_controller/debug/z3
+      - /wheelleg_yaw_controller/debug/u0
+      - /wheelleg_yaw_controller/debug/u
+      - /wheelleg/balance/enable
+      - /wheelleg/state/contact_normal_l
+      - /wheelleg/state/contact_normal_r
 wheelleg_sim:
   ros__parameters:
     dt: 0.001
@@ -37,14 +98,26 @@ wheelleg_sim:
     # value is also more physical.
     joint_damping: 0.3
     hip_armature: 0.005
+    # Wheel joint dynamics from the real-robot identification (wheels-r15p62):
+    # reflected M3508/gearbox inertia (armature), bearing viscous damping and
+    # Coulomb frictionloss, all at the wheel output shaft. NOT joint_damping.
+    #   J:   left 0.00504 / right 0.00451 kg*m^2   -> armature ~4.7e-3
+    #   vis: left ~5e-4  / right ~1.2e-3 Nm*s/rad  -> ~1e-3
+    #   coul:left ~0.064 / right ~0.118 Nm         -> ~9e-2
+    wheel_armature: 0.0047
+    wheel_joint_damping: 0.001
+    wheel_frictionloss: 0.09
+    # Wheel motor speed limit at the output shaft [rad/s] (M3508 rated ~469 rpm
+    # => 49.1). Accelerating torque tapers to zero near the limit; 0 disables.
+    wheel_speed_limit: 49.1
     constraint_timeconst: 0.002
     constraint_dampratio: 1.0
     hip_torque_limit: 40.0
     crank_torque_limit: 40.0
-    wheel_motor_torque_limit: 3.0
-    # Installed wheel reduction ratio, from the real-robot (RL) config
-    # (wheel_reduction_ratio: 15.62). Was 268/17 = 15.7647.
-    wheel_gear_ratio: 15.62
+    # Wheel output-shaft torque limit [Nm]. The sim applies torque directly at
+    # the output joint (no gearbox modelled), so this is the real DjiMotor
+    # output limit (max_torque ≈ 4.88 Nm at 20 A).
+    wheel_torque_limit: 4.88
     thigh_length: 0.21
     shank_length: 0.25005
     hip_sign: -1.0
@@ -179,6 +252,11 @@ wheelleg_trajectory_controller:
     # Contact gate for the static-stability guard (wheel normal force above which
     # the wheel counts as loaded). Only used when contact_normal_* is wired.
     contact_normal_eps: 1.0
+    balance_velocity_kp: 0.0
+    balance_position_kp: 0.0
+    balance_integral_limit: 5.0
+    # Balance ADRC enable gate: enabled only while the wheels carry the body and
+    # |pitch| is below this (near-upright standing hold).
     gravity: 9.81
     leg_motion_coupling: 0.0
     outer_kx: 0.5
@@ -193,41 +271,13 @@ wheelleg_trajectory_controller:
     command_jerk_limit: 4.0
     command_vloop_kp: 10.0
     command_vloop_kd: 2.0
-wheelleg_recovery:
-  ros__parameters:
-    dt: 0.001
-    # Self-righting trajectory source: produces /wheelleg/task/{leg_length,shank,
-    # recovery}. start_on_boot=true runs the get-up immediately (test config).
-    start_on_boot: true
-    # auto = run the get-up; done = skip it and hand straight to the stand chain
-    # (for testing the alpha_r hand-off from a near-stance start).
-    start_phase: done
-    trigger_topic: /wheelleg/recovery/trigger
-    # T1 PLANT waypoint (legs down, wheels reaching the ground) and T2 STAND
-    # waypoint (standing pose). Length in m, shank in rad (执行路线1 §1 phi).
-    # T1 PLANT waypoint (legs down, wheels reaching the ground) and T2 STAND
-    # waypoint (standing pose). Length in m, shank in rad (执行路线1 §1 phi).
-    # PLANT is taken from the model FK: with the chassis grounded (base 0.173 m)
-    # a hip of ~1.65 (motor_zero, thigh up) cannot reach the ground, so the leg
-    # must first bring the hip down; (L0~0.22, shank~0.2) puts the wheel on the
-    # ground under the hip. STAND is the balance equilibrium at nominal length.
-    plant_leg_length: 0.22
-    plant_shank: 0.20
-    stand_leg_length: 0.334
-    stand_shank: 2.26
-    # Velocity-limited reference rates (the get-up plan is rate-limited, not
-    # time-limited, so the leg PD never has to yank).
-    shank_rate: 0.5     # rad/s
-    l0_rate: 0.03       # m/s
-    # Body-pitch feedback on the leg orientation (rad per rad); 0 = open loop.
-    theta_kp: 0.0
-    contact_force_eps: 1.0
-    handover_tilt_deg: 8.0
-    handoff_seconds: 0.5
-    # Hold the measured pose this long after activation before moving (also
-    # before the alpha_r hand-off). Long enough for the delayed MuJoCo viewer to
-    # catch the whole process.
-    start_hold_seconds: 5.0
+# --- self-righting / get-up source: DISABLED for the stand test ---
+# The sim now exercises the STANDING / balance chain only
+# (motion_planner -> trajectory -> balance/yaw/roll -> wheel_mixer) from
+# `initial_pose: standing`, with no /wheelleg/task/* producer (the trajectory
+# then runs the balance branch, alpha_r = 1). To re-enable the get-up, add
+#   - rmcs_core::controller::wheelleg::WheelLegRecoveryController -> wheelleg_recovery
+# back to `components` and restore the wheelleg_recovery block from git history.
 wheelleg_balance_controller:
   ros__parameters:
     measurement: /wheelleg/state/pitch
@@ -236,7 +286,7 @@ wheelleg_balance_controller:
     enable: /wheelleg/balance/enable
     debug: true
     dt: 0.001
-    b0: 20.0
+    b0: 5.0
     kt: 1.0
     td_h: 0.001
     td_r: 50.0
@@ -247,10 +297,11 @@ wheelleg_balance_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -16.13
-    u_max: 16.13
-    output_min: -16.13
-    output_max: 16.13
+    feedforward: /wheelleg/balance/feedforward
+    u_min: -4.88
+    u_max: 4.88
+    output_min: -4.88
+    output_max: 4.88
 wheelleg_yaw_controller:
   ros__parameters:
     measurement: /wheelleg/state/yaw
@@ -281,7 +332,7 @@ wheelleg_yaw_controller:
 wheelleg_wheel_mixer:
   ros__parameters:
     yaw_sign: -1.0
-    wheel_torque_limit: 16.13
+    wheel_torque_limit: 4.88
 wheelleg_roll_controller:
   ros__parameters:
     # Lateral/bank: a differential-leg-length feedforward banks the body to the

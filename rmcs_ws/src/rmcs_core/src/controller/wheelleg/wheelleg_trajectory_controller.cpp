@@ -66,6 +66,13 @@ public:
         // Wheel-balance enable: false while recovering (alpha_r = 0) so the
         // balance ADRC does not drive/park the wheels before they are loaded.
         register_output("/wheelleg/balance/enable", balance_enable_, true);
+        // Base-velocity outer loop fed to the balance ADRC's feedforward input:
+        //   ff = -kv * omega_wheel - kp * integral(omega_wheel)
+        // i.e. wheel/base-velocity damping + a slow position term. The ADRC adds
+        // it to its output and includes it in last_u_, so the ESO treats it as a
+        // known input (no model mismatch). This is a real, measured-state
+        // feedback, applied identically on sim and hardware.
+        register_output("/wheelleg/balance/feedforward", balance_feedforward_, 0.0);
     }
 
     void update() override {
@@ -235,12 +242,32 @@ public:
             target.feasible = false;
         }
 
-        // Balance ADRC enable: ON when the wheels carry the body AND the robot is
-        // near upright (the balanceable regime) -- this includes the standing hold.
-        // OFF while the wheels are airborne / the body is tumbling (the get-up),
-        // where the balance has no authority and its ESO would just spin the
-        // wheels.
-        *balance_enable_ = supported && std::abs(state.pitch) < balance_enable_tilt_;
+        // Balance ADRC enable: ON whenever the wheels carry the body. The old
+        // |pitch| < tilt gate was a get-up leftover (it disabled the balance as
+        // soon as the body tipped past ~45 deg, so a wheel-leg could never
+        // recover from a fall). A wheel-leg must keep balancing while the wheels
+        // are loaded; the airborne case is already covered by `supported`.
+        *balance_enable_ = supported;
+
+        // Base-velocity outer loop -> balance feedforward (wheel torque units).
+        // The pitch-only balance controls the pitch mode but leaves the base
+        // translational mode (x, xdot ~ r*omega) free; this term damps it. It is
+        // off during recovery (rec < 1) and while the wheels are unloaded, and
+        // the integral is unwound then so it cannot wind up.
+        {
+            const double omega = state.wheel_velocity;
+            const bool active = supported && rec >= 1.0 && std::isfinite(omega);
+            if (active)
+                balance_wheel_integral_ += omega * dt_;
+            else
+                balance_wheel_integral_ = 0.0;
+            balance_wheel_integral_ = std::clamp(
+                balance_wheel_integral_, -balance_integral_limit_, balance_integral_limit_);
+            *balance_feedforward_ = active
+                ? -balance_velocity_kp_ * omega
+                      - balance_position_kp_ * balance_wheel_integral_
+                : 0.0;
+        }
 
         // Restart the joint plan only when the commanded *equilibrium* changes
         // (leg length). The joint targets (beta/shank/hip) do not depend on the
@@ -386,6 +413,13 @@ private:
         // Wheel normal force above which the wheel is treated as loaded (contact
         // gate for the static-stability guard / balance regime).
         contact_normal_eps_ = node::param_or("contact_normal_eps", 1.0);
+        // Base-velocity outer loop gains (see /wheelleg/balance/feedforward):
+        //   balance_velocity_kp  [Nm per rad/s of wheel speed]  (damping)
+        //   balance_position_kp  [Nm per rad of wheel angle]    (drift trim)
+        //   balance_integral_limit [rad] clamps the integrated wheel angle.
+        balance_velocity_kp_ = node::param_or("balance_velocity_kp", 0.0);
+        balance_position_kp_ = node::param_or("balance_position_kp", 0.0);
+        balance_integral_limit_ = node::param_or("balance_integral_limit", 5.0);
         gravity_ = node::param_or("gravity", 9.81);
     }
 
@@ -602,6 +636,8 @@ private:
         *reference_knee_angle_ = kNaN;
         *reference_hip_angle_ = kNaN;
         *balance_enable_ = true;
+        balance_wheel_integral_ = 0.0;
+        *balance_feedforward_ = 0.0;
     }
 
     static constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
@@ -686,6 +722,12 @@ private:
     OutputInterface<double> reference_knee_angle_;
     OutputInterface<double> reference_hip_angle_;
     OutputInterface<bool> balance_enable_;
+    OutputInterface<double> balance_feedforward_;
+    // Base-velocity outer loop (see /wheelleg/balance/feedforward).
+    double balance_velocity_kp_ = 0.0;
+    double balance_position_kp_ = 0.0;
+    double balance_integral_limit_ = 5.0;
+    double balance_wheel_integral_ = 0.0;
     double body_distance_reference_ = 0.0;
     double posture_yaw_scale_ = 0.15;
     bool posture_gate_enabled_ = false;

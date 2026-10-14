@@ -186,9 +186,26 @@ def read_bag(uri: Path) -> list[dict]:
         if name != TOPIC:
             continue
         msg = deserialize_message(payload, WheelLegIdentificationSample)
-        row = {key: getattr(msg, key) for key in
-               (*FLOAT_FIELDS, *U64_FIELDS, *U32_FIELDS, *I32_FIELDS, *U8_FIELDS)
-               if key != "bag_timestamp_ns"}
+        # Tolerate message layouts older than the reader: fields added after the
+        # recording (e.g. the V6 recording block) fall back to their documented
+        # defaults instead of aborting, so archived bags stay readable. Array
+        # fields must fall back to a width-correct array, not a scalar.
+        widths = {**FLOAT_FIELDS, **U64_FIELDS, **U32_FIELDS, **I32_FIELDS, **U8_FIELDS}
+        row = {}
+        for key, width in widths.items():
+            if key == "bag_timestamp_ns":
+                continue
+            if hasattr(msg, key):
+                row[key] = getattr(msg, key)
+                continue
+            default = OPTIONAL_DEFAULTS.get(key)
+            if width is not None:
+                if default is None:
+                    default = float("nan") if key in FLOAT_FIELDS else 0
+                row[key] = [default] * width
+            else:
+                row[key] = default if default is not None else (
+                    float("nan") if key in FLOAT_FIELDS else 0)
         row["bag_timestamp_ns"] = timestamp_ns
         row["stamp_sec"] = msg.stamp.sec
         row["stamp_nanosec"] = msg.stamp.nanosec

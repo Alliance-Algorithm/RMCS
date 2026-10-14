@@ -311,6 +311,18 @@ private:
         // from the 9:1 hip motor; joint_damping is the calibrated viscous term.
         joint_damping_ = node::param_or("joint_damping", 0.1);
         hip_armature_ = node::param_or("hip_armature", 5.0e-3);
+        // Wheel joint dynamics from the real-robot identification
+        // (wheels-r15p62): reflected M3508/gearbox inertia (armature), bearing
+        // viscous damping and Coulomb friction, all at the wheel output shaft.
+        // Wheels are NOT covered by joint_damping (that is the leg limit-cycle
+        // term); with no armature/damping here the sim wheel is far lighter and
+        // less damped than the real one.
+        wheel_armature_ = node::param_or("wheel_armature", 4.7e-3);
+        wheel_joint_damping_ = node::param_or("wheel_joint_damping", 1.0e-3);
+        wheel_frictionloss_ = node::param_or("wheel_frictionloss", 9.0e-2);
+        // Wheel motor speed limit at the output shaft [rad/s]; M3508 rated
+        // ~469 rpm => 49.1 rad/s. 0/negative disables the cap.
+        wheel_speed_limit_ = node::param_or("wheel_speed_limit", 49.1);
         constraint_timeconst_ = node::param_or("constraint_timeconst", 0.002);
         constraint_dampratio_ = node::param_or("constraint_dampratio", 1.0);
         contact_timeconst_ = node::param_or("contact_timeconst", 0.002);
@@ -318,10 +330,12 @@ private:
         // (much lower) PD gains than the serial knee it replaced.
         crank_kp_ = node::param_or("crank_kp", 150.0);
         crank_kd_ = node::param_or("crank_kd", 2.0);
-        const double wheel_motor_torque_limit =
-            node::param_or("wheel_motor_torque_limit", 3.0);
-        const double wheel_gear_ratio = node::param_or("wheel_gear_ratio", 268.0 / 17.0);
-        wheel_torque_limit_ = wheel_motor_torque_limit * wheel_gear_ratio;
+        // Wheel output-shaft torque limit [Nm]. The sim applies the command
+        // directly at the output joint (no gearbox is modelled), so this is the
+        // real motor's OUTPUT limit (DjiMotor::max_torque ≈ 4.88 Nm at 20 A),
+        // NOT "motor torque x ratio". The online friction cone mu*N*r caps it
+        // further per wheel while in contact.
+        wheel_torque_limit_ = node::param_or("wheel_torque_limit", 4.88);
 
         // Ground friction limit on the wheel: |tau| <= mu * N * r, with the
         // normal force taken as the static weight. This caps the wheel torque
@@ -526,11 +540,22 @@ private:
         }
         for (const char* name :
              {"L_joint1", "R_joint1", "L_joint2", "R_jonit2", "L_crank", "R_crank", "LL_joint2",
-              "LL_joint3", "LL_link4", "RR_joint2", "RR_joint3", "RR_joint4", "L_joint3",
-              "R_joint3"}) {
+              "LL_joint3", "LL_link4", "RR_joint2", "RR_joint3", "RR_joint4"}) {
             const int id = mj_name2id(model_, mjOBJ_JOINT, name);
             if (id >= 0)
                 model_->dof_damping[model_->jnt_dofadr[id]] = joint_damping_;
+        }
+        // Wheel joints: reflected inertia + bearing viscous/Coulomb friction
+        // from the r15p62 identification. Deliberately separate from the leg
+        // joint_damping (0.3), which the wheels must not inherit.
+        for (const char* name : {"L_joint3", "R_joint3"}) {
+            const int id = mj_name2id(model_, mjOBJ_JOINT, name);
+            if (id < 0)
+                continue;
+            const int dof = model_->jnt_dofadr[id];
+            model_->dof_armature[dof] = wheel_armature_;
+            model_->dof_damping[dof] = wheel_joint_damping_;
+            model_->dof_frictionloss[dof] = wheel_frictionloss_;
         }
         for (int e = 0; e < model_->neq; ++e) {
             model_->eq_solref[2 * e] = constraint_timeconst_;
@@ -1062,6 +1087,21 @@ private:
         // A5 acceleration feedforward removed: it consumed /wheelleg/command/*
         // and would make the bridge depend on the motion planner while the
         // planner depends on /wheelleg/state/yaw (circular dependency).
+
+        // Motor speed limit (M3508 rated ~469 rpm at the wheel output ~= 49.1
+        // rad/s): as the wheel approaches the limit the ACCELERATING torque
+        // tapers linearly to zero, so a free / lightly-damped wheel cannot spin
+        // up without bound and a fast re-contact cannot explode the contact
+        // solver. Braking (torque opposed to motion) is never limited, matching
+        // the real current loop. wheel_speed_limit <= 0 disables the cap.
+        const auto motor_speed_limit = [&](double omega, double torque) {
+            if (wheel_speed_limit_ <= 0.0 || omega * torque <= 0.0)
+                return torque;
+            const double frac = std::clamp(std::abs(omega) / wheel_speed_limit_, 0.0, 1.0);
+            return torque * (1.0 - frac);
+        };
+        wheel_torque_l = motor_speed_limit(joint_velocity_(kLJoint3), wheel_torque_l);
+        wheel_torque_r = motor_speed_limit(joint_velocity_(kRJoint3), wheel_torque_r);
 
         // Wheel torque is capped by the motor and, while in contact, by the
         // friction cone mu*N*r evaluated online from the last solved contact
@@ -1677,13 +1717,17 @@ private:
 
     double joint_damping_ = 0.1;
     double hip_armature_ = 5.0e-3;
+    double wheel_armature_ = 4.7e-3;
+    double wheel_joint_damping_ = 1.0e-3;
+    double wheel_frictionloss_ = 9.0e-2;
+    double wheel_speed_limit_ = 49.1;
     double constraint_timeconst_ = 0.002;
     double constraint_dampratio_ = 1.0;
     double contact_timeconst_ = 0.002;
 
     double hip_torque_limit_ = 40.0;
     double crank_torque_limit_ = 40.0;
-    double wheel_torque_limit_ = 3.0 * 268.0 / 17.0;
+    double wheel_torque_limit_ = 4.88;
     double friction_coefficient_ = 2.0;
     double wheel_radius_ = 0.06;
     double wheel_friction_torque_limit_ = 0.0;

@@ -589,7 +589,7 @@ private:
         pitch_kp_ = node::param_or("pitch_kp", 8.0);
         pitch_kd_ = node::param_or("pitch_kd", 1.5);
         wheel_damping_ = node::param_or("wheel_damping", 0.2);
-        wheel_torque_limit_ = node::param_or("wheel_torque_limit", 4.5);
+        wheel_torque_limit_ = node::param_or("wheel_torque_limit", 4.88);
         wheel_axis_sign_ = node::param_or("wheel_axis_sign", 1.0);
         contact_force_eps_ = node::param_or("contact_force_eps", 1.0);
         target_wheel_velocity_ = node::param_or("target_wheel_velocity", 0.0);

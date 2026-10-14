@@ -33,7 +33,7 @@ public:
         register_output("/wheelleg/control/wheel_torque_r", wheel_torque_r_, kNaN);
 
         yaw_sign_ = node::param_or("yaw_sign", 1.0);
-        torque_limit_ = node::param_or("wheel_torque_limit", 16.13);
+        torque_limit_ = node::param_or("wheel_torque_limit", 4.88);
     }
 
     void update() override {
@@ -72,7 +72,7 @@ private:
     OutputInterface<double> wheel_torque_r_;
 
     double yaw_sign_ = 1.0;
-    double torque_limit_ = 16.13;
+    double torque_limit_ = 4.88;
 };
 
 } // namespace rmcs_core::controller::wheelleg

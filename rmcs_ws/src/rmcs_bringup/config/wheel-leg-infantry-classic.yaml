@@ -241,10 +241,10 @@ wheelleg_balance_controller:
     alpha1: 0.75
     alpha2: 0.7
     delta: 0.02
-    u_min: -16.13
-    u_max: 16.13
-    output_min: -16.13
-    output_max: 16.13
+    u_min: -4.88
+    u_max: 4.88
+    output_min: -4.88
+    output_max: 4.88
 
 wheelleg_yaw_controller:
   ros__parameters:
@@ -289,7 +289,7 @@ wheelleg_roll_controller:
 wheelleg_wheel_mixer:
   ros__parameters:
     yaw_sign: -1.0
-    wheel_torque_limit: 16.13
+    wheel_torque_limit: 4.88
 
 # ---------------------------------------------------------------------------
 # [NEW] Drive bridge: reduced references -> hardware joints/wheels + enable.
@@ -310,7 +310,7 @@ wheelleg_drive_bridge:
     pd_frequency: 1000.0
     # Wheel torque scale/sign to the hardware wheels.
     wheel_torque_sign: [1.0, 1.0]
-    wheel_torque_limit: 4.5
+    wheel_torque_limit: 4.88
     # Arming / safety: both DOWN resets, both MIDDLE arms, feedback timeout.
     feedback_timeout_s: 0.03
     arm_dwell_s: 0.5

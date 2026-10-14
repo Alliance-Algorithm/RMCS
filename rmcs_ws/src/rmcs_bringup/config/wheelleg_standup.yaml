@@ -36,8 +36,7 @@ wheelleg_sim:
     constraint_dampratio: 1.0
     hip_torque_limit: 40.0
     crank_torque_limit: 40.0
-    wheel_motor_torque_limit: 3.0
-    wheel_gear_ratio: 15.764705882352942
+    wheel_torque_limit: 4.88
     thigh_length: 0.21
     shank_length: 0.25005
     # V5.0 convention confirmed against the frozen V6 recovery profile: the
@@ -156,7 +155,7 @@ wheelleg_standup:
     pitch_kp: 8.0
     pitch_kd: 1.5
     wheel_damping: 0.2
-    wheel_torque_limit: 16.13
+    wheel_torque_limit: 4.88
     wheel_axis_sign: 1.0
     contact_force_eps: 1.0
     target_wheel_velocity: 0.0

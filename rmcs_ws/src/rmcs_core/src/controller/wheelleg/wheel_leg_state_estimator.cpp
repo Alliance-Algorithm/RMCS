@@ -90,6 +90,12 @@ public:
         // recovery controller (parity with wheelleg_simulation.cpp).
         register_output("/wheelleg/state/hip_angle", state_hip_angle_, nan_);
         register_output("/wheelleg/state/base_height", state_base_height_, nan_);
+        // Base-frame gravity direction (unit). Unlike the scalar pitch/roll this
+        // stays valid at any tilt (no gimbal lock at 90 deg), so the recovery can
+        // keep a usable attitude while the chassis is on its side / upside down.
+        register_output("/wheelleg/state/gravity_x", state_gravity_[0], nan_);
+        register_output("/wheelleg/state/gravity_y", state_gravity_[1], nan_);
+        register_output("/wheelleg/state/gravity_z", state_gravity_[2], nan_);
         // Wheel-ground normal force per wheel (contact gate). No force sensor on
         // the real robot yet: report 0, so the trajectory controller treats the
         // gate as "wheels loaded" (its documented default).
@@ -197,18 +203,95 @@ public:
         *state_leg_angle_r_ = alpha_r;
         // Raw L_joint1 (sim reports the reduced hip == raw L_joint1 here).
         *state_hip_angle_ = state_hip_sign_ * *joint_angle_[0];
-        // TODO: base origin height needs wheel contact / leg-angle projection.
-        // Placeholder: leg length + wheel radius (vertical leg assumption).
-        *state_base_height_ = leg_length + wheel_radius_;
+
+        // Full-attitude gravity direction in the base frame (X-forward / Y-left
+        // / Z-up). Sign kept consistent with the scalar pitch/roll conventions.
+        *state_gravity_[0] = state_pitch_sign_ * gravity_base.x();
+        *state_gravity_[1] = state_roll_sign_ * gravity_base.y();
+        *state_gravity_[2] = gravity_base.z();
+
+        // Reduced thigh/shank FK in the base sagittal plane (forward x, up z),
+        // 执行路线1_数学解析.md §1/§4: psi1 = beta + phi - pi (thigh K->H angle),
+        //   K - H = L1 (cos(psi1+pi), sin(psi1+pi)),  A - K = L2 (cos phi, sin phi).
+        // Returned relative to the hip; `kk` (knee) and `aa` (axle = K) are used
+        // by both the base-height and CoM computations below.
+        const auto leg_fk_ = [&](double b, double phi, std::array<double, 2>& kk,
+                                 std::array<double, 2>& aa) {
+            const double psi1 = b + phi - std::numbers::pi;
+            const double ux = -std::cos(psi1), uz = -std::sin(psi1);
+            kk = {thigh_length_ * ux, thigh_length_ * uz};
+            aa = {kk[0] + shank_length_ * std::cos(phi), kk[1] + shank_length_ * std::sin(phi)};
+        };
+        // Up direction in the base frame (opposite of gravity).
+        const double up_x = -gravity_base.x(), up_z = -gravity_base.z();
+
+        // Base origin height above the ground: the lowest wheel contact point
+        // rests on the ground (per-wheel; the chassis box is not modelled on the
+        // real robot yet). h = r - (axle . up).
+        {
+            double height = -std::numeric_limits<double>::infinity();
+            const std::array<std::array<double, 2>, 2> legs{{
+                {beta_l, shank_l},
+                {beta_r, shank_r},
+            }};
+            for (const auto& leg : legs) {
+                std::array<double, 2> kk{}, aa{};
+                leg_fk_(leg[0], leg[1], kk, aa);
+                const double px = hip_offset_forward_ + aa[0];
+                const double pz = hip_offset_up_ + aa[1];
+                height = std::max(height, wheel_radius_ - (px * up_x + pz * up_z));
+            }
+            *state_base_height_ = std::isfinite(height) ? height : nan_;
+        }
+
+        // Body-forward speed and travel distance from wheel odometry (signed
+        // integral of the wheel spin).
         const double omega = 0.5 * (*wheel_velocity_[0] + *wheel_velocity_[1]);
         *state_wheel_velocity_ = state_wheel_sign_ * omega;
-
-        // TODO: CoM offset d = (C_veh - A)_forward from 执行路线1_数学解析.md §3,
-        // and wheel-odometry velocity/distance. Zero placeholders for now.
-        *state_com_offset_ = 0.0;
-        *state_velocity_ = 0.0;
-        distance_ += 0.0;
+        const double body_forward_speed = velocity_sign_ * wheel_radius_ * omega;
+        *state_velocity_ = body_forward_speed;
+        distance_ += body_forward_speed * dt_;
         *state_distance_ = distance_;
+
+        // CoM offset d = forward component of (C_veh - A): the vehicle CoM
+        // relative to the wheel axle in the base sagittal plane
+        // (执行路线1_数学解析.md §3), consumed by the trajectory controller's
+        // posture / static-stability loop. Signs and offsets must be confirmed
+        // on the bench against the identified parameters.
+        {
+            const auto rot = [](double ang, const std::array<double, 2>& v) {
+                return std::array<double, 2>{
+                    std::cos(ang) * v[0] - std::sin(ang) * v[1],
+                    std::sin(ang) * v[0] + std::cos(ang) * v[1]};
+            };
+            std::array<double, 2> kk{}, aa{};
+            leg_fk_(beta, shank, kk, aa);
+            // Everything relative to the axle A.
+            const std::array<double, 2> h_a{-aa[0], -aa[1]};                  // H - A
+            const std::array<double, 2> k_a{kk[0] - aa[0], kk[1] - aa[1]};    // K - A
+            const std::array<double, 2> u_hk{kk[0] / thigh_length_, kk[1] / thigh_length_};
+            const std::array<double, 2> u_ka{
+                (aa[0] - kk[0]) / shank_length_, (aa[1] - kk[1]) / shank_length_};
+            const auto c1_off = rot(thigh_com_angle_, u_hk);
+            const std::array<double, 2> c1_a{
+                h_a[0] + thigh_com_offset_ * c1_off[0], h_a[1] + thigh_com_offset_ * c1_off[1]};
+            const auto c2_off = rot(shank_com_angle_, u_ka);
+            const std::array<double, 2> c2_a{
+                k_a[0] + shank_com_offset_ * c2_off[0], k_a[1] + shank_com_offset_ * c2_off[1]};
+            // Body CoM: H + R_y(theta) r_b, expressed relative to A.
+            const std::array<double, 2> rb{body_com_forward_, body_com_up_};
+            const std::array<double, 2> ryb{
+                std::cos(pitch) * rb[0] + std::sin(pitch) * rb[1],
+                -std::sin(pitch) * rb[0] + std::cos(pitch) * rb[1]};
+            const std::array<double, 2> cb_a{h_a[0] + ryb[0], h_a[1] + ryb[1]};
+            const double total = body_mass_ + thigh_mass_ + shank_mass_ + wheel_mass_;
+            const double cx = total > 0.0
+                                ? (body_mass_ * cb_a[0] + thigh_mass_ * c1_a[0]
+                                   + shank_mass_ * c2_a[0])
+                                      / total
+                                : 0.0;
+            *state_com_offset_ = cx;
+        }
 
         has_previous_ = true;
     }
@@ -248,6 +331,9 @@ private:
         *state_leg_angle_ = nan_;
         *state_hip_angle_ = nan_;
         *state_base_height_ = nan_;
+        *state_gravity_[0] = nan_;
+        *state_gravity_[1] = nan_;
+        *state_gravity_[2] = nan_;
         *state_wheel_velocity_ = nan_;
     }
 
@@ -291,6 +377,23 @@ private:
         state_shank_sign_ = param_or("state_shank_sign", 1.0);
         state_hip_sign_ = param_or("state_hip_sign", 1.0);
         state_wheel_sign_ = param_or("state_wheel_sign", 1.0);
+        // Reduced-model masses / CoM offsets for the analytic CoM and base
+        // height (执行路线1_数学解析.md §2/§3). Defaults mirror the classic
+        // carrier config; replace with the identified values on the real robot.
+        body_mass_ = param_or("body_mass", 11.62);
+        thigh_mass_ = param_or("thigh_mass", 0.426);
+        shank_mass_ = param_or("shank_mass", 0.507);
+        wheel_mass_ = param_or("wheel_mass", 0.40);
+        thigh_com_offset_ = param_or("thigh_com_offset", 0.06623);
+        shank_com_offset_ = param_or("shank_com_offset", 0.15344);
+        thigh_com_angle_ = param_or("thigh_com_angle", -0.096);
+        shank_com_angle_ = param_or("shank_com_angle", 0.002);
+        body_com_forward_ = param_or("body_com_forward", 0.005);
+        body_com_up_ = param_or("body_com_up", -0.052);
+        hip_offset_forward_ = param_or("hip_offset_forward", 0.0);
+        hip_offset_up_ = param_or("hip_offset_up", 0.0);
+        // Wheel-odometry sign to the body forward speed.
+        velocity_sign_ = param_or("velocity_sign", 1.0);
     }
 
     [[nodiscard]] double param_or(const std::string& name, double fallback) {
@@ -309,6 +412,14 @@ private:
     double state_knee_sign_ = -1.0, state_shank_sign_ = 1.0, state_hip_sign_ = 1.0;
     double state_wheel_sign_ = 1.0;
 
+    // Reduced-model masses / CoM offsets and geometry (执行路线1_数学解析.md).
+    double body_mass_ = 11.62, thigh_mass_ = 0.426, shank_mass_ = 0.507, wheel_mass_ = 0.40;
+    double thigh_com_offset_ = 0.06623, shank_com_offset_ = 0.15344;
+    double thigh_com_angle_ = -0.096, shank_com_angle_ = 0.002;
+    double body_com_forward_ = 0.005, body_com_up_ = -0.052;
+    double hip_offset_forward_ = 0.0, hip_offset_up_ = 0.0;
+    double velocity_sign_ = 1.0;
+
     std::array<InputInterface<double>, 4> joint_angle_;
     std::array<InputInterface<double>, 4> joint_velocity_;
     std::array<InputInterface<double>, 2> wheel_velocity_;
@@ -325,6 +436,7 @@ private:
     OutputInterface<double> state_leg_length_l_{}, state_leg_length_r_{};
     OutputInterface<double> state_leg_angle_l_{}, state_leg_angle_r_{};
     OutputInterface<double> state_hip_angle_{}, state_base_height_{};
+    std::array<OutputInterface<double>, 3> state_gravity_{};
     OutputInterface<double> state_contact_l_{}, state_contact_r_{};
     OutputInterface<double> state_com_offset_{}, state_wheel_velocity_{};
     OutputInterface<double> state_velocity_{}, state_distance_{};
