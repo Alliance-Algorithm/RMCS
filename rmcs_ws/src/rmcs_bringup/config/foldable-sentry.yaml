@@ -142,11 +142,11 @@ gimbal_controller:
     top_yaw_velocity_ki: 0.0
     top_yaw_velocity_kd: 0.0
 
-    bottom_yaw_angle_kp: 25.0
-    bottom_yaw_angle_ki: 0.01
+    bottom_yaw_angle_kp: 10.0
+    bottom_yaw_angle_ki: 0.0001
     bottom_yaw_angle_kd: 0.0
-    bottom_yaw_velocity_kp: 2.75
-    bottom_yaw_velocity_ki: 0.00125
+    bottom_yaw_velocity_kp: 2.5
+    bottom_yaw_velocity_ki: 0.00
     bottom_yaw_velocity_kd: 0.0
 
     pitch_angle_kp: 35.0
@@ -255,6 +255,7 @@ friction_wheel_controller:
       - /gimbal/right_friction
     friction_velocities: [950.0, 950.0, 950.0]
     friction_soft_start_stop_time: 1.0
+    friction_reverse_velocity: -150.0
 
 bullet_feeder_controller:
   ros__parameters:

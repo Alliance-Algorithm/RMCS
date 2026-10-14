@@ -62,6 +62,8 @@ public:
         friction_soft_start_stop_step_ =
             (1 / 1000.0) / get_parameter("friction_soft_start_stop_time").as_double();
 
+        friction_reverse_velocity_ = get_parameter("friction_reverse_velocity").as_double();
+
         register_output("/gimbal/friction_ready", friction_ready_, false);
         register_output("/gimbal/friction_jammed", friction_jammed_, false);
         register_output("/gimbal/bullet_fired", bullet_fired_, false);
@@ -88,6 +90,15 @@ public:
 
         if (switch_right != Switch::DOWN) {
             update_friction_working_velocity_outputs();
+
+            if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
+                update_friction_reverse_velocities();
+
+                last_switch_right_ = switch_right;
+                last_switch_left_ = switch_left;
+                last_keyboard_ = keyboard;
+                return;
+            }
 
             if ((!last_keyboard_.v && keyboard.v)
                 || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
@@ -125,6 +136,15 @@ private:
     void update_friction_working_velocity_outputs() {
         for (size_t i = 0; i < friction_count_; i++)
             *friction_working_velocity_outputs_[i] = friction_working_velocities_[i];
+    }
+
+    void update_friction_reverse_velocities() {
+        friction_soft_start_stop_percentage_ = nan_;
+
+        *friction_ready_ = *friction_jammed_ = *bullet_fired_ = false;
+
+        for (size_t i = 0; i < friction_count_; i++)
+            *friction_control_velocities_[i] = friction_reverse_velocity_;
     }
 
     void update_friction_velocities() {
@@ -225,6 +245,8 @@ private:
     double friction_soft_start_stop_step_;
     double friction_soft_start_stop_percentage_ = nan_;
     std::unique_ptr<OutputInterface<double>[]> friction_control_velocities_;
+
+    double friction_reverse_velocity_;
 
     OutputInterface<bool> friction_ready_;
 
