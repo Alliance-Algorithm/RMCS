@@ -43,6 +43,9 @@ public:
         pose.x += pose_compensation_.x;
         pose.y += pose_compensation_.y;
         pose.z += pose_compensation_.z;
+        pose.roll += pose_compensation_.roll;
+        pose.pitch += pose_compensation_.pitch;
+        pose.yaw += pose_compensation_.yaw;
         pose_solver(pose);
     }
 

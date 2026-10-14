@@ -3,6 +3,7 @@
 #include "obstacle.hpp"
 #include <map>
 #include <memory>
+#include <numbers>
 #include <rclcpp/logger.hpp>
 #include <string>
 
@@ -13,8 +14,11 @@ public:
         : logger_(rclcpp::get_logger("obstacle_coordinates_map")) {
 
         add_pose("energy_unit_compensation", {-0.0475, -0.0475, -0.0725, 0, 0, 0});
-
         add_pose("gimbal_compensation", {0, 0.5399, -0.264 + 0.004, 0, 0, 0});
+        add_pose("exchange_compensation", {0.097, -0.057, -0.04543, 0, 0, std::numbers::pi});
+        add_pose(
+            "pillar_compensation",
+            {-0.01954 + 0.118, -0.057, -0.10918 + 0.06417, 0, 0, std::numbers::pi});
 
         add_pose(
             "energy_unit_left_front_store", {-0.23138, 0.12818, 0.084 + 0.0725 + 0.004, 0, 0, 0});

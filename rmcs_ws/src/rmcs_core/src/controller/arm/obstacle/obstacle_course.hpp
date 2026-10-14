@@ -51,11 +51,20 @@ public:
             obstacle_coordinates_map.get_pose("gimbal_compensation"),
             obstacle_coordinates_map.get_pose("gimbal"));
 
-        set_operation("energy_unit_left_back", CollisionObjectOperation::ADD);
-        set_operation("energy_unit_right_back", CollisionObjectOperation::ADD);
-        set_operation("energy_unit_right_front", CollisionObjectOperation::ADD);
-        set_operation("energy_unit_left_front", CollisionObjectOperation::ADD);
+        add_collision(
+            "exchange", "exchange", mm2m_scale,
+            obstacle_coordinates_map.get_pose("exchange_compensation"), {-1, 0, 0, 0, 0, 0});
+        add_collision(
+            "pillar", "pillar", mm2m_scale,
+            obstacle_coordinates_map.get_pose("pillar_compensation"), {-1, 0, 0, 0, 0, 0});
+
+        set_operation("energy_unit_left_back", CollisionObjectOperation::IDLE);
+        set_operation("energy_unit_right_back", CollisionObjectOperation::IDLE);
+        set_operation("energy_unit_right_front", CollisionObjectOperation::IDLE);
+        set_operation("energy_unit_left_front", CollisionObjectOperation::IDLE);
         set_operation("gimbal", CollisionObjectOperation::ADD);
+        set_operation("exchange", CollisionObjectOperation::ADD);
+        set_operation("pillar", CollisionObjectOperation::ADD);
     }
 
     void set_operation(const std::string& id, CollisionObjectOperation operation) {
