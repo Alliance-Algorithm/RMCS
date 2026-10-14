@@ -206,6 +206,11 @@ gimbal_controller:
     roll_velocity_output_min: -15.0
     roll_velocity_output_max: 15.0
 
+    bottom_yaw_angle_output_min: -10.0
+    bottom_yaw_angle_output_max: 10.0
+    bottom_yaw_velocity_output_min: -4.5
+    bottom_yaw_velocity_output_max: 4.5
+
 # top_yaw 位置正弦扫频：展开状态下由右拨杆 MIDDLE->UP 触发（保持 UP 运行），
 # 扫频期间通过 /gimbal/top_yaw/control_torque_test 覆盖云台控制器的 top_yaw 力矩，
 # 同时记录 roll 角度闭环响应用于耦合分析。
