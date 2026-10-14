@@ -88,6 +88,7 @@ RecoveryProfile RecoveryProfile::load(
     // The current profile retains the old pose-generation domain. Its lookup
     // covers the physical stop; neither domain changes the encoder zero.
     RecoveryProfile result;
+    result.model_spec_sha256 = profile.at("model_spec_sha256").get<std::string>();
     auto& controller = result.controller;
     const auto& prepare = profile.at("prepare_reference");
     const auto geometry = policy_order(prepare.at("geometry_control6_rad"));

@@ -42,6 +42,12 @@ struct OnnxPolicy::Impl {
             throw std::runtime_error(
                 "ONNX leg_winding_version " + std::string{model_winding}
                 + " does not match configured " + std::string{leg_winding_version});
+        if (configured == LegTargetWinding::kPairedBranch107) {
+            const auto encoded_spec = metadata.LookupCustomMetadataMapAllocated(
+                "leg_target_model_spec_sha256", allocator);
+            validate_leg_target_model_spec(
+                configured, encoded_spec ? encoded_spec.get() : "", "ONNX leg target");
+        }
         input_name = session.GetInputNameAllocated(0, allocator).get();
         output_name = session.GetOutputNameAllocated(0, allocator).get();
         if (input_name != "obs" || output_name != "actions")
