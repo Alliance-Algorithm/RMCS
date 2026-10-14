@@ -3,19 +3,127 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::WheelLeg -> wheel_leg
-      - rmcs_core::controller::chassis::WheelLegRlConsumer -> wheel_leg_rl_consumer
-      - rmcs_rl::RlBridge -> rl_bridge
-      - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
+      - rmcs::rl::RlController -> rl_controller
       - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
-      - rmcs_core::controller::pid::PidController -> left_wheel_velocity_pid
-      - rmcs_core::controller::pid::PidController -> right_wheel_velocity_pid
+      - rmcs_core::controller::identification::WheelLegIdentificationRecorder -> wheel_leg_identification_recorder
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+value_broadcaster:
+  ros__parameters:
+    update_rate: 50.0
+    forward_list:
+      # 右腿（髋/膝/轮）
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/torque
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/torque
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/torque
+
+      - /wheel_leg/feedback_fresh
+      - /wheel_leg/dr16_fresh
+      - /remote/rotary_knob
+      - /chassis/control_height
+      - /wheel_leg/dm_control_ready
+      - /wheel_leg/enable_request
+      - /wheel_leg/imu/sensor_gravity/x
+      - /wheel_leg/imu/sensor_gravity/y
+      - /wheel_leg/imu/sensor_gravity/z
+      - /wheel_leg/imu/sensor_gyro/x
+      - /wheel_leg/imu/sensor_gyro/y
+      - /wheel_leg/imu/sensor_gyro/z
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/right_wheel/control_torque
+
+      # 左腿（髋/膝/轮）
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/torque
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/torque
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/torque
+
+      - /wheel_leg/rl/state
+      - /wheel_leg/rl/recovery/phase
+      - /wheel_leg/rl/recovery/failure
+      - /wheel_leg/rl/recovery/native_phase
+      - /wheel_leg/rl/recovery/native_route
+      - /wheel_leg/rl/recovery/native_failure
+      - /wheel_leg/rl/recovery/native_motion_released
+      - /wheel_leg/rl/recovery/sensors_valid
+      - /wheel_leg/rl/recovery/sensor_issue
+      - /wheel_leg/rl/recovery/sensor_invalid_mask
+      - /wheel_leg/rl/recovery/motor_age_ms
+      - /wheel_leg/rl/recovery/imu_age_ms
+      - /wheel_leg/rl/recovery/acceleration_age_ms
+      - /wheel_leg/rl/recovery/contact_candidate
+      - /wheel_leg/rl/recovery/support_confirmed
+      - /wheel_leg/rl/recovery/geometry_valid
+      - /wheel_leg/rl/recovery/height_if_grounded
+      - /wheel_leg/rl/recovery/motion_hold
+      - /wheel_leg/rl/recovery/blend
+      - /wheel_leg/rl/v6_takeover/blend_fraction
+      - /wheel_leg/rl/performance/inference_us
+      - /wheel_leg/rl/performance/pd_us
+      - /wheel_leg/rl/observation/command/forward
+      - /wheel_leg/rl/observation/command/yaw
+      - /wheel_leg/rl/observation/height
+      - /wheel_leg/rl/observation/projected_gravity/z
+      - /wheel_leg/rl/action/left_hip_joint
+      - /wheel_leg/rl/action/left_knee_joint
+      - /wheel_leg/rl/action/right_hip_joint
+      - /wheel_leg/rl/action/right_knee_joint
+      - /wheel_leg/rl/action/left_wheel
+      - /wheel_leg/rl/action/right_wheel
+      # Foxglove: these scalar plots follow the side selected below. The typed
+      # /wheel_leg/identification/sample is the 1 kHz bag source.
+      - /wheel_leg/identification/selected/hip/angle_api
+      - /wheel_leg/identification/selected/hip/velocity_api
+      - /wheel_leg/identification/selected/hip/torque_feedback_api
+      - /wheel_leg/identification/selected/hip/torque_command_api
+      - /wheel_leg/identification/selected/hip/torque_frame_api
+      - /wheel_leg/identification/selected/hip/reference_api
+      - /wheel_leg/identification/selected/hip/velocity_target_api
+      - /wheel_leg/identification/selected/hip/reference_model
+      - /wheel_leg/identification/selected/hip/velocity_target_model
+      - /wheel_leg/identification/selected/hip/position_error_model
+      - /wheel_leg/identification/selected/hip/speed_error_model
+      - /wheel_leg/identification/selected/hip/torque_preclip_model
+      - /wheel_leg/identification/selected/knee/angle_api
+      - /wheel_leg/identification/selected/knee/velocity_api
+      - /wheel_leg/identification/selected/knee/torque_feedback_api
+      - /wheel_leg/identification/selected/knee/torque_command_api
+      - /wheel_leg/identification/selected/knee/torque_frame_api
+      - /wheel_leg/identification/selected/knee/reference_api
+      - /wheel_leg/identification/selected/knee/velocity_target_api
+      - /wheel_leg/identification/selected/knee/reference_model
+      - /wheel_leg/identification/selected/knee/velocity_target_model
+      - /wheel_leg/identification/selected/knee/position_error_model
+      - /wheel_leg/identification/selected/knee/speed_error_model
+      - /wheel_leg/identification/selected/knee/torque_preclip_model
+      - /wheel_leg/identification/actuation_scope
+
+wheel_leg_identification_recorder:
+  ros__parameters:
+    # Recording/plot selection only; the active motor side is set by the
+    # experiment controller, not by this passive recorder.
+    side: "left"
 
 wheel_leg:
   ros__parameters:
     board_serial: ""
-    joint_control_mode: "position_pd"
-    joint_position_kp: 5.0
-    joint_position_kd: 0.3
+    joint_control_mode: "torque"
     require_enable_request: true
     # Only an armed RL session may keep control at left-MIDDLE/right-DOWN.
     allow_spin_switch: true
@@ -35,83 +143,112 @@ wheel_leg:
     # This configuration uses zero-Kp/Kd MIT pure-torque commands.
     # All six drive loops run on the PC (not DM internal position control).
 
-rl_bridge:
+rl_controller:
   ros__parameters:
-    rl_base: "/wheel_leg/rl"
-    policy_rate: 50.0
-    max_action_age: 0.04
-    history_length: 1
-    rl_obs_size: 35
-    rl_action_size: 6
-    # Produced by the chassis controller, upstream of the bridge and RL consumer.
-    enable_interface: "/wheel_leg/enable_request"
-    enable_default: false
-    invalid_value: "nan"
-    reset_interface: "/chassis/reset_count"
-    joint_names: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint, left_wheel, right_wheel]
-    joint_base_path: "/wheel_leg"
-    joint_angle_suffix: "/angle"
-    joint_velocity_suffix: "/velocity"
-    joint_torque_suffix: "/torque"
-    # Observation reference only: these are the policy's nominal joint positions,
-    # not hardware calibration or model identity metadata.
-    default_joint_pos:
-      left_hip_joint: 0.42
-      left_knee_joint: -0.13742282595254576
-      right_hip_joint: -0.42
-      right_knee_joint: 0.13741557625658019
-      left_wheel: 0.0
-      right_wheel: 0.0
-    observation_terms:
-      - index=0 path=/chassis/control_velocity take=x
-      - index=1 path=/chassis/control_velocity take=y
-      - index=2 path=/chassis/control_velocity take=z
-      - index=3 path=/chassis/control_height scale=5.0
-      # Keep the model's semantic layout names while binding hardware-owned Body IMU data.
-      - index=4 path=/wheel_leg/imu/angular_velocity take=vec3 scale=0.5 name=vec3:/wheel_leg/rl/imu/angular_velocity
-      # Hardware projects world-down into Body using inverse(q_WB), matching training.
-      - index=7 path=/wheel_leg/imu/projected_gravity take=vec3 name=vec3:/wheel_leg/rl/imu/projected_gravity
-      - index=10 type=joint_pos joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint relative=true
-      - index=14 type=joint_pos joints=left_wheel,right_wheel zero=true
-      - index=16 type=joint_vel joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint scale=0.1
-      - index=20 type=joint_vel joints=left_wheel,right_wheel scale=0.1
-      - index=22 type=last_action
-      - index=28 type=constant value=1,0,0,0,0,0,0
-    action_terms:
-      - index=0 output=/wheel_leg/rl/action/left_hip name=left_hip
-      - index=1 output=/wheel_leg/rl/action/left_knee name=left_knee
-      - index=2 output=/wheel_leg/rl/action/right_hip name=right_hip
-      - index=3 output=/wheel_leg/rl/action/right_knee name=right_knee
-      - index=4 output=/wheel_leg/rl/action/left_wheel name=left_wheel
-      - index=5 output=/wheel_leg/rl/action/right_wheel name=right_wheel
+    # Compatible V6 actors share the robot control contract.
+    model_path: "models/wheel_leg/policy.onnx"
+    # Keep the RL command envelope aligned with the chassis limits below.
+    vx_max: 0.5
+    yaw_rate_max: 1.0
+    rl_inference_frequency: 50.0
+    # Update feedback PD and recovery references every 1 ms; policy targets stay at 50 Hz.
+    pd_frequency: 1000.0
+    recovery_frequency: 1000.0
+    dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
+    # Frozen V6 references/geometry are runtime candidates; these files do not
+    # grant motor calibration or real-robot recovery readiness.
+    recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
+    height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
+    recovery_enabled: false
+    recovery_profile_ready: false
+    # Shared real sensor age/skew guards apply to ordinary RL and recovery.
+    recovery_motor_age_s: 0.02
+    recovery_imu_age_s: 0.02
+    recovery_acceleration_age_s: 0.03
+    recovery_sensor_skew_s: 0.01
+    # V6 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
+    # and its encoder/gyro response thresholds. It is a conditional support
+    # estimate; queued CAN torque and motor-current truth are not substituted
+    # for measured contact. Hardware readiness stays false pending validation.
+    height_transition_seconds: 6.0
+    # The chassis supplies a continuous height reference; do not restart a step curve.
+    height_command_is_reference: true
+    height_reference_rate_max: 0.6666666666666666
+    wheel_radius: 0.06
+    wheel_track: 0.4373
 
-policy_server:
-  ros__parameters:
-    rl_base: "/wheel_leg/rl"
-    rl_model_path: "models/wheel_leg_v3.onnx"
-    input_name: "obs"
-    output_name: "actions"
-    model_type: "auto"
-    rl_obs_size: 35
-    rl_action_size: 6
-    normalization_from_metadata: false
-    publish_status: false
+    # The four DM drives were zeroed at a 105-degree mechanical pose; their
+    # motor zero is neither the URDF assembly zero nor the policy nominal pose.
+    # The independent 1:1 chain drives need four API-to-model signs and offsets;
+    # do not add a hip/knee differential term or repeat the DM reversed sign.
+    # Leg P order: left_hip, left_knee-drive, right_hip, right_knee-drive.
+    # q_model = leg_motor_to_model(4x4 row-major) * q_api + leg_model_offsets;
+    # tau_motor = leg_motor_to_model^T * tau_model.
+    # The physical 105-degree zero and IMU mounting were confirmed. V6 six-axis
+    # mapping and multipoint mechanism verification have not yet been completed.
+    calibration_ready: false
+    # Calibration: .script/identification/calibration/v6_pair_from_dev_rmcs_rl.json.
+    # Driver API already applies reversed with bias=0. V6 axes invert the V5
+    # model axes, hence q_v6 = -q_api + offset. Never reverse the raw angle twice.
+    leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+                         0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+    leg_model_offsets: [1.6, 2.93, -1.6, -2.93]
+    # DjiMotor applies the hardware reduction ratio to wheel-side feedback/torque.
+    # The policy target is already a wheel-output speed: do not multiply it again.
+    # V6 preserves the V5 wheel axes in source; individual hardware signs await measurement.
+    wheel_model_scale: [1.0, 1.0]
+    nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
 
-policy_server_launcher:
-  ros__parameters:
-    autostart: true
-    params_file: "wheel-leg-infantry-rl.yaml"
-    respawn: true
-    respawn_delay: 1.0
-    poll_interval: 0.5
+    # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
+    # The user-confirmed physical upper stop is 107..108 degrees. Interpolating
+    # the upstream G0 105/110-degree samples gives d(108)=1.3889088544 rad.
+    # These measured-feedback guards are separate from the frozen V6 40..105
+    # geometry/target domain. Do not change the motor zero or extend that LUT:
+    # an initially extended leg may fold inward without inventing support.
+    # This default profile stays disarmed; use the recovery commissioning profile
+    # for the explicitly enabled, supervised real-robot test.
+    soft_limits_ready: false
+    hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
+    hinge_bias: [0.0, 0.0]
+    hinge_min: [-0.140638855, -0.140638855]
+    hinge_max: [1.3889088544, 1.3889088544]
+    hinge_margin: 0.03
 
-wheel_leg_rl_consumer:
-  ros__parameters:
-    rl_base: "/wheel_leg/rl"
-    action_scale: 0.25
-    wheel_velocity_scale: 10.0
-    default_leg_position: [0.42, -0.13742282595254576, -0.42, 0.13741557625658019]
-    safe_leg_position: [0.0, 0.0, 0.0, 0.0]
+    # This ONNX was trained with base_link/control_frame X-forward, Y-left,
+    # Z-up. The URDF's +90 deg rotation is on imported CAD visual/collision
+    # meshes (CAD front = -Y); it has ALREADY been applied before training.
+    # Do not add that CAD rotation again to commands or policy actions.
+    # imu_to_base is only the independently measured sensor-to-base rotation:
+    # Frozen policy base_link is X-forward/Y-left/Z-up. Source CAD -Y forward
+    # was already rotated +90deg during URDF export; do not rotate again here.
+    # Installed BMI088: +X forward, +Z up, right-handed => +Y left. Thus the
+    # sensor and policy base_link axis orders agree; no extra 90-degree yaw.
+    # User-confirmed installation; same identity mount as dev/rmcs_rl @ 8149afda.
+    # gyro_base = R_base_imu * gyro_imu; q_world_base = q_world_imu * R_base_imu^T.
+    imu_alignment_ready: true
+    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+
+    auto_enter_rl: false
+    prepare_kp: 160.0
+    prepare_kd: 2.5
+    prepare_max_velocity: 1.0
+    prepare_reach_threshold: 0.02
+    prepare_max_tilt_rad: 0.2
+    prepare_max_angular_velocity: 0.35
+    prepare_max_joint_velocity: 0.5
+    prepare_stable_seconds: 0.25
+    # V6 takes over near the actor's upright nominal reset without requiring
+    # static balance under PREPARE PD. Allow bounded gas-spring load deflection;
+    # gyro/axis speed, strict sample freshness and measured hinge limits still
+    # gate entry. These engineering capture bounds do not qualify hardware.
+    # prepare_max_tilt_rad remains the capture tilt bound (0.2 rad).
+    capture_max_leg_error_rad: 0.15
+    capture_max_angular_velocity: 1.0
+    capture_max_leg_velocity: 2.0
+    capture_max_wheel_velocity: 5.0
+    # RL inference starts at capture regardless of this effort-only window.
+    # 0 selects direct takeover; optional six-axis smoothstep is bounded to 0.3 s.
+    takeover_blend_seconds: 0.0
 
 wheel_leg_chassis_controller:
   ros__parameters:
@@ -122,30 +259,10 @@ wheel_leg_chassis_controller:
     deadzone: 0.08
     command_height_min: 0.23
     command_height_max: 0.43
-    default_command_height: 0.305
+    default_command_height: 0.23
+    height_rate_max: 0.6666666666666666
     height_step: 0.01
     angular_z_invert: false
+    # The left stick's longitudinal axis is positive when pushed UP.
     height_invert: false
     jump_enabled: false
-
-left_wheel_velocity_pid:
-  ros__parameters:
-    measurement: /wheel_leg/left_wheel/velocity
-    setpoint: /wheel_leg/left_wheel/control_velocity
-    control: /wheel_leg/left_wheel/control_torque
-    kp: 0.6
-    ki: 0.0
-    kd: 0.0
-    output_min: -4.5
-    output_max: 4.5
-
-right_wheel_velocity_pid:
-  ros__parameters:
-    measurement: /wheel_leg/right_wheel/velocity
-    setpoint: /wheel_leg/right_wheel/control_velocity
-    control: /wheel_leg/right_wheel/control_torque
-    kp: 0.6
-    ki: 0.0
-    kd: 0.0
-    output_min: -4.5
-    output_max: 4.5

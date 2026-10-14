@@ -85,15 +85,10 @@ V5 闭链直接求解得到：
 
 ## 验证与维护
 
-`rmcs_core` 的回归测试覆盖 DM 帧解码、使能确认、失能复位、配对选弧、过零、镜像和边界速度限制：
-
-```sh
-colcon test --merge-install --packages-select rmcs_core --ctest-args -R 'dm_motor_test|dm_joint_enable_sequence_test|wheel_leg_joint_pair_geometry_test'
-```
+早期 DM/配对几何测试和姿态查看器已随部署重构移除，历史验证可从 Git 历史查看。
 
 早期 VEL 模式的临时 PhysX 桥、方向对照脚本和生成报告已从工作树移除，可在 Git 历史查看。
 控制器的运行入口统一为 `update()`，不再暴露仅供测试使用的时钟入口。
 模型参数和标定行程必须结合实车核实，软件回归不证明电机或 CAN 总线已验证。
 
-实车角度与 Body IMU 对照使用[MuJoCo 姿态查看器](wheel_leg_pose_viewer.md)，
 使能失败按[DM 启动诊断](wheel_leg_dm_startup.md)读取首个异常状态。

@@ -254,9 +254,6 @@ private:
             status.register_output(
                 "/wheel_leg/imu/angular_velocity", imu_angular_velocity_, Eigen::Vector3d::Zero());
             status.register_output(
-                "/wheel_leg/imu/projected_gravity", imu_projected_gravity_,
-                Eigen::Vector3d{0.0, 0.0, -1.0});
-            status.register_output(
                 "/wheel_leg/imu/acceleration", imu_acceleration_, Eigen::Vector3d::Zero());
             status.register_output(
                 "/wheel_leg/imu/acceleration_steady_ns", acceleration_last_output_,
@@ -375,11 +372,13 @@ private:
                 throw std::invalid_argument(
                     "DM MIT ranges must contain four positive finite values");
 
+            // The stock M3508 gearbox is removed; the external gearbox provides
+            // the full reduction from the motor encoder to the wheel.
             for (auto&& [motor, id] : std::views::zip(wheel_motors_, kMotorIds))
                 motor.configure(
                     device::DjiMotor::Config{device::DjiMotor::Type::kM3508, id}
                         .set_reversed()
-                        .set_reduction_ratio(15.8)
+                        .set_reduction_ratio(15.62)
                         .enable_multi_turn_angle());
 
             const auto configure_joint = [&](device::DmMotor& motor, std::size_t index,
@@ -438,8 +437,11 @@ private:
             constexpr std::array kReceiveIndex{2, 4, 3, 5, 0, 1};
             for (std::size_t i = 0; i < kReceiveIndex.size(); ++i) {
                 const auto& snapshot = motor_feedback_[kReceiveIndex[i]].latest();
+                const bool changed = snapshot.sequence != *feedback_sequence_outputs_[i];
                 *feedback_sequence_outputs_[i] = snapshot.sequence;
                 *feedback_ns_outputs_[i] = snapshot.steady_ns;
+                if (!changed)
+                    continue;
                 auto& frame = *feedback_frame_outputs_[i];
                 frame.fill(0);
                 if (snapshot.sequence != 0) {
@@ -453,16 +455,16 @@ private:
 
         void publish_imu_feedback() {
             const auto& imu = imu_feedback_.read();
+            const bool changed = imu.sequence != *imu_sequence_output_;
             *imu_sequence_output_ = imu.sequence;
             *imu_last_output_ = imu.steady_ns;
             *gyro_board_ticks_output_ = imu.board_quarter_us;
             imu_last_ns_.store(static_cast<std::int64_t>(imu.steady_ns), std::memory_order_relaxed);
-            if (imu.sequence != 0) {
+            if (imu.sequence != 0 && changed) {
                 *imu_quaternion_ = imu.value.orientation.normalized();
                 *imu_angular_velocity_ = imu.value.gyro_body;
                 const Eigen::Vector3d gravity =
                     imu_quaternion_->conjugate() * -Eigen::Vector3d::UnitZ();
-                *imu_projected_gravity_ = gravity;
                 for (int i = 0; i < 3; ++i) {
                     *gravity_outputs_[i] = gravity[i];
                     *gyro_outputs_[i] = imu.value.gyro_body[i];
@@ -853,7 +855,6 @@ private:
         WheelLeg& status_;
         OutputInterface<Eigen::Quaterniond> imu_quaternion_;
         OutputInterface<Eigen::Vector3d> imu_angular_velocity_;
-        OutputInterface<Eigen::Vector3d> imu_projected_gravity_;
         OutputInterface<Eigen::Vector3d> imu_acceleration_;
         OutputInterface<std::uint64_t> acceleration_last_output_;
         OutputInterface<std::uint64_t> imu_last_output_;

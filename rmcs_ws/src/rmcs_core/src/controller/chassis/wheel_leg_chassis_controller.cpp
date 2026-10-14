@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <ranges>
 #include <stdexcept>
 #include <string>
@@ -19,17 +21,36 @@
 
 namespace rmcs_core::controller::chassis {
 
-// Chassis command source of the wheel-leg. It owns the arm request upstream of the RL bridge and
-// consumer, so enabling inference does not depend on consuming its actions.
+// Chassis command source of the wheel-leg. It decodes the remote control into the chassis command
+// interfaces. RlController alone owns PREPARE -> RL, so the executor graph stays acyclic.
 class WheelLegChassisController final
     : public rmcs_executor::Component
     , public rclcpp::Node
     , public rmcs_utility::NodeMixin {
 public:
     explicit WheelLegChassisController()
-        : Node{get_component_name(), node::options()} {
-        register_output("/wheel_leg/enable_request", enable_request_, false);
-        register_interfaces_();
+        : Node{get_component_name(), node::options()}
+        , vx_max_(get_parameter_or<double>("vx_max", 0.5))
+        , vy_max_(get_parameter_or<double>("vy_max", 0.0))
+        , yaw_rate_max_(get_parameter_or<double>("yaw_rate_max", 1.0))
+        , spin_yaw_rate_(get_parameter_or<double>("spin_yaw_rate", 1.0)) {
+        register_input("/remote/joystick/right", joystick_right_);
+        register_input("/remote/joystick/left", joystick_left_);
+        register_input("/remote/switch/right", switch_right_);
+        register_input("/remote/switch/left", switch_left_);
+        register_input("/wheel_leg/dr16_fresh", remote_fresh_);
+        register_input("/remote/keyboard", keyboard_);
+        register_input("/predefined/timestamp", timestamp_);
+
+        register_output(
+            "/chassis/control_velocity", chassis_control_velocity_,
+            rmcs_description::BaseLink::DirectionVector{0.0, 0.0, 0.0});
+        register_output("/chassis/control_height", chassis_control_height_, 0.0);
+        register_output("/chassis/control_state", chassis_control_state_, 0);
+        register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
+        register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
+        register_output("/chassis/jump_request", jump_request_, false);
+        register_output("/chassis/jump_apex_delta", jump_apex_delta_, 0.0);
         load_parameters_();
         height_ = default_command_height_;
         stop_controls_(0);
@@ -46,6 +67,10 @@ public:
 
         const bool both_down = switch_left == Switch::DOWN && switch_right == Switch::DOWN;
         const bool any_unknown = switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
+        if (any_unknown && arm_sequence_.armed())
+            RCLCPP_WARN(
+                get_logger(), "Armed chassis disarmed: DR16 fresh=%d, switches=[%d,%d]",
+                *remote_fresh_, static_cast<int>(switch_left), static_cast<int>(switch_right));
 
         // Power-on hold: stay at kInit(0) until the operator first moves a switch.
         if (!switch_activity_seen_
@@ -71,43 +96,21 @@ public:
             }
         }
 
-        *enable_request_ = *chassis_control_state_ == 3;
         last_switch_left_ = switch_left;
         last_switch_right_ = switch_right;
         last_keyboard_ = keyboard;
     }
 
 private:
-    void register_interfaces_() {
-        register_input("/remote/joystick/right", joystick_right_);
-        register_input("/remote/joystick/left", joystick_left_);
-        register_input("/remote/switch/right", switch_right_);
-        register_input("/remote/switch/left", switch_left_);
-        register_input("/wheel_leg/dr16_fresh", remote_fresh_);
-        register_input("/remote/rotary_knob", rotary_knob_);
-        register_input("/remote/keyboard", keyboard_);
-
-        register_output(
-            "/chassis/control_velocity", chassis_control_velocity_,
-            rmcs_description::BaseLink::DirectionVector{0.0, 0.0, 0.0});
-        register_output("/chassis/control_height", chassis_control_height_, 0.0);
-        register_output("/chassis/control_state", chassis_control_state_, 0);
-        register_output("/chassis/reset_count", reset_count_output_, std::size_t{0});
-        register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
-        register_output("/chassis/jump_request", jump_request_, false);
-        register_output("/chassis/jump_apex_delta", jump_apex_delta_, 0.0);
-    }
+    using Clock = std::chrono::steady_clock;
 
     void load_parameters_() {
-        vx_max_ = get_parameter_or<double>("vx_max", 0.5);
-        vy_max_ = get_parameter_or<double>("vy_max", 0.0);
-        yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 1.0);
-        spin_yaw_rate_ = get_parameter_or<double>("spin_yaw_rate", 1.0);
         deadzone_ = get_parameter_or<double>("deadzone", 0.08);
 
         command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
         command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
-        default_command_height_ = get_parameter_or<double>("default_command_height", 0.305);
+        default_command_height_ = get_parameter_or<double>("default_command_height", command_height_min_);
+        height_rate_max_ = get_parameter_or<double>("height_rate_max", 0.02);
         height_step_ = get_parameter_or<double>("height_step", 0.01);
 
         angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
@@ -123,13 +126,15 @@ private:
             command_height_min_,
             command_height_max_,
             default_command_height_,
+            height_rate_max_,
             height_step_};
         if (!std::ranges::all_of(values, [](double value) { return std::isfinite(value); })
             || vx_max_ <= 0.0 || vy_max_ < 0.0 || yaw_rate_max_ <= 0.0 || spin_yaw_rate_ <= 0.0
             || spin_yaw_rate_ > yaw_rate_max_ || deadzone_ < 0.0 || deadzone_ >= 1.0
             || command_height_min_ <= 0.0 || command_height_min_ > command_height_max_
             || default_command_height_ < command_height_min_
-            || default_command_height_ > command_height_max_ || height_step_ < 0.0)
+            || default_command_height_ > command_height_max_ || height_rate_max_ <= 0.0
+            || height_step_ < 0.0)
             throw std::invalid_argument("Invalid wheel-leg chassis command limits");
     }
 
@@ -137,16 +142,22 @@ private:
         rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
         const rmcs_msgs::Keyboard& keyboard) {
         using rmcs_msgs::Switch;
-        const bool spin_switch = switch_left == Switch::MIDDLE && switch_right == Switch::DOWN;
-        const bool spin_switch_edge =
-            spin_switch
-            && (last_switch_left_ != Switch::MIDDLE || last_switch_right_ != Switch::DOWN);
+        // Match the common chassis input: the right switch enters DOWN once
+        // while the left switch stays MIDDLE. Holding DOWN does not retrigger.
+        const bool spin_switch_edge = switch_left == Switch::MIDDLE
+                                   && last_switch_right_ == Switch::MIDDLE
+                                   && switch_right == Switch::DOWN;
         if (spin_switch_edge || (!last_keyboard_.c && keyboard.c)) {
             if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST) {
                 *mode_ = rmcs_msgs::ChassisMode::AUTO;
+                node::info("Chassis mode: AUTO");
             } else {
                 *mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
                 spinning_forward_ = !spinning_forward_;
+                const double yaw_rate = spinning_forward_ ? spin_yaw_rate_ : -spin_yaw_rate_;
+                node::info(
+                    "Chassis mode: SPIN, yaw command {} rad/s",
+                    angular_z_invert_ ? -yaw_rate : yaw_rate);
             }
         }
     }
@@ -168,7 +179,7 @@ private:
         *jump_request_ = false;
         *jump_apex_delta_ = 0.0;
         height_ = default_command_height_;
-        height_offset_ = 0.0;
+        previous_height_timestamp_.reset();
     }
 
     void update_remote_control_() {
@@ -217,28 +228,29 @@ private:
     }
 
     void update_height_control_() {
-        double rotary_knob = read_channel_(*rotary_knob_);
-        // The rotary knob spans the asymmetric height domain around the nominal height.
+        double height_input = read_channel_(joystick_left_->x());
         if (height_invert_)
-            rotary_knob = -rotary_knob;
-        if (rotary_knob > 0.0)
-            rotary_knob = (rotary_knob - deadzone_) / (1.0 - deadzone_);
-        else if (rotary_knob < 0.0)
-            rotary_knob = (rotary_knob + deadzone_) / (1.0 - deadzone_);
-        const double height_baseline =
-            default_command_height_
-            + rotary_knob
-                  * (rotary_knob >= 0.0 ? command_height_max_ - default_command_height_
-                                        : default_command_height_ - command_height_min_);
+            height_input = -height_input;
+        if (height_input > 0.0)
+            height_input = (height_input - deadzone_) / (1.0 - deadzone_);
+        else if (height_input < 0.0)
+            height_input = (height_input + deadzone_) / (1.0 - deadzone_);
+        const auto now = *timestamp_;
+        double dt = 0.0;
+        if (previous_height_timestamp_) {
+            const auto elapsed = now - *previous_height_timestamp_;
+            if (elapsed > Clock::duration::zero() && elapsed <= std::chrono::milliseconds{20})
+                dt = std::chrono::duration<double>{elapsed}.count();
+        }
+        // Do not integrate a startup/reset interval or catch up after a gap.
+        // Centered input holds the accumulated height in both AUTO and SPIN.
+        previous_height_timestamp_ = now;
+        height_ += height_input * height_rate_max_ * dt;
         const auto& keyboard = *keyboard_;
         if (!last_keyboard_.r && keyboard.r)
-            height_offset_ += height_step_;
+            height_ += height_step_;
         if (!last_keyboard_.f && keyboard.f)
-            height_offset_ -= height_step_;
-        height_offset_ = std::clamp(
-            height_offset_, command_height_min_ - height_baseline,
-            command_height_max_ - height_baseline);
-        height_ = height_baseline + height_offset_;
+            height_ -= height_step_;
         height_ = std::clamp(height_, command_height_min_, command_height_max_);
         *chassis_control_height_ = height_;
     }
@@ -248,13 +260,12 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<bool> remote_fresh_;
-    InputInterface<double> rotary_knob_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<Clock::time_point> timestamp_;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<double> chassis_control_height_;
     OutputInterface<int> chassis_control_state_;
-    OutputInterface<bool> enable_request_;
     OutputInterface<std::size_t> reset_count_output_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
@@ -272,7 +283,8 @@ private:
     double deadzone_ = 0.08;
     double command_height_min_ = 0.23;
     double command_height_max_ = 0.43;
-    double default_command_height_ = 0.305;
+    double default_command_height_ = 0.23;
+    double height_rate_max_ = 0.02;
     double height_step_ = 0.01;
     bool angular_z_invert_ = false;
     bool height_invert_ = false;
@@ -283,7 +295,7 @@ private:
     WheelLegArmSequence arm_sequence_;
     bool reset_active_ = false;
     double height_ = 0.0;
-    double height_offset_ = 0.0;
+    std::optional<Clock::time_point> previous_height_timestamp_;
 };
 
 } // namespace rmcs_core::controller::chassis
