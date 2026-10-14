@@ -63,6 +63,10 @@ public:
             (1 / 1000.0) / get_parameter("friction_soft_start_stop_time").as_double();
 
         friction_reverse_velocity_ = get_parameter("friction_reverse_velocity").as_double();
+        friction_reverse_ticks_ =
+            static_cast<int>(get_parameter_or("friction_reverse_time", 1.0) / (1 / 1000.0));
+        friction_reverse_soft_start_stop_step_ =
+            (1 / 1000.0) / get_parameter_or("friction_reverse_soft_start_stop_time", 0.15);
 
         register_output("/gimbal/friction_ready", friction_ready_, false);
         register_output("/gimbal/friction_jammed", friction_jammed_, false);
@@ -91,22 +95,20 @@ public:
         if (switch_right != Switch::DOWN) {
             update_friction_working_velocity_outputs();
 
-            if (switch_left == Switch::MIDDLE && switch_right == Switch::UP) {
-                update_friction_reverse_velocities();
-
-                last_switch_right_ = switch_right;
-                last_switch_left_ = switch_left;
-                last_keyboard_ = keyboard;
-                return;
-            }
-
             if ((!last_keyboard_.v && keyboard.v)
                 || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
                 friction_enabled_ = !friction_enabled_;
+                if (friction_reversing_)
+                    friction_reverse_stopping_ = true;
             }
 
-            update_friction_velocities();
-            update_friction_status();
+            if (friction_reversing_)
+                update_friction_reverse_recovery();
+            else {
+                update_friction_velocities();
+                update_friction_status();
+            }
+
             if (*friction_jammed_)
                 RCLCPP_INFO(logger_, "Friction Jammed!");
             if (*bullet_fired_)
@@ -121,6 +123,13 @@ public:
 private:
     void reset_all_controls() {
         friction_enabled_ = false;
+
+        friction_reversing_ = false;
+        friction_reverse_stopping_ = false;
+        friction_reverse_countdown_ = 0;
+        friction_reverse_soft_start_stop_percentage_ = 0.0;
+
+        friction_faulty_count_ = 0;
 
         last_primary_friction_velocity_ = nan_;
         primary_friction_velocity_decrease_integral_ = 0;
@@ -138,13 +147,46 @@ private:
             *friction_working_velocity_outputs_[i] = friction_working_velocities_[i];
     }
 
-    void update_friction_reverse_velocities() {
-        friction_soft_start_stop_percentage_ = nan_;
+    void enter_friction_reverse_recovery() {
+        friction_reversing_ = true;
+        friction_reverse_stopping_ = false;
+        friction_reverse_countdown_ = friction_reverse_ticks_;
+        friction_reverse_soft_start_stop_percentage_ = 0.0;
+        friction_faulty_count_ = 0;
+        friction_soft_start_stop_percentage_ = 0.0;
 
+        *friction_jammed_ = true;
+    }
+
+    void update_friction_reverse_recovery() {
         *friction_ready_ = *friction_jammed_ = *bullet_fired_ = false;
 
+        if (friction_reverse_stopping_) {
+            friction_reverse_soft_start_stop_percentage_ = std::clamp(
+                friction_reverse_soft_start_stop_percentage_
+                    - friction_reverse_soft_start_stop_step_,
+                0.0, 1.0);
+        } else if (friction_reverse_soft_start_stop_percentage_ < 1.0) {
+            friction_reverse_soft_start_stop_percentage_ = std::clamp(
+                friction_reverse_soft_start_stop_percentage_
+                    + friction_reverse_soft_start_stop_step_,
+                0.0, 1.0);
+        } else if (--friction_reverse_countdown_ <= 0) {
+            friction_reverse_countdown_ = 0;
+            friction_reverse_stopping_ = true;
+        }
+
         for (size_t i = 0; i < friction_count_; i++)
-            *friction_control_velocities_[i] = friction_reverse_velocity_;
+            *friction_control_velocities_[i] =
+                friction_reverse_soft_start_stop_percentage_ * friction_reverse_velocity_;
+
+        if (friction_reverse_stopping_ && friction_reverse_soft_start_stop_percentage_ <= 0.0) {
+            friction_reversing_ = false;
+            friction_reverse_stopping_ = false;
+
+            last_primary_friction_velocity_ = nan_;
+            primary_friction_velocity_decrease_integral_ = 0;
+        }
     }
 
     void update_friction_velocities() {
@@ -174,15 +216,16 @@ private:
             return;
 
         if (detect_friction_faulty()) {
-            if (friction_faulty_count_ == 200) {
-                friction_enabled_ = false;
-                *friction_jammed_ = true;
+            if (friction_faulty_count_ >= 200) {
+                enter_friction_reverse_recovery();
             } else {
                 friction_faulty_count_++;
                 *friction_ready_ = true;
             }
             return;
         }
+
+        friction_faulty_count_ = 0;
 
         *friction_ready_ = true;
         *bullet_fired_ = detect_bullet_fire();
@@ -247,6 +290,13 @@ private:
     std::unique_ptr<OutputInterface<double>[]> friction_control_velocities_;
 
     double friction_reverse_velocity_;
+    int friction_reverse_ticks_;
+    double friction_reverse_soft_start_stop_step_;
+
+    bool friction_reversing_ = false;
+    bool friction_reverse_stopping_ = false;
+    int friction_reverse_countdown_ = 0;
+    double friction_reverse_soft_start_stop_percentage_ = 0.0;
 
     OutputInterface<bool> friction_ready_;
 

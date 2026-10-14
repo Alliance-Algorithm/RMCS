@@ -256,6 +256,8 @@ friction_wheel_controller:
     friction_velocities: [950.0, 950.0, 950.0]
     friction_soft_start_stop_time: 1.0
     friction_reverse_velocity: -150.0
+    friction_reverse_time: 1.0
+    friction_reverse_soft_start_stop_time: 0.15
 
 bullet_feeder_controller:
   ros__parameters:
