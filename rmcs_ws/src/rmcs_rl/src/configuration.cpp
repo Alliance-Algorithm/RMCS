@@ -177,6 +177,9 @@ RlController::RlController()
         policy_profile_ = kV5PolicyProfile;
     else
         throw std::runtime_error("Unknown wheel-leg control profile: " + profile_name);
+    leg_target_winding_ = parse_leg_target_winding(
+        get_parameter_or<std::string>("leg_winding_version", "independent_nearest_v1"),
+        policy_profile_.name);
 
     policy_profile_.forward_limit = get_parameter_or("vx_max", policy_profile_.forward_limit);
     policy_profile_.positive_yaw_limit =
@@ -525,12 +528,13 @@ RlController::RlController()
         if (!path.is_absolute())
             path = std::filesystem::path{ament_index_cpp::get_package_share_directory("rmcs_rl")}
                  / path;
-        policy_ = std::make_unique<OnnxPolicy>(path.string());
+        policy_ = std::make_unique<OnnxPolicy>(path.string(), leg_target_winding_name(leg_target_winding_));
         RCLCPP_INFO(
             get_logger(),
-            "ONNX model %s, %s control, %.0fHz policy / %.0fHz feedback PD / "
+            "ONNX model %s, %s control, %s winding, %.0fHz policy / %.0fHz feedback PD / "
             "%.0fHz recovery",
-            path.string().c_str(), std::string{policy_profile_.name}.c_str(), inference_frequency_,
+            path.string().c_str(), std::string{policy_profile_.name}.c_str(),
+            leg_target_winding_name(leg_target_winding_).data(), inference_frequency_,
             pd_frequency_, recovery_frequency_);
         policy_ready_ = true;
     }

@@ -21,10 +21,14 @@ std::expected<void, std::string>
     const Vector6 control_q = v6 && recovery_started_ && joint_reference_recovery_
                                 ? joint_reference_recovery_->project_feedback(q_)
                                 : q_;
+    std::array<double, 4> desired, current;
     for (int i = 0; i < 4; ++i) {
-        const double desired = nominal_[i] + DeployedPolicyContract::kLegActionScale * clipped[i];
-        targets[i] = control_q[i] + std::remainder(desired - control_q[i], 2 * std::numbers::pi);
+        desired[i] = nominal_[i] + DeployedPolicyContract::kLegActionScale * clipped[i];
+        current[i] = control_q[i];
     }
+    const auto legs = wind_leg_targets(desired, current, leg_target_winding_);
+    for (int i = 0; i < 4; ++i)
+        targets[i] = legs[i];
     if (!v6 && recovery_started_ && recovery_observer_) {
         Eigen::Vector4d legs = targets.head<4>();
         recovery_observer_->constrain_policy_goal(legs, 2.0);

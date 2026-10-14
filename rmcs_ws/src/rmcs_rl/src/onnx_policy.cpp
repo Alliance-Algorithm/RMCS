@@ -1,4 +1,5 @@
 #include "policy.hpp"
+#include "leg_target_winding.hpp"
 
 #include <algorithm>
 #include <array>
@@ -23,7 +24,8 @@ struct OnnxPolicy::Impl {
     std::string input_name;
     std::string output_name;
 
-    explicit Impl(const std::string& path) {
+    Impl(const std::string& path, std::string_view leg_winding_version) {
+        const auto configured = parse_leg_target_winding(leg_winding_version, kV6PolicyProfile.name);
         options.SetIntraOpNumThreads(1);
         options.SetInterOpNumThreads(1);
         options.SetExecutionMode(ORT_SEQUENTIAL);
@@ -33,6 +35,13 @@ struct OnnxPolicy::Impl {
         if (session.GetInputCount() != 1 || session.GetOutputCount() != 1)
             throw std::runtime_error("Policy ONNX must have exactly one input and one output");
         Ort::AllocatorWithDefaultOptions allocator;
+        const auto metadata = session.GetModelMetadata();
+        const auto encoded = metadata.LookupCustomMetadataMapAllocated("leg_winding_version", allocator);
+        const std::string_view model_winding = encoded ? encoded.get() : "independent_nearest_v1";
+        if (parse_leg_target_winding(model_winding, kV6PolicyProfile.name) != configured)
+            throw std::runtime_error(
+                "ONNX leg_winding_version " + std::string{model_winding}
+                + " does not match configured " + std::string{leg_winding_version});
         input_name = session.GetInputNameAllocated(0, allocator).get();
         output_name = session.GetOutputNameAllocated(0, allocator).get();
         if (input_name != "obs" || output_name != "actions")
@@ -60,7 +69,10 @@ struct OnnxPolicy::Impl {
 };
 
 OnnxPolicy::OnnxPolicy(const std::string& model_path)
-    : impl_{std::make_unique<Impl>(model_path)} {}
+    : OnnxPolicy{model_path, "independent_nearest_v1"} {}
+
+OnnxPolicy::OnnxPolicy(const std::string& model_path, std::string_view leg_winding_version)
+    : impl_{std::make_unique<Impl>(model_path, leg_winding_version)} {}
 
 OnnxPolicy::~OnnxPolicy() = default;
 

@@ -3,6 +3,7 @@
 #include "closed_chain_support_observer.hpp"
 #include "control_interval.hpp"
 #include "joint_reference_recovery_controller.hpp"
+#include "leg_target_winding.hpp"
 #include "policy.hpp"
 #include "recovery_controller.hpp"
 #include "recovery_observer.hpp"
@@ -146,6 +147,7 @@ private:
     std::array<OutputInterface<double>, PolicyAction{}.size()> action_outputs_;
     std::unique_ptr<OnnxPolicy> policy_;
     PolicyProfile policy_profile_ = kV6PolicyProfile;
+    LegTargetWinding leg_target_winding_ = LegTargetWinding::kIndependentNearest;
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_guard_;
 
     // q_model = J * q_motor + offset; tau_motor = J^T * tau_model.

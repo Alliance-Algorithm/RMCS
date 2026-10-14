@@ -153,6 +153,7 @@ static_assert(kObservationNames.size() == ObservationLayout::kSize);
 class OnnxPolicy {
 public:
     explicit OnnxPolicy(const std::string& model_path);
+    OnnxPolicy(const std::string& model_path, std::string_view leg_winding_version);
     ~OnnxPolicy();
     OnnxPolicy(const OnnxPolicy&) = delete;
     OnnxPolicy& operator=(const OnnxPolicy&) = delete;
