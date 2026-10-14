@@ -25,6 +25,8 @@ rmcs_executor:
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
+      - rmcs::navigation::Navigation -> rmcs_navigation
+
       # - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
 
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
@@ -33,6 +35,12 @@ rmcs_executor:
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+
+rmcs_navigation:
+  ros__parameters:
+    command_vel_name: "/cmd_vel"
+    endpoint: "tcd-train"
+    enable_goal_topic_forward: true
 
 foldable_sentry:
   ros__parameters:
