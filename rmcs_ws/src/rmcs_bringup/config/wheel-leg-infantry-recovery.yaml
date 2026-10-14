@@ -203,7 +203,7 @@ rl_controller:
     height_command_is_reference: true
     height_reference_rate_max: 0.6666666666666666
     wheel_radius: 0.06
-    wheel_track: 0.396
+    wheel_track: 0.4373
 
     # The four DM drives were zeroed at a 105-degree mechanical pose; their
     # motor zero is neither the URDF assembly zero nor the policy nominal pose.
