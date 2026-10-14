@@ -155,6 +155,12 @@ RlController::RlController()
     register_output("/wheel_leg/rl/v6_takeover/blend_fraction", takeover_blend_output_, 0.0);
     register_output("/wheel_leg/rl/performance/inference_us", inference_time_us_, 0.0);
     register_output("/wheel_leg/rl/performance/pd_us", pd_time_us_, 0.0);
+    register_output("/wheel_leg/rl/heading/active", heading_hold_active_output_, false);
+    register_output("/wheel_leg/rl/heading/yaw", heading_yaw_output_, 0.0);
+    register_output("/wheel_leg/rl/heading/target", heading_target_output_, 0.0);
+    register_output("/wheel_leg/rl/heading/error", heading_error_output_, 0.0);
+    register_output("/wheel_leg/rl/heading/raw_yaw_rate", heading_raw_rate_output_, 0.0);
+    register_output("/wheel_leg/rl/heading/limited_yaw_rate", heading_limited_rate_output_, 0.0);
     for (std::size_t i = 0; i < observation_outputs_.size(); ++i)
         register_output(
             std::string{"/wheel_leg/rl/observation/"} + std::string{kObservationNames[i]},
@@ -230,6 +236,10 @@ RlController::RlController()
     height_reference_rate_max_ = get_parameter_or("height_reference_rate_max", 0.02);
     wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
     wheel_track_ = get_parameter_or("wheel_track", 0.4373);
+    heading_hold_enabled_ = get_parameter_or("heading_hold_enabled", false);
+    heading_hold_gain_ = get_parameter_or("heading_hold_gain", 5.0);
+    heading_hold_yaw_rate_max_ =
+        get_parameter_or("heading_hold_yaw_rate_max", 2.0 * std::numbers::pi);
     inference_frequency_ =
         get_parameter_or("rl_inference_frequency", DeployedPolicyContract::kPolicyFrequencyHz);
     pd_frequency_ = get_parameter_or("pd_frequency", DeployedPolicyContract::kControlFrequencyHz);
@@ -260,6 +270,8 @@ RlController::RlController()
         height_reference_rate_max_,
         wheel_radius_,
         wheel_track_,
+        heading_hold_gain_,
+        heading_hold_yaw_rate_max_,
         recovery_dm_rated_output_rpm_,
         recovery_dm_rated_torque_nm_,
         recovery_dm_peak_torque_nm_,
@@ -277,6 +289,7 @@ RlController::RlController()
         || prepare_max_angular_velocity_ <= 0 || prepare_max_joint_velocity_ <= 0
         || prepare_stable_seconds_ <= 0 || hinge_margin_ < 0 || height_transition_seconds_ <= 0
         || height_reference_rate_max_ <= 0 || wheel_radius_ <= 0 || wheel_track_ <= 0
+        || heading_hold_gain_ <= 0 || heading_hold_yaw_rate_max_ <= 0
         || recovery_dm_rated_output_rpm_ <= 0 || recovery_dm_rated_torque_nm_ <= 0
         || recovery_dm_rated_torque_nm_ > recovery_dm_peak_torque_nm_
         || recovery_dm_peak_torque_nm_ > 40.0)
@@ -530,7 +543,8 @@ RlController::RlController()
         if (!path.is_absolute())
             path = std::filesystem::path{ament_index_cpp::get_package_share_directory("rmcs_rl")}
                  / path;
-        policy_ = std::make_unique<OnnxPolicy>(path.string(), leg_target_winding_name(leg_target_winding_));
+        policy_ = std::make_unique<OnnxPolicy>(
+            path.string(), leg_target_winding_name(leg_target_winding_));
         RCLCPP_INFO(
             get_logger(),
             "ONNX model %s, %s control, %s winding, %.0fHz policy / %.0fHz feedback PD / "

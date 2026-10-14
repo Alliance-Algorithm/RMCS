@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <numbers>
 #include <optional>
 #include <source_location>
 #include <string>
@@ -90,6 +91,7 @@ private:
         const CaptureLimits& limits, const Eigen::Vector3d& gravity,
         const Eigen::Vector3d& angular_velocity) const;
     bool recovery_capture_ready_() const;
+    void reset_heading_hold_();
     void update_command_reference_();
     bool assemble_observation_(bool shadow_recovery = false);
     std::expected<void, std::string>
@@ -143,6 +145,9 @@ private:
     OutputInterface<double> recovery_height_output_;
     OutputInterface<double> inference_time_us_;
     OutputInterface<double> pd_time_us_;
+    OutputInterface<bool> heading_hold_active_output_;
+    OutputInterface<double> heading_yaw_output_, heading_target_output_, heading_error_output_;
+    OutputInterface<double> heading_raw_rate_output_, heading_limited_rate_output_;
     std::array<OutputInterface<double>, ObservationLayout::kSize> observation_outputs_;
     std::array<OutputInterface<double>, PolicyAction{}.size()> action_outputs_;
     std::unique_ptr<OnnxPolicy> policy_;
@@ -227,6 +232,10 @@ private:
     bool jump_was_requested_ = false;
     double vx_reference_ = 0.0;
     double yaw_reference_ = 0.0;
+    bool heading_hold_enabled_ = false;
+    double heading_hold_gain_ = 5.0;
+    double heading_hold_yaw_rate_max_ = 2.0 * std::numbers::pi;
+    std::optional<double> heading_target_rad_;
     double recovery_upright_seconds_ = 0.0;
     double height_reference_ = DeployedPolicyContract::kNominalHeight;
     double height_from_ = DeployedPolicyContract::kNominalHeight;

@@ -51,6 +51,10 @@ void RlController::before_updating() {
         RCLCPP_INFO(get_logger(), "Self-righting disabled: recovery_enabled=false");
     else if (!recovery_profile_ready_)
         RCLCPP_WARN(get_logger(), "Self-righting disarmed: recovery_profile_ready=false");
+    RCLCPP_INFO(
+        get_logger(), "Heading hold %s: P %.2f 1/s, correction limit %.2f rad/s at policy rate",
+        heading_hold_enabled_ ? "enabled" : "disabled", heading_hold_gain_,
+        heading_hold_yaw_rate_max_);
 }
 
 void RlController::clear_outputs_() {
@@ -65,8 +69,8 @@ void RlController::log_fault_(
     std::array<double, 2> hinge{};
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side;
-        hinge[side] = hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1]
-                    + hinge_bias_[side];
+        hinge[side] =
+            hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
     }
     RCLCPP_ERROR(
         get_logger(),
@@ -99,6 +103,7 @@ void RlController::enter_(State next) {
     if (next == State::kIdle && recovery_.phase() == RecoveryPhase::kFailed)
         recovery_failure_latched_ = recovery_.failure();
     state_ = next;
+    reset_heading_hold_();
     prepare_stable_since_.reset();
     if (next != State::kRl) {
         clear_outputs_();
