@@ -30,8 +30,9 @@ wheelleg_sim:
     crank_kd: 2.0
     wheel_kp: 20.0
     gravity_feedforward: true
-    joint_damping: 0.3
+    joint_damping: 0.25
     hip_armature: 0.005
+    leg_frictionloss: 1.05
     constraint_timeconst: 0.002
     constraint_dampratio: 1.0
     hip_torque_limit: 40.0

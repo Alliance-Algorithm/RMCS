@@ -96,8 +96,11 @@ wheelleg_sim:
     # ~2-3 deg plus a high-freq buzz); 0.3 fully damps it with no change to the
     # equilibrium. Real gas-spring seals/bearings add friction, so the higher
     # value is also more physical.
-    joint_damping: 0.3
+    joint_damping: 0.25
     hip_armature: 0.005
+    # Leg Coulomb friction (common-mode identification: 2.11 Nm common ->
+    # ~1.05 Nm per driven hip/crank joint). Driven joints only.
+    leg_frictionloss: 1.05
     # Wheel joint dynamics from the real-robot identification (wheels-r15p62):
     # reflected M3508/gearbox inertia (armature), bearing viscous damping and
     # Coulomb frictionloss, all at the wheel output shaft. NOT joint_damping.
@@ -159,8 +162,8 @@ wheelleg_sim:
     gas_spring_c2: 122.7359
     gas_spring_c3: 53.9698
     disturbance_force: 0.0
-    disturbance_start: 3.0
-    disturbance_duration: 0.2
+    disturbance_start: -1.0
+    disturbance_duration: 0.0
     open_loop_wheel_torque: .nan
     open_loop_wheel_same_sign: true
 wheelleg_motion_planner:
@@ -287,7 +290,7 @@ wheelleg_balance_controller:
     debug: true
     dt: 0.001
     b0: 5.0
-    kt: 1.0
+    kt: 2.0
     td_h: 0.001
     td_r: 50.0
     eso_w0: 300.0

@@ -93,3 +93,6 @@ rmcs_ws/symlink_install_manifest.txt
 /.script/tests/
 /.script/identification/test_*.py
 /rmcs_ws/src/rmcs_core/test/
+
+# Local wheel-leg identification bags (large sweep/identification data + scripts)
+/identification_bags/

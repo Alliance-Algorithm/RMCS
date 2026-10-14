@@ -311,6 +311,11 @@ private:
         // from the 9:1 hip motor; joint_damping is the calibrated viscous term.
         joint_damping_ = node::param_or("joint_damping", 0.1);
         hip_armature_ = node::param_or("hip_armature", 5.0e-3);
+        // Leg Coulomb friction from the common-mode identification (hip+crank
+        // co-mode): 2.11 Nm common -> ~1.05 Nm per driven joint (each joint
+        // carries half when both move together). Applied to the driven joints
+        // only; the passive linkage joints are not identified.
+        leg_frictionloss_ = node::param_or("leg_frictionloss", 1.05);
         // Wheel joint dynamics from the real-robot identification
         // (wheels-r15p62): reflected M3508/gearbox inertia (armature), bearing
         // viscous damping and Coulomb friction, all at the wheel output shaft.
@@ -537,6 +542,13 @@ private:
             const int id = mj_name2id(model_, mjOBJ_JOINT, name);
             if (id >= 0)
                 model_->dof_armature[model_->jnt_dofadr[id]] = hip_armature_;
+        }
+        // Driven-joint Coulomb friction (common-mode identification, halved to
+        // each joint). Passive linkage joints are left unfrictioned.
+        for (const char* name : {"L_joint1", "R_joint1", "L_crank", "R_crank"}) {
+            const int id = mj_name2id(model_, mjOBJ_JOINT, name);
+            if (id >= 0)
+                model_->dof_frictionloss[model_->jnt_dofadr[id]] = leg_frictionloss_;
         }
         for (const char* name :
              {"L_joint1", "R_joint1", "L_joint2", "R_jonit2", "L_crank", "R_crank", "LL_joint2",
@@ -1717,6 +1729,7 @@ private:
 
     double joint_damping_ = 0.1;
     double hip_armature_ = 5.0e-3;
+    double leg_frictionloss_ = 1.05;
     double wheel_armature_ = 4.7e-3;
     double wheel_joint_damping_ = 1.0e-3;
     double wheel_frictionloss_ = 9.0e-2;
