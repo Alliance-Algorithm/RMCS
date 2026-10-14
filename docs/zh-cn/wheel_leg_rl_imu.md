@@ -44,7 +44,7 @@ g_RL     = inverse(normalize(q_WB)) * [0,0,-1]
 
 MuJoCo 画出的 **RL IMU** 三轴与 Body 三轴同向。图中 origin 的位置分开是为了看清标签。已归一化的 V5 模型根姿态使用 `q_WB`；模型与网格的几何导出变换不应附加到 IMU 观测。查看器独立比较 `gyro_RL == gyro_Body` 和 `g_RL == inverse(q_WB)*down`，旧版 90° 换轴数据会显示为误差。
 
-## 本地验证
+## 历史验证
 
 `wheel_leg_rl_imu_test` 使用生产 EKF、BMI088 采样封装、RL 观测组件及 chassis 控制器，覆盖：
 
@@ -54,10 +54,7 @@ MuJoCo 画出的 **RL IMU** 三轴与 Body 三轴同向。图中 origin 的位�
 - 无效输入及恢复、量化板卡采样、双下后 Body 车头参考航向。
 - 12 个已知姿态与 Isaac `ArticulationData` 的实际输出对照。
 
-```sh
-colcon build --merge-install --packages-select rmcs_core rmcs_bringup --cmake-args -DBUILD_TESTING=ON
-colcon test --merge-install --packages-select rmcs_core --ctest-args -R wheel_leg_rl_imu_test
-```
+上述早期测试、姿态查看器与生成资源已移除，原始实现和结果保留在 Git 历史。
 
 Isaac 对照脚本将观察坐标直接设为给定 Body 姿态，读取 PhysX 的实际根位姿、`projected_gravity_b` 和 `root_ang_vel_b`。CSV 提供 C++ 测试的数值参考；JSON 记录安装版本、源码指纹、坐标约定和误差。
 
@@ -67,12 +64,6 @@ Isaac 对照脚本将观察坐标直接设为给定 Body 姿态，读取 PhysX �
 | 绕 +x 横滚 +30° | `[0,-0.5,-0.866025]` |
 | 绕 +y 俯仰 +30° | `[0.5,0,-0.866025]` |
 
-重新生成参考的命令：
-
-```sh
-OMNI_KIT_ACCEPT_EULA=YES /home/noir/miniconda3/envs/isaaclab/bin/python rmcs_ws/src/rmcs_core/tool/validate_wheel_leg_rl_imu.py --usd /home/noir/Documents/workspace/example/wheeled-legged_RL/source/agent_world/agent_world/assets/usd_files/Wheel_leg_V1/Wheel_leg_V1.usd --output docs/zh-cn/wheel_leg_rl_imu_isaac_validation.json --reference-csv rmcs_ws/src/rmcs_core/test/data/wheel_leg_rl_imu_isaac.csv --device cpu
-```
-
 此前带 90° 安装矩阵的对照只验证了那一假设下的软件一致性；不能证明训练观测必须换轴。当前参考按用户确认的 Body 观测约定重新生成，未修改训练代码或 USD。仿真与软件测试不等于实车姿态对照。
 
 本次验证：`rmcs_core`、`rmcs_bringup` 完整构建通过；C++ IMU/chassis 测试 7 项、查看器测试 7 项均通过；当时两份 YAML 的 ONNX 契约与有限值推理通过。12 个 Isaac 姿态与 C++ 输出对照的重力最大分量误差为 `4.76837e-7`，角速度最大分量误差为 `1.14441e-6 rad/s`。
@@ -81,9 +72,8 @@ OMNI_KIT_ACCEPT_EULA=YES /home/noir/miniconda3/envs/isaaclab/bin/python rmcs_ws/
 
 重新编译并重启实车 RMCS，以更新观测组件和遥测 TF；同步更新本机查看器。观测接口路径、维数和缩放保持一致，ONNX 图及权重无需修改：
 
-- `layout_hash = 0xec4b460a8c38acc7`
-- 当前模型路径与 `expected_model_id` 见车辆 YAML
+- 当前模型路径见车辆 YAML 的 `model_path`。
+- 模型无需盖章；启动加载时核对输入输出类型、形状并试推理。
 
-车辆 YAML 可用 `rmcs_ws/src/rmcs_rl/tool/check_policy_contract.py` 校验。
-布局哈希只描述接口布局，不能验证接口数值的坐标语义；模型 ID 以当前模型文件和车辆 YAML 为准。
+形状检查不能验证坐标及观测语义；模型与实车的轴向、顺序和缩放仍须一致。
 旧的 `rmcs_rl/config/executor.yaml` 示例已移除，避免维护两份车辆配置。
