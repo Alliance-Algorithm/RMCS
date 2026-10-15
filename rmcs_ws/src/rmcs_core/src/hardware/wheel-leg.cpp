@@ -218,6 +218,10 @@ private:
                  << static_cast<int>(observed_right_switch_.load(std::memory_order_relaxed))
                  << "] (down=2, middle=3), last position PD age=" << age_ms(last_pd_ns_)
                  << " ms, IMU age=" << age_ms(imu_last_ns_) << " ms\n";
+            const auto channels = dr16_.raw_channels();
+            text << "  DR16 raw channels [right lateral, right forward, left yaw, left height]: ["
+                 << channels[0] << ',' << channels[1] << ',' << channels[2] << ',' << channels[3]
+                 << "] (center=1024, nominal range=[364,1684])\n";
             constexpr auto kNames = std::array{
                 "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
             constexpr std::array kSystemOrder{0, 2, 1, 3};
