@@ -109,7 +109,7 @@ private:
         vy_max_ = get_parameter_or<double>("vy_max", 0.0);
         yaw_rate_max_ = get_parameter_or<double>("yaw_rate_max", 1.0);
         spin_yaw_rate_ = get_parameter_or<double>("spin_yaw_rate", 1.0);
-        deadzone_ = get_parameter_or<double>("deadzone", 0.08);
+        deadzone_ = get_parameter_or<double>("deadzone", 0.05);
 
         command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
         command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
@@ -134,7 +134,7 @@ private:
             height_step_};
         if (!std::ranges::all_of(values, [](double value) { return std::isfinite(value); })
             || vx_max_ <= 0.0 || vy_max_ < 0.0 || yaw_rate_max_ <= 0.0 || spin_yaw_rate_ <= 0.0
-            || spin_yaw_rate_ > yaw_rate_max_ || deadzone_ < 0.0 || deadzone_ >= 1.0
+            || deadzone_ < 0.0 || deadzone_ >= 1.0
             || command_height_min_ <= 0.0 || command_height_min_ > command_height_max_
             || default_command_height_ < command_height_min_
             || default_command_height_ > command_height_max_ || height_rate_max_ <= 0.0
@@ -284,7 +284,7 @@ private:
     double vy_max_ = 0.0;
     double yaw_rate_max_ = 1.0;
     double spin_yaw_rate_ = 1.0;
-    double deadzone_ = 0.08;
+    double deadzone_ = 0.05;
     double command_height_min_ = 0.23;
     double command_height_max_ = 0.43;
     double default_command_height_ = 0.23;
