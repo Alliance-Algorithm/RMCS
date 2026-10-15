@@ -412,10 +412,9 @@ RlController::RlController()
                     "Recovery capture reference exceeds calibrated hinge limits");
             recovery_capture_hinge_max_[side] = maximum;
         }
-        if (recovery_config.dynamic_takeover) {
+        // Keep the extended support pose; the low reference only defines actor entry.
+        if (recovery_config.dynamic_takeover)
             recovery_config.nominal = recovery_capture_reference_;
-            recovery_config.support = recovery_capture_reference_;
-        }
         recovery_capture_max_tilt_rad_ =
             recovery_parameter("recovery_capture_max_tilt_rad", prepare_max_tilt_rad_);
         recovery_capture_max_angular_velocity_ = recovery_parameter(

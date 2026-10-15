@@ -190,6 +190,7 @@ private:
     bool phase_reached_(const StepContext& step, double seconds) const;
     float phase_elapsed_() const;
     void enter_(JointReferenceRecoveryPhase phase);
+    void start_thrust_(const Vector4f& reference);
     void fail_(int code);
     void reset_fsm_(const Vector6f& q, bool active);
     void publish_();
@@ -219,6 +220,7 @@ private:
     bool enabled_ = false, membership_ = false, motion_released_ = true;
     bool pitch_initialized_ = false, release_finished_ = true;
     bool wheel_balance_active_ = false;
+    bool push_off_required_ = false;
     float continuous_pitch_ = 0.0f, last_pitch_ = 0.0f;
     float orbit_angle_ = 0.0f, plant_pitch_ = 0.0f;
     double initial_release_seconds_ = 0.0;
