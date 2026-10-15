@@ -232,7 +232,7 @@ private:
     bool jump_was_requested_ = false;
     double vx_reference_ = 0.0;
     double yaw_reference_ = 0.0;
-    bool heading_hold_enabled_ = false;
+    bool heading_hold_enabled_ = true;
     double heading_hold_gain_ = 5.0;
     double heading_hold_yaw_rate_max_ = 2.0 * std::numbers::pi;
     std::optional<double> heading_target_rad_;
