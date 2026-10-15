@@ -24,8 +24,6 @@ struct DeployedPolicyContract {
     static constexpr double kLegTorqueLimit = 40.0;
     static constexpr double kWheelKp = 0.6;
     static constexpr double kWheelTorqueLimit = 4.5;
-    static constexpr double kForwardSlew = 1.5;
-    static constexpr double kYawSlew = 4.0;
     static constexpr double kHeightMin = 0.23;
     static constexpr double kHeightMax = 0.43;
     static constexpr float kLegActionLimit = 3.0f;
@@ -44,7 +42,6 @@ struct LegacyPolicyContract : DeployedPolicyContract {
     static constexpr double kLegKp = 60.0;
     static constexpr double kLegKd = 2.0;
     static constexpr double kWheelKp = 0.2;
-    static constexpr double kForwardSlew = 0.6;
     static constexpr double kHeightMin = kNominalHeight;
     static constexpr double kHeightMax = kNominalHeight;
     static constexpr std::array<double, 6> kNominalPosition{
@@ -55,7 +52,7 @@ struct PolicyProfile {
     std::string_view name;
     std::array<double, 6> nominal;
     double leg_kp, leg_kd, wheel_kp, wheel_torque_limit;
-    double forward_slew, height_min, height_max;
+    double height_min, height_max;
     double forward_limit, negative_yaw_limit, positive_yaw_limit;
     bool recovery_supported;
 };
@@ -67,7 +64,6 @@ inline constexpr PolicyProfile kV6PolicyProfile{
     DeployedPolicyContract::kLegKd,
     DeployedPolicyContract::kWheelKp,
     DeployedPolicyContract::kWheelTorqueLimit,
-    DeployedPolicyContract::kForwardSlew,
     DeployedPolicyContract::kHeightMin,
     DeployedPolicyContract::kHeightMax,
     0.5,
@@ -82,7 +78,6 @@ inline constexpr PolicyProfile kV5PolicyProfile{
     LegacyPolicyContract::kLegKd,
     LegacyPolicyContract::kWheelKp,
     LegacyPolicyContract::kWheelTorqueLimit,
-    LegacyPolicyContract::kForwardSlew,
     LegacyPolicyContract::kHeightMin,
     LegacyPolicyContract::kHeightMax,
     3.0,

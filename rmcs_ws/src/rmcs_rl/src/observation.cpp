@@ -144,16 +144,9 @@ void RlController::update_command_reference_() {
     desired_yaw = std::clamp(
         desired_yaw, -policy_profile_.negative_yaw_limit, policy_profile_.positive_yaw_limit);
     *heading_limited_rate_output_ = desired_yaw;
-    constexpr double policy_dt = DeployedPolicyContract::kPolicyPeriodSeconds;
-    if (spinning)
-        vx_reference_ = 0.0;
-    else
-        vx_reference_ += std::clamp(
-            requested_vx - vx_reference_, -policy_profile_.forward_slew * policy_dt,
-            policy_profile_.forward_slew * policy_dt);
-    yaw_reference_ += std::clamp(
-        desired_yaw - yaw_reference_, -DeployedPolicyContract::kYawSlew * policy_dt,
-        DeployedPolicyContract::kYawSlew * policy_dt);
+    // Match training: commands reach the actor on the next policy tick.
+    vx_reference_ = spinning ? 0.0 : requested_vx;
+    yaw_reference_ = desired_yaw;
 
     // Respect the wheel geometry and the combined command envelope.
     const double max_linear = DeployedPolicyContract::kWheelSpeedLimit * wheel_radius_;
