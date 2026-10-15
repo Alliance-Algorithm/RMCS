@@ -155,8 +155,10 @@ wheel_leg:
 
 rl_controller:
   ros__parameters:
-    # Compatible V6 actors share the robot control contract.
-    model_path: "models/wheel_leg/policy.onnx"
+    # The recovery actor uses the paired 107-degree leg target contract.
+    model_path: "models/wheel_leg/recovery_candidate.onnx"
+    control_profile: v6
+    leg_winding_version: paired_branch107_v1
     # Straight travel holds its initial heading; manual yaw and SPIN take priority.
     heading_hold_enabled: true
     heading_hold_gain: 5.0
@@ -169,9 +171,9 @@ rl_controller:
     pd_frequency: 1000.0
     recovery_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
-    # Keep the frozen native references and 40..105-degree geometry unchanged.
-    recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
-    height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
+    # Keep recovery and height inference on the actor's matching 107-degree geometry.
+    recovery_profile_path: "models/wheel_leg/deployment/v7_recovery_profiles_107_v2.json"
+    height_lookup_path: "models/wheel_leg/deployment/v7_height_lookup_107.json"
     recovery_enabled: true
     recovery_profile_ready: true
     # At the measured capture condition, switch all six axes to actor effort
@@ -297,7 +299,7 @@ wheel_leg_chassis_controller:
     deadzone: 0.08
     # Start at the minimum height; the left stick holds changes on release.
     command_height_min: 0.23
-    command_height_max: 0.43
+    command_height_max: 0.42
     default_command_height: 0.23
     height_rate_max: 0.6666666666666666
     height_step: 0.01
