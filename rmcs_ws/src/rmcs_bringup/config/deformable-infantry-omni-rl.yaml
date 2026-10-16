@@ -44,7 +44,6 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       - rmcs_rl::RlBridge -> rl_bridge
-      - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
 
 auto_aim_recorder:
   ros__parameters:
@@ -168,18 +167,22 @@ deformable_suspension_arbiter:
     joint_base_path: "/chassis"
     joint_suffix: "_joint"
 
-# 桥：obs 组装 + 动作回写（两端 layout_hash 必须一致）
+# 桥：RMCS 接口观测 + 进程内异步策略推理 + 动作回写
 rl_bridge:
   ros__parameters:
     rl_base: "/chassis/rl"
+    rl_model_path: "models/deformable_v3_transformer.onnx"
+    input_name: ""
+    output_name: ""
+    model_type: "auto"
+    normalization_from_metadata: true
     policy_rate: 200.0                     # 每 5 ms 推理
     history_rate: 100.0                    # 保留训练的 10 ms 历史帧间隔
-    max_action_age: 0.01                   # 最多两个推理周期
+    inference_timeout: 0.03
     flat_hold_interface: "/chassis/rl/flat_hold"
 
-    rl_obs_size: 256                       # 8 × 32，最旧帧在前
     history_length: 8
-    rl_action_size: 4
+    rl_feature_size: 32
 
     # 使能取自上游 DeformableChassis；桥不得读消费侧输出，否则成环。
     enable_interface: "/chassis/active_suspension/active"
@@ -220,29 +223,7 @@ rl_bridge:
       - index=2 output=/chassis/rl/action/joint_leg_3
       - index=3 output=/chassis/rl/action/joint_leg_4
 
-# 策略进程（独立可执行文件，不是 executor 组件）
-#   ros2 run rmcs_rl policy_server --ros-args --params-file <本文件>
-policy_server:
-  ros__parameters:
-    rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable_v3_transformer.onnx"
-    # Tensor names and shape are read from ONNX. The launcher supplies dimensions
-    # from RlBridge and verifies the model before reporting startup success.
-    model_type: "auto"
-    normalization_from_metadata: true
-    publish_status: false
-    status_rate: 2.0
-
-# 由 executor 进程内组件随 rmcs 一起拉起 policy_server（不改 bringup/launch/服务）。
-# params_file 相对 share/rmcs_bringup/config 解析，也可写绝对路径。
-policy_server_launcher:
-  ros__parameters:
-    autostart: true
-    params_file: "deformable-infantry-omni-rl.yaml"
-    respawn: true
-    respawn_delay: 1.0
-    poll_interval: 0.5
-
+# 模型通过 rl_bridge 配置加载；推理由 RMCS 进程内的单 worker 执行。
 gimbal_controller:
   ros__parameters:
     upper_limit: -0.60 # -27 deg
