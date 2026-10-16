@@ -73,6 +73,22 @@ public:
         return interpolate(kCrankGrid, kBetaGrid, clamped);
     }
 
+    // The table above is in the MODEL frame (crank = 0 at the CAD assembly,
+    // knee = 45 deg). The real DM encoders are zeroed at the MOTOR zero (knee
+    // 105 deg), so the encoder relative crank c = q_crank - q_hip differs from
+    // the tabulated crank by crank_motor_zero(). The real-hardware controllers
+    // MUST go through these encoder-frame helpers, not the raw table.
+    [[nodiscard]] double knee_from_encoder_crank(double c_encoder) const {
+        return knee_from_crank(c_encoder + crank_motor_zero());
+    }
+    [[nodiscard]] bool encoder_crank_from_knee(double knee, double& c_encoder) const {
+        double crank = 0.0;
+        if (!crank_from_knee(knee, crank))
+            return false;
+        c_encoder = crank - crank_motor_zero();
+        return true;
+    }
+
 private:
     template <std::size_t N>
     static double interpolate(

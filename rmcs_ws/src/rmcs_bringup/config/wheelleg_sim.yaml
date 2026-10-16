@@ -5,8 +5,8 @@ rmcs_executor:
     - rmcs_core::hardware::WheelLegSimulation -> wheelleg_sim
     - rmcs_core::controller::wheelleg::WheelLegMotionPlanner -> wheelleg_motion_planner
     - rmcs_core::controller::wheelleg::WheelLegTrajectoryController -> wheelleg_trajectory_controller
-    - rmcs_core::controller::adrc::AdrcController -> wheelleg_balance_controller
-    - rmcs_core::controller::adrc::AdrcController -> wheelleg_yaw_controller
+    - rmcs_core::controller::wheelleg::WheelLegLqrController -> wheelleg_balance_controller
+    - rmcs_core::controller::wheelleg::WheelLegLqrController -> wheelleg_yaw_controller
     - rmcs_core::controller::pid::ErrorPidController -> wheelleg_roll_controller
     - rmcs_core::controller::wheelleg::WheelLegWheelMixer -> wheelleg_wheel_mixer
     - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
@@ -48,25 +48,8 @@ value_broadcaster:
       - /wheelleg/control/wheel_torque_l
       - /wheelleg/control/wheel_torque_r
       - /wheelleg/control/roll_bias
-      # balance ADRC internals (u = applied torque, z3 = estimated disturbance)
-      - /wheelleg_balance_controller/debug/measurement
-      - /wheelleg_balance_controller/debug/reference
-      - /wheelleg_balance_controller/debug/e1
-      - /wheelleg_balance_controller/debug/e2
-      - /wheelleg_balance_controller/debug/z1
-      - /wheelleg_balance_controller/debug/z2
-      - /wheelleg_balance_controller/debug/z3
-      - /wheelleg_balance_controller/debug/u0
+      # balance / yaw LQR internals
       - /wheelleg_balance_controller/debug/u
-      # yaw ADRC internals
-      - /wheelleg_yaw_controller/debug/measurement
-      - /wheelleg_yaw_controller/debug/reference
-      - /wheelleg_yaw_controller/debug/e1
-      - /wheelleg_yaw_controller/debug/e2
-      - /wheelleg_yaw_controller/debug/z1
-      - /wheelleg_yaw_controller/debug/z2
-      - /wheelleg_yaw_controller/debug/z3
-      - /wheelleg_yaw_controller/debug/u0
       - /wheelleg_yaw_controller/debug/u
       - /wheelleg/balance/enable
       - /wheelleg/state/contact_normal_l
@@ -283,55 +266,34 @@ wheelleg_trajectory_controller:
 # back to `components` and restore the wheelleg_recovery block from git history.
 wheelleg_balance_controller:
   ros__parameters:
-    measurement: /wheelleg/state/pitch
-    setpoint: /wheelleg/reference/pitch
-    control: /wheelleg/control/wheel_torque
-    enable: /wheelleg/balance/enable
-    debug: true
-    dt: 0.001
-    b0: 5.0
-    kt: 2.0
-    td_h: 0.001
-    td_r: 50.0
-    eso_w0: 300.0
-    eso_auto_beta: true
-    k1: 400.0
-    k2: 100.0
-    alpha1: 0.75
-    alpha2: 0.7
-    delta: 0.02
-    feedforward: /wheelleg/balance/feedforward
+    # LQR balance, 4-state [pitch, pitch_rate, x_dot, x]:
+    # u = gain_x*pitch + gain_y*pitch_rate + gain_z*x_dot + gain_w*x
+    # URDF-model LQR. Gains are params for tuning.
+    input_x: /wheelleg/state/pitch
+    gain_x: -17.6
+    noise_x: 0.001
+    input_y: /wheelleg/state/pitch_velocity
+    gain_y: -3.6
+    input_z: /wheelleg/state/velocity
+    gain_z: -3.0
+    input_w: /wheelleg/state/distance
+    gain_w: -2.2
+    output: /wheelleg/control/wheel_torque
+    enabled: true
     u_min: -4.88
     u_max: 4.88
-    output_min: -4.88
-    output_max: 4.88
 wheelleg_yaw_controller:
   ros__parameters:
-    measurement: /wheelleg/state/yaw
-    setpoint: /wheelleg/command/yaw
-    control: /wheelleg/control/wheel_torque_diff
-    dt: 0.001
-    b0: 2.32
-    kt: 1.0
-    td_h: 0.001
-    td_r: 50.0
-    eso_w0: 50.0
-    eso_auto_beta: false
-    eso_beta1: 150.0
-    eso_beta2: 7500.0
-    eso_beta3: 0.0
-    # omega_c ~ 5 rad/s: the original k1=k2=2 (~1.4 rad/s) only tracked a steady
-    # spin but lagged a 1 rad/s arc ramp, dragging out the turns. Startup chatter
-    # stays low at this gain (k1~100 excited the drop transient).
-    k1: 25.0
-    k2: 10.0
-    alpha1: 0.75
-    alpha2: 0.7
-    delta: 0.02
+    # LQR yaw: u_diff = gain_x*(yaw - yaw_ref) + gain_y*yaw_rate
+    input_x: /wheelleg/state/yaw
+    setpoint_x: /wheelleg/command/yaw
+    gain_x: -10.8
+    input_y: /wheelleg/state/yaw_rate
+    gain_y: -4.3
+    output: /wheelleg/control/wheel_torque_diff
+    enabled: true
     u_min: -8.0
     u_max: 8.0
-    output_min: -8.0
-    output_max: 8.0
 wheelleg_wheel_mixer:
   ros__parameters:
     yaw_sign: -1.0

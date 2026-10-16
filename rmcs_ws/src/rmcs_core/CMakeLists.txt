@@ -69,7 +69,7 @@ else()
     set(_rmcs_mujoco_default OFF)
 endif()
 option(RMCS_ENABLE_MUJOCO_SIM "Build the in-process MuJoCo simulation bridge"
-    ${_rmcs_mujoco_default})
+    ON)
 
 if(RMCS_ENABLE_MUJOCO_SIM AND (NOT _rmcs_mujoco_library OR NOT EXISTS "${_rmcs_mujoco_source}"))
     message(WARNING
