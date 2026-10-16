@@ -147,6 +147,9 @@ rl_controller:
   ros__parameters:
     # Compatible V6 actors share the robot control contract.
     model_path: "models/wheel_leg/policy.onnx"
+    inference_timeout: 0.06
+    rl_history_length: 1
+    rl_feature_size: 35
     # Keep the RL command envelope aligned with the chassis limits below.
     vx_max: 0.5
     yaw_rate_max: 1.0
