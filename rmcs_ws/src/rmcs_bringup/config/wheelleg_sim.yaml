@@ -66,6 +66,9 @@ wheelleg_sim:
     fix_base: false
     fix_base_planar: false
     fix_base_hold_z: false
+    # Hold the start pose this many seconds (base pinned, legs locked) before the
+    # controllers run. 0 = off; wheelleg_sim_recovery.yaml uses 5 s for the get-up.
+    hold_seconds: 0.0
     # Leg PD from the real-robot (V6/RL) identification config:
     # prepare_kp=160, prepare_kd=2.5 on all four leg drives. In simulation this
     # stands in for the real motor driver's PD.
@@ -93,6 +96,16 @@ wheelleg_sim:
     wheel_armature: 0.0047
     wheel_joint_damping: 0.001
     wheel_frictionloss: 0.09
+    # -- Level-2 robustness hooks (perturb plant/actuator; default = nominal) --
+    mass_scale: 1.0
+    inertia_scale: 1.0
+    com_offset_y: 0.0
+    wheel_torque_scale: 1.0
+    # -- Initial-pose perturbation for the stand-up recovery test --
+    init_pitch_deg: 0.0
+    init_hip_delta_deg: 0.0
+    init_crank_delta_deg: 0.0
+    init_lift_extra: 0.0
     # Wheel motor speed limit at the output shaft [rad/s] (M3508 rated ~469 rpm
     # => 49.1). Accelerating torque tapers to zero near the limit; 0 disables.
     wheel_speed_limit: 49.1
@@ -106,12 +119,19 @@ wheelleg_sim:
     wheel_torque_limit: 4.88
     thigh_length: 0.21
     shank_length: 0.25005
+    # Sim-side reduced-leg calibration for the SHARED model
+    # (wheelleg_leg_model.hpp, see wheel_leg_state_estimator.cpp / bench). The
+    # sim's MJCF hip/crank joints are in the assembly frame with both legs
+    # mirrored, so one calibration covers both legs; the model then reports the
+    # SAME (alpha, beta, shank) the real robot does for the same physical pose
+    # (hip_zero = -pi/2 == the real encoder zero, thigh vertical; crank_sign = +1).
+    # The MJCF crank is shifted by crank_motor_zero (knee 105 deg) inside the sim.
     hip_sign: -1.0
-    hip_zero: 3.14159265358979
-    # Motor zero: knee interior angle 105 deg (real-robot encoder zero), thigh
-    # perpendicular to chassis.
-    knee_zero_l: 1.8325957145940461
-    knee_zero_r: 1.8325957145940461
+    hip_zero: -1.5707963267948966
+    crank_sign: 1.0
+    # Reduced-knee sign: the trajectory controller's knee reference is the
+    # interior angle (positive), so the joint target is +command.knee_angle.
+    knee_rel_sign: 1.0
     # Mechanical knee limits (interior thigh-shank angle), hard: 40..105 deg.
     knee_limit_min: 0.6981317007977318
     knee_limit_max: 1.8325957145940461
@@ -119,7 +139,7 @@ wheelleg_sim:
     wheel_dir: 1.0
     state_pitch_sign: 1.0
     state_shank_sign: 1.0
-    state_knee_sign: -1.0
+    state_knee_sign: 1.0
     state_wheel_sign: 1.0
     state_yaw_sign: 1.0
     viewer: true
@@ -229,11 +249,11 @@ wheelleg_trajectory_controller:
     thigh_com_offset: 0.06623
     shank_com_offset: 0.15344
     body_com_offset: 0.00918
-    knee_branch_sign: -1.0
-    # Hard knee limits in the controller's signed convention (beta = -interior):
-    # interior 40..110 deg => beta -110..-40 deg.
-    knee_angle_min: -1.8325957145940461
-    knee_angle_max: -0.6981317007977318
+    # Reduced knee convention (unified with the shared leg model): beta is the
+    # interior thigh-shank angle (positive), mechanically 40..105 deg.
+    knee_branch_sign: 1.0
+    knee_angle_min: 0.6981317007977318
+    knee_angle_max: 1.8325957145940461
     d_max: 100.0
     # Contact gate for the static-stability guard (wheel normal force above which
     # the wheel counts as loaded). Only used when contact_normal_* is wired.

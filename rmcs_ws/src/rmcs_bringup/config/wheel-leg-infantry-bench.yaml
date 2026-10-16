@@ -116,7 +116,7 @@ wheelleg_state:
     state_pitch_sign: 1.0
     state_roll_sign: 1.0
     state_yaw_sign: 1.0
-    state_knee_sign: -1.0
+    state_knee_sign: 1.0
     state_shank_sign: 1.0
     state_hip_sign: 1.0
     state_wheel_sign: 1.0

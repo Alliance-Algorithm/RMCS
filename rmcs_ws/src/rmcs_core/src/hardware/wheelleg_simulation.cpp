@@ -27,6 +27,7 @@
 #include <std_msgs/msg/float64_multi_array.hpp>
 
 #include "controller/wheelleg/leg_transmission.hpp"
+#include "controller/wheelleg/wheelleg_leg_model.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -155,8 +156,11 @@ public:
     }
 
     void update() override {
-        apply_control_();
-        apply_constraints_();
+        // Optional "hold the start pose N seconds before letting the
+        // controllers run" window (hold_seconds <= 0 disables it).
+        const bool holding = hold_seconds_ > 0.0 && step_count_ * dt_ < hold_seconds_;
+        apply_control_(holding);
+        apply_constraints_(holding);
         apply_gas_spring_();
 
         // Commissioning disturbance: a forward force impulse on the base.
@@ -273,11 +277,20 @@ private:
     void load_parameters_() {
         dt_ = node::param_or("dt", 0.001);
         initial_height_ = node::param_or("initial_height", 0.39217);
+        // Initial-pose perturbation for the stand-up recovery test: tilt the
+        // body (pitch), shift the leg angle (hip) and leg length (crank). The
+        // base is auto-lifted so the wheels rest on, not in, the ground.
+        init_pitch_deg_ = node::param_or("init_pitch_deg", 0.0);
+        init_hip_delta_deg_ = node::param_or("init_hip_delta_deg", 0.0);
+        init_crank_delta_deg_ = node::param_or("init_crank_delta_deg", 0.0);
+        init_clearance_ = node::param_or("init_clearance", 0.003);
+        init_lift_extra_ = node::param_or("init_lift_extra", 0.0);
         fix_base_ = node::param_or("fix_base", false);
         lock_leg_ = node::param_or("lock_leg", false);
         fix_base_hold_z_ = node::param_or("fix_base_hold_z", true);
         fix_base_planar_ = node::param_or("fix_base_planar", false);
         fix_base_release_time_ = node::param_or("fix_base_release_time", -1.0);
+        hold_seconds_ = node::param_or("hold_seconds", 0.0);
 
         model_path_ = node::param_or<std::string>("mjcf_path", std::string{});
         if (model_path_.empty()) {
@@ -342,6 +355,15 @@ private:
         // further per wheel while in contact.
         wheel_torque_limit_ = node::param_or("wheel_torque_limit", 4.88);
 
+        // -- Level-2 robustness hooks (perturb the plant/actuator; default 1) --
+        // mass_scale scales the base_link mass, inertia_scale its inertia,
+        // com_offset_y shifts the base CoM forward/back [m], and
+        // wheel_torque_scale models an actuator input-gain mismatch.
+        mass_scale_ = node::param_or("mass_scale", 1.0);
+        inertia_scale_ = node::param_or("inertia_scale", 1.0);
+        com_offset_y_ = node::param_or("com_offset_y", 0.0);
+        wheel_torque_scale_ = node::param_or("wheel_torque_scale", 1.0);
+
         // Ground friction limit on the wheel: |tau| <= mu * N * r, with the
         // normal force taken as the static weight. This caps the wheel torque
         // below the motor limit, since friction slips first.
@@ -361,7 +383,11 @@ private:
         // hip angle at q1 = 0; hip_sign flips the joint convention (V5.0 hip is
         // opposite to the trajectory controller's reduced-hip sense).
         hip_sign_ = node::param_or("hip_sign", -1.0);
-        hip_zero_ = node::param_or("hip_zero", std::numbers::pi);
+        hip_zero_ = node::param_or("hip_zero", -std::numbers::pi / 2.0);
+        // Relative-crank sign in the shared-model calibration. The sim's MJCF
+        // crank joint is in the ASSEMBLY/model frame (crank = 0 at knee 45 deg)
+        // and both legs mirror, so the sign is +1 for both (see publish_state_).
+        crank_sign_ = node::param_or("crank_sign", 1.0);
         // The motors are zeroed at (knee interior angle = 110 deg, thigh
         // perpendicular to the chassis). The model has the thigh perpendicular
         // at q_hip = 0, so the hip zero is q_hip = 0 and the crank zero is the
@@ -543,6 +569,14 @@ private:
             if (id >= 0)
                 model_->dof_armature[model_->jnt_dofadr[id]] = hip_armature_;
         }
+        // Level-2 robustness hooks: perturb the base mass / inertia / CoM.
+        if (int base_id = mj_name2id(model_, mjOBJ_BODY, "base_link"); base_id >= 0) {
+            model_->body_mass[base_id] *= mass_scale_;
+            for (int k = 0; k < 3; ++k)
+                model_->body_inertia[3 * base_id + k] *= inertia_scale_;
+            model_->body_ipos[3 * base_id + 1] += com_offset_y_;
+            mj_setConst(model_, data_);
+        }
         // Driven-joint Coulomb friction (common-mode identification, halved to
         // each joint). Passive linkage joints are left unfrictioned.
         for (const char* name : {"L_joint1", "R_joint1", "L_crank", "R_crank"}) {
@@ -688,6 +722,11 @@ private:
         (void)linkage_l_->crank_from_knee(knee_limit_min_, crank_limit_min_);
         (void)linkage_l_->crank_from_knee(knee_limit_max_, crank_limit_max_);
         crank_motor_zero_ = linkage_l_->crank_motor_zero();
+        // Shared reduced-model solver + the canonical (real-robot bench) calibration
+        // for the convention cross-check in publish_state_.
+        leg_model_ = std::make_unique<wheelleg::WheelLegLegModel>(
+            thigh_length_, shank_length_, knee_limit_min_, knee_limit_max_, *linkage_l_);
+        sim_calib_ = wheelleg::LegCalibration{hip_sign_, hip_zero_, crank_sign_};
         info(
             "knee limits: {:.1f}..{:.1f} deg -> crank c {:.4f}..{:.4f} rad; "
             "motor zero (knee {:.0f} deg): hip q={:.4f}, crank c={:.4f}",
@@ -771,6 +810,75 @@ private:
         }
         mj_forward(model_, data_);
 
+        // Optional initial-pose perturbation (pitch / leg-angle / leg-length)
+        // for the stand-up recovery test.
+        const double deg_to_rad = std::numbers::pi / 180.0;
+        const double hip_delta = init_hip_delta_deg_ * deg_to_rad;
+        const double crank_delta = init_crank_delta_deg_ * deg_to_rad;
+        const double init_pitch = init_pitch_deg_ * deg_to_rad;
+        const bool perturbed = hip_delta != 0.0 || crank_delta != 0.0 || init_pitch != 0.0;
+        // Ground clamp: place the lowest colliding point exactly at the clearance
+        // so the robot neither sinks into the ground (a penetration explodes the
+        // contact solver and launches it) nor starts floating (-> drop). Mesh
+        // geoms use their actual transformed vertices; other primitives use the
+        // conservative (centre z - bounding-sphere radius) bound. Only colliding
+        // geoms count. init_lift_extra raises it further.
+        const auto ground_clamp = [&]() {
+            double lowest = std::numeric_limits<double>::infinity();
+            for (int g = 0; g < model_->ngeom; ++g) {
+                if (model_->geom_bodyid[g] == 0) // world / ground plane
+                    continue;
+                if (model_->geom_contype[g] == 0 && model_->geom_conaffinity[g] == 0)
+                    continue; // visual-only geom
+                const int mid = model_->geom_dataid[g];
+                if (mid >= 0) { // mesh
+                    const int va = model_->mesh_vertadr[mid];
+                    const int vn = model_->mesh_vertnum[mid];
+                    const double* xp = &data_->geom_xpos[3 * g];
+                    const double* xm = &data_->geom_xmat[9 * g];
+                    const double* sc = &model_->geom_size[3 * g];
+                    for (int v = 0; v < vn; ++v) {
+                        const float* p = &model_->mesh_vert[3 * (va + v)];
+                        const double sx = sc[0] != 0.0 ? sc[0] : 1.0;
+                        const double sy = sc[1] != 0.0 ? sc[1] : 1.0;
+                        const double sz = sc[2] != 0.0 ? sc[2] : 1.0;
+                        lowest = std::min(
+                            lowest,
+                            xp[2] + xm[6] * (p[0] * sx) + xm[7] * (p[1] * sy)
+                                + xm[8] * (p[2] * sz));
+                    }
+                } else {
+                    lowest =
+                        std::min(lowest, data_->geom_xpos[3 * g + 2] - model_->geom_rbound[g]);
+                }
+            }
+            if (std::isfinite(lowest)) {
+                data_->qpos[base_qpos + 2] += init_clearance_ + init_lift_extra_ - lowest;
+                mj_forward(model_, data_);
+            }
+            return lowest;
+        };
+
+        // Apply the initial-pose perturbation (pitch / leg-angle / leg-length).
+        if (perturbed) {
+            for (const char* n : {"L_joint1", "R_joint1"}) {
+                const int id = mj_name2id(model_, mjOBJ_JOINT, n);
+                if (id >= 0)
+                    data_->qpos[model_->jnt_qposadr[id]] += hip_delta;
+            }
+            for (const char* n : {"L_crank", "R_crank"}) {
+                const int id = mj_name2id(model_, mjOBJ_JOINT, n);
+                if (id >= 0)
+                    data_->qpos[model_->jnt_qposadr[id]] += crank_delta;
+            }
+            // Body pitch = rotation about the lateral axle (body x) axis.
+            data_->qpos[base_qpos + 3] = std::cos(0.5 * init_pitch);
+            data_->qpos[base_qpos + 4] = std::sin(0.5 * init_pitch);
+            data_->qpos[base_qpos + 5] = 0.0;
+            data_->qpos[base_qpos + 6] = 0.0;
+            mj_forward(model_, data_);
+        }
+
         // Hand-authored poses (e.g. "crouched") may leave the passive
         // closed-chain joints inconsistent with the actuated ones. Settle them
         // against the structural closure with gravity off and the base held
@@ -780,6 +888,11 @@ private:
             const double gx = model_->opt.gravity[0];
             const double gy = model_->opt.gravity[1];
             const double gz = model_->opt.gravity[2];
+            // Hold the base where the pose put it: otherwise the free base
+            // drifts (and pitches) while the closure settles, throwing the
+            // robot. Only the passive chain joints should move.
+            double base_hold[7];
+            std::copy_n(&data_->qpos[base_qpos], 7, base_hold);
             model_->opt.gravity[0] = model_->opt.gravity[1] = model_->opt.gravity[2] = 0.0;
             for (int i = 0; i < model_->neq; ++i)
                 data_->eq_active[i] = 0;
@@ -788,6 +901,7 @@ private:
                     data_->eq_active[eq] = 1;
             for (int k = 0; k < 2000; ++k) {
                 mj_step(model_, data_);
+                std::copy_n(base_hold, 7, &data_->qpos[base_qpos]);
                 std::fill_n(data_->qvel, model_->nv, 0.0);
             }
             for (int i = 0; i < model_->neq; ++i)
@@ -797,6 +911,15 @@ private:
             model_->opt.gravity[1] = gy;
             model_->opt.gravity[2] = gz;
             mj_forward(model_, data_);
+        }
+
+        if (perturbed || initial_pose == "crouched") {
+            const double lowest = ground_clamp();
+            info(
+                "initial-pose [{}]: pitch={:.1f}deg hip={:.1f}deg crank={:.1f}deg "
+                "-> lowest_geom_z={:.4f} base_z={:.4f}",
+                initial_pose, init_pitch_deg_, init_hip_delta_deg_, init_crank_delta_deg_, lowest,
+                data_->qpos[base_qpos + 2]);
         }
 
         leg_lock_ids_.fill(-1);
@@ -851,14 +974,15 @@ private:
     // toggled through eq_active. Clamping qpos/qvel after mj_step is *not* a
     // constraint — the free DOFs would still evolve unconstrained inside each
     // step — so the isolated loops would not be physically faithful.
-    void apply_constraints_() {
+    void apply_constraints_(bool holding) {
         if (model_ == nullptr || data_ == nullptr)
             return;
 
         // Optionally release the base after a delay so the loops can settle
         // while it is held (commissioning).
         const bool base_held =
-            fix_base_ && !(fix_base_release_time_ > 0.0 && step_count_ * dt_ >= fix_base_release_time_);
+            (fix_base_ || holding)
+            && !(fix_base_release_time_ > 0.0 && step_count_ * dt_ >= fix_base_release_time_);
 
         if (fix_base_z_eq_ >= 0)
             data_->eq_active[fix_base_z_eq_] =
@@ -869,9 +993,10 @@ private:
         // Full fix = the vertical gantry weld plus a lock on the gantry's slide.
         if (lock_zgantry_eq_ >= 0)
             data_->eq_active[lock_zgantry_eq_] = static_cast<mjtByte>(
-                base_held && !fix_base_planar_ && fix_base_hold_z_);
+                base_held && !fix_base_planar_ && (fix_base_hold_z_ || holding));
 
-        const auto leg_locked = static_cast<mjtByte>(lock_leg_);
+        // During the hold window the legs are locked too, freezing the pose.
+        const auto leg_locked = static_cast<mjtByte>(lock_leg_ || holding);
         for (const int eq : leg_lock_eq_ids_)
             if (eq >= 0)
                 data_->eq_active[eq] = leg_locked;
@@ -973,7 +1098,14 @@ private:
         return out;
     }
 
-    void apply_control_() {
+    void apply_control_(bool holding) {
+        // During the hold window ignore the controllers entirely: the base is
+        // pinned and the legs locked by apply_constraints_, so the start pose
+        // stands still until the window ends.
+        if (holding) {
+            std::fill(data_->ctrl, data_->ctrl + model_->nu, 0.0);
+            return;
+        }
         const auto command = command_component_->control();
 
         if (!command.valid) {
@@ -981,26 +1113,37 @@ private:
             return;
         }
 
-        // Controller joint references -> MJCF joint targets (inverse of the mapping above).
-        // V5.0: hip and crank joints mirror on the same sign (same value = mirrored
-        // pose), so both legs use the same target; only the wheels are opposite.
-        const double hip_l = wrap_to_pi(hip_sign_ * (command.hip_angle - hip_zero_));
-        const double hip_r = hip_l;
+        // Reduced (alpha, beta) references -> MJCF joint targets through the SHARED
+        // model (single source of truth). The reduced knee reference is the signed
+        // branch (state_knee_sign = -1), so the interior beta is knee_rel_sign *
+        // command.knee_angle; the per-side roll bias is a differential reduced-knee
+        // offset. The MJCF crank is in the assembly/model frame, so add the motor
+        // zero back after the model (which returns the encoder-frame crank).
+        const double alpha_ref = command.hip_angle;
+        const double roll_bias = std::isfinite(open_loop_roll_bias_)
+                                     ? open_loop_roll_bias_
+                                     : (command.roll_bias_valid ? command.roll_bias : 0.0);
 
-        // Desired relative crank (thigh frame) for the reduced knee reference,
-        // then the crank joint target. For the V5.0 six-bar,
-        //   c = q_crank - q_hip   =>   q_crank = c + q_hip   (both legs)
-        auto crank_target = [&](const wheelleg::LegLinkage& linkage, double offset,
-                                double assembly_crank, std::size_t thigh_joint) -> double {
-            const double knee_rel = knee_rel_sign_ * command.knee_angle + offset;
-            const double clamped =
-                std::clamp(knee_rel, knee_limit_min_, knee_limit_max_);
-            double crank = 0.0;
-            if (!linkage.crank_from_knee(clamped, crank))
-                return kNaN;
-            const double thigh = joint_position_(thigh_joint);
-            return crank - assembly_crank + thigh;
-        };
+        double hip_l = joint_position_(kLJoint1);
+        double crank_l = joint_position_(kLCrank);
+        double hip_r = joint_position_(kRJoint1);
+        double crank_r = joint_position_(kRCrank);
+        {
+            const double beta_l = std::clamp(
+                knee_rel_sign_ * command.knee_angle + knee_rel_offset_l_ + roll_bias,
+                knee_limit_min_, knee_limit_max_);
+            const double beta_r = std::clamp(
+                knee_rel_sign_ * command.knee_angle + knee_rel_offset_r_ - roll_bias,
+                knee_limit_min_, knee_limit_max_);
+            double h_l = 0.0, c_l = 0.0, h_r = 0.0, c_r = 0.0;
+            if (leg_model_->joint_targets(alpha_ref, beta_l, sim_calib_, h_l, c_l)
+                && leg_model_->joint_targets(alpha_ref, beta_r, sim_calib_, h_r, c_r)) {
+                hip_l = wrap_to_pi(h_l);
+                hip_r = wrap_to_pi(h_r);
+                crank_l = wrap_to_pi(c_l + crank_motor_zero_);
+                crank_r = wrap_to_pi(c_r + crank_motor_zero_);
+            }
+        }
 
         double hip_torque_l = 0.0;
         double crank_torque_l = 0.0;
@@ -1008,14 +1151,6 @@ private:
         double crank_torque_r = 0.0;
 
         {
-            const double roll_bias = std::isfinite(open_loop_roll_bias_)
-                                        ? open_loop_roll_bias_
-                                        : (command.roll_bias_valid ? command.roll_bias : 0.0);
-            const double crank_l = crank_target(
-                *linkage_l_, knee_rel_offset_l_ + roll_bias, linkage_l_->assembly_crank(), kLJoint1);
-            const double crank_r = crank_target(
-                *linkage_r_, knee_rel_offset_r_ - roll_bias, linkage_r_->assembly_crank(), kRJoint1);
-
             hip_torque_l = hip_kp_ * (hip_l - joint_position_(kLJoint1))
                          - hip_kd_ * joint_velocity_(kLJoint1);
             crank_torque_l = crank_kp_ * (crank_l - joint_position_(kLCrank))
@@ -1114,6 +1249,10 @@ private:
         };
         wheel_torque_l = motor_speed_limit(joint_velocity_(kLJoint3), wheel_torque_l);
         wheel_torque_r = motor_speed_limit(joint_velocity_(kRJoint3), wheel_torque_r);
+
+        // Level-2 hook: actuator input-gain mismatch (actual torque != command).
+        wheel_torque_l *= wheel_torque_scale_;
+        wheel_torque_r *= wheel_torque_scale_;
 
         // Wheel torque is capped by the motor and, while in contact, by the
         // friction cone mu*N*r evaluated online from the last solved contact
@@ -1350,13 +1489,19 @@ private:
     }
 
     void publish_state_() {
-        const auto leg_l = leg_length_angle_(kLJoint1, kLJoint3);
-        const auto leg_r = leg_length_angle_(kRJoint1, kRJoint3);
-        const double leg_length = 0.5 * (leg_l[0] + leg_r[0]);
-        const double shank = 0.5 * (shank_angle_(kLJoint2, kLJoint3)
-                                    + shank_angle_(kRJoint2, kRJoint3));
-        // Reduced knee angle: interior thigh-shank angle from the cosine law.
-        const double knee = reduced_knee_(leg_length);
+        // Reduced leg shape from the SHARED model (wheelleg_leg_model.hpp), the
+        // single source of truth. The sim's MJCF crank is in the ASSEMBLY/model
+        // frame (crank = 0 at knee 45 deg), so shift it by the motor zero (knee
+        // 105 deg) into the encoder frame the model expects; the reduced
+        // (alpha,beta,shank) then equal the real robot's /wheelleg/state/* for the
+        // same physical pose.
+        const auto shape_l = leg_model_->forward(
+            joint_position_(kLJoint1), joint_position_(kLCrank) - crank_motor_zero_, sim_calib_);
+        const auto shape_r = leg_model_->forward(
+            joint_position_(kRJoint1), joint_position_(kRCrank) - crank_motor_zero_, sim_calib_);
+        const double leg_length = 0.5 * (shape_l.leg_length + shape_r.leg_length);
+        const double shank = 0.5 * (shape_l.shank + shape_r.shank);
+        const double knee = 0.5 * (shape_l.beta + shape_r.beta);
         const double pitch = body_pitch_();
         const double omega = 0.5 * (joint_velocity_(kLJoint3) + joint_velocity_(kRJoint3));
 
@@ -1383,6 +1528,22 @@ private:
         // Reduced hip (raw L_joint1) and base height for the self-righting
         // recovery controller.
         *state_hip_angle_ = state_hip_sign_ * joint_position_(kLJoint1);
+
+        // ---- Convention log (shared model + raw MJCF joints) -------------------
+        // One line to cross-check the reduced state against the real robot: the
+        // reduced values below are exactly what the real robot reports for the
+        // same physical pose.
+        if (step_count_ % 1000 == 0) {
+            info(
+                "[state] raw L(q_hip={:+.4f} q_crank={:+.4f}) R(q_hip={:+.4f} q_crank={:+.4f}) "
+                "pitch={:+.4f} | reduced a={:+.4f} b={:+.4f} s={:+.4f} L0={:.4f} | "
+                "L a={:+.4f} b={:+.4f} s={:+.4f} L0={:.4f} | R a={:+.4f} b={:+.4f} s={:+.4f} "
+                "L0={:.4f}",
+                joint_position_(kLJoint1), joint_position_(kLCrank), joint_position_(kRJoint1),
+                joint_position_(kRCrank), pitch, 0.5 * (shape_l.alpha + shape_r.alpha), knee, shank,
+                leg_length, shape_l.alpha, shape_l.beta, shape_l.shank, shape_l.leg_length,
+                shape_r.alpha, shape_r.beta, shape_r.shank, shape_r.leg_length);
+        }
         *state_base_height_ = data_->xpos[3 * base_body_id_ + 2];
 
         // Task-space state (执行路线2 §5/§8): leg length / angle and the CoM
@@ -1415,11 +1576,11 @@ private:
         }
 
         *state_leg_length_ = leg_length;
-        *state_leg_angle_ = 0.5 * (leg_l[1] + leg_r[1]);
-        *state_leg_length_l_ = leg_l[0];
-        *state_leg_length_r_ = leg_r[0];
-        *state_leg_angle_l_ = leg_l[1];
-        *state_leg_angle_r_ = leg_r[1];
+        *state_leg_angle_ = 0.5 * (shape_l.alpha + shape_r.alpha);
+        *state_leg_length_l_ = shape_l.leg_length;
+        *state_leg_length_r_ = shape_r.leg_length;
+        *state_leg_angle_l_ = shape_l.alpha;
+        *state_leg_angle_r_ = shape_r.alpha;
         *state_com_x_ = com[1];
         *state_com_z_ = com[2];
         // CoM offset d in the axle (body-forward) frame: heading-independent, so
@@ -1655,6 +1816,15 @@ private:
 
     std::unique_ptr<wheelleg::LegLinkage> linkage_l_;
     std::unique_ptr<wheelleg::LegLinkage> linkage_r_;
+    // Shared reduced-model solver (single source of truth, wheelleg_leg_model.hpp).
+    // Used here for a READ-ONLY convention cross-check against the canonical
+    // (real-robot, wheel-leg-infantry-bench.yaml) calibration; it does not yet
+    // drive the state/command paths.
+    std::unique_ptr<wheelleg::WheelLegLegModel> leg_model_;
+    // Sim-side calibration in the shared model's convention (see publish_state_ /
+    // apply_control_): the reduced (alpha,beta,shank) then match the real robot's
+    // /wheelleg/state/* for the same physical pose.
+    wheelleg::LegCalibration sim_calib_;
 
     mjModel* model_ = nullptr;
     mjData* data_ = nullptr;
@@ -1688,12 +1858,18 @@ private:
     bool fix_base_hold_z_ = true;
     bool fix_base_planar_ = false;
     double fix_base_release_time_ = -1.0;
+    double hold_seconds_ = 0.0;
     std::array<int, 8> joint_ids_{};
     std::array<int, 6> actuator_ids_{};
 
     std::string model_path_;
     double dt_ = 0.001;
     double initial_height_ = 0.4008;
+    double init_pitch_deg_ = 0.0;
+    double init_hip_delta_deg_ = 0.0;
+    double init_crank_delta_deg_ = 0.0;
+    double init_clearance_ = 0.003;
+    double init_lift_extra_ = 0.0;
 
     double hip_kp_ = 400.0, hip_kd_ = 8.0;
     double crank_kp_ = 150.0, crank_kd_ = 2.0;
@@ -1741,6 +1917,10 @@ private:
     double hip_torque_limit_ = 40.0;
     double crank_torque_limit_ = 40.0;
     double wheel_torque_limit_ = 4.88;
+    double mass_scale_ = 1.0;
+    double inertia_scale_ = 1.0;
+    double com_offset_y_ = 0.0;
+    double wheel_torque_scale_ = 1.0;
     double friction_coefficient_ = 2.0;
     double wheel_radius_ = 0.06;
     double wheel_friction_torque_limit_ = 0.0;
@@ -1749,7 +1929,8 @@ private:
     double knee_rel_offset_r_ = 0.0;
 
     double hip_sign_ = -1.0;
-    double hip_zero_ = std::numbers::pi;
+    double hip_zero_ = -std::numbers::pi / 2.0;
+    double crank_sign_ = 1.0;
     double knee_zero_l_ = 1.9198621771937625;
     double knee_zero_r_ = 1.9198621771937625;
     double knee_limit_min_ = 0.6981317007977318;

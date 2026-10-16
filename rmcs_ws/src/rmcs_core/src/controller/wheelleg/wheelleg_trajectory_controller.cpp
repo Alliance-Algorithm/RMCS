@@ -36,6 +36,7 @@ public:
         register_input("/wheelleg/state/pitch_velocity", state_pitch_velocity_);
         register_input("/wheelleg/state/com_offset", state_com_offset_);
         register_input("/wheelleg/state/leg_length", state_leg_length_);
+        register_input("/wheelleg/state/base_height", state_base_height_, false);
         // Outer d-loop correction: a bias added to the hip (leg-angle) reference,
         // used to shift the CoM offset d toward zero (ankle strategy).
         register_input("/wheelleg/task/alpha_bias", alpha_bias_, false);
@@ -212,9 +213,21 @@ public:
         {
             const double d_ref = a_cmd * com_height_ / gravity_;
             const double d_err = d_ref - state.com_offset;
-            gait_dhip_ = rec * posture_gate * (accel_theta_ff_ * d_ref + accel_kv_ * d_err);
+            // Gate: legacy alpha_r fade, or a base-height gate so the posture can
+            // also act during the get-up (alpha_r = 0) once the body is high enough
+            // for the CoM / leg model to be meaningful.
+            double gait_gate = rec;
+            if (gait_height_min_ > 0.0) {
+                gait_gate = std::isfinite(state.height)
+                              ? std::clamp(
+                                    (state.height - gait_height_min_)
+                                        / std::max(gait_height_span_, kEpsilon),
+                                    0.0, 1.0)
+                              : 0.0;
+            }
+            gait_dhip_ = gait_gate * posture_gate * (accel_theta_ff_ * d_ref + accel_kv_ * d_err);
             const double gait_dl =
-                rec * posture_gate * (accel_leg_ff_ * d_ref + accel_d_kp_ * d_err);
+                gait_gate * posture_gate * (accel_leg_ff_ * d_ref + accel_d_kp_ * d_err);
             const auto gait_target = solve_target_(
                 velocity_command, std::clamp(leg_length_command + gait_dl, 0.22, 0.45));
             if (std::isfinite(gait_target.beta) && std::isfinite(balance_target.beta)
@@ -310,6 +323,7 @@ private:
         double pitch_velocity = kNaN;
         double com_offset = kNaN;
         double leg_length = kNaN;
+        double height = kNaN;
         // Wheel-ground normal force per wheel (contact gate); 0 when absent.
         double contact_l = 0.0;
         double contact_r = 0.0;
@@ -409,6 +423,13 @@ private:
         // per rad of pitch => ~3.85 rad per m).
         accel_theta_ff_ = node::param_or("accel_theta_ff", 3.85);
         accel_kv_ = node::param_or("accel_kv", 1.0);
+        // Height gate for the acceleration posture (gait): once the base height
+        // exceeds gait_height_min the posture ramps in over gait_height_span. This
+        // lets the posture also act during the get-up (while alpha_r = 0), where
+        // the wheels alone cannot absorb the leg motion. gait_height_min <= 0
+        // keeps the legacy alpha_r (recovery) fade.
+        gait_height_min_ = node::param_or("gait_height_min", -1.0);
+        gait_height_span_ = node::param_or("gait_height_span", 0.05);
         d_max_ = node::param_or("d_max", 0.03);
         // Wheel normal force above which the wheel is treated as loaded (contact
         // gate for the static-stability guard / balance regime).
@@ -433,6 +454,9 @@ private:
         state.pitch_velocity = *state_pitch_velocity_;
         state.com_offset = *state_com_offset_;
         state.leg_length = *state_leg_length_;
+        state.height =
+            (state_base_height_.ready() && std::isfinite(*state_base_height_)) ? *state_base_height_
+                                                                              : kNaN;
         state.contact_l =
             (contact_normal_l_.ready() && std::isfinite(*contact_normal_l_)) ? *contact_normal_l_
                                                                              : 0.0;
@@ -689,6 +713,8 @@ private:
     double accel_d_kp_;
     double accel_theta_ff_;
     double accel_kv_;
+    double gait_height_min_ = -1.0;
+    double gait_height_span_ = 0.05;
     double d_max_;
     double contact_normal_eps_ = 1.0;
     double gravity_;
@@ -705,6 +731,7 @@ private:
     InputInterface<double> state_pitch_velocity_;
     InputInterface<double> state_com_offset_;
     InputInterface<double> state_leg_length_;
+    InputInterface<double> state_base_height_;
     InputInterface<double> alpha_bias_;
     InputInterface<double> shank_command_;
     InputInterface<double> leg_length_recovery_;

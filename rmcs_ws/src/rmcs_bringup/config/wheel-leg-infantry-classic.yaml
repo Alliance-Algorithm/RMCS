@@ -113,8 +113,8 @@ wheelleg_state:
     #   q_hip   = hardware_hip_sign   * (reduced.hip   - hardware_hip_zero)
     #   c       = hardware_crank_sign * (q_crank - q_hip)
     hardware_hip_sign: [-1.0, 1.0]
-    hardware_hip_zero: [-1.5707963267948966, 1.5707963267948966]
-    hardware_crank_sign: [-1.0, -1.0]
+    hardware_hip_zero: [-1.5707963267948966, -1.5707963267948966]
+    hardware_crank_sign: [-1.0, 1.0]
     # Reduced knee limits (interior thigh-shank angle), hard: 40..105 deg.
     knee_limit_min: 0.6981317007977318
     knee_limit_max: 1.8325957145940461
@@ -124,7 +124,7 @@ wheelleg_state:
     state_pitch_sign: 1.0
     state_roll_sign: 1.0
     state_yaw_sign: 1.0
-    state_knee_sign: -1.0
+    state_knee_sign: 1.0
     state_shank_sign: 1.0
     state_hip_sign: 1.0
     state_wheel_sign: 1.0
@@ -200,9 +200,9 @@ wheelleg_trajectory_controller:
     thigh_com_offset: 0.06623
     shank_com_offset: 0.15344
     body_com_offset: 0.00918
-    knee_branch_sign: -1.0
-    knee_angle_min: -1.8325957145940461
-    knee_angle_max: -0.6981317007977318
+    knee_branch_sign: 1.0
+    knee_angle_min: 0.6981317007977318
+    knee_angle_max: 1.8325957145940461
     d_max: 100.0
     # Contact gate for the static-stability guard. The state estimator publishes
     # contact_normal_* = 0 (no force sensor), so the controller treats the wheels
@@ -299,8 +299,8 @@ wheelleg_drive_bridge:
   ros__parameters:
     # Reduced -> CAD joint mapping (same as wheelleg_standup.yaml hardware_*).
     hardware_hip_sign: [-1.0, 1.0]
-    hardware_hip_zero: [-1.5707963267948966, 1.5707963267948966]
-    hardware_crank_sign: [-1.0, -1.0]
+    hardware_hip_zero: [-1.5707963267948966, -1.5707963267948966]
+    hardware_crank_sign: [-1.0, 1.0]
     knee_limit_min: 0.6981317007977318
     knee_limit_max: 1.8325957145940461
     # Host leg PD (Nm per rad / rad/s), matching the real leg PD.
@@ -315,4 +315,4 @@ wheelleg_drive_bridge:
     feedback_timeout_s: 0.03
     arm_dwell_s: 0.5
     # Convert the trajectory's signed knee branch to the interior angle beta.
-    knee_rel_sign: -1.0
+    knee_rel_sign: 1.0

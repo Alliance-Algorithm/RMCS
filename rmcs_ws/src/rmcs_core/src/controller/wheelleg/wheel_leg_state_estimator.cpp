@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <numbers>
 #include <stdexcept>
 #include <string>
@@ -15,10 +16,12 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "controller/wheelleg/leg_transmission.hpp"
+#include "controller/wheelleg/wheelleg_leg_model.hpp"
 
 namespace rmcs_core::controller::wheelleg {
 
 using LegLinkage = rmcs_core::wheelleg::LegLinkage;
+using WheelLegLegModel = rmcs_core::wheelleg::WheelLegLegModel;
 
 // Real-hardware state estimator for the traditional V5.0 stack.
 //
@@ -154,22 +157,22 @@ public:
         // ------------------------------------------------------------------
         // Leg shape from the joint encoders.
         // ------------------------------------------------------------------
-        const double beta_l = reduced_knee_(0, *joint_angle_[0], *joint_angle_[1]);
-        const double beta_r = reduced_knee_(1, *joint_angle_[2], *joint_angle_[3]);
+        const auto shape_l = leg_model_->forward(
+            *joint_angle_[0], *joint_angle_[1], rmcs_core::wheelleg::CanonicalCalibration::side(0));
+        const auto shape_r = leg_model_->forward(
+            *joint_angle_[2], *joint_angle_[3], rmcs_core::wheelleg::CanonicalCalibration::side(1));
+        const double beta_l = shape_l.beta;
+        const double beta_r = shape_r.beta;
         const double beta = 0.5 * (beta_l + beta_r);
-        const double leg_length_l = leg_length_(beta_l);
-        const double leg_length_r = leg_length_(beta_r);
+        const double leg_length_l = shape_l.leg_length;
+        const double leg_length_r = shape_r.leg_length;
         const double leg_length = 0.5 * (leg_length_l + leg_length_r);
 
-        // Reduced hip alpha = q_hip / hip_sign + hip_zero (inverse of
-        // q_hip = hip_sign * (alpha - hip_zero), see wheelleg_standup.yaml).
-        const double alpha_l = *joint_angle_[0] / hardware_hip_sign_[0] + hardware_hip_zero_[0];
-        const double alpha_r = *joint_angle_[2] / hardware_hip_sign_[1] + hardware_hip_zero_[1];
+        const double alpha_l = shape_l.alpha;
+        const double alpha_r = shape_r.alpha;
         const double alpha = 0.5 * (alpha_l + alpha_r);
-        // Reduced leg orientation (the second DOF of the refactored 2-DOF solve):
-        // alpha = pi - beta - phi  =>  phi = pi - beta - alpha.
-        const double shank_l = std::numbers::pi - beta_l - alpha_l;
-        const double shank_r = std::numbers::pi - beta_r - alpha_r;
+        const double shank_l = shape_l.shank;
+        const double shank_r = shape_r.shank;
         const double shank = 0.5 * (shank_l + shank_r);
 
         double knee_rate = 0.0;
@@ -394,6 +397,12 @@ private:
         hip_offset_up_ = param_or("hip_offset_up", 0.0);
         // Wheel-odometry sign to the body forward speed.
         velocity_sign_ = param_or("velocity_sign", 1.0);
+
+        // Shared reduced-model solver (single source of truth). The real encoders
+        // map through the canonical calibration, so the estimator reports the
+        // SAME (alpha, beta, shank) as the simulation for the same physical pose.
+        leg_model_ = std::make_unique<WheelLegLegModel>(
+            thigh_length_, shank_length_, knee_limit_min_, knee_limit_max_, linkage_);
     }
 
     [[nodiscard]] double param_or(const std::string& name, double fallback) {
@@ -401,6 +410,7 @@ private:
     }
 
     LegLinkage linkage_;
+    std::unique_ptr<WheelLegLegModel> leg_model_;
     double thigh_length_ = 0.21, shank_length_ = 0.25005, wheel_radius_ = 0.06;
     double knee_limit_min_ = 0.6981317007977318, knee_limit_max_ = 1.8325957145940461;
     double dt_ = 0.001;

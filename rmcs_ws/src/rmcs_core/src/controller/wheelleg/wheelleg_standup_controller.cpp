@@ -15,6 +15,7 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "controller/wheelleg/leg_transmission.hpp"
+#include "controller/wheelleg/wheelleg_leg_model.hpp"
 
 namespace rmcs_core::controller::wheelleg {
 
@@ -447,7 +448,7 @@ private:
             return false;
         state.pitch = *sim_pitch_;
         state.pitch_velocity = sim_pitch_velocity_.ready() ? *sim_pitch_velocity_ : 0.0;
-        state.beta = -(*sim_knee_angle_);  // state knee is -beta
+        state.beta = *sim_knee_angle_;  // state knee is the interior beta (unified)
         state.hip = sim_hip_state_.ready() ? *sim_hip_state_ : 0.0;
         state.wheel_velocity = sim_wheel_velocity_.ready() ? *sim_wheel_velocity_ : 0.0;
         state.height = sim_base_height_.ready() ? *sim_base_height_ : 0.0;
@@ -457,24 +458,29 @@ private:
         return std::isfinite(state.pitch) && std::isfinite(state.beta);
     }
 
-    // Reduced knee angle from hardware joint angles (relative crank -> beta).
+    // Reduced knee angle from hardware joint angles, through the SHARED model
+    // (single source of truth) + the canonical (real-robot bench) calibration.
     [[nodiscard]] double knee_from_hardware_(double crank, double hip, int side) const {
-        const double c = hardware_crank_sign_[static_cast<std::size_t>(side)] * (crank - hip);
-        return linkage_->knee_from_crank(c);
+        return leg_model_
+            ->forward(hip, crank, rmcs_core::wheelleg::CanonicalCalibration::side(side))
+            .beta;
     }
 
     void write_command_(const State& state) {
         const double wheel_torque = balance_torque_(state);
         if (backend_ == "hardware") {
-            double crank_rel = 0.0;
-            if (!linkage_->crank_from_knee(
-                    std::clamp(ref_beta_, linkage_->knee_min(), linkage_->knee_max()), crank_rel))
-                crank_rel = 0.0;
-
-            const double hip_cad_l = hardware_hip_sign_[0] * (ref_hip_ - hardware_hip_zero_[0]);
-            const double hip_cad_r = hardware_hip_sign_[1] * (ref_hip_ - hardware_hip_zero_[1]);
-            const double crank_cad_l = hip_cad_l + hardware_crank_sign_[0] * crank_rel;
-            const double crank_cad_r = hip_cad_r + hardware_crank_sign_[1] * crank_rel;
+            const double beta =
+                std::clamp(ref_beta_, linkage_->knee_min(), linkage_->knee_max());
+            double hip_cad_l = 0.0, crank_cad_l = 0.0, hip_cad_r = 0.0, crank_cad_r = 0.0;
+            if (!leg_model_->joint_targets(
+                    ref_hip_, beta, rmcs_core::wheelleg::CanonicalCalibration::side(0), hip_cad_l,
+                    crank_cad_l)
+                || !leg_model_->joint_targets(
+                    ref_hip_, beta, rmcs_core::wheelleg::CanonicalCalibration::side(1), hip_cad_r,
+                    crank_cad_r)) {
+                safe_output_();
+                return;
+            }
 
             *hw_control_angle_[kLeftHip] = hip_cad_l;
             *hw_control_angle_[kRightHip] = hip_cad_r;
@@ -488,7 +494,7 @@ private:
         }
 
         *sim_hip_angle_ = ref_hip_;
-        *sim_knee_angle_out_ = -ref_beta_;
+        *sim_knee_angle_out_ = ref_beta_;
         *sim_wheel_velocity_out_ = target_wheel_velocity_;
         *sim_wheel_torque_ = wheel_torque;
     }
@@ -605,6 +611,8 @@ private:
             throw std::runtime_error{"hardware_hip_*/hardware_crank_* need exactly [left, right]"};
 
         linkage_ = std::make_unique<LegLinkage>();
+        leg_model_ = std::make_unique<rmcs_core::wheelleg::WheelLegLegModel>(
+            thigh_length_, shank_length_, linkage_->knee_min(), linkage_->knee_max(), *linkage_);
     }
 
     enum JointIndex : std::size_t {
@@ -655,6 +663,7 @@ private:
     std::vector<double> hardware_crank_sign_;
 
     std::unique_ptr<LegLinkage> linkage_;
+    std::unique_ptr<rmcs_core::wheelleg::WheelLegLegModel> leg_model_;
 
     // Script state.
     Phase phase_ = Phase::kIdle;

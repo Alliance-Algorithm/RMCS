@@ -54,7 +54,7 @@ wheelleg_sim:
     wheel_dir: 1.0
     state_pitch_sign: 1.0
     state_shank_sign: 1.0
-    state_knee_sign: -1.0
+    state_knee_sign: 1.0
     state_hip_sign: 1.0
     state_wheel_sign: 1.0
     state_yaw_sign: 1.0
@@ -164,5 +164,5 @@ wheelleg_standup:
     # Defaults from the real (V6) calibration v6_pair_from_dev_rmcs_rl.json:
     # left hip zero -pi/2, right hip zero +pi/2; hip sign -1 / +1; crank sign -1.
     hardware_hip_sign: [-1.0, 1.0]
-    hardware_hip_zero: [-1.5707963267948966, 1.5707963267948966]
-    hardware_crank_sign: [-1.0, -1.0]
+    hardware_hip_zero: [-1.5707963267948966, -1.5707963267948966]
+    hardware_crank_sign: [-1.0, 1.0]
