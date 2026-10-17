@@ -107,8 +107,8 @@ chassis_controller:
 
 sentry_tunnel_cross:
   ros__parameters:
-    speed: 1.2
-    duration: 1.5
+    speed: 2.0
+    duration: 2.4
     pre_drive_delay: 0.2
     fold_timeout: 5.0
     unfold_timeout: 5.0
@@ -127,8 +127,6 @@ value_broadcaster:
       - /gimbal/roll/torque
       - /gimbal/roll/temperature
       - /gimbal/bottom_yaw/torque
-
-
 
 gimbal_controller:
   ros__parameters:
