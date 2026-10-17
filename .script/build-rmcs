@@ -54,6 +54,9 @@ colcon_args=(
 )
 cmake_args=(
     "${cmake_toolchain_args[@]}"
+    # Real-robot / native build: never link the MuJoCo simulation bridge. Use
+    # build-rmcs-sim to build with -DRMCS_ENABLE_MUJOCO_SIM=ON.
+    "-DRMCS_ENABLE_MUJOCO_SIM=OFF"
 )
 
 CLICOLOR_FORCE=1 NINJA_STATUS="" \

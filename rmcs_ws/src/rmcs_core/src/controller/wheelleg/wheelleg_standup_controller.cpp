@@ -462,7 +462,7 @@ private:
     // (single source of truth) + the canonical (real-robot bench) calibration.
     [[nodiscard]] double knee_from_hardware_(double crank, double hip, int side) const {
         return leg_model_
-            ->forward(hip, crank, rmcs_core::wheelleg::CanonicalCalibration::side(side))
+            ->forward(hip, crank, leg_calib_[static_cast<std::size_t>(side)])
             .beta;
     }
 
@@ -473,19 +473,25 @@ private:
                 std::clamp(ref_beta_, linkage_->knee_min(), linkage_->knee_max());
             double hip_cad_l = 0.0, crank_cad_l = 0.0, hip_cad_r = 0.0, crank_cad_r = 0.0;
             if (!leg_model_->joint_targets(
-                    ref_hip_, beta, rmcs_core::wheelleg::CanonicalCalibration::side(0), hip_cad_l,
-                    crank_cad_l)
+                    ref_hip_, beta, leg_calib_[0], hip_cad_l, crank_cad_l)
                 || !leg_model_->joint_targets(
-                    ref_hip_, beta, rmcs_core::wheelleg::CanonicalCalibration::side(1), hip_cad_r,
-                    crank_cad_r)) {
+                    ref_hip_, beta, leg_calib_[1], hip_cad_r, crank_cad_r)) {
                 safe_output_();
                 return;
             }
 
-            *hw_control_angle_[kLeftHip] = hip_cad_l;
-            *hw_control_angle_[kRightHip] = hip_cad_r;
-            *hw_control_angle_[kLeftCrank] = crank_cad_l;
-            *hw_control_angle_[kRightCrank] = crank_cad_r;
+            // Mod 2*pi: the DM encoders are multi-turn; snap each target to the
+            // turn nearest the measured joint so the servo / PD does not resolve
+            // to a wrong turn (the model targets are single-turn).
+            const auto align = [](double target, double measured) {
+                return target
+                     + 2.0 * std::numbers::pi
+                         * std::round((measured - target) / (2.0 * std::numbers::pi));
+            };
+            *hw_control_angle_[kLeftHip] = align(hip_cad_l, *hw_angle_[kLeftHip]);
+            *hw_control_angle_[kRightHip] = align(hip_cad_r, *hw_angle_[kRightHip]);
+            *hw_control_angle_[kLeftCrank] = align(crank_cad_l, *hw_angle_[kLeftCrank]);
+            *hw_control_angle_[kRightCrank] = align(crank_cad_r, *hw_angle_[kRightCrank]);
             for (auto& torque : hw_control_torque_)
                 *torque = 0.0;
             *hw_wheel_torque_[0] = wheel_axis_sign_ * wheel_torque;
@@ -544,7 +550,9 @@ private:
         shank_mass_ = node::param_or("shank_mass", 0.507);
         thigh_com_offset_ = node::param_or("thigh_com_offset", 0.06623);
         shank_com_offset_ = node::param_or("shank_com_offset", 0.15344);
-        body_com_offset_ = node::param_or("body_com_offset", 0.00918);
+        // Unified name: body_com_forward; legacy body_com_offset fallback.
+        body_com_offset_ = node::param_or(
+            "body_com_forward", node::param_or("body_com_offset", 0.00918));
 
         // Poses (our reduced convention: hip == raw L_joint1, beta == interior
         // knee). Defaults are the frozen V6 recovery poses.
@@ -613,6 +621,9 @@ private:
         linkage_ = std::make_unique<LegLinkage>();
         leg_model_ = std::make_unique<rmcs_core::wheelleg::WheelLegLegModel>(
             thigh_length_, shank_length_, linkage_->knee_min(), linkage_->knee_max(), *linkage_);
+        for (std::size_t i = 0; i < 2; ++i)
+            leg_calib_[i] = rmcs_core::wheelleg::LegCalibration{
+                hardware_hip_sign_[i], hardware_hip_zero_[i], hardware_crank_sign_[i]};
     }
 
     enum JointIndex : std::size_t {
@@ -664,6 +675,7 @@ private:
 
     std::unique_ptr<LegLinkage> linkage_;
     std::unique_ptr<rmcs_core::wheelleg::WheelLegLegModel> leg_model_;
+    std::array<rmcs_core::wheelleg::LegCalibration, 2> leg_calib_{};
 
     // Script state.
     Phase phase_ = Phase::kIdle;

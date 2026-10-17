@@ -68,8 +68,12 @@ if(_rmcs_mujoco_library AND EXISTS "${_rmcs_mujoco_source}" AND NOT RMCS_TARGET_
 else()
     set(_rmcs_mujoco_default OFF)
 endif()
+# Default OFF: a plain `build-rmcs` (and the cross build for the real robot)
+# never links MuJoCo. The simulation bridge is opt-in via build-rmcs-sim
+# (-DRMCS_ENABLE_MUJOCO_SIM=ON), so the real-robot library and the simulator
+# library are decoupled.
 option(RMCS_ENABLE_MUJOCO_SIM "Build the in-process MuJoCo simulation bridge"
-    ON)
+    OFF)
 
 if(RMCS_ENABLE_MUJOCO_SIM AND (NOT _rmcs_mujoco_library OR NOT EXISTS "${_rmcs_mujoco_source}"))
     message(WARNING

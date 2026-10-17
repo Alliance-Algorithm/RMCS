@@ -46,8 +46,8 @@ wheelleg_sim:
     # standing).
     hip_sign: 1.0
     hip_zero: 0.0
-    knee_zero_l: 1.8325957145940461
-    knee_zero_r: 1.8325957145940461
+    knee_zero_l: 1.9198621771937625
+    knee_zero_r: 1.9198621771937625
     knee_limit_min: 0.6981317007977318
     knee_limit_max: 1.9198621771937625
     knee_hard_stop: true
@@ -101,7 +101,7 @@ wheelleg_standup:
     shank_mass: 0.507
     thigh_com_offset: 0.06623
     shank_com_offset: 0.15344
-    body_com_offset: 0.00918
+    body_com_forward: 0.00918
     # Recovery poses (reduced convention: hip == raw L_joint1, beta == interior
     # knee). Defaults are the frozen V6 recovery profile
     # (rmcs_rl/models/wheel_leg/deployment/v6_recovery_profiles_v1.json).

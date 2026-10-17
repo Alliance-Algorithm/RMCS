@@ -69,11 +69,11 @@ wheelleg_sim:
     hip_zero: 3.14159265358979
     # Motor zero: knee interior angle 105 deg (real-robot encoder zero), thigh
     # perpendicular to chassis.
-    knee_zero_l: 1.8325957145940461
-    knee_zero_r: 1.8325957145940461
+    knee_zero_l: 1.9198621771937625
+    knee_zero_r: 1.9198621771937625
     # Mechanical knee limits (interior thigh-shank angle), hard: 40..105 deg.
     knee_limit_min: 0.6981317007977318
-    knee_limit_max: 1.8325957145940461
+    knee_limit_max: 1.9198621771937625
     knee_hard_stop: true
     wheel_dir: 1.0
     state_pitch_sign: 1.0

@@ -10,6 +10,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -19,6 +20,7 @@
 #include <unistd.h>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <eigen3/Eigen/Geometry>
 #include <mujoco/mujoco.h>
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
@@ -64,62 +66,75 @@ public:
         command_component_ = create_partner_component<WheelLegSimulationCommand>(
             get_component_name() + "_command", *this);
 
-        register_output("/wheelleg/state/wheel_velocity", state_wheel_velocity_, 0.0);
-        register_output("/wheelleg/state/shank_angle", state_shank_angle_, 0.0);
-        register_output("/wheelleg/state/shank_velocity", state_shank_velocity_, 0.0);
-        register_output("/wheelleg/state/knee_angle", state_knee_angle_, 0.0);
-        register_output("/wheelleg/state/knee_velocity", state_knee_velocity_, 0.0);
-        register_output("/wheelleg/state/pitch", state_pitch_, 0.0);
-        register_output("/wheelleg/state/pitch_velocity", state_pitch_velocity_, 0.0);
-        // Measured reduced hip (== raw L_joint1 in the V5.0 convention) and the
-        // base height, used by the self-righting recovery controller.
-        register_output("/wheelleg/state/hip_angle", state_hip_angle_, 0.0);
-        register_output("/wheelleg/state/base_height", state_base_height_, 0.0);
-        // Task-space state (see 执行路线2 §5): leg length / leg angle and the
-        // vehicle CoM relative to the wheel axle (static-stability offset d).
-        register_output("/wheelleg/state/leg_length", state_leg_length_, 0.0);
-        register_output("/wheelleg/state/leg_angle", state_leg_angle_, 0.0);
-        register_output("/wheelleg/state/leg_length_l", state_leg_length_l_, 0.0);
-        register_output("/wheelleg/state/leg_length_r", state_leg_length_r_, 0.0);
-        register_output("/wheelleg/state/leg_angle_l", state_leg_angle_l_, 0.0);
-        register_output("/wheelleg/state/leg_angle_r", state_leg_angle_r_, 0.0);
-        register_output("/wheelleg/state/com_offset", state_com_offset_, 0.0);
-        register_output("/wheelleg/state/com_x", state_com_x_, 0.0);
-        register_output("/wheelleg/state/com_z", state_com_z_, 0.0);
-        // Yaw (heading) and yaw rate of the base, for the differential-steering
-        // (turning) loop. yaw is about the world up axis; yaw_rate is the world
-        // z angular velocity of base_link.
-        register_output("/wheelleg/state/yaw", state_yaw_, 0.0);
-        register_output("/wheelleg/state/yaw_rate", state_yaw_rate_, 0.0);
-        // Roll (lateral tilt) and roll rate, for the roll control loop.
-        register_output("/wheelleg/state/roll", state_roll_, 0.0);
-        register_output("/wheelleg/state/roll_rate", state_roll_rate_, 0.0);
-        // Body-forward speed of the base (m/s), heading-independent. Used by the
-        // outer speed loop so that turning does not change the plant gain.
-        register_output("/wheelleg/state/velocity", state_velocity_, 0.0);
-        // Body-forward odometry distance (m), the integral of the body-forward
-        // speed. The outer loop is a second-order plant on this coordinate
-        // (s_ddot = b0 * tau + f), matching the ADRC's second-order ESO, and it
-        // is heading-independent (unlike the world-frame com_x).
-        register_output("/wheelleg/state/distance", state_distance_, 0.0);
+        // ---- Raw hardware-facing outputs (/wheel_leg/*) ----------------------
+        // The SIMULATION ADAPTS TO THE REAL: it exposes the same raw encoder / IMU
+        // / interlock interface as the real WheelLeg, so the SAME
+        // WheelLegStateEstimator + WheelLegDriveBridge run on both sides.
+        //   * left_knee_joint / right_knee_joint are the CRANKS (hardware naming).
+        //   * the joint angles are ENCODER values in the real per-side sign/zero
+        //     convention (re-encoded from the MJCF joints).
+        register_output("/wheel_leg/left_hip_joint/angle", hw_joint_angle_[0], 0.0);
+        register_output("/wheel_leg/left_hip_joint/velocity", hw_joint_velocity_[0], 0.0);
+        register_output("/wheel_leg/left_knee_joint/angle", hw_joint_angle_[1], 0.0);
+        register_output("/wheel_leg/left_knee_joint/velocity", hw_joint_velocity_[1], 0.0);
+        register_output("/wheel_leg/right_hip_joint/angle", hw_joint_angle_[2], 0.0);
+        register_output("/wheel_leg/right_hip_joint/velocity", hw_joint_velocity_[2], 0.0);
+        register_output("/wheel_leg/right_knee_joint/angle", hw_joint_angle_[3], 0.0);
+        register_output("/wheel_leg/right_knee_joint/velocity", hw_joint_velocity_[3], 0.0);
+        register_output("/wheel_leg/left_wheel/velocity", hw_wheel_velocity_[0], 0.0);
+        register_output("/wheel_leg/right_wheel/velocity", hw_wheel_velocity_[1], 0.0);
+        register_output("/wheel_leg/imu/quaternion", hw_quaternion_, Eigen::Quaterniond::Identity());
+        register_output("/wheel_leg/imu/sensor_gravity/x", hw_gravity_[0], 0.0);
+        register_output("/wheel_leg/imu/sensor_gravity/y", hw_gravity_[1], 0.0);
+        register_output("/wheel_leg/imu/sensor_gravity/z", hw_gravity_[2], 0.0);
+        register_output("/wheel_leg/imu/sensor_gyro/x", hw_gyro_[0], 0.0);
+        register_output("/wheel_leg/imu/sensor_gyro/y", hw_gyro_[1], 0.0);
+        register_output("/wheel_leg/imu/sensor_gyro/z", hw_gyro_[2], 0.0);
+        register_output("/wheel_leg/feedback_fresh", hw_feedback_fresh_, true);
+        register_output("/wheel_leg/dm_control_ready", hw_dm_control_ready_, true);
+        register_output("/wheel_leg/dr16_fresh", hw_dr16_fresh_, false);
+        // The start-pose hold window, so the shared controllers can suppress
+        // their startup transition until the plant is released (see
+        // WheelLegTrajectoryController's drive-enable gate).
+        register_output("/wheelleg/hold", hw_hold_, false);
 
-        // Wheel-ground friction diagnostics (phase-0 observation). These expose
-        // the *actual* contact state so the friction margin can be measured:
-        //   contact_normal_*        instantaneous normal force N per wheel (N)
-        //   slip_*                  contact-point slip speed (m/s, ~0 = rolling)
-        //   friction_utilization_*  |Ft| / (mu*N), 1.0 = at the friction cone
-        //   friction_torque_limit_* mu*N*r, the traction torque the contact can
-        //                           actually transmit (Nm), vs wheel_torque_*
-        register_output("/wheelleg/state/contact_normal_l", state_contact_normal_l_, 0.0);
-        register_output("/wheelleg/state/contact_normal_r", state_contact_normal_r_, 0.0);
-        register_output("/wheelleg/state/slip_l", state_slip_l_, 0.0);
-        register_output("/wheelleg/state/slip_r", state_slip_r_, 0.0);
-        register_output("/wheelleg/state/friction_utilization_l", state_friction_utilization_l_, 0.0);
-        register_output("/wheelleg/state/friction_utilization_r", state_friction_utilization_r_, 0.0);
-        register_output("/wheelleg/state/friction_torque_limit_l", state_friction_torque_limit_l_, 0.0);
-        register_output("/wheelleg/state/friction_torque_limit_r", state_friction_torque_limit_r_, 0.0);
-        register_output("/wheelleg/state/wheel_torque_l", state_wheel_torque_l_, 0.0);
-        register_output("/wheelleg/state/wheel_torque_r", state_wheel_torque_r_, 0.0);
+        // ---- Simulation-only diagnostics (/wheelleg/simulation/*) ------------
+        // Renamed from /wheelleg/state/* so the shared WheelLegStateEstimator is
+        // the sole producer of the common /wheelleg/state/* topics.
+        register_output("/wheelleg/simulation/wheel_velocity", state_wheel_velocity_, 0.0);
+        register_output("/wheelleg/simulation/shank_angle", state_shank_angle_, 0.0);
+        register_output("/wheelleg/simulation/shank_velocity", state_shank_velocity_, 0.0);
+        register_output("/wheelleg/simulation/knee_angle", state_knee_angle_, 0.0);
+        register_output("/wheelleg/simulation/knee_velocity", state_knee_velocity_, 0.0);
+        register_output("/wheelleg/simulation/pitch", state_pitch_, 0.0);
+        register_output("/wheelleg/simulation/pitch_velocity", state_pitch_velocity_, 0.0);
+        register_output("/wheelleg/simulation/hip_angle", state_hip_angle_, 0.0);
+        register_output("/wheelleg/simulation/base_height", state_base_height_, 0.0);
+        register_output("/wheelleg/simulation/leg_length", state_leg_length_, 0.0);
+        register_output("/wheelleg/simulation/leg_angle", state_leg_angle_, 0.0);
+        register_output("/wheelleg/simulation/leg_length_l", state_leg_length_l_, 0.0);
+        register_output("/wheelleg/simulation/leg_length_r", state_leg_length_r_, 0.0);
+        register_output("/wheelleg/simulation/leg_angle_l", state_leg_angle_l_, 0.0);
+        register_output("/wheelleg/simulation/leg_angle_r", state_leg_angle_r_, 0.0);
+        register_output("/wheelleg/simulation/com_offset", state_com_offset_, 0.0);
+        register_output("/wheelleg/simulation/com_x", state_com_x_, 0.0);
+        register_output("/wheelleg/simulation/com_z", state_com_z_, 0.0);
+        register_output("/wheelleg/simulation/yaw", state_yaw_, 0.0);
+        register_output("/wheelleg/simulation/yaw_rate", state_yaw_rate_, 0.0);
+        register_output("/wheelleg/simulation/roll", state_roll_, 0.0);
+        register_output("/wheelleg/simulation/roll_rate", state_roll_rate_, 0.0);
+        register_output("/wheelleg/simulation/velocity", state_velocity_, 0.0);
+        register_output("/wheelleg/simulation/distance", state_distance_, 0.0);
+        register_output("/wheelleg/simulation/contact_normal_l", state_contact_normal_l_, 0.0);
+        register_output("/wheelleg/simulation/contact_normal_r", state_contact_normal_r_, 0.0);
+        register_output("/wheelleg/simulation/slip_l", state_slip_l_, 0.0);
+        register_output("/wheelleg/simulation/slip_r", state_slip_r_, 0.0);
+        register_output("/wheelleg/simulation/friction_utilization_l", state_friction_utilization_l_, 0.0);
+        register_output("/wheelleg/simulation/friction_utilization_r", state_friction_utilization_r_, 0.0);
+        register_output("/wheelleg/simulation/friction_torque_limit_l", state_friction_torque_limit_l_, 0.0);
+        register_output("/wheelleg/simulation/friction_torque_limit_r", state_friction_torque_limit_r_, 0.0);
+        register_output("/wheelleg/simulation/wheel_torque_l", state_wheel_torque_l_, 0.0);
+        register_output("/wheelleg/simulation/wheel_torque_r", state_wheel_torque_r_, 0.0);
 
         setup_state_publisher_();
 
@@ -159,6 +174,7 @@ public:
         // Optional "hold the start pose N seconds before letting the
         // controllers run" window (hold_seconds <= 0 disables it).
         const bool holding = hold_seconds_ > 0.0 && step_count_ * dt_ < hold_seconds_;
+        *hw_hold_ = holding;
         apply_control_(holding);
         apply_constraints_(holding);
         apply_gas_spring_();
@@ -362,6 +378,10 @@ private:
         mass_scale_ = node::param_or("mass_scale", 1.0);
         inertia_scale_ = node::param_or("inertia_scale", 1.0);
         com_offset_y_ = node::param_or("com_offset_y", 0.0);
+        // IMU pitch noise [rad] (models the real sensor): injects white
+        // noise into the published sensor gravity, so the estimator pitch
+        // (and thus the balance loop) sees the same noise level as the robot.
+        imu_pitch_noise_std_ = node::param_or("imu_pitch_noise_std", 0.0);
         wheel_torque_scale_ = node::param_or("wheel_torque_scale", 1.0);
 
         // Ground friction limit on the wheel: |tau| <= mu * N * r, with the
@@ -795,12 +815,29 @@ private:
                 {"RR_joint2", -0.79012}, {"RR_joint3", 0.54198}, {"RR_joint4", -0.92513},
             }};
             data_->qpos[base_qpos + 2] = node::param_or("initial_pose_height", 0.26);
-        } else {
+        } else if (initial_pose == "stand_low") {
+            // Low-stance seed for L0 = 0.302 (reduced hip 2.5771, knee 81.46 deg):
+            // driven joints from the static balance solve; the passive links are
+            // seeded from the standing pose and settled by the closure below.
             pose = {{
-                {"L_joint1", -0.60000}, {"L_crank", 0.50000}, {"L_joint2", 0.83313},
-                {"LL_joint2", -0.78961}, {"LL_joint3", 0.53888}, {"LL_link4", -0.92236},
-                {"R_joint1", -0.60000}, {"R_crank", 0.50000}, {"R_jonit2", 0.84273},
-                {"RR_joint2", -0.79012}, {"RR_joint3", 0.54198}, {"RR_joint4", -0.92513},
+                {"L_joint1", -1.00634}, {"L_crank", -1.54305}, {"L_joint2", 0.81214},
+                {"LL_joint2", -0.77139}, {"LL_joint3", 0.52349}, {"LL_link4", -0.90068},
+                {"R_joint1", -1.00634}, {"R_crank", -1.54305}, {"R_jonit2", 0.80982},
+                {"RR_joint2", -0.76270}, {"RR_joint3", 0.51860}, {"RR_joint4", -0.89195},
+            }};
+            data_->qpos[base_qpos + 2] = node::param_or("initial_pose_height", 0.367);
+        } else {
+            // Static equilibrium: the MJCF CoM sits over the wheel axle
+            // (d=+0.006 m) at this pose, so the balance loop starts from a
+            // balanced state instead of the old -0.025 m (CoM behind the axle),
+            // which immediately tipped the robot backward. The passive links are
+            // the closure solution for the same driven pose (gravity-off weld
+            // solve), so the closed chain does not snap at t=0.
+            pose = {{
+                {"L_joint1", -0.70000}, {"L_crank", 0.38000}, {"L_joint2", 0.81214},
+                {"LL_joint2", -0.77139}, {"LL_joint3", 0.52349}, {"LL_link4", -0.90068},
+                {"R_joint1", -0.70000}, {"R_crank", 0.38000}, {"R_jonit2", 0.80982},
+                {"RR_joint2", -0.76270}, {"RR_joint3", 0.51860}, {"RR_joint4", -0.89195},
             }};
         }
         for (const auto& [name, value] : pose) {
@@ -884,7 +921,7 @@ private:
         // against the structural closure with gravity off and the base held
         // still (zeroed velocities each step), then restore. Without this the
         // first frame snaps and can flip the robot.
-        if (initial_pose == "crouched") {
+        if (initial_pose == "crouched" || initial_pose == "stand_low") {
             const double gx = model_->opt.gravity[0];
             const double gy = model_->opt.gravity[1];
             const double gz = model_->opt.gravity[2];
@@ -899,6 +936,21 @@ private:
             for (const int eq : closure_eq_ids_)
                 if (eq >= 0)
                     data_->eq_active[eq] = 1;
+            // For the low-stance seed, hold the four driven joints at the
+            // requested angles while the passive links settle; otherwise the
+            // closure drags the whole leg to a nearby (wrong) L0.
+            if (initial_pose == "stand_low") {
+                for (const char* n : {"L_joint1", "L_crank", "R_joint1", "R_crank"}) {
+                    const int eq =
+                        mj_name2id(model_, mjOBJ_EQUALITY, (std::string{"lock_"} + n).c_str());
+                    const int jid = mj_name2id(model_, mjOBJ_JOINT, n);
+                    if (eq >= 0 && jid >= 0) {
+                        model_->eq_data[eq * mjNEQDATA] =
+                            data_->qpos[model_->jnt_qposadr[jid]];
+                        data_->eq_active[eq] = 1;
+                    }
+                }
+            }
             for (int k = 0; k < 2000; ++k) {
                 mj_step(model_, data_);
                 std::copy_n(base_hold, 7, &data_->qpos[base_qpos]);
@@ -913,7 +965,7 @@ private:
             mj_forward(model_, data_);
         }
 
-        if (perturbed || initial_pose == "crouched") {
+        if (perturbed || initial_pose == "crouched" || initial_pose == "stand_low") {
             const double lowest = ground_clamp();
             info(
                 "initial-pose [{}]: pitch={:.1f}deg hip={:.1f}deg crank={:.1f}deg "
@@ -1113,106 +1165,41 @@ private:
             return;
         }
 
-        // Reduced (alpha, beta) references -> MJCF joint targets through the SHARED
-        // model (single source of truth). The reduced knee reference is the signed
-        // branch (state_knee_sign = -1), so the interior beta is knee_rel_sign *
-        // command.knee_angle; the per-side roll bias is a differential reduced-knee
-        // offset. The MJCF crank is in the assembly/model frame, so add the motor
-        // zero back after the model (which returns the encoder-frame crank).
-        const double alpha_ref = command.hip_angle;
-        const double roll_bias = std::isfinite(open_loop_roll_bias_)
-                                     ? open_loop_roll_bias_
-                                     : (command.roll_bias_valid ? command.roll_bias : 0.0);
-
-        double hip_l = joint_position_(kLJoint1);
-        double crank_l = joint_position_(kLCrank);
-        double hip_r = joint_position_(kRJoint1);
-        double crank_r = joint_position_(kRCrank);
-        {
-            const double beta_l = std::clamp(
-                knee_rel_sign_ * command.knee_angle + knee_rel_offset_l_ + roll_bias,
-                knee_limit_min_, knee_limit_max_);
-            const double beta_r = std::clamp(
-                knee_rel_sign_ * command.knee_angle + knee_rel_offset_r_ - roll_bias,
-                knee_limit_min_, knee_limit_max_);
-            double h_l = 0.0, c_l = 0.0, h_r = 0.0, c_r = 0.0;
-            if (leg_model_->joint_targets(alpha_ref, beta_l, sim_calib_, h_l, c_l)
-                && leg_model_->joint_targets(alpha_ref, beta_r, sim_calib_, h_r, c_r)) {
-                hip_l = wrap_to_pi(h_l);
-                hip_r = wrap_to_pi(h_r);
-                crank_l = wrap_to_pi(c_l + crank_motor_zero_);
-                crank_r = wrap_to_pi(c_r + crank_motor_zero_);
-            }
-        }
-
+        // The DriveBridge outputs torque in the REAL encoder frame; map it into
+        // the MJCF joint frame: tau_mjcf = (dq_enc/dq_mjcf)*tau_enc. The hip and
+        // crank frames differ by sign ratio because the sim's MJCF mirrors the
+        // legs while the real encoders do not (see publish_state_).
+        // Encoder-frame (DriveBridge) -> MJCF joint torques via the exact Jacobian
+        // transpose tau_mjcf = (dq_enc/dq_mjcf)^T tau_enc. The two coaxial leg DOF
+        // relate linearly:
+        //   q_enc_hip   = (kHipSign/hip_sign) q_mjcf_hip + const
+        //   q_enc_crank = q_enc_hip + kCrankSign*crank_sign*(q_mjcf_crank - q_mjcf_hip)
+        // so dq_enc_crank/dq_mjcf_hip = (kHipSign/hip_sign) - kCrankSign*crank_sign
+        // -- a real CROSS term, since the real crank is absolute while the sim
+        // re-derives it. (The same linear map drives the published joint
+        // velocities in publish_state_.)
+        const auto map_leg = [&](double tau_hip_enc, double tau_crank_enc, int side, double& tau_hip,
+                                 double& tau_crank) {
+            const double s_h = wheelleg::CanonicalCalibration::kHipSign[side] / hip_sign_;
+            const double s_c = wheelleg::CanonicalCalibration::kCrankSign[side] * crank_sign_;
+            tau_hip = s_h * tau_hip_enc + (s_h - s_c) * tau_crank_enc;
+            tau_crank = s_c * tau_crank_enc;
+        };
         double hip_torque_l = 0.0;
         double crank_torque_l = 0.0;
         double hip_torque_r = 0.0;
         double crank_torque_r = 0.0;
+        map_leg(command.joint_torque[0], command.joint_torque[1], 0, hip_torque_l, crank_torque_l);
+        map_leg(command.joint_torque[2], command.joint_torque[3], 1, hip_torque_r, crank_torque_r);
 
-        {
-            hip_torque_l = hip_kp_ * (hip_l - joint_position_(kLJoint1))
-                         - hip_kd_ * joint_velocity_(kLJoint1);
-            crank_torque_l = crank_kp_ * (crank_l - joint_position_(kLCrank))
-                           - crank_kd_ * joint_velocity_(kLCrank);
-            hip_torque_r = hip_kp_ * (hip_r - joint_position_(kRJoint1))
-                         - hip_kd_ * joint_velocity_(kRJoint1);
-            crank_torque_r = crank_kp_ * (crank_r - joint_position_(kRCrank))
-                           - crank_kd_ * joint_velocity_(kRCrank);
-
-            if (gravity_feedforward_) {
-                // 数学解析.md §7.6: leg torque = Kp e + Kd e_dot + tau_grav.
-                if (gravity_ff_analytic_) {
-                    // Analytic leg gravity (the closed-form used on the real robot),
-                    // not the model truth qfrc_bias.
-                    const auto gl = leg_gravity_torque_(*linkage_l_, kLJoint1, kLJoint3);
-                    const auto gr = leg_gravity_torque_(*linkage_r_, kRJoint1, kRJoint3);
-                    hip_torque_l += gl[0];
-                    crank_torque_l += gl[1];
-                    hip_torque_r += gr[0];
-                    crank_torque_r += gr[1];
-                } else {
-                    hip_torque_l += data_->qfrc_bias[model_->jnt_dofadr[joint_ids_[kLJoint1]]];
-                    crank_torque_l += data_->qfrc_bias[model_->jnt_dofadr[joint_ids_[kLCrank]]];
-                    hip_torque_r += data_->qfrc_bias[model_->jnt_dofadr[joint_ids_[kRJoint1]]];
-                    crank_torque_r += data_->qfrc_bias[model_->jnt_dofadr[joint_ids_[kRCrank]]];
-                }
-            }
-            // Optional leg feedforward (stand-up gas-spring / static-load comp).
-            hip_torque_l += command.hip_torque_ff_l;
-            hip_torque_r += command.hip_torque_ff_r;
-            crank_torque_l += command.crank_torque_ff_l;
-            crank_torque_r += command.crank_torque_ff_r;
-            if (step_count_ % 500 == 0)
-                info(
-                    "reffemode hipL_tgt={:.3f} hipL={:.3f} crankL_tgt={:.3f} crankL={:.3f} "
-                    "(cmd hip={:.3f} knee={:.3f})",
-                    hip_l, joint_position_(kLJoint1), crank_l, joint_position_(kLCrank),
-                    command.hip_angle, command.knee_angle);
-        }
-
-        // Wheel command. When the balance ring is present it outputs the wheel
-        // torque directly (torque-form ADRC, model theta_ddot = f + b0*tau);
-        // otherwise fall back to a velocity servo on the forward spin rate.
-        // Applied as ctrl[L wheel] = +tau, ctrl[R wheel] = -tau: this produces
-        // omega > 0 and forward motion.
-        double wheel_torque = 0.0;
-        double wheel_torque_l = 0.0;
-        double wheel_torque_r = 0.0;
-        if (command.per_leg_wheel_valid) {
-            wheel_torque_l = command.wheel_torque_l;
-            wheel_torque_r = command.wheel_torque_r;
-        } else {
-            if (command.torque_valid) {
-                wheel_torque = command.wheel_torque;
-            } else {
-                const double omega = 0.5 * (joint_velocity_(kLJoint3) + joint_velocity_(kRJoint3));
-                const double omega_reference = wheel_dir_ * command.wheel_velocity;
-                wheel_torque = wheel_kp_ * (omega_reference - omega);
-            }
-            wheel_torque_l = wheel_torque;
-            wheel_torque_r = wheel_torque;
-        }
+        double wheel_torque_l = command.wheel_torque[0];
+        double wheel_torque_r = command.wheel_torque[1];
+        if (step_count_ % 500 == 0)
+            info(
+                "torque cmd hipL={:.3f} crankL={:.3f} hipR={:.3f} crankR={:.3f} "
+                "wheelL={:.3f} wheelR={:.3f}",
+                hip_torque_l, crank_torque_l, hip_torque_r, crank_torque_r, wheel_torque_l,
+                wheel_torque_r);
 
         // Commissioning: optional wheel-velocity damping (outer-loop surrogate)
         // to stop the base run-away of a pitch-only balance loop.
@@ -1518,6 +1505,111 @@ private:
         previous_pitch_ = pitch;
         has_previous_state_ = true;
 
+        // ---- Raw /wheel_leg/* hardware outputs -------------------------------
+        // Re-encode the model's reduced pose into the REAL per-side encoder
+        // convention (CanonicalCalibration), so the shared WheelLegStateEstimator
+        // (fed by the same hardware_*) recovers the same physical pose.
+        {
+            const std::array<std::pair<double, double>, 2> pose{
+                {{shape_l.alpha, shape_l.beta}, {shape_r.alpha, shape_r.beta}}};
+            for (int s = 0; s < 2; ++s) {
+                double enc_hip = 0.0;
+                double enc_crank = 0.0;
+                if (leg_model_->joint_targets(
+                        pose[static_cast<std::size_t>(s)].first,
+                        pose[static_cast<std::size_t>(s)].second,
+                        wheelleg::CanonicalCalibration::side(s), enc_hip, enc_crank)) {
+                    *hw_joint_angle_[static_cast<std::size_t>(2 * s)] = wrap_to_pi(enc_hip);
+                    *hw_joint_angle_[static_cast<std::size_t>(2 * s + 1)] = wrap_to_pi(enc_crank);
+                }
+            }
+            // Joint VELOCITIES must be re-encoded into the SAME encoder frame as
+            // the angles above, otherwise the drive bridge's -kd*velocity term
+            // damps the wrong axis (raw MJCF rates mirror the right side and mix
+            // hip into crank). Encoder frame:
+            //   q_enc_hip   = (kHipSign/hip_sign) q_hip + const
+            //   q_enc_crank = q_enc_hip + kCrankSign*crank_sign*(q_crank - q_hip)
+            // so the rates are the transpose-consistent linear map
+            //   dq_enc_hip   = sh*dq_hip
+            //   dq_enc_crank = (sh - kCrankSign*crank_sign)*dq_hip
+            //                  + kCrankSign*crank_sign*dq_crank
+            // (sh = kHipSign/hip_sign). kCrankSign*crank_sign equals the
+            // crank_sign_/CanonicalCalibration combination the torque map uses.
+            const std::array<double, 2> qv_hip{
+                joint_velocity_(kLJoint1), joint_velocity_(kRJoint1)};
+            const std::array<double, 2> qv_crank{
+                joint_velocity_(kLCrank), joint_velocity_(kRCrank)};
+            for (int s = 0; s < 2; ++s) {
+                const double k_h = wheelleg::CanonicalCalibration::kHipSign[s];
+                const double k_c =
+                    wheelleg::CanonicalCalibration::kCrankSign[s] * crank_sign_;
+                const double sh = k_h / hip_sign_;
+                *hw_joint_velocity_[static_cast<std::size_t>(2 * s)] =
+                    sh * qv_hip[static_cast<std::size_t>(s)];
+                *hw_joint_velocity_[static_cast<std::size_t>(2 * s + 1)] =
+                    (sh - k_c) * qv_hip[static_cast<std::size_t>(s)]
+                    + k_c * qv_crank[static_cast<std::size_t>(s)];
+            }
+            *hw_wheel_velocity_[0] = joint_velocity_(kLJoint3);
+            *hw_wheel_velocity_[1] = joint_velocity_(kRJoint3);
+            // IMU from the base state (sensor frame == base frame, X fwd / Y left /
+            // Z up): gravity points down (-Z) in the base frame, gyro is the base
+            // angular velocity in the base frame.
+            const double qw = data_->qpos[base_qpos_adr_ + 3];
+            const double qx = data_->qpos[base_qpos_adr_ + 4];
+            const double qy = data_->qpos[base_qpos_adr_ + 5];
+            const double qz = data_->qpos[base_qpos_adr_ + 6];
+            const Eigen::Quaterniond q{qw, qx, qy, qz};
+            // The MJCF base frame uses (forward, up) = (y, z); the real IMU /
+            // base_link frame uses X-forward / Y-left / Z-up, i.e. the MJCF base
+            // is yawed +90 deg. Express the IMU in the base_link frame so the
+            // estimator's pitch = the sim's fore-aft pitch (not roll).
+            const Eigen::Matrix3d r_link_mjcf =
+                Eigen::AngleAxisd(-std::numbers::pi / 2.0, Eigen::Vector3d::UnitZ())
+                    .toRotationMatrix();
+            // The estimator extracts ONLY yaw from the quaternion (pitch/roll come
+            // from sensor_gravity below), and the sim's own yaw (state_yaw_) reads
+            // 0 at this nominal heading. Feeding q unrotated keeps the estimator
+            // yaw == the sim yaw (a q*r^-1 frame change would add a constant 90 deg
+            // offset that the yaw LQR would then drive away).
+            *hw_quaternion_ = q;
+            // Gravity IS rotated MJCF -> base_link so the estimator's
+            // pitch = atan2(gx, -gz) is the fore-aft tilt (MJCF base is y-forward).
+            const Eigen::Vector3d gravity_mjcf =
+                q.conjugate() * Eigen::Vector3d{0.0, 0.0, -1.0};
+            Eigen::Vector3d gravity_body = r_link_mjcf * gravity_mjcf;
+            if (imu_pitch_noise_std_ > 0.0) {
+                // Pitch is a rotation about the base_link Y (left) axis.
+                const double n = gauss_(rng_) * imu_pitch_noise_std_;
+                gravity_body =
+                    Eigen::AngleAxisd(n, Eigen::Vector3d::UnitY()) * gravity_body;
+            }
+            *hw_gravity_[0] = gravity_body.x();
+            *hw_gravity_[1] = gravity_body.y();
+            *hw_gravity_[2] = gravity_body.z();
+            double base_vel[6] = {};
+            // mj_objectVelocity's 6-vector is [angular(0:3), linear(3:6)].
+            // flg_local=1 returns the ANGULAR part in the body's INERTIAL
+            // (principal) frame, NOT the body frame -- using it as the gyro gave
+            // a near-zero, wrong-signed pitch rate (the base inertial quat is
+            // ~90 deg about y, so world-x angular showed up as local-z). Use the
+            // GLOBAL angular velocity and rotate it into the base_link frame:
+            //   omega_link = r_link_mjcf * R_body_to_world^T * omega_world
+            mj_objectVelocity(model_, data_, mjOBJ_BODY, base_body_id_, base_vel, 0);
+            const Eigen::Matrix3d r_body_to_world =
+                Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>(
+                    data_->xmat + 9 * base_body_id_);
+            const Eigen::Vector3d omega_world{base_vel[0], base_vel[1], base_vel[2]};
+            const Eigen::Vector3d gyro_body =
+                r_link_mjcf * (r_body_to_world.transpose() * omega_world);
+            *hw_gyro_[0] = gyro_body.x();
+            *hw_gyro_[1] = gyro_body.y();
+            *hw_gyro_[2] = gyro_body.z();
+            *hw_feedback_fresh_ = true;
+            *hw_dm_control_ready_ = true;
+            *hw_dr16_fresh_ = false;
+        }
+
         *state_pitch_ = state_pitch_sign_ * pitch;
         *state_pitch_velocity_ = state_pitch_sign_ * pitch_rate;
         *state_shank_angle_ = state_shank_sign_ * shank;
@@ -1688,92 +1780,48 @@ private:
     public:
         struct Control {
             bool valid = false;
-            double hip_angle = 0.0;
-            double knee_angle = 0.0;
-            double wheel_velocity = 0.0;
-            bool torque_valid = false;
-            double wheel_torque = 0.0;
-            bool per_leg_wheel_valid = false;
-            double wheel_torque_l = 0.0;
-            double wheel_torque_r = 0.0;
-            // Roll loop actuation: a differential reduced-knee bias (rad) applied
-            // as +bias on the left leg and -bias on the right, which tilts the
-            // body laterally (differential leg length) to control roll.
-            bool roll_bias_valid = false;
-            double roll_bias = 0.0;
-            // Optional leg feedforward torques (added on top of the leg PD),
-            // e.g. the gas-spring / static-load compensation from the stand-up
-            // script. NaN when unused.
-            double hip_torque_ff_l = 0.0;
-            double hip_torque_ff_r = 0.0;
-            double crank_torque_ff_l = 0.0;
-            double crank_torque_ff_r = 0.0;
+            // Raw hardware-order motor torques, exactly the /wheel_leg/* interface
+            // the real WheelLeg consumes (so the same WheelLegDriveBridge drives
+            // both):  joint_torque = [left_hip, left_crank, right_hip, right_crank]
+            // (the *knee_joint hardware axes are the cranks), wheel_torque = [L, R].
+            double joint_torque[4] = {};
+            double wheel_torque[2] = {};
+            // Leg gravity feedforward is no longer applied here: the drive bridge
+            // owns the leg PD + feedforward. Kept for compatibility, unused.
         };
 
         explicit WheelLegSimulationCommand(WheelLegSimulation& simulation)
             : simulation_(simulation) {
-            register_input("/wheelleg/reference/hip_angle", hip_angle_, false);
-            register_input("/wheelleg/reference/knee_angle", knee_angle_, false);
-            register_input("/wheelleg/reference/wheel_velocity", wheel_velocity_, false);
-            register_input("/wheelleg/control/wheel_torque", wheel_torque_, false);
-            register_input("/wheelleg/control/wheel_torque_l", wheel_torque_l_, false);
-            register_input("/wheelleg/control/wheel_torque_r", wheel_torque_r_, false);
-            register_input("/wheelleg/control/roll_bias", roll_bias_, false);
-            register_input("/wheelleg/control/hip_torque_ff_l", hip_torque_ff_l_, false);
-            register_input("/wheelleg/control/hip_torque_ff_r", hip_torque_ff_r_, false);
-            register_input("/wheelleg/control/crank_torque_ff_l", crank_torque_ff_l_, false);
-            register_input("/wheelleg/control/crank_torque_ff_r", crank_torque_ff_r_, false);
+            register_input("/wheel_leg/left_hip_joint/control_torque", joint_torque_[0], false);
+            register_input("/wheel_leg/left_knee_joint/control_torque", joint_torque_[1], false);
+            register_input("/wheel_leg/right_hip_joint/control_torque", joint_torque_[2], false);
+            register_input("/wheel_leg/right_knee_joint/control_torque", joint_torque_[3], false);
+            register_input("/wheel_leg/left_wheel/control_torque", wheel_torque_[0], false);
+            register_input("/wheel_leg/right_wheel/control_torque", wheel_torque_[1], false);
         }
 
         void update() override {
-            if (hip_angle_.ready() && std::isfinite(*hip_angle_))
-                control_.hip_angle = *hip_angle_;
-            if (knee_angle_.ready() && std::isfinite(*knee_angle_))
-                control_.knee_angle = *knee_angle_;
-            if (wheel_velocity_.ready() && std::isfinite(*wheel_velocity_))
-                control_.wheel_velocity = *wheel_velocity_;
-            control_.torque_valid = wheel_torque_.ready() && std::isfinite(*wheel_torque_);
-            if (control_.torque_valid)
-                control_.wheel_torque = *wheel_torque_;
-            control_.per_leg_wheel_valid = wheel_torque_l_.ready() && wheel_torque_r_.ready()
-                                        && std::isfinite(*wheel_torque_l_)
-                                        && std::isfinite(*wheel_torque_r_);
-            if (control_.per_leg_wheel_valid) {
-                control_.wheel_torque_l = *wheel_torque_l_;
-                control_.wheel_torque_r = *wheel_torque_r_;
-            }
-            control_.roll_bias_valid = roll_bias_.ready() && std::isfinite(*roll_bias_);
-            if (control_.roll_bias_valid)
-                control_.roll_bias = *roll_bias_;
-            if (hip_torque_ff_l_.ready() && std::isfinite(*hip_torque_ff_l_))
-                control_.hip_torque_ff_l = *hip_torque_ff_l_;
-            if (hip_torque_ff_r_.ready() && std::isfinite(*hip_torque_ff_r_))
-                control_.hip_torque_ff_r = *hip_torque_ff_r_;
-            if (crank_torque_ff_l_.ready() && std::isfinite(*crank_torque_ff_l_))
-                control_.crank_torque_ff_l = *crank_torque_ff_l_;
-            if (crank_torque_ff_r_.ready() && std::isfinite(*crank_torque_ff_r_))
-                control_.crank_torque_ff_r = *crank_torque_ff_r_;
-            control_.valid = hip_angle_.ready() && knee_angle_.ready()
-                          && std::isfinite(*hip_angle_) && std::isfinite(*knee_angle_);
+            control_.valid = true;
+            for (std::size_t i = 0; i < 4; ++i)
+                control_.joint_torque[i] =
+                    (joint_torque_[i].ready() && std::isfinite(*joint_torque_[i]))
+                        ? *joint_torque_[i]
+                        : 0.0;
+            for (std::size_t i = 0; i < 2; ++i)
+                control_.wheel_torque[i] =
+                    (wheel_torque_[i].ready() && std::isfinite(*wheel_torque_[i]))
+                        ? *wheel_torque_[i]
+                        : 0.0;
         }
 
-        [[nodiscard]] bool reference_ready() const { return hip_angle_.ready(); }
+        [[nodiscard]] bool reference_ready() const { return true; }
         [[nodiscard]] const Control& control() const { return control_; }
 
     private:
         WheelLegSimulation& simulation_;
 
-        InputInterface<double> hip_angle_;
-        InputInterface<double> knee_angle_;
-        InputInterface<double> wheel_velocity_;
-        InputInterface<double> wheel_torque_;
-        InputInterface<double> wheel_torque_l_;
-        InputInterface<double> wheel_torque_r_;
-        InputInterface<double> roll_bias_;
-        InputInterface<double> hip_torque_ff_l_;
-        InputInterface<double> hip_torque_ff_r_;
-        InputInterface<double> crank_torque_ff_l_;
-        InputInterface<double> crank_torque_ff_r_;
+        std::array<InputInterface<double>, 4> joint_torque_;
+        std::array<InputInterface<double>, 2> wheel_torque_;
 
         Control control_;
     };
@@ -1920,6 +1968,9 @@ private:
     double mass_scale_ = 1.0;
     double inertia_scale_ = 1.0;
     double com_offset_y_ = 0.0;
+    double imu_pitch_noise_std_ = 0.0;
+    std::mt19937 rng_{12345};
+    std::normal_distribution<double> gauss_{0.0, 1.0};
     double wheel_torque_scale_ = 1.0;
     double friction_coefficient_ = 2.0;
     double wheel_radius_ = 0.06;
@@ -2009,6 +2060,19 @@ private:
     OutputInterface<double> state_roll_rate_;
     OutputInterface<double> state_velocity_;
     OutputInterface<double> state_distance_;
+
+    // Raw /wheel_leg/* hardware-facing outputs (the sim's "hardware" adapter
+    // interface; see register_output). Joint order: [L_hip, L_crank, R_hip, R_crank].
+    std::array<OutputInterface<double>, 4> hw_joint_angle_;
+    std::array<OutputInterface<double>, 4> hw_joint_velocity_;
+    std::array<OutputInterface<double>, 2> hw_wheel_velocity_;
+    OutputInterface<Eigen::Quaterniond> hw_quaternion_;
+    std::array<OutputInterface<double>, 3> hw_gravity_;
+    std::array<OutputInterface<double>, 3> hw_gyro_;
+    OutputInterface<bool> hw_feedback_fresh_;
+    OutputInterface<bool> hw_dm_control_ready_;
+    OutputInterface<bool> hw_dr16_fresh_;
+    OutputInterface<bool> hw_hold_;
 
     WheelContact l_contact_;
     WheelContact r_contact_;

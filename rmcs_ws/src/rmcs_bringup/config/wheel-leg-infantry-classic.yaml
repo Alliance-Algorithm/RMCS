@@ -108,16 +108,16 @@ wheelleg_state:
     shank_mass: 0.507
     thigh_com_offset: 0.06623
     shank_com_offset: 0.15344
-    body_com_offset: 0.00918
+    body_com_forward: 0.00918
     # Real/V6 joint zero+sign mapping (== wheelleg_standup.yaml hardware_*).
     #   q_hip   = hardware_hip_sign   * (reduced.hip   - hardware_hip_zero)
     #   c       = hardware_crank_sign * (q_crank - q_hip)
     hardware_hip_sign: [-1.0, 1.0]
     hardware_hip_zero: [-1.5707963267948966, -1.5707963267948966]
     hardware_crank_sign: [-1.0, 1.0]
-    # Reduced knee limits (interior thigh-shank angle), hard: 40..105 deg.
+    # Reduced knee limits (interior thigh-shank angle), hard: 40..110 deg.
     knee_limit_min: 0.6981317007977318
-    knee_limit_max: 1.8325957145940461
+    knee_limit_max: 1.9198621771937625
     # IMU -> base_link rotation (identity on the installed BMI088).
     imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
     # Output sign conventions to match the traditional controllers (sim values).
@@ -199,10 +199,10 @@ wheelleg_trajectory_controller:
     shank_mass: 0.507
     thigh_com_offset: 0.06623
     shank_com_offset: 0.15344
-    body_com_offset: 0.00918
+    body_com_forward: 0.00918
     knee_branch_sign: 1.0
     knee_angle_min: 0.6981317007977318
-    knee_angle_max: 1.8325957145940461
+    knee_angle_max: 1.9198621771937625
     d_max: 100.0
     # Contact gate for the static-stability guard. The state estimator publishes
     # contact_normal_* = 0 (no force sensor), so the controller treats the wheels
@@ -302,7 +302,7 @@ wheelleg_drive_bridge:
     hardware_hip_zero: [-1.5707963267948966, -1.5707963267948966]
     hardware_crank_sign: [-1.0, 1.0]
     knee_limit_min: 0.6981317007977318
-    knee_limit_max: 1.8325957145940461
+    knee_limit_max: 1.9198621771937625
     # Host leg PD (Nm per rad / rad/s), matching the real leg PD.
     leg_kp: 160.0
     leg_kd: 2.5

@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -7,9 +9,14 @@
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
+#include "identification/wheel_leg_arm_dwell.hpp"
+
 namespace rmcs_core::controller::wheelleg {
+
+using ArmDwell = rmcs_core::controller::identification::WheelLegArmDwell;
 
 // Trajectory generator for the degraded serial wheel-leg model, see
 // 执行路线1_数学解析.md. It solves the command equilibrium S* and emits C^2
@@ -32,6 +39,12 @@ public:
         register_input("/wheelleg/state/shank_velocity", state_shank_velocity_);
         register_input("/wheelleg/state/knee_angle", state_knee_angle_);
         register_input("/wheelleg/state/knee_velocity", state_knee_velocity_);
+        // Per-leg measured shape: when present, each side is planned from its own
+        // current pose (no left/right averaging).
+        register_input("/wheelleg/state/shank_angle_l", state_shank_angle_l_, false);
+        register_input("/wheelleg/state/shank_angle_r", state_shank_angle_r_, false);
+        register_input("/wheelleg/state/knee_angle_l", state_knee_angle_l_, false);
+        register_input("/wheelleg/state/knee_angle_r", state_knee_angle_r_, false);
         register_input("/wheelleg/state/pitch", state_pitch_);
         register_input("/wheelleg/state/pitch_velocity", state_pitch_velocity_);
         register_input("/wheelleg/state/com_offset", state_com_offset_);
@@ -59,11 +72,42 @@ public:
         register_input("/wheelleg/state/contact_normal_l", contact_normal_l_, false);
         register_input("/wheelleg/state/contact_normal_r", contact_normal_r_, false);
 
+        // Drive-enable gate (all optional): the start-pose quintic must not run
+        // while the motors are disabled. The simulation publishes /wheelleg/hold
+        // during its start-pose hold; the real robot arms via the remote
+        // switches (same ArmDwell logic as the drive bridge). While disabled the
+        // reference is pinned to the measured pose and re-planned from it at the
+        // enable edge, so "initial target = current pose, then smooth to the true
+        // target" happens exactly when torque is released.
+        register_input("/wheelleg/hold", hold_, false);
+        register_input("/remote/switch/left", switch_left_, false);
+        register_input("/remote/switch/right", switch_right_, false);
+        register_input("/wheel_leg/dr16_fresh", dr16_fresh_, false);
+        // Actual DM enable (both drives enabled + MIT sent + feedback fresh).
+        // The arm edge only REQUESTs enable; the drive handshake takes ~100 ms
+        // (100 resend cycles), so start the quintic on the real enable edge,
+        // otherwise it would advance while the motors are still disabled and
+        // the first applied torque would contain a target step.
+        register_input("/wheel_leg/dm_control_ready", dm_control_ready_, false);
+        register_output("/wheelleg/drive/enabled", drive_enabled_, true);
+        // Wheel-balance enable: drive enabled AND the remote is in the
+        // left-MIDDLE / right-UP combo (both-MIDDLE = legs only, wheels free).
+        // Computed here (upstream of the LQR) so the LQR -> mixer -> drive-bridge
+        // chain stays acyclic.
+        register_output("/wheelleg/drive/balance_enabled", balance_enabled_, false);
+
         register_output("/wheelleg/reference/wheel_velocity", reference_wheel_velocity_, kNaN);
         register_output("/wheelleg/reference/pitch", reference_pitch_, kNaN);
         register_output("/wheelleg/reference/shank_angle", reference_shank_angle_, kNaN);
         register_output("/wheelleg/reference/knee_angle", reference_knee_angle_, kNaN);
         register_output("/wheelleg/reference/hip_angle", reference_hip_angle_, kNaN);
+        // Per-leg references for the drive bridge (fallback = the averaged ones).
+        register_output("/wheelleg/reference/shank_angle_l", reference_shank_angle_l_, kNaN);
+        register_output("/wheelleg/reference/shank_angle_r", reference_shank_angle_r_, kNaN);
+        register_output("/wheelleg/reference/knee_angle_l", reference_knee_angle_l_, kNaN);
+        register_output("/wheelleg/reference/knee_angle_r", reference_knee_angle_r_, kNaN);
+        register_output("/wheelleg/reference/hip_angle_l", reference_hip_angle_l_, kNaN);
+        register_output("/wheelleg/reference/hip_angle_r", reference_hip_angle_r_, kNaN);
         // Wheel-balance enable: false while recovering (alpha_r = 0) so the
         // balance ADRC does not drive/park the wheels before they are loaded.
         register_output("/wheelleg/balance/enable", balance_enable_, true);
@@ -82,6 +126,33 @@ public:
             disable_();
             return;
         }
+
+        // Drive-enable gate: while the motors are disabled (sim start-pose hold,
+        // or not yet armed on the real robot) keep `initialized_ = false` so the
+        // quintic is rebuilt from the MEASURED pose every tick (elapsed_ = 0 ->
+        // reference == measurement). On the enable edge it is rebuilt once more
+        // from the pose at release, then the transition to the true target runs.
+        const bool drive_enabled = compute_drive_enabled_();
+        *drive_enabled_ = drive_enabled;
+        {
+            using Switch = rmcs_msgs::Switch;
+            const bool have_switches = switch_left_.ready() && switch_right_.ready();
+            bool balance_armed = true; // sim: no remote -> balance allowed
+            if (have_switches) {
+                const bool fresh = dr16_fresh_.ready() ? *dr16_fresh_ : true;
+                balance_armed =
+                    fresh && *switch_left_ == Switch::MIDDLE && *switch_right_ == Switch::UP;
+            }
+            *balance_enabled_ = drive_enabled && balance_armed;
+        }
+        if (!drive_enabled || !prev_drive_enabled_) {
+            initialized_ = false;
+            elapsed_ = 0.0;
+            since_enable_ = 0.0;
+        } else {
+            since_enable_ += dt_;
+        }
+        prev_drive_enabled_ = drive_enabled;
 
         // Quasi-static gravity feedforward is handled by the leg PD in the
         // bridge; the reduced length channel has no separate feedforward here.
@@ -201,6 +272,19 @@ public:
         // solve with a genuinely 2-DOF map).
         Target target = solve_pose_(velocity_command, leg_length_command, shank_target);
 
+        // Startup settle: right after the drive enables, keep the leg pinned to
+        // the measured pose for a short time so the balance can settle (the
+        // initial half-metre drift) BEFORE the leg target changes. Applying the
+        // new stance during that transient is what folds the leg on the first
+        // second when /wheelleg/hold is 0.
+        if (since_enable_ < startup_settle_s_) {
+            target.leg_length = state.leg_length;
+            target.beta = state.knee;
+            target.shank = state.shank;
+            target.hip = std::numbers::pi - state.pitch - state.knee - state.shank;
+            target.feasible = true;
+        }
+
         // Posture (gait): d_ref = a*h/g realised as an equivalent-leg
         // inclination offset (leaning the whole leg), which moves the CoM offset
         // d efficiently without crouching. Faded out by alpha_r so the
@@ -213,11 +297,18 @@ public:
         {
             const double d_ref = a_cmd * com_height_ / gravity_;
             const double d_err = d_ref - state.com_offset;
+            // Acceleration gate: the posture/gait (including the com_offset
+            // feedback term) only acts while the planned acceleration is above
+            // `accel_gate_min` [m/s^2]. At rest the old `d_ref` term is zero but
+            // `accel_kv*d_err = -accel_kv*com_offset` is NOT, so without this
+            // gate the (biased) com_offset would move the stance while standing.
+            // 0.1 m/s^2 (not 1e-3) so sensor/command noise cannot trigger it.
+            const bool accel_mode = std::abs(a_cmd) > accel_gate_min_;
             // Gate: legacy alpha_r fade, or a base-height gate so the posture can
             // also act during the get-up (alpha_r = 0) once the body is high enough
             // for the CoM / leg model to be meaningful.
-            double gait_gate = rec;
-            if (gait_height_min_ > 0.0) {
+            double gait_gate = accel_mode ? rec : 0.0;
+            if (accel_mode && gait_height_min_ > 0.0) {
                 gait_gate = std::isfinite(state.height)
                               ? std::clamp(
                                     (state.height - gait_height_min_)
@@ -245,8 +336,13 @@ public:
         // is free to move (a fallen start has a large CoM offset and would
         // otherwise freeze the plan immediately). If no contact source is wired,
         // treat the wheels as loaded so the previous behaviour is preserved.
+        // A contact source only counts when it publishes a FINITE value. The
+        // real-robot estimator has no force sensor and publishes NaN, so the
+        // wheels are treated as loaded (its documented default); the MuJoCo
+        // bridge publishes real normal forces and takes the normal path.
         const bool contact_available =
-            contact_normal_l_.ready() || contact_normal_r_.ready();
+            (contact_normal_l_.ready() && std::isfinite(*contact_normal_l_))
+            || (contact_normal_r_.ready() && std::isfinite(*contact_normal_r_));
         const bool supported = !contact_available || state.contact_l > contact_normal_eps_
                             || state.contact_r > contact_normal_eps_;
         const bool guard = rec >= 1.0 && supported && std::abs(state.com_offset) > d_max_;
@@ -260,7 +356,9 @@ public:
         // soon as the body tipped past ~45 deg, so a wheel-leg could never
         // recover from a fall). A wheel-leg must keep balancing while the wheels
         // are loaded; the airborne case is already covered by `supported`.
-        *balance_enable_ = supported;
+        // Loaded AND actually driving. This is what makes /wheelleg/hold (calib
+        // modes) disable the balance loop as well, not just the leg reference.
+        *balance_enable_ = supported && drive_enabled;
 
         // Base-velocity outer loop -> balance feedforward (wheel torque units).
         // The pitch-only balance controls the pitch mode but leaves the base
@@ -319,6 +417,9 @@ private:
         double shank_velocity = kNaN;
         double knee = kNaN;
         double knee_velocity = kNaN;
+        // Per-leg shape (fallback = the averaged shank/knee when absent).
+        double shank_l = kNaN, shank_r = kNaN;
+        double knee_l = kNaN, knee_r = kNaN;
         double pitch = kNaN;
         double pitch_velocity = kNaN;
         double com_offset = kNaN;
@@ -387,7 +488,10 @@ private:
         shank_mass_ = node::param_or("shank_mass", 0.5);
         thigh_com_offset_ = node::param_or("thigh_com_offset", 0.1);
         shank_com_offset_ = node::param_or("shank_com_offset", 0.1);
-        body_com_offset_ = node::param_or("body_com_offset", 0.0);
+        // Unified name: body_com_forward (body CoM forward offset from the hip).
+        // Fall back to the legacy body_com_offset so older configs still work.
+        body_com_offset_ = node::param_or(
+            "body_com_forward", node::param_or("body_com_offset", 0.0));
 
         transition_time_pitch_ = node::param_or("transition_time_pitch", 0.15);
         transition_time_shank_ = node::param_or("transition_time_shank", 1.5);
@@ -400,7 +504,8 @@ private:
         knee_angle_max_ = node::param_or("knee_angle_max", std::numbers::pi);
         singularity_epsilon_ = node::param_or("singularity_epsilon", 1e-3);
 
-        leg_length_epsilon_ = node::param_or("leg_length_epsilon", 1e-4);
+        leg_length_epsilon_ = node::param_or("leg_length_epsilon", 1e-2);
+        startup_settle_s_ = std::max(0.0, node::param_or("startup_settle_s", 0.0));
         default_velocity_command_ = node::param_or("default_velocity_command", 0.0);
         command_accel_limit_ = node::param_or("command_accel_limit", 1.0);
         command_jerk_limit_ = node::param_or("command_jerk_limit", 4.0);
@@ -430,6 +535,7 @@ private:
         // keeps the legacy alpha_r (recovery) fade.
         gait_height_min_ = node::param_or("gait_height_min", -1.0);
         gait_height_span_ = node::param_or("gait_height_span", 0.05);
+        accel_gate_min_ = node::param_or("accel_gate_min", 0.1);
         d_max_ = node::param_or("d_max", 0.03);
         // Wheel normal force above which the wheel is treated as loaded (contact
         // gate for the static-stability guard / balance regime).
@@ -442,6 +548,36 @@ private:
         balance_position_kp_ = node::param_or("balance_position_kp", 0.0);
         balance_integral_limit_ = node::param_or("balance_integral_limit", 5.0);
         gravity_ = node::param_or("gravity", 9.81);
+        arm_dwell_s_ = node::param_or("arm_dwell_s", 0.5);
+        max_tilt_deg_ = node::param_or("max_tilt_deg", 0.0);
+    }
+
+    // True when the wheel-leg motors are actually enabled: no sim start-pose
+    // hold, armed on the real remote (same ArmDwell as the drive bridge; absent
+    // remote -> always armed, e.g. simulation), and inside the tilt cutoff.
+    bool compute_drive_enabled_() {
+        using Switch = rmcs_msgs::Switch;
+        const bool have_switches = switch_left_.ready() && switch_right_.ready();
+        bool armed;
+        if (!have_switches) {
+            armed = true;
+        } else {
+            const bool fresh = dr16_fresh_.ready() ? *dr16_fresh_ : true;
+            if (arm_.update(
+                    ArmDwell::Clock::now(), fresh, *switch_left_, *switch_right_, arm_dwell_s_))
+                armed_ = true;
+            if (*switch_left_ == Switch::DOWN && *switch_right_ == Switch::DOWN)
+                armed_ = false;
+            armed = armed_;
+        }
+        const bool hold = hold_.ready() && *hold_;
+        const bool tilt_ok = !(max_tilt_deg_ > 0.0 && std::isfinite(*state_pitch_)
+                               && std::abs(*state_pitch_)
+                                      > max_tilt_deg_ * (std::numbers::pi / 180.0));
+        // On real hardware wait for the DM drives to actually be enabled; the
+        // simulation has no such signal and ignores this gate.
+        const bool dm_ready = !dm_control_ready_.ready() || *dm_control_ready_;
+        return armed && !hold && tilt_ok && dm_ready;
     }
 
     bool read_state_(State& state) const {
@@ -450,6 +586,18 @@ private:
         state.shank_velocity = *state_shank_velocity_;
         state.knee = *state_knee_angle_;
         state.knee_velocity = *state_knee_velocity_;
+        state.shank_l = (state_shank_angle_l_.ready() && std::isfinite(*state_shank_angle_l_))
+                          ? *state_shank_angle_l_
+                          : state.shank;
+        state.shank_r = (state_shank_angle_r_.ready() && std::isfinite(*state_shank_angle_r_))
+                          ? *state_shank_angle_r_
+                          : state.shank;
+        state.knee_l = (state_knee_angle_l_.ready() && std::isfinite(*state_knee_angle_l_))
+                         ? *state_knee_angle_l_
+                         : state.knee;
+        state.knee_r = (state_knee_angle_r_.ready() && std::isfinite(*state_knee_angle_r_))
+                         ? *state_knee_angle_r_
+                         : state.knee;
         state.pitch = *state_pitch_;
         state.pitch_velocity = *state_pitch_velocity_;
         state.com_offset = *state_com_offset_;
@@ -511,9 +659,21 @@ private:
         const double gamma = std::sqrt(p * p + q * q);
 
         double shank = kNaN;
-        if (gamma > kEpsilon)
-            shank = std::asin(std::clamp(body_mass_ * body_com_offset_ / gamma, -1.0, 1.0))
-                  - std::atan2(q, p);
+        if (gamma > kEpsilon) {
+            // P sin(phi) + Q cos(phi) = m_b c_b has TWO branches. The physically
+            // correct one (matching the real-robot encoder / bench convention,
+            // axle_line(beta, hip) ~ -90 deg at the nominal stance) is
+            //   phi = pi - asin(m_b c_b / Gamma) - atan2(Q, P),
+            // NOT asin(...) - atan2(...) (that is the pi-opposite branch, which
+            // drove the real leg "straight up"). Wrap into (-pi, pi] so the
+            // per-leg plan does not take the long way.
+            shank = std::remainder(
+                std::numbers::pi
+                    - std::asin(
+                        std::clamp(body_mass_ * body_com_offset_ / gamma, -1.0, 1.0))
+                    - std::atan2(q, p),
+                2.0 * std::numbers::pi);
+        }
 
         const bool nonsingular = std::abs(std::sin(beta)) > singularity_epsilon_;
 
@@ -578,9 +738,17 @@ private:
 
     void start_plan_(const State& state, const Target& target) {
         pitch_plan_.reset(state.pitch, state.pitch_velocity, 0.0, 0.0, transition_time_pitch_);
-        shank_plan_.reset(
-            state.shank, state.shank_velocity, target.shank, 0.0, transition_time_shank_);
-        knee_plan_.reset(state.knee, state.knee_velocity, target.beta, 0.0, transition_time_knee_);
+        // Plan EACH leg from its own measured pose to the common nominal target.
+        // The static target is on the same branch as the measured state (both
+        // wrapped), so no 2*pi re-snapping is needed.
+        for (std::size_t s = 0; s < 2; ++s) {
+            const double shank0 = (s == 0) ? state.shank_l : state.shank_r;
+            const double knee0 = (s == 0) ? state.knee_l : state.knee_r;
+            shank_plans_[s].reset(
+                shank0, state.shank_velocity, target.shank, 0.0, transition_time_shank_);
+            knee_plans_[s].reset(
+                knee0, state.knee_velocity, target.beta, 0.0, transition_time_knee_);
+        }
     }
 
     void publish_reference_(const Target& target) {
@@ -594,57 +762,86 @@ private:
         // the measured body pitch during recovery so the leg pose is referenced
         // to the real attitude, not to a planned 0.
         const bool recovering = recovery_blend_ < 1.0 - 1e-6;
-        double shank_reference = 0.0, shank_rate = 0.0, knee_reference = 0.0, knee_rate = 0.0;
+        std::array<double, 2> shank_reference{}, shank_rate{}, knee_reference{}, knee_rate{};
         if (recovering) {
-            shank_reference = target.shank;
-            knee_reference = target.beta;
+            for (std::size_t s = 0; s < 2; ++s) {
+                shank_reference[s] = target.shank;
+                knee_reference[s] = target.beta;
+            }
         } else {
-            shank_reference = shank_plan_.value(elapsed_);
-            shank_rate = shank_plan_.derivative(elapsed_);
-            knee_reference = knee_plan_.value(elapsed_);
-            knee_rate = knee_plan_.derivative(elapsed_);
+            for (std::size_t s = 0; s < 2; ++s) {
+                shank_reference[s] = shank_plans_[s].value(elapsed_);
+                shank_rate[s] = shank_plans_[s].derivative(elapsed_);
+                knee_reference[s] = knee_plans_[s].value(elapsed_);
+                knee_rate[s] = knee_plans_[s].derivative(elapsed_);
+            }
         }
 
-        // Leg-motion correction, 执行路线1_数学解析.md §7.5:
-        //   x_e = L1 cos(beta+phi) - L2 cos(phi)
+        // §7.4: alpha_ref = pi - theta - beta_ref - phi_ref (+ outer d-loop bias).
+        // Only the pitch/attitude terms are common; each leg has its own beta/phi.
+        const double hip_pitch = recovering ? last_pitch_ : pitch_reference;
+        const double alpha_bias =
+            (alpha_bias_.ready() && std::isfinite(*alpha_bias_)) ? *alpha_bias_ : 0.0;
+        std::array<double, 2> shank_published{}, knee_published{}, alpha_published{};
+        for (std::size_t s = 0; s < 2; ++s) {
+            shank_published[s] = shank_reference[s] + gait_dshank_;
+            knee_published[s] = knee_reference[s] + gait_dknee_;
+            alpha_published[s] = std::numbers::pi - hip_pitch - knee_published[s]
+                               - shank_published[s] + alpha_bias + gait_dhip_;
+        }
+
+        // Leg-motion correction, 执行路线1_数学解析.md §7.5 (average of both legs
+        // drives the common wheel):
         //   x_e_dot = (-L1 sin(beta+phi) + L2 sin(phi)) phi_dot - L1 sin(beta+phi) beta_dot
         //   omega_ref = (v_ref + x_e_dot) / r
-        const double thigh_projection = thigh_length_ * std::sin(knee_reference + shank_reference);
-        const double shank_dx =
-            (-thigh_projection + shank_length_ * std::sin(shank_reference)) * shank_rate
-            - thigh_projection * knee_rate;
-
+        double shank_dx = 0.0;
+        for (std::size_t s = 0; s < 2; ++s) {
+            const double thigh_projection =
+                thigh_length_ * std::sin(knee_reference[s] + shank_reference[s]);
+            shank_dx += (-thigh_projection + shank_length_ * std::sin(shank_reference[s]))
+                            * shank_rate[s]
+                      - thigh_projection * knee_rate[s];
+        }
+        shank_dx *= 0.5;
         *reference_wheel_velocity_ = (velocity_reference + shank_dx) / wheel_radius_;
         // Pitch setpoint: the planned value (-> 0) in the balance regime, the
         // measured pitch during recovery (alpha_r = 0), so the balance ring is
         // not fed a setpoint it cannot achieve while the wheels are unloaded.
         *reference_pitch_ = recovery_blend_ * pitch_reference + (1.0 - recovery_blend_) * last_pitch_;
-        // Acceleration posture: direct additive offset on the leg joints.
-        const double shank_published = shank_reference + gait_dshank_;
-        const double knee_published = knee_reference + gait_dknee_;
-        *reference_shank_angle_ = shank_published;
-        *reference_knee_angle_ = knee_published;
-        // §7.4: alpha_ref = pi - theta - beta_ref - phi_ref (+ outer d-loop bias).
-        // During recovery the leg must be referenced to the measured attitude.
-        const double hip_pitch = recovering ? last_pitch_ : pitch_reference;
-        const double alpha_bias =
-            (alpha_bias_.ready() && std::isfinite(*alpha_bias_)) ? *alpha_bias_ : 0.0;
-        *reference_hip_angle_ = std::numbers::pi - hip_pitch - knee_published - shank_published
-                              + alpha_bias + gait_dhip_;
 
-        if (dbg_count_++ % 500 == 0)
+        // Per-leg references (drive bridge uses these; the averaged topics are
+        // kept for monitoring / backward compatibility).
+        *reference_shank_angle_l_ = shank_published[0];
+        *reference_shank_angle_r_ = shank_published[1];
+        *reference_knee_angle_l_ = knee_published[0];
+        *reference_knee_angle_r_ = knee_published[1];
+        *reference_hip_angle_l_ = alpha_published[0];
+        *reference_hip_angle_r_ = alpha_published[1];
+        *reference_shank_angle_ = 0.5 * (shank_published[0] + shank_published[1]);
+        *reference_knee_angle_ = 0.5 * (knee_published[0] + knee_published[1]);
+        *reference_hip_angle_ = 0.5 * (alpha_published[0] + alpha_published[1]);
+
+        // Only print while the drive is actually enabled (armed, not in a calib
+        // hold); keeps the calibration modes quiet.
+        if (prev_drive_enabled_ && dbg_count_++ % 500 == 0) {
+            constexpr double kRadToDeg = 180.0 / std::numbers::pi;
+            const double knee_avg = 0.5 * (knee_reference[0] + knee_reference[1]);
+            const double shank_avg = 0.5 * (shank_reference[0] + shank_reference[1]);
             info(
-                "traj tgt L0={:.4f} beta={:.3f} shank={:.3f} hip={:.3f} | ref knee={:.3f} "
-                "hip={:.3f} shank={:.3f} | ref_wv={:.3f} state_wv={:.3f}",
-                target.leg_length, target.beta, target.shank, target.hip, knee_reference,
-                std::numbers::pi - hip_pitch - knee_reference - shank_reference,
-                shank_reference, *reference_wheel_velocity_,
+                "traj tgt L0={:.4f} beta={:.2f} shank={:.2f} hip={:.2f} deg | ref knee={:.2f} "
+                "hip={:.2f} shank={:.2f} deg | ref_wv={:.3f} state_wv={:.3f}",
+                target.leg_length, target.beta * kRadToDeg, target.shank * kRadToDeg,
+                target.hip * kRadToDeg, knee_avg * kRadToDeg,
+                (std::numbers::pi - hip_pitch - knee_avg - shank_avg) * kRadToDeg,
+                shank_avg * kRadToDeg, *reference_wheel_velocity_,
                 (state_wheel_velocity_.ready() ? *state_wheel_velocity_ : 0.0));
+        }
     }
 
     void disable_() {
         initialized_ = false;
         elapsed_ = 0.0;
+        since_enable_ = 0.0;
         planned_velocity_ = 0.0;
         planned_leg_length_ = kNaN;
         velocity_ref_ = kNaN;
@@ -659,7 +856,17 @@ private:
         *reference_shank_angle_ = kNaN;
         *reference_knee_angle_ = kNaN;
         *reference_hip_angle_ = kNaN;
-        *balance_enable_ = true;
+        *reference_shank_angle_l_ = kNaN;
+        *reference_shank_angle_r_ = kNaN;
+        *reference_knee_angle_l_ = kNaN;
+        *reference_knee_angle_r_ = kNaN;
+        *reference_hip_angle_l_ = kNaN;
+        *reference_hip_angle_r_ = kNaN;
+        *balance_enable_ = false;
+        *balance_enabled_ = false;
+        // No valid state -> no drive; the gate recomputes on the next valid tick.
+        *drive_enabled_ = false;
+        prev_drive_enabled_ = false;
         balance_wheel_integral_ = 0.0;
         *balance_feedforward_ = 0.0;
     }
@@ -715,6 +922,7 @@ private:
     double accel_kv_;
     double gait_height_min_ = -1.0;
     double gait_height_span_ = 0.05;
+    double accel_gate_min_ = 0.1;
     double d_max_;
     double contact_normal_eps_ = 1.0;
     double gravity_;
@@ -727,6 +935,8 @@ private:
     InputInterface<double> state_shank_velocity_;
     InputInterface<double> state_knee_angle_;
     InputInterface<double> state_knee_velocity_;
+    InputInterface<double> state_shank_angle_l_, state_shank_angle_r_;
+    InputInterface<double> state_knee_angle_l_, state_knee_angle_r_;
     InputInterface<double> state_pitch_;
     InputInterface<double> state_pitch_velocity_;
     InputInterface<double> state_com_offset_;
@@ -742,13 +952,22 @@ private:
     InputInterface<double> state_velocity_;
     InputInterface<double> state_distance_;
     InputInterface<double> yaw_rate_command_;
+    InputInterface<bool> hold_;
+    InputInterface<rmcs_msgs::Switch> switch_left_, switch_right_;
+    InputInterface<bool> dr16_fresh_;
+    InputInterface<bool> dm_control_ready_;
 
     OutputInterface<double> reference_wheel_velocity_;
     OutputInterface<double> reference_pitch_;
     OutputInterface<double> reference_shank_angle_;
     OutputInterface<double> reference_knee_angle_;
     OutputInterface<double> reference_hip_angle_;
+    OutputInterface<double> reference_shank_angle_l_, reference_shank_angle_r_;
+    OutputInterface<double> reference_knee_angle_l_, reference_knee_angle_r_;
+    OutputInterface<double> reference_hip_angle_l_, reference_hip_angle_r_;
     OutputInterface<bool> balance_enable_;
+    OutputInterface<bool> drive_enabled_;
+    OutputInterface<bool> balance_enabled_;
     OutputInterface<double> balance_feedforward_;
     // Base-velocity outer loop (see /wheelleg/balance/feedforward).
     double balance_velocity_kp_ = 0.0;
@@ -759,9 +978,19 @@ private:
     double posture_yaw_scale_ = 0.15;
     bool posture_gate_enabled_ = false;
 
+    // Drive-enable gate (see compute_drive_enabled_).
+    ArmDwell arm_;
+    bool armed_ = false;
+    bool prev_drive_enabled_ = false;
+    double since_enable_ = 0.0;
+    double startup_settle_s_ = 0.0;
+    double arm_dwell_s_ = 0.5;
+    double max_tilt_deg_ = 0.0;
+
     Quintic pitch_plan_;
-    Quintic shank_plan_;
-    Quintic knee_plan_;
+    // One quintic per leg (no left/right averaging of the start pose).
+    std::array<Quintic, 2> shank_plans_;
+    std::array<Quintic, 2> knee_plans_;
 
     std::uint64_t dbg_count_ = 0;
     std::uint64_t dbg_task_count_ = 0;

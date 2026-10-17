@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Launches the in-process MuJoCo simulation from its OWN install tree
+# (install-sim, built by build-rmcs-sim), independent of the real-robot
+# install/ tree so both can coexist.
+#
+# Usage: launch-rmcs-sim [robot_config]
+#   robot_config defaults to wheelleg_sim (e.g. wheelleg_sim_recovery).
+
+set -e
+
+source /opt/ros/jazzy/setup.bash
+
+: "${RMCS_PATH:=/workspaces/RMCS}"
+: "${MUJOCO_VENV:=${HOME}/.venvs/mujoco}"
+
+robot="${1:-wheelleg_sim}"
+ws="${RMCS_PATH}/rmcs_ws"
+if [[ ! -f "${ws}/install-sim/local_setup.bash" ]]; then
+    echo "> ERROR: ${ws}/install-sim not found. Run build-rmcs-sim first."
+    exit 1
+fi
+
+# The real-robot overlay (install/) may already be sourced (e.g. by
+# ~/env_setup.bash). It has no WheelLegSimulation plugin, so do not let it
+# shadow the simulator overlay: drop every /rmcs_ws/install entry first.
+filter_path() {
+    local value="$1" drop="$2"
+    local out="" IFS=':'
+    local item
+    for item in $value; do
+        [[ -z "${item}" ]] && continue
+        [[ "${item}" == "${drop}" || "${item}" == "${drop}/"* ]] && continue
+        out="${out:+${out}:}${item}"
+    done
+    printf '%s' "${out}"
+}
+for var in AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH LD_LIBRARY_PATH PYTHONPATH; do
+    value="${!var:-}"
+    [[ -n "${value}" ]] || continue
+    filtered="$(filter_path "${value}" "${ws}/install")"
+    export "${var}=${filtered}"
+done
+
+source "${ws}/install-sim/local_setup.bash"
+
+# Keep the simulator overlay first even if install-sim's dependencies pulled the
+# real install back in.
+export AMENT_PREFIX_PATH="${ws}/install-sim:${AMENT_PREFIX_PATH}"
+export LD_LIBRARY_PATH="${ws}/install-sim/lib:${LD_LIBRARY_PATH}"
+export PYTHONPATH="${ws}/install-sim/lib/python3.12/site-packages:${PYTHONPATH}"
+
+# The sim library's RPATH already points at the venv; keep this as a fallback.
+mujoco_lib="$(ls -d "${MUJOCO_VENV}"/lib/python*/site-packages/mujoco 2>/dev/null | head -n1)"
+[[ -n "${mujoco_lib}" ]] && export LD_LIBRARY_PATH="${mujoco_lib}:${LD_LIBRARY_PATH}"
+
+export RMCS_ROBOT_TYPE="${robot}"
+
+ros2 launch rmcs_bringup rmcs.launch.py robot:="${robot}"

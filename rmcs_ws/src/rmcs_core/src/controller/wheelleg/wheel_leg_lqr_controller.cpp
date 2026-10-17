@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
+#include <format>
 #include <limits>
 #include <random>
 #include <string>
@@ -54,6 +56,7 @@ public:
         enabled_ = node::param_or("enabled", true);
         u_min_ = node::param_or("u_min", -4.88);
         u_max_ = node::param_or("u_max", 4.88);
+        debug_ = node::param_or("debug", false);
         const std::string gate = node::param_or("enable", std::string{});
         if (!gate.empty()) {
             register_input(gate, enable_);
@@ -90,6 +93,18 @@ public:
         u = std::clamp(u, u_min_, u_max_);
         *torque_ = u;
         *debug_u_ = u;
+
+        if (debug_ && (debug_count_++ % 500 == 0)) {
+            std::string msg;
+            for (std::size_t i = 0; i < 4; ++i) {
+                if (!use_[i])
+                    continue;
+                msg += std::format(
+                    " [{}{:+.3f}*{:+.2f}]", i == 0 ? "x" : (i == 1 ? "y" : (i == 2 ? "z" : "w")),
+                    *input_[i], gain_[i]);
+            }
+            info("lqr u={:+.3f}{}", u, msg);
+        }
     }
 
 private:
@@ -107,6 +122,8 @@ private:
 
     bool enabled_ = true;
     bool use_enable_ = false;
+    bool debug_ = false;
+    std::uint64_t debug_count_ = 0;
     double u_min_ = -4.88;
     double u_max_ = 4.88;
 };

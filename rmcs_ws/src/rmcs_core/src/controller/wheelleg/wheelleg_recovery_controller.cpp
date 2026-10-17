@@ -105,18 +105,25 @@ public:
         case Phase::kPlant:
             if (elapsed_ >= hold_seconds_)
                 step_segment_();
-            if (loaded) {
-                start_segment_(stand_l0_, stand_shank_);
-                phase_ = Phase::kStand;
+            // Fixed-time advance: hold the plant pose for plant_hold_seconds
+            // after the reference reaches it, then stand. No contact gate (the
+            // real/sim state estimator has no force sensor and publishes NaN).
+            if (segment_reached_()) {
+                plant_dwell_ += dt_;
+                if (plant_dwell_ >= plant_hold_seconds_) {
+                    start_segment_(stand_l0_, stand_shank_);
+                    phase_ = Phase::kStand;
+                }
+            } else {
+                plant_dwell_ = 0.0;
             }
             alpha_r_ = 0.0;
             break;
         case Phase::kStand:
             if (elapsed_ >= hold_seconds_)
                 step_segment_();
-            // Only hand off once the pose has actually REACHED the stance (no
-            // snap): the leg is never yanked to the target.
-            if (segment_reached_() && loaded && std::abs(pitch) < handover_tilt_)
+            // Hand off once the pose has actually REACHED the stance (no snap).
+            if (segment_reached_() && std::abs(pitch) < handover_tilt_)
                 phase_ = Phase::kDone;
             alpha_r_ = 0.0;
             break;
@@ -163,6 +170,7 @@ private:
         seg_goal_l0_ = goal_l0;
         seg_goal_shank_ = ref_shank_ + wrap_to_pi_(goal_shank - ref_shank_);
         seg_t_ = 0.0;
+        plant_dwell_ = 0.0;
     }
 
     void step_segment_() {
@@ -217,6 +225,7 @@ private:
         handover_tilt_ = node::param_or("handover_tilt_deg", 8.0) * std::numbers::pi / 180.0;
         handoff_seconds_ = node::param_or("handoff_seconds", 0.5);
         hold_seconds_ = node::param_or("start_hold_seconds", 0.1);
+        plant_hold_seconds_ = std::max(0.0, node::param_or("plant_hold_seconds", 1.0));
     }
 
     double dt_;
@@ -227,6 +236,8 @@ private:
     double plant_l0_, plant_shank_;
     double stand_l0_, stand_shank_;
     double shank_rate_, l0_rate_;
+    double plant_hold_seconds_ = 1.0;
+    double plant_dwell_ = 0.0;
     double theta_kp_;
     double contact_eps_;
     double handover_tilt_;

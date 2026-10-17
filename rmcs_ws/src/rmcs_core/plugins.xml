@@ -40,6 +40,8 @@
   <class type="rmcs_core::controller::wheelleg::WheelLegStandStateMachine" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegMoveStateMachine" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::wheelleg::WheelLegBenchTestController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegCalibController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegComTrimController" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
@@ -57,6 +59,7 @@
   <class type="rmcs_core::controller::shooting::PutterController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::ShootingRecorder" base_class_type="rmcs_executor::Component" />
 
+  <class type="rmcs_core::controller::filter::LowPassFilterController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::pid::FrictionWheelPidRecorder" base_class_type="rmcs_executor::Component" />

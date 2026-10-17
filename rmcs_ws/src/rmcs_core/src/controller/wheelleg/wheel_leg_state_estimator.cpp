@@ -22,6 +22,7 @@ namespace rmcs_core::controller::wheelleg {
 
 using LegLinkage = rmcs_core::wheelleg::LegLinkage;
 using WheelLegLegModel = rmcs_core::wheelleg::WheelLegLegModel;
+using LegCalibration = rmcs_core::wheelleg::LegCalibration;
 
 // Real-hardware state estimator for the traditional V5.0 stack.
 //
@@ -83,6 +84,11 @@ public:
         register_output("/wheelleg/state/knee_velocity", state_knee_velocity_, nan_);
         register_output("/wheelleg/state/shank_angle", state_shank_angle_, nan_);
         register_output("/wheelleg/state/shank_velocity", state_shank_velocity_, nan_);
+        // Per-leg reduced shape, for per-leg reference planning (stand chain).
+        register_output("/wheelleg/state/knee_angle_l", state_knee_angle_l_, nan_);
+        register_output("/wheelleg/state/knee_angle_r", state_knee_angle_r_, nan_);
+        register_output("/wheelleg/state/shank_angle_l", state_shank_angle_l_, nan_);
+        register_output("/wheelleg/state/shank_angle_r", state_shank_angle_r_, nan_);
         register_output("/wheelleg/state/leg_length", state_leg_length_, nan_);
         register_output("/wheelleg/state/leg_angle", state_leg_angle_, nan_);
         register_output("/wheelleg/state/leg_length_l", state_leg_length_l_, nan_);
@@ -100,10 +106,12 @@ public:
         register_output("/wheelleg/state/gravity_y", state_gravity_[1], nan_);
         register_output("/wheelleg/state/gravity_z", state_gravity_[2], nan_);
         // Wheel-ground normal force per wheel (contact gate). No force sensor on
-        // the real robot yet: report 0, so the trajectory controller treats the
-        // gate as "wheels loaded" (its documented default).
-        register_output("/wheelleg/state/contact_normal_l", state_contact_l_, 0.0);
-        register_output("/wheelleg/state/contact_normal_r", state_contact_r_, 0.0);
+        // the real robot yet: publish NaN, NOT 0. The trajectory controller only
+        // treats a contact source as available when it is finite, so NaN means
+        // "no sensor -> assume the wheels are loaded"; a 0.0 would instead mean
+        // "sensor says unloaded" and permanently disable the balance loop.
+        register_output("/wheelleg/state/contact_normal_l", state_contact_l_, nan_);
+        register_output("/wheelleg/state/contact_normal_r", state_contact_r_, nan_);
         register_output("/wheelleg/state/com_offset", state_com_offset_, 0.0);
         register_output("/wheelleg/state/wheel_velocity", state_wheel_velocity_, nan_);
         register_output("/wheelleg/state/velocity", state_velocity_, 0.0);
@@ -132,6 +140,8 @@ public:
             r_base_imu * Eigen::Vector3d{*gravity_[0], *gravity_[1], *gravity_[2]};
         const double gx = gravity_base.x(), gy = gravity_base.y(), gz = gravity_base.z();
 
+        // Convention (same as the sim's body_pitch_ and the doc): nose-down /
+        // forward lean is POSITIVE, nose-up / backward lean is NEGATIVE.
         const double pitch = std::atan2(gx, -gz);
         const double roll = std::atan2(gy, -gz);
         const Eigen::Quaterniond q{
@@ -157,10 +167,11 @@ public:
         // ------------------------------------------------------------------
         // Leg shape from the joint encoders.
         // ------------------------------------------------------------------
-        const auto shape_l = leg_model_->forward(
-            *joint_angle_[0], *joint_angle_[1], rmcs_core::wheelleg::CanonicalCalibration::side(0));
-        const auto shape_r = leg_model_->forward(
-            *joint_angle_[2], *joint_angle_[3], rmcs_core::wheelleg::CanonicalCalibration::side(1));
+        // Calibration source of truth = the per-config YAML hardware_* (the SAME
+        // values the bench controller calibrates), so the estimator and the bench
+        // agree and editing the bench calibration drives the whole chain.
+        const auto shape_l = leg_model_->forward(*joint_angle_[0], *joint_angle_[1], leg_calib_[0]);
+        const auto shape_r = leg_model_->forward(*joint_angle_[2], *joint_angle_[3], leg_calib_[1]);
         const double beta_l = shape_l.beta;
         const double beta_r = shape_r.beta;
         const double beta = 0.5 * (beta_l + beta_r);
@@ -198,6 +209,10 @@ public:
         *state_knee_velocity_ = state_knee_sign_ * knee_rate;
         *state_shank_angle_ = state_shank_sign_ * shank;
         *state_shank_velocity_ = state_shank_sign_ * shank_rate;
+        *state_knee_angle_l_ = state_knee_sign_ * beta_l;
+        *state_knee_angle_r_ = state_knee_sign_ * beta_r;
+        *state_shank_angle_l_ = state_shank_sign_ * shank_l;
+        *state_shank_angle_r_ = state_shank_sign_ * shank_r;
         *state_leg_length_ = leg_length;
         *state_leg_angle_ = alpha;
         *state_leg_length_l_ = leg_length_l;
@@ -214,13 +229,13 @@ public:
         *state_gravity_[2] = gravity_base.z();
 
         // Reduced thigh/shank FK in the base sagittal plane (forward x, up z),
-        // 执行路线1_数学解析.md §1/§4: psi1 = beta + phi - pi (thigh K->H angle),
-        //   K - H = L1 (cos(psi1+pi), sin(psi1+pi)),  A - K = L2 (cos phi, sin phi).
-        // Returned relative to the hip; `kk` (knee) and `aa` (axle = K) are used
-        // by both the base-height and CoM computations below.
+        // IDENTICAL to the shared model's fk(): psi1 = beta + phi (thigh K->H),
+        //   K = -L1 (cos psi1, sin psi1),  A = K + L2 (cos phi, sin phi).
+        // (Was psi1 = beta + phi - pi, which put the knee on the wrong side and
+        // corrupted base_height / com_offset -> the gait drove the leg away.)
         const auto leg_fk_ = [&](double b, double phi, std::array<double, 2>& kk,
                                  std::array<double, 2>& aa) {
-            const double psi1 = b + phi - std::numbers::pi;
+            const double psi1 = b + phi;
             const double ux = -std::cos(psi1), uz = -std::sin(psi1);
             kk = {thigh_length_ * ux, thigh_length_ * uz};
             aa = {kk[0] + shank_length_ * std::cos(phi), kk[1] + shank_length_ * std::sin(phi)};
@@ -330,6 +345,10 @@ private:
         *state_knee_velocity_ = nan_;
         *state_shank_angle_ = nan_;
         *state_shank_velocity_ = nan_;
+        *state_knee_angle_l_ = nan_;
+        *state_knee_angle_r_ = nan_;
+        *state_shank_angle_l_ = nan_;
+        *state_shank_angle_r_ = nan_;
         *state_leg_length_ = nan_;
         *state_leg_angle_ = nan_;
         *state_hip_angle_ = nan_;
@@ -403,6 +422,9 @@ private:
         // SAME (alpha, beta, shank) as the simulation for the same physical pose.
         leg_model_ = std::make_unique<WheelLegLegModel>(
             thigh_length_, shank_length_, knee_limit_min_, knee_limit_max_, linkage_);
+        for (std::size_t i = 0; i < 2; ++i)
+            leg_calib_[i] = LegCalibration{
+                hardware_hip_sign_[i], hardware_hip_zero_[i], hardware_crank_sign_[i]};
     }
 
     [[nodiscard]] double param_or(const std::string& name, double fallback) {
@@ -411,6 +433,7 @@ private:
 
     LegLinkage linkage_;
     std::unique_ptr<WheelLegLegModel> leg_model_;
+    std::array<LegCalibration, 2> leg_calib_{};
     double thigh_length_ = 0.21, shank_length_ = 0.25005, wheel_radius_ = 0.06;
     double knee_limit_min_ = 0.6981317007977318, knee_limit_max_ = 1.8325957145940461;
     double dt_ = 0.001;
@@ -442,6 +465,8 @@ private:
     OutputInterface<double> state_yaw_{}, state_yaw_rate_{};
     OutputInterface<double> state_knee_angle_{}, state_knee_velocity_{};
     OutputInterface<double> state_shank_angle_{}, state_shank_velocity_{};
+    OutputInterface<double> state_knee_angle_l_{}, state_knee_angle_r_{};
+    OutputInterface<double> state_shank_angle_l_{}, state_shank_angle_r_{};
     OutputInterface<double> state_leg_length_{}, state_leg_angle_{};
     OutputInterface<double> state_leg_length_l_{}, state_leg_length_r_{};
     OutputInterface<double> state_leg_angle_l_{}, state_leg_angle_r_{};

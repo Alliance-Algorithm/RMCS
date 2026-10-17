@@ -96,7 +96,12 @@ public:
     [[nodiscard]] LegShape forward(
         double q_hip_raw, double q_crank_raw, const LegCalibration& calib) const {
         LegShape out;
-        out.crank_rel = calib.crank_sign * (q_crank_raw - q_hip_raw);
+        // Mod 2*pi: the two coaxial DM encoders are multi-turn and independent, so
+        // the raw difference q_crank - q_hip can be off by a whole turn; wrap it
+        // back into (-pi, pi] (the mechanically-valid relative crank range is a
+        // subset) before the LUT, otherwise knee_from_encoder_crank silently
+        // clamps to an endpoint and reports a constant wrong knee.
+        out.crank_rel = wrap_to_pi(calib.crank_sign * (q_crank_raw - q_hip_raw));
         out.beta_raw = linkage_->knee_from_encoder_crank(out.crank_rel);
         out.beta = std::clamp(out.beta_raw, knee_limit_min_, knee_limit_max_);
         out.alpha = wrap_to_pi(q_hip_raw / calib.hip_sign + calib.hip_zero);

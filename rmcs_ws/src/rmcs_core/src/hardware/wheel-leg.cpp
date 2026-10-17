@@ -329,6 +329,8 @@ private:
         void configure_control(WheelLeg& status, rmcs_executor::Component& command) {
             require_enable_request_ = status.get_parameter_or("require_enable_request", false);
             allow_spin_switch_ = status.get_parameter_or("allow_spin_switch", false);
+            allow_left_middle_right_up_ =
+                status.get_parameter_or("allow_left_middle_right_up", false);
             allow_set_zero_ = status.get_parameter_or("allow_set_zero", false);
             command.register_input(
                 "/wheel_leg/enable_request", enable_request_, require_enable_request_);
@@ -556,7 +558,8 @@ private:
             previous_both_down_ = both_down;
             bool enable = wheel_leg_drive_allowed(
                 remote_fresh, dr16_.switch_left(), dr16_.switch_right(),
-                require_enable_request_ || side_bound, enable_request_.ready() && *enable_request_);
+                require_enable_request_ || side_bound, enable_request_.ready() && *enable_request_,
+                false, allow_left_middle_right_up_);
             enable = enable && !wheel_only;
             bool wheel_enable = false;
             if (wheel_only && !side_bound)
@@ -584,7 +587,8 @@ private:
                       && wheel_leg_normal_enable_request(
                           remote_fresh, dr16_.switch_left(), dr16_.switch_right(),
                           require_enable_request_, controller_request, feedback_fresh(), pairs,
-                          allow_spin_switch_ && !use_motor_position_pd_);
+                          allow_spin_switch_ && !use_motor_position_pd_,
+                          allow_left_middle_right_up_);
             }
             const auto enable_sides =
                 wheel_leg_side_enable_requests(enable, side_bound, selected_side);
@@ -905,6 +909,7 @@ private:
         std::atomic<int> observed_selected_side_{-1};
         bool require_enable_request_ = false;
         bool allow_spin_switch_ = false;
+        bool allow_left_middle_right_up_ = false;
         bool allow_set_zero_ = false;
         bool use_motor_position_pd_ = false;
         std::array<std::atomic<bool>, 2> dm_enabled_{};

@@ -7,4 +7,11 @@ if [ -z "${RMCS_ROBOT_TYPE}" ]; then
     exit 1
 fi
 
+# real-robot launcher: the simulator robot type must use launch-rmcs-sim (and be
+# built with build-rmcs-sim).
+if [ "${RMCS_ROBOT_TYPE}" = "wheelleg_sim" ]; then
+    echo "Error: RMCS_ROBOT_TYPE=wheelleg_sim is the simulator. Use launch-rmcs-sim."
+    exit 1
+fi
+
 ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE}

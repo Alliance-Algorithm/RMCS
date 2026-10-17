@@ -5,6 +5,11 @@ install/
 log-cross-*/
 build-cross-*/
 install-cross-*/
+# Simulation build/install/log trees (build-rmcs-sim), kept separate from the
+# real-robot build/install so the simulator and real build can coexist.
+build-sim/
+install-sim/
+log-sim/
 bin/
 lib/
 msg_gen/

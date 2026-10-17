@@ -106,12 +106,12 @@ wheelleg_state:
     shank_mass: 0.507
     thigh_com_offset: 0.06623
     shank_com_offset: 0.15344
-    body_com_offset: 0.00918
+    body_com_forward: 0.00918
     hardware_hip_sign: [-1.0, 1.0]
     hardware_hip_zero: [-1.5707963267948966, -1.5707963267948966]   # both legs same zero (mirror encoders via hip_sign)
     hardware_crank_sign: [-1.0, 1.0]   # L/R crank encoders mirror
     knee_limit_min: 0.6981317007977318
-    knee_limit_max: 1.8325957145940461
+    knee_limit_max: 1.9198621771937625
     imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
     state_pitch_sign: 1.0
     state_roll_sign: 1.0
@@ -133,7 +133,7 @@ wheelleg_bench:
     shank_length: 0.25045
     wheel_radius: 0.06
     knee_limit_min: 0.6981317007977318
-    knee_limit_max: 1.8325957145940461
+    knee_limit_max: 1.9198621771937625
     hardware_hip_sign: [-1.0, 1.0]
     hardware_hip_zero: [-1.5707963267948966, -1.5707963267948966]   # both legs same zero (mirror encoders via hip_sign)
     hardware_crank_sign: [-1.0, 1.0]   # L/R crank encoders mirror
@@ -147,10 +147,10 @@ wheelleg_bench:
     leg_kp: 160.0
     leg_kd: 2.5
     leg_torque_limit: 40.0
-    # Mode 3: interior knee -> ABSOLUTE target (40..105 deg); the hip->axle line
+    # Mode 3: interior knee -> ABSOLUTE target (40..110 deg); the hip->axle line
     # angle moves only by a SMALL relative delta from the measured value, so the
     # leg barely swings. A quintic ramp over ramp_seconds, started once enabled.
-    target_inner_knee_deg: 90.0   # absolute interior thigh-shank target, 40..105
+    target_inner_knee_deg: 90.0   # absolute interior thigh-shank target, 40..110
     delta_leg_angle_deg: 0.0      # small relative hip->axle line angle change (deg)
     ramp_seconds: 3.0
     dt: 0.001
