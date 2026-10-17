@@ -116,7 +116,7 @@ wheel_leg:
 # ---------------------------------------------------------------------------
 # [NEW] State estimator: /wheel_leg/* + IMU -> /wheelleg/state/*.
 # Geometry/masses mirror wheelleg_sim.yaml; signs mirror the real (V6) mapping.
-# PLACEHOLDER VALUES: fill from 真机辨识清单.md before real-robot use.
+# PLACEHOLDER VALUES: fill from system-identification results before real-robot use.
 # ---------------------------------------------------------------------------
 wheelleg_state:
   ros__parameters:

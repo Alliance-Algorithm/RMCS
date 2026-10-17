@@ -34,10 +34,6 @@ file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
 # native build; cross builds for the real robot keep it disabled.
 list(FILTER PROJECT_SOURCE EXCLUDE REGEX "/wheelleg_simulation\\.cpp$")
 
-# Archived wheel-leg experiments (torque-level task-space / LQR / test signal)
-# are kept for reference but excluded from the default build.
-list(FILTER PROJECT_SOURCE EXCLUDE REGEX "/wheelleg/legacy/")
-
 set(RMCS_MUJOCO_ROOT "" CACHE PATH "MuJoCo root containing include/ and libmujoco.so")
 if(NOT RMCS_MUJOCO_ROOT)
     if(DEFINED ENV{MUJOCO_ROOT})
