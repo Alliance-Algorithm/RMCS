@@ -6,6 +6,7 @@
 #include <memory>
 #include <numbers>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -13,6 +14,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_msgs/tunnel_mode.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "controller/chassis/climber/co_schduler.hpp"
@@ -37,9 +39,15 @@ class SentryTunnelCross
     static constexpr double kStatusSuccess = 1.0;
     static constexpr double kStatusFailure = -1.0;
 
-    struct Config {
+    struct Motion {
         double speed;
         double duration;
+    };
+
+    struct Config {
+        Motion up;
+        Motion down;
+        Motion plain;
         double pre_drive_delay;
         double fold_timeout;
         double unfold_timeout;
@@ -51,11 +59,28 @@ class SentryTunnelCross
             double timeout;
         } align;
 
+        auto motion(rmcs_msgs::TunnelMode mode) const -> const Motion& {
+            switch (mode) {
+            case rmcs_msgs::TunnelMode::UP: return up;
+            case rmcs_msgs::TunnelMode::DOWN: return down;
+            case rmcs_msgs::TunnelMode::PLAIN: return plain;
+            }
+            throw std::invalid_argument{"invalid tunnel mode"};
+        }
+
         template <typename ParamOr>
         static auto load(ParamOr&& param_or) -> Config {
+            const auto load_motion = [&param_or](std::string_view name, Motion fallback) {
+                return Motion{
+                    .speed = param_or(std::string{name} + ".speed", fallback.speed),
+                    .duration = param_or(std::string{name} + ".duration", fallback.duration),
+                };
+            };
+
             return Config{
-                .speed = param_or("speed", 0.5),
-                .duration = param_or("duration", 2.0),
+                .up = load_motion("up", {.speed = 2.0, .duration = 2.4}),
+                .down = load_motion("down", {.speed = 2.0, .duration = 2.4}),
+                .plain = load_motion("plain", {.speed = 2.0, .duration = 2.4}),
                 .pre_drive_delay = param_or("pre_drive_delay", 0.2),
                 .fold_timeout = param_or("fold_timeout", 5.0),
                 .unfold_timeout = param_or("unfold_timeout", 5.0),
@@ -72,6 +97,8 @@ class SentryTunnelCross
 
     struct Context {
         InputInterface<double> request_direction;
+        InputInterface<bool> finish_request;
+        InputInterface<rmcs_msgs::TunnelMode> request_mode;
         InputInterface<int> gimbal_fold_state;
         InputInterface<double> measure_yaw;
         InputInterface<double> chassis_yaw_rate;
@@ -121,6 +148,10 @@ class SentryTunnelCross
         auto bind(Component& component) noexcept {
             component.register_input(
                 "/rmcs_navigation/request/tunnel_direction", request_direction, false);
+            component.register_input(
+                "/rmcs_navigation/request/tunnel_finish", finish_request, false);
+            component.register_input(
+                "/rmcs_navigation/request/tunnel_mode", request_mode, false);
             component.register_input("/gimbal/fold/state", gimbal_fold_state, false);
             component.register_input("/chassis/climber/measure_yaw", measure_yaw, false);
             component.register_input("/chassis/yaw/velocity_imu", chassis_yaw_rate, false);
@@ -140,6 +171,8 @@ class SentryTunnelCross
                 };
 
             ensure_bind(request_direction, kNaN, "request_direction");
+            ensure_bind(finish_request, false, "finish_request");
+            ensure_bind(request_mode, TunnelMode::UP, "request_mode");
             ensure_bind(gimbal_fold_state, kGimbalFoldStateUnfold, "gimbal_fold_state");
             ensure_bind(measure_yaw, kNaN, "measure_yaw");
             ensure_bind(chassis_yaw_rate, 0.0, "chassis_yaw_rate");
@@ -203,7 +236,9 @@ class SentryTunnelCross
         };
     }
 
-    auto cross(double direction) -> CoSchduler::Task {
+    auto cross(double direction, rmcs_msgs::TunnelMode mode) -> CoSchduler::Task {
+        const auto motion = config.motion(mode);
+
         *cross_status = kStatusFolding;
         *gimbal_fold_request = true;
         [[maybe_unused]] const auto fold_request_guard = FoldRequestGuard{&gimbal_fold_request};
@@ -241,8 +276,14 @@ class SentryTunnelCross
 
         *cross_status = kStatusDriving;
         *chassis_cross_direction = direction;
-        *chassis_cross_speed = config.speed;
-        co_await CoSchduler::Sleep{seconds_to_duration(config.duration)};
+        *chassis_cross_speed = motion.speed;
+
+        const auto timed_out = co_await CoSchduler::WaitUntil{
+            .monitor = [this] { return *context.finish_request; },
+            .timeout = seconds_to_duration(motion.duration),
+        };
+        if (!timed_out)
+            node::info("tunnel cross finish requested, stop driving early");
 
         *cross_status = kStatusUnfolding;
         release_cross();
@@ -282,7 +323,7 @@ class SentryTunnelCross
             } else if (request) {
                 if (!task_handler.done())
                     cancel_task();
-                task_handler = schduler.append(cross(request_direction));
+                task_handler = schduler.append(cross(request_direction, *context.request_mode));
             }
 
             if (!context.is_estop() && task_handler.done())

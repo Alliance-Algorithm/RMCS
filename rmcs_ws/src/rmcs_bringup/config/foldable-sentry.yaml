@@ -39,7 +39,7 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "tcd-train"
+    endpoint: "test"
     enable_goal_topic_forward: true
 
 foldable_sentry:
@@ -50,7 +50,7 @@ foldable_sentry:
     roll_motor_zero_point: 14733
     top_yaw_motor_zero_point: 3433
     pitch_motor_zero_point: 28369
-    bottom_yaw_motor_zero_point: 45494
+    bottom_yaw_motor_zero_point: 3558
 
 auto_aim_capturer:
   ros__parameters:
@@ -107,8 +107,15 @@ chassis_controller:
 
 sentry_tunnel_cross:
   ros__parameters:
-    speed: 2.0
-    duration: 2.4
+    up:
+      speed: 2.0
+      duration: 2.4
+    down:
+      speed: 1.5
+      duration: 1.5
+    plain:
+      speed: 1.2
+      duration: 1.5
     pre_drive_delay: 0.2
     fold_timeout: 5.0
     unfold_timeout: 5.0

@@ -25,6 +25,7 @@
 #include "shoot_mode.hpp"       // IWYU pragma: export
 #include "shoot_status.hpp"     // IWYU pragma: export
 #include "switch.hpp"           // IWYU pragma: export
+#include "tunnel_mode.hpp"      // IWYU pragma: export
 
 namespace rmcs_msgs {
 
@@ -51,6 +52,15 @@ constexpr auto to_string(ChassisMode mode) noexcept -> const char* {
     case ChassisMode::ALIGNMENT: return "ALIGNMENT";
     case ChassisMode::ALIGNMENT_POWERED: return "ALIGNMENT_POWERED";
     case ChassisMode::CROSS: return "CROSS";
+    }
+    return "INVALID";
+}
+
+constexpr auto to_string(TunnelMode mode) noexcept -> const char* {
+    switch (mode) {
+    case TunnelMode::UP: return "UP";
+    case TunnelMode::DOWN: return "DOWN";
+    case TunnelMode::PLAIN: return "PLAIN";
     }
     return "INVALID";
 }
