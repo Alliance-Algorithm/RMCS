@@ -1,8 +1,11 @@
 #include <chrono>
+#include <cmath>
 #include <concepts>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <numbers>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -28,6 +31,7 @@ class SentryTunnelCross
 
     static constexpr double kStatusIdle = 0.0;
     static constexpr double kStatusFolding = 0.1;
+    static constexpr double kStatusAligning = 0.3;
     static constexpr double kStatusDriving = 0.5;
     static constexpr double kStatusUnfolding = 0.8;
     static constexpr double kStatusSuccess = 1.0;
@@ -40,6 +44,13 @@ class SentryTunnelCross
         double fold_timeout;
         double unfold_timeout;
 
+        struct Align {
+            double err;
+            double w;
+            double hold;
+            double timeout;
+        } align;
+
         template <typename ParamOr>
         static auto load(ParamOr&& param_or) -> Config {
             return Config{
@@ -48,6 +59,13 @@ class SentryTunnelCross
                 .pre_drive_delay = param_or("pre_drive_delay", 0.2),
                 .fold_timeout = param_or("fold_timeout", 5.0),
                 .unfold_timeout = param_or("unfold_timeout", 5.0),
+                .align =
+                    {
+                        .err = param_or("align.err", 0.10),
+                        .w = param_or("align.w", 0.2),
+                        .hold = param_or("align.hold", 0.05),
+                        .timeout = param_or("align.timeout", 5.0),
+                    },
             };
         }
     };
@@ -55,13 +73,57 @@ class SentryTunnelCross
     struct Context {
         InputInterface<double> request_direction;
         InputInterface<int> gimbal_fold_state;
+        InputInterface<double> measure_yaw;
+        InputInterface<double> chassis_yaw_rate;
         InputInterface<rmcs_msgs::Switch> l_switch;
         InputInterface<rmcs_msgs::Switch> r_switch;
+
+        static constexpr auto normalize_angle(double angle) noexcept {
+            while (angle >= std::numbers::pi)
+                angle -= 2.0 * std::numbers::pi;
+            while (angle < -std::numbers::pi)
+                angle += 2.0 * std::numbers::pi;
+            return angle;
+        }
+
+        auto align_error(double goal) const noexcept {
+            return normalize_angle(*measure_yaw - goal);
+        }
+
+        auto wait_align(
+            double goal, double err_limit, double w_limit, std::chrono::steady_clock::duration hold,
+            std::chrono::steady_clock::duration timeout) const {
+            constexpr auto kSinceInit = std::optional<std::chrono::steady_clock::time_point>{};
+            return CoSchduler::WaitUntil{
+                .monitor =
+                    [=, this, hold_since = kSinceInit]() mutable {
+                        if (!std::isfinite(*measure_yaw))
+                            return false;
+
+                        const auto stable = std::abs(align_error(goal)) < err_limit
+                                         && std::abs(*chassis_yaw_rate) < w_limit;
+
+                        const auto now = std::chrono::steady_clock::now();
+                        if (stable) {
+                            if (!hold_since.has_value())
+                                hold_since = now;
+                            else if (now - *hold_since >= hold)
+                                return true;
+                        } else {
+                            hold_since.reset();
+                        }
+                        return false;
+                    },
+                .timeout = timeout,
+            };
+        }
 
         auto bind(Component& component) noexcept {
             component.register_input(
                 "/rmcs_navigation/request/tunnel_direction", request_direction, false);
             component.register_input("/gimbal/fold/state", gimbal_fold_state, false);
+            component.register_input("/chassis/climber/measure_yaw", measure_yaw, false);
+            component.register_input("/chassis/yaw/velocity_imu", chassis_yaw_rate, false);
             component.register_input("/remote/switch/left", l_switch, false);
             component.register_input("/remote/switch/right", r_switch, false);
         }
@@ -79,6 +141,8 @@ class SentryTunnelCross
 
             ensure_bind(request_direction, kNaN, "request_direction");
             ensure_bind(gimbal_fold_state, kGimbalFoldStateUnfold, "gimbal_fold_state");
+            ensure_bind(measure_yaw, kNaN, "measure_yaw");
+            ensure_bind(chassis_yaw_rate, 0.0, "chassis_yaw_rate");
             ensure_bind(l_switch, Switch::UNKNOWN, "l_switch");
             ensure_bind(r_switch, Switch::UNKNOWN, "r_switch");
         }
@@ -149,6 +213,27 @@ class SentryTunnelCross
             release_cross();
             *cross_status = kStatusFailure;
             co_return;
+        }
+
+        *cross_status = kStatusAligning;
+        *chassis_cross_direction = direction;
+        *chassis_cross_speed = 0.0;
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            const auto timed_out = co_await context.wait_align(
+                direction, config.align.err, config.align.w, seconds_to_duration(config.align.hold),
+                seconds_to_duration(config.align.timeout));
+            if (timed_out || !std::isfinite(*context.measure_yaw)) {
+                node::warn("tunnel cross align failed");
+                release_cross();
+                *cross_status = kStatusFailure;
+                co_return;
+            }
+            const auto elapsed =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - t0);
+            node::info(
+                "tunnel cross align done: err={:.3f}, took={:.3f}s", context.align_error(direction),
+                elapsed.count());
         }
 
         if (config.pre_drive_delay > 0.0)

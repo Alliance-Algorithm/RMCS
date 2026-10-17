@@ -31,8 +31,16 @@ rmcs_executor:
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       # - rmcs::AutoAimComponent -> auto_aim_component
 
+      - rmcs::navigation::Navigation -> rmcs_navigation
+
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
+
+rmcs_navigation:
+  ros__parameters:
+    command_vel_name: "/cmd_vel"
+    endpoint: "tcd-train"
+    enable_goal_topic_forward: true
 
 foldable_sentry:
   ros__parameters:
@@ -100,10 +108,15 @@ chassis_controller:
 sentry_tunnel_cross:
   ros__parameters:
     speed: 1.2
-    duration: 2.0
+    duration: 1.5
     pre_drive_delay: 0.2
     fold_timeout: 5.0
     unfold_timeout: 5.0
+    align:
+      err: 0.5
+      w: 0.5
+      hold: 0.1
+      timeout: 5.0
 
 value_broadcaster:
   ros__parameters:

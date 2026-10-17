@@ -98,11 +98,11 @@ public:
         *chassis_measure_yaw_ = std::atan2(chassis_direction->y(), chassis_direction->x());
 
      
-        RCLCPP_INFO_THROTTLE(
-            get_logger(), *get_clock(), 200, "roll %f top_yaw %f pitch %f",
-            gimbal_board_->gimbal_roll_motor_.angle(), gimbal_board_->gimbal_top_yaw_motor_.angle(),
-            gimbal_board_->gimbal_pitch_motor_.angle()
-        );
+        // RCLCPP_INFO_THROTTLE(
+        //     get_logger(), *get_clock(), 200, "roll %f top_yaw %f pitch %f",
+        //     gimbal_board_->gimbal_roll_motor_.angle(), gimbal_board_->gimbal_top_yaw_motor_.angle(),
+        //     gimbal_board_->gimbal_pitch_motor_.angle()
+        // );
     }
 
 private:

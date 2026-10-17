@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <optional>
 
 #include <eigen3/Eigen/Geometry>
 #include <rclcpp/node.hpp>
@@ -126,9 +127,14 @@ public:
                 }
 
                 if (cross_active()) {
+                    if (mode != ChassisMode::CROSS)
+                        mode_before_cross_ = mode;
                     mode = ChassisMode::CROSS;
                 } else if (mode == ChassisMode::CROSS) {
-                    mode = ChassisMode::AUTO;
+                    mode = mode_before_cross_.value_or(ChassisMode::ALIGNMENT);
+                    mode_before_cross_.reset();
+                } else {
+                    mode_before_cross_.reset();
                 }
 
                 update_spin_stuck_watchdog(mode);
@@ -145,6 +151,7 @@ public:
 
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::ALIGNMENT;
+        mode_before_cross_.reset();
         *chassis_control_velocity_ = {kNaN, kNaN, kNaN};
 
         spin_stuck_count_ = 0;
@@ -359,6 +366,7 @@ private:
     InputInterface<rmcs_msgs::ChassisMode> navigation_chassis_behavior_;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
+    std::optional<rmcs_msgs::ChassisMode> mode_before_cross_;
     bool spinning_forward_ = true;
 
     std::size_t spin_stuck_count_ = 0;

@@ -144,7 +144,7 @@ public:
         previous_yaw_timestamp_ = *input_.timestamp;
         last_update_timestamp_ = *input_.timestamp;
         last_rotary_knob_switch_ = *input_.rotary_knob_switch;
-        fold_state_ = FoldState::UnFold;
+        fold_state_ = FoldState::UnFolding;
         fold_ready_elapsed_ = 0.0;
         fold_bottom_yaw_target_ = *input_.bottom_yaw_angle;
         publish_fold_state();
@@ -368,7 +368,7 @@ private:
 
     bool last_fold_request_ = false;
 
-    FoldState fold_state_ = FoldState::UnFold;
+    FoldState fold_state_ = FoldState::UnFolding;
 
     double fold_bottom_yaw_target_ = 0.0;
 
