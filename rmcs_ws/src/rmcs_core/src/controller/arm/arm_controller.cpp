@@ -70,6 +70,8 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob_switch", rotary_knob_switch);
+        // register_input("/auto_aim/pillar_pose", pillar_pose_, false);
+        // register_input("/auto_aim/pillar_pose_sequence", pillar_pose_sequence_, false);
 
         register_output("/arm/mode", arm_mode_);
         register_output("/arm/enable_flag", is_arm_enable, false);
@@ -125,6 +127,25 @@ public:
         } else {
             *is_arm_enable = true;
         }
+
+        // if (pillar_pose_sequence_.ready() && pillar_pose_.ready()
+        //     && *pillar_pose_sequence_ != last_pillar_pose_sequence_) {
+        //     last_pillar_pose_sequence_ = *pillar_pose_sequence_;
+        //     const auto& pose = *pillar_pose_;
+        //     if (switch_left == Switch::UP && switch_right == Switch::DOWN
+        //         && std::ranges::all_of(pose, [](double value) { return std::isfinite(value); }))
+        //         { const Action::PoseTarget target{
+        //             .x = pose[0],
+        //             .y = pose[1],
+        //             .z = pose[2],
+        //             .roll = pose[3],
+        //             .pitch = pose[4],
+        //             .yaw = pose[5],
+        //         };
+        //         arm_action_machine_.process(
+        //             {Action::Step::makePose(target, Action::MotionParams{})});
+        //     }
+        // }
 
         if (!collision_apply) {
             obstacle_course_.apply_collision();
@@ -634,6 +655,9 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<std::array<double, 6>> pillar_pose_;
+    InputInterface<std::uint64_t> pillar_pose_sequence_;
+    std::uint64_t last_pillar_pose_sequence_{0};
 
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6];

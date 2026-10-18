@@ -4,12 +4,16 @@
 #include "obstacle/obstacle_coordinates_map.hpp"
 #include "obstacle/obstacle_course.hpp"
 #include <Eigen/Geometry>
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <deque>
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <moveit/move_group_interface/move_group_interface.hpp>
@@ -19,11 +23,14 @@
 #include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <moveit_visual_tools/moveit_visual_tools.h>
 #include <mutex>
+#include <optional>
 #include <rclcpp/duration.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/subscription.hpp>
 #include <rclcpp/timer.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <string>
@@ -55,6 +62,11 @@ public:
         , obstacle_course_(move_group_, obstacle_coordinates_map_) {
 
         moveit_visual_tools_.loadTrajectoryPub("/display_planned_path", false);
+
+        register_input("/auto_aim/pillar_pose", pillar_pose_, false);
+        register_input("/auto_aim/pillar_pose_sequence", pillar_pose_sequence_, false);
+        register_input("/remote/switch/left", switch_left_, false);
+        register_input("/remote/switch/right", switch_right_, false);
 
         gui_sub_ = arm_action_machine_.node()->create_subscription<sensor_msgs::msg::Joy>(
             "/rviz_visual_tools_gui", 100,
@@ -100,7 +112,39 @@ public:
             visual_thread_.join();
     }
 
-    void update() override {}
+    void update() override {
+        if (!pillar_pose_.ready() || !pillar_pose_sequence_.ready()
+            || *pillar_pose_sequence_ == last_pillar_pose_sequence_) {
+            return;
+        }
+
+        last_pillar_pose_sequence_ = *pillar_pose_sequence_;
+        if (!switch_left_.ready() || !switch_right_.ready()
+            || *switch_left_ != rmcs_msgs::Switch::UP
+            || *switch_right_ != rmcs_msgs::Switch::DOWN) {
+            return;
+        }
+
+        const auto& pose = *pillar_pose_;
+        if (!std::ranges::all_of(pose, [](double value) { return std::isfinite(value); })) {
+            RCLCPP_WARN(get_logger(), "Ignoring non-finite pillar pose");
+            return;
+        }
+
+        const Action::PoseTarget target{
+            .x = pose[0],
+            .y = pose[1],
+            .z = pose[2],
+            .roll = pose[3],
+            .pitch = pose[4],
+            .yaw = pose[5],
+        };
+        {
+            std::lock_guard lock(mutex_);
+            pose_targets_pending_.push_back(target);
+        }
+        cv_.notify_one();
+    }
 
 private:
     static constexpr const char* kGoalMarkerTopic =
@@ -124,14 +168,24 @@ private:
             bool start = false;
             bool reset = false;
             bool quit = false;
+            std::optional<Action::PoseTarget> target;
             {
                 std::unique_lock lock(mutex_);
-                cv_.wait(lock, [this] { return quit_ || start_pending_ || reset_pending_; });
-                start = start_pending_;
-                reset = reset_pending_;
+                cv_.wait(lock, [this] {
+                    return quit_ || start_pending_ || reset_pending_
+                        || !pose_targets_pending_.empty();
+                });
                 quit = quit_;
-                start_pending_ = false;
-                reset_pending_ = false;
+                if (reset_pending_) {
+                    reset = true;
+                    reset_pending_ = false;
+                } else if (!pose_targets_pending_.empty()) {
+                    target = pose_targets_pending_.front();
+                    pose_targets_pending_.pop_front();
+                } else {
+                    start = start_pending_;
+                    start_pending_ = false;
+                }
             }
             if (quit)
                 break;
@@ -139,25 +193,26 @@ private:
                 reset_visual();
                 continue;
             }
-            if (start)
-                plan_and_visualize();
+            if (target) {
+                plan_and_visualize({Action::Step::makePose(*target, Action::MotionParams{})});
+            } else if (start) {
+                plan_and_visualize(action_dictionary_.helper_build_chunk(
+                    {"extract_lf", "extract_mine", "auto_walk"}));
+            }
         }
     }
 
-    void plan_and_visualize() {
+    void plan_and_visualize(const std::vector<Action::Step>& steps) {
         obstacle_course_.set_operation(
             "energy_unit_left_back", obstacle::CollisionObjectOperation::IDLE);
 
         obstacle_course_.apply_collision();
 
-        const Action::PoseTarget target{-0.347, -0.105, 0.178, -1.571, -1.527, -0.020};
         uint64_t previous_id = 0;
         if (const auto current = arm_action_machine_.get_trajectory())
             previous_id = current->request_id;
 
-        // arm_action_machine_.process({Action::Step::makePose(target, Action::MotionParams{})});
-        arm_action_machine_.process(
-            action_dictionary_.helper_build_chunk({"extract_lf", "extract_mine", "auto_walk"}));
+        arm_action_machine_.process(steps);
 
         const auto result = wait_for_plan(previous_id);
         if (!result) {
@@ -346,6 +401,13 @@ private:
     bool start_pending_{false};
     bool reset_pending_{false};
     bool quit_{false};
+    std::deque<Action::PoseTarget> pose_targets_pending_;
+
+    InputInterface<std::array<double, 6>> pillar_pose_;
+    InputInterface<std::uint64_t> pillar_pose_sequence_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<rmcs_msgs::Switch> switch_right_;
+    std::uint64_t last_pillar_pose_sequence_{0};
 
     moveit::core::RobotStatePtr simulated_state_;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_states_pub_;

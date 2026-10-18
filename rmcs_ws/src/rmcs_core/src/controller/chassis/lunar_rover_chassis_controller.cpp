@@ -40,7 +40,7 @@ public:
         register_output(
             "/chassis/big_yaw/target_angle_error", chassis_big_yaw_target_angle_error_, NAN);
         register_input("/chassis/big_yaw/angle", chassis_big_yaw_angle_);
-        register_output("/chassis/control_power_limit", chassis_control_power_limit_, 120.0);
+        register_output("/chassis/control_power_limit", chassis_control_power_limit_, 70.0);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
         register_output("/chassis/expected_control_velocity", expected_chassis_control_velocity_);
 
@@ -53,7 +53,7 @@ public:
         static bool initial_check_done_ = false;
 
         auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
+        auto switch_left = *switch_left_;
 
         if (!initial_check_done_) {
             reset_motor();
@@ -139,8 +139,8 @@ private:
 
     void mode_selection() {
         auto switch_right = *switch_right_;
-        auto switch_left  = *switch_left_;
-        auto keyboard     = *keyboard_;
+        auto switch_left = *switch_left_;
+        auto keyboard = *keyboard_;
         using namespace rmcs_msgs;
         if (switch_left == Switch::MIDDLE
             && (switch_right == Switch::MIDDLE || switch_right == Switch::DOWN)) {
@@ -216,15 +216,15 @@ private:
         if (new_mode == yaw_control_mode_)
             return;
         double old_feedback = get_yaw_feedback();
-        yaw_control_mode_   = new_mode;
+        yaw_control_mode_ = new_mode;
         double new_feedback = get_yaw_feedback();
         yaw_target_angle_ += (new_feedback - old_feedback);
     }
     void reset_motor() {
         *chassis_big_yaw_target_angle_error_ = NAN;
-        *chassis_control_velocity_           = {NAN, NAN, NAN};
-        *chassis_control_power_limit_        = 0.0;
-        virtual_buffer_energy_               = virtual_buffer_energy_limit_;
+        *chassis_control_velocity_ = {NAN, NAN, NAN};
+        *chassis_control_power_limit_ = 0.0;
+        virtual_buffer_energy_ = virtual_buffer_energy_limit_;
     }
     bool is_stair_mode() {
         return *arm_mode_ == rmcs_msgs::ArmMode::Auto_Up_One_Stairs
@@ -233,7 +233,7 @@ private:
     }
     void calculate_virtual_energy() {
         // Virtual buffer energy power control
-        constexpr double dt  = 0.001; // 1ms update cycle
+        constexpr double dt = 0.001; // 1ms update cycle
         double chassis_power = *chassis_power_;
         virtual_buffer_energy_ += dt * (power_limit_ - chassis_power);
         virtual_buffer_energy_ =
@@ -250,7 +250,7 @@ private:
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
 
     InputInterface<rmcs_msgs::ArmMode> arm_mode_;
-    rmcs_msgs::ArmMode last_arm_mode_    = rmcs_msgs::ArmMode::None;
+    rmcs_msgs::ArmMode last_arm_mode_ = rmcs_msgs::ArmMode::None;
     rmcs_msgs::ChassisMode chassis_mode_ = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
@@ -259,10 +259,10 @@ private:
     OutputInterface<double> chassis_control_power_limit_;
     OutputInterface<double> speed_limit_;
 
-    static constexpr double power_limit_                 = 120.0;
+    static constexpr double power_limit_ = 70.0;
     static constexpr double virtual_buffer_energy_limit_ = 10.0;
-    double virtual_buffer_energy_                        = virtual_buffer_energy_limit_;
-    double angular_velocity_limit_                       = 10.0;
+    double virtual_buffer_energy_ = virtual_buffer_energy_limit_;
+    double angular_velocity_limit_ = 10.0;
     pid::PidCalculator following_velocity_controller_;
     InputInterface<double> joint1_theta_;
     InputInterface<double> custom_big_yaw_;
