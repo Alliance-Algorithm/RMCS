@@ -78,6 +78,12 @@ value_broadcaster:
       - /wheel_leg/rl/performance/pd_us
       - /wheel_leg/rl/observation/command/forward
       - /wheel_leg/rl/observation/command/yaw
+      - /wheel_leg/rl/heading/active
+      - /wheel_leg/rl/heading/yaw
+      - /wheel_leg/rl/heading/target
+      - /wheel_leg/rl/heading/error
+      - /wheel_leg/rl/heading/raw_yaw_rate
+      - /wheel_leg/rl/heading/limited_yaw_rate
       - /wheel_leg/rl/observation/height
       - /wheel_leg/rl/observation/projected_gravity/z
       - /wheel_leg/rl/action/left_hip_joint
@@ -145,23 +151,63 @@ wheel_leg:
 
 rl_controller:
   ros__parameters:
-    # Compatible V6 actors share the robot control contract.
-    model_path: "models/wheel_leg/policy.onnx"
-    inference_timeout: 0.06
-    rl_history_length: 1
+    # Shared rmcs_rl policy interface: feature order, scaling and actor mapping live here.
+    policy_rate: 50.0
+    history_length: 1
+    rl_obs_size: 35
     rl_feature_size: 35
-    # Keep the RL command envelope aligned with the chassis limits below.
-    vx_max: 0.5
-    yaw_rate_max: 1.0
-    rl_inference_frequency: 50.0
+    rl_action_size: 6
+    obs_clip: 100.0
+    joint_names: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint, left_wheel, right_wheel]
+    # These sources are calibrated model coordinates, after leg_motor_to_model / IMU alignment.
+    joint_base_path: "/wheel_leg/rl/model"
+    default_joint_pos:
+      left_hip_joint: -0.42
+      left_knee_joint: 0.13742282595395358
+      right_hip_joint: 0.42
+      right_knee_joint: -0.1374155762580851
+      left_wheel: 0.0
+      right_wheel: 0.0
+    observation_terms:
+      - index=0 path=/wheel_leg/rl/input/command take=x name=command/forward clip=-100:100
+      - index=1 path=/wheel_leg/rl/input/command take=y name=command/lateral clip=-100:100
+      - index=2 path=/wheel_leg/rl/input/command take=z name=command/yaw clip=-100:100
+      - index=3 path=/wheel_leg/rl/input/height scale=5.0 name=height clip=-100:100
+      - index=4 path=/wheel_leg/rl/input/angular_velocity take=vec3 scale=0.5 name=angular_velocity clip=-100:100
+      - index=7 path=/wheel_leg/rl/input/projected_gravity take=vec3 name=projected_gravity clip=-100:100
+      - index=10 type=joint_pos joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint relative=true name=joint_position clip=-100:100
+      - index=14 type=joint_pos joints=left_wheel,right_wheel zero=true name=joint_position_wheels clip=-100:100
+      - index=16 type=joint_vel joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint,left_wheel,right_wheel scale=0.1 name=joint_velocity clip=-100:100
+      - index=22 type=last_action indices=0,1,2,3,4,5 name=previous_action clip=-100:100
+      - index=28 type=constant value=1,0,0,0,0,0,0 name=context clip=-100:100
+    # Same mapping as RlBridge: scale first, clip in target units.
+    # Legs output position offsets (rad); wheels output wheel-side speed (rad/s).
+    action_terms:
+      - index=0 output=/wheel_leg/rl/target/left_hip_joint scale=0.25 clip=-0.75:0.75
+      - index=1 output=/wheel_leg/rl/target/left_knee_joint scale=0.25 clip=-0.75:0.75
+      - index=2 output=/wheel_leg/rl/target/right_hip_joint scale=0.25 clip=-0.75:0.75
+      - index=3 output=/wheel_leg/rl/target/right_knee_joint scale=0.25 clip=-0.75:0.75
+      - index=4 output=/wheel_leg/rl/target/left_wheel scale=10.0 clip=-90:90
+      - index=5 output=/wheel_leg/rl/target/right_wheel scale=10.0 clip=-90:90
+    # V7 paired-107 real-robot actor, matching dev/wheel_leg_rl.
+    rl_model_path: "models/wheel_leg/recovery_candidate.onnx"
+    model_type: "wheel_leg_v7"
+    leg_winding_version: "paired_branch107_v1"
+    expected_model_spec_sha256: "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997"
+    inference_timeout: 0.06
+    # Use dev's V7 real-robot command envelope.
+    vx_max: 3.0
+    yaw_rate_max: 14.137166941154069
+    heading_hold_enabled: true
+    heading_hold_gain: 5.0
+    heading_hold_yaw_rate_max: 6.283185307179586
     # Update feedback PD and recovery references every 1 ms; policy targets stay at 50 Hz.
     pd_frequency: 1000.0
     recovery_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
-    # Frozen V6 references/geometry are runtime candidates; these files do not
-    # grant motor calibration or real-robot recovery readiness.
-    recovery_profile_path: "models/wheel_leg/deployment/v6_recovery_profiles_v1.json"
-    height_lookup_path: "models/wheel_leg/deployment/v6_height_lookup_v1.json"
+    # V7 paired-107 actor and matching recovery/height geometry.
+    recovery_profile_path: "models/wheel_leg/deployment/v7_recovery_profiles_107_v2.json"
+    height_lookup_path: "models/wheel_leg/deployment/v7_height_lookup_107.json"
     recovery_enabled: false
     recovery_profile_ready: false
     # Shared real sensor age/skew guards apply to ordinary RL and recovery.
@@ -169,7 +215,7 @@ rl_controller:
     recovery_imu_age_s: 0.02
     recovery_acceleration_age_s: 0.03
     recovery_sensor_skew_s: 0.01
-    # V6 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
+    # V7 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
     # and its encoder/gyro response thresholds. It is a conditional support
     # estimate; queued CAN torque and motor-current truth are not substituted
     # for measured contact. Hardware readiness stays false pending validation.
@@ -183,33 +229,29 @@ rl_controller:
     # The four DM drives were zeroed at a 105-degree mechanical pose; their
     # motor zero is neither the URDF assembly zero nor the policy nominal pose.
     # The independent 1:1 chain drives need four API-to-model signs and offsets;
-    # do not add a hip/knee differential term or repeat the DM reversed sign.
+    # paired-107 constrains left/right relative targets; actuator calibration
+    # remains the independently calibrated motor-to-model matrix below.
     # Leg P order: left_hip, left_knee-drive, right_hip, right_knee-drive.
     # q_model = leg_motor_to_model(4x4 row-major) * q_api + leg_model_offsets;
     # tau_motor = leg_motor_to_model^T * tau_model.
-    # The physical 105-degree zero and IMU mounting were confirmed. V6 six-axis
-    # mapping and multipoint mechanism verification have not yet been completed.
+    # The dev real-robot profile keeps this default commissioning gate disarmed.
     calibration_ready: false
     # Calibration: .script/identification/calibration/v6_pair_from_dev_rmcs_rl.json.
-    # Driver API already applies reversed with bias=0. V6 axes invert the V5
-    # model axes, hence q_v6 = -q_api + offset. Never reverse the raw angle twice.
+    # Driver API already applies reversed with bias=0. V7 axes invert the V5
+    # model axes, hence q_v7 = -q_api + offset. Never reverse the raw angle twice.
     leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
                          0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
     leg_model_offsets: [1.6, 2.93, -1.6, -2.93]
     # DjiMotor applies the hardware reduction ratio to wheel-side feedback/torque.
     # The policy target is already a wheel-output speed: do not multiply it again.
-    # V6 preserves the V5 wheel axes in source; individual hardware signs await measurement.
+    # Preserve the verified wheel-axis scaling; hardware signs remain separately measured.
     wheel_model_scale: [1.0, 1.0]
-    nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
 
     # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
-    # The user-confirmed physical upper stop is 107..108 degrees. Interpolating
-    # the upstream G0 105/110-degree samples gives d(108)=1.3889088544 rad.
-    # These measured-feedback guards are separate from the frozen V6 40..105
-    # geometry/target domain. Do not change the motor zero or extend that LUT:
+    # V7 paired-107 signed relative target bounds and measured-feedback guard.
+    # Do not change the motor zero or extend the matching V7 geometry:
     # an initially extended leg may fold inward without inventing support.
-    # This default profile stays disarmed; use the recovery commissioning profile
-    # for the explicitly enabled, supervised real-robot test.
+    # Keep the dev default profile disarmed pending commissioning validation.
     soft_limits_ready: false
     hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
     hinge_bias: [0.0, 0.0]
@@ -240,7 +282,7 @@ rl_controller:
     prepare_max_angular_velocity: 0.35
     prepare_max_joint_velocity: 0.5
     prepare_stable_seconds: 0.25
-    # V6 takes over near the actor's upright nominal reset without requiring
+    # V7 takes over near the actor's upright nominal reset without requiring
     # static balance under PREPARE PD. Allow bounded gas-spring load deflection;
     # gyro/axis speed, strict sample freshness and measured hinge limits still
     # gate entry. These engineering capture bounds do not qualify hardware.
@@ -255,13 +297,13 @@ rl_controller:
 
 wheel_leg_chassis_controller:
   ros__parameters:
-    vx_max: 0.5
+    vx_max: 3.0
     vy_max: 0.0
-    yaw_rate_max: 1.0
-    spin_yaw_rate: 1.0
-    deadzone: 0.08
+    yaw_rate_max: 6.283185307179586
+    spin_yaw_rate: 14.137166941154069
+    deadzone: 0.05
     command_height_min: 0.23
-    command_height_max: 0.43
+    command_height_max: 0.42
     default_command_height: 0.23
     height_rate_max: 0.6666666666666666
     height_step: 0.01
