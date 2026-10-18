@@ -30,10 +30,10 @@ class WheelLegChassisController final
 public:
     explicit WheelLegChassisController()
         : Node{get_component_name(), node::options()}
-        , vx_max_(get_parameter_or<double>("vx_max", 0.5))
+        , vx_max_(get_parameter_or<double>("vx_max", 3.0))
         , vy_max_(get_parameter_or<double>("vy_max", 0.0))
-        , yaw_rate_max_(get_parameter_or<double>("yaw_rate_max", 1.0))
-        , spin_yaw_rate_(get_parameter_or<double>("spin_yaw_rate", 1.0)) {
+        , yaw_rate_max_(get_parameter_or<double>("yaw_rate_max", 6.283185307179586))
+        , spin_yaw_rate_(get_parameter_or<double>("spin_yaw_rate", 14.137166941154069)) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -109,7 +109,8 @@ private:
 
         command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
         command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
-        default_command_height_ = get_parameter_or<double>("default_command_height", command_height_min_);
+        default_command_height_ =
+            get_parameter_or<double>("default_command_height", command_height_min_);
         height_rate_max_ = get_parameter_or<double>("height_rate_max", 0.02);
         height_step_ = get_parameter_or<double>("height_step", 0.01);
 
@@ -130,8 +131,8 @@ private:
             height_step_};
         if (!std::ranges::all_of(values, [](double value) { return std::isfinite(value); })
             || vx_max_ <= 0.0 || vy_max_ < 0.0 || yaw_rate_max_ <= 0.0 || spin_yaw_rate_ <= 0.0
-            || spin_yaw_rate_ > yaw_rate_max_ || deadzone_ < 0.0 || deadzone_ >= 1.0
-            || command_height_min_ <= 0.0 || command_height_min_ > command_height_max_
+            || deadzone_ < 0.0 || deadzone_ >= 1.0 || command_height_min_ <= 0.0
+            || command_height_min_ > command_height_max_
             || default_command_height_ < command_height_min_
             || default_command_height_ > command_height_max_ || height_rate_max_ <= 0.0
             || height_step_ < 0.0)
@@ -276,13 +277,13 @@ private:
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
-    double vx_max_ = 0.5;
+    double vx_max_ = 3.0;
     double vy_max_ = 0.0;
-    double yaw_rate_max_ = 1.0;
-    double spin_yaw_rate_ = 1.0;
-    double deadzone_ = 0.08;
+    double yaw_rate_max_ = 6.283185307179586;
+    double spin_yaw_rate_ = 14.137166941154069;
+    double deadzone_ = 0.05;
     double command_height_min_ = 0.23;
-    double command_height_max_ = 0.43;
+    double command_height_max_ = 0.42;
     double default_command_height_ = 0.23;
     double height_rate_max_ = 0.02;
     double height_step_ = 0.01;
