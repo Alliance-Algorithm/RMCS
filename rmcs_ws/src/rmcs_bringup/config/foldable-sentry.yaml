@@ -50,7 +50,7 @@ foldable_sentry:
     roll_motor_zero_point: 14733
     top_yaw_motor_zero_point: 3433
     pitch_motor_zero_point: 28369
-    bottom_yaw_motor_zero_point: 45494
+    bottom_yaw_motor_zero_point: 3413
 
 auto_aim_capturer:
   ros__parameters:
