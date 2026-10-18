@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import re
+import shlex
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+DEFAULT_REMOTE = os.environ.get("RMCS_REMOTE", "remote")
+DEFAULT_REMOTE_DIR = os.environ.get("RMCS_REMOTE_MAP_DIR", "/home/ubuntu/record-livox/maps")
+DEFAULT_DEST = os.environ.get("RMCS_PATH") or "/workspaces/RMCS"
+DEFAULT_INTERVAL = 5.0
+DEFAULT_PID_FILE = "/tmp/rmcs-map-watch.pid"
+DEFAULT_LOG_FILE = "/tmp/rmcs-map-watch.log"
+NAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def log(message):
+    print(f"[map-watch {time.strftime('%F %T')}] {message}", flush=True)
+
+
+def run_ssh(remote, command, timeout):
+    return subprocess.run(
+        [
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            f"ConnectTimeout={max(1, int(timeout))}",
+            remote,
+            command,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+def list_remote_maps(remote, remote_dir, timeout):
+    quoted_dir = shlex.quote(remote_dir)
+    command = (
+        f"if [ -d {quoted_dir} ]; then "
+        f"find {quoted_dir} -maxdepth 1 -type f -name '*.pcd' -printf '%f\\t%s\\n'; "
+        f"fi"
+    )
+    result = run_ssh(remote, command, timeout)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"ssh exited with {result.returncode}")
+
+    maps = {}
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        name, separator, size = line.rpartition("\t")
+        if not separator or not name or not NAME_PATTERN.match(name):
+            log(f"skip unexpected remote entry: {line!r}")
+            continue
+        try:
+            maps[name] = int(size)
+        except ValueError:
+            log(f"skip malformed remote entry: {line!r}")
+    return maps
+
+
+def download(remote, remote_dir, name, size, dest_dir):
+    dest = dest_dir / name
+    temp = dest_dir / f".{name}.part"
+    source = f"{remote}:{remote_dir}/{name}"
+    try:
+        result = subprocess.run(
+            ["scp", "-q", "-p", source, str(temp)],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or f"scp exited with {result.returncode}")
+        actual_size = temp.stat().st_size
+        if actual_size != size:
+            raise RuntimeError(f"size mismatch for {name}: expected {size}, got {actual_size}")
+        os.replace(temp, dest)
+    finally:
+        temp.unlink(missing_ok=True)
+    log(f"pulled {name} ({size} bytes) -> {dest}")
+
+
+def sync_once(remote, remote_dir, dest, timeout):
+    remote_maps = list_remote_maps(remote, remote_dir, timeout)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    pulled = 0
+    for name, size in sorted(remote_maps.items()):
+        if size <= 0:
+            continue
+        local = dest / name
+        if local.is_file() and local.stat().st_size == size:
+            continue
+        download(remote, remote_dir, name, size, dest)
+        pulled += 1
+    return pulled
+
+
+def read_pid(pid_file):
+    try:
+        return int(Path(pid_file).read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def stop_daemon(pid_file):
+    pid = read_pid(pid_file)
+    if pid is None or not pid_alive(pid):
+        print(f"map-watch is not running (pid file: {pid_file})")
+        Path(pid_file).unlink(missing_ok=True)
+        return 0
+
+    os.kill(pid, signal.SIGTERM)
+    for _ in range(50):
+        if not pid_alive(pid):
+            break
+        time.sleep(0.1)
+    if pid_alive(pid):
+        os.kill(pid, signal.SIGKILL)
+    Path(pid_file).unlink(missing_ok=True)
+    print(f"map-watch stopped (pid {pid})")
+    return 0
+
+
+def run_loop(args, once):
+    dest = Path(args.dest).expanduser()
+    log(f"watching {args.remote}:{args.remote_dir} -> {dest} (interval {args.interval:g}s)")
+    while True:
+        try:
+            pulled = sync_once(args.remote, args.remote_dir, dest, args.timeout)
+            if pulled:
+                log(f"pulled {pulled} map(s) to {dest}")
+        except Exception as exc:
+            log(f"error: {exc}")
+            if once:
+                return 1
+        if once:
+            return 0
+        time.sleep(args.interval)
+
+
+def daemonize(args):
+    pid_file = Path(args.pid_file)
+    pid = read_pid(pid_file)
+    if pid is not None and pid_alive(pid):
+        sys.exit(f"map-watch is already running (pid {pid})")
+
+    if os.fork() > 0:
+        print(f"map-watch started (pid file: {pid_file}, log: {args.log_file})")
+        sys.exit(0)
+    os.setsid()
+    if os.fork() > 0:
+        os._exit(0)
+
+    with open(args.log_file, "a", buffering=1) as log_stream:
+        os.dup2(log_stream.fileno(), sys.stdout.fileno())
+        os.dup2(log_stream.fileno(), sys.stderr.fileno())
+    sys.stdin = open(os.devnull, "r")
+
+    pid_file.write_text(str(os.getpid()))
+    try:
+        run_loop(args, once=False)
+    finally:
+        pid_file.unlink(missing_ok=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Watch robot-side PCD maps and pull them into the local RMCS directory."
+    )
+    parser.add_argument("--remote", default=DEFAULT_REMOTE, help="SSH host alias")
+    parser.add_argument("--remote-dir", default=DEFAULT_REMOTE_DIR, help="remote PCD directory")
+    parser.add_argument("--dest", default=DEFAULT_DEST, help="local destination directory")
+    parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL, help="poll interval")
+    parser.add_argument("--timeout", type=float, default=15.0, help="SSH timeout in seconds")
+    parser.add_argument("--once", action="store_true", help="run a single synchronization pass")
+    parser.add_argument("--daemon", action="store_true", help="run in the background")
+    parser.add_argument("--stop", action="store_true", help="stop the background process")
+    parser.add_argument("--pid-file", default=DEFAULT_PID_FILE)
+    parser.add_argument("--log-file", default=DEFAULT_LOG_FILE)
+    args = parser.parse_args()
+
+    if args.stop:
+        return stop_daemon(args.pid_file)
+    if args.once and args.daemon:
+        parser.error("--once and --daemon are mutually exclusive")
+    if args.daemon:
+        daemonize(args)
+        return 0
+
+    try:
+        return run_loop(args, once=args.once)
+    except KeyboardInterrupt:
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

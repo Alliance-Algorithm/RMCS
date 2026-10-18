@@ -39,7 +39,7 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "test"
+    endpoint: "tcd-train"
     enable_goal_topic_forward: true
 
 foldable_sentry:
@@ -141,10 +141,10 @@ gimbal_controller:
     roll_folded_angle: 3.264
     roll_unfold_angle: 6.2808
     top_yaw_folded_angle: 6.21
-    pitch_folded_angle: 0.505
+    pitch_folded_angle: 0.63
 
     pitch_upper_limit: -0.52
-    pitch_lower_limit: 0.236
+    pitch_lower_limit: 0.30
 
     fold_ready_time: 0.05
     fold_velocity_tolerance: 0.4
