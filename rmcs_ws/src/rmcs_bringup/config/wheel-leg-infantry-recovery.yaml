@@ -34,6 +34,17 @@ value_broadcaster:
       - /chassis/control_height
       - /wheel_leg/dm_control_ready
       - /wheel_leg/enable_request
+      - /wheel_leg/joint_position_pd
+      - /wheel_leg/joint_position_kp
+      - /wheel_leg/joint_position_kd
+      - /wheel_leg/left_hip_joint/control_angle
+      - /wheel_leg/left_knee_joint/control_angle
+      - /wheel_leg/right_hip_joint/control_angle
+      - /wheel_leg/right_knee_joint/control_angle
+      - /wheel_leg/left_hip_joint/tx_kind
+      - /wheel_leg/left_knee_joint/tx_kind
+      - /wheel_leg/right_hip_joint/tx_kind
+      - /wheel_leg/right_knee_joint/tx_kind
       - /wheel_leg/imu/sensor_gravity/x
       - /wheel_leg/imu/sensor_gravity/y
       - /wheel_leg/imu/sensor_gravity/z
@@ -133,7 +144,10 @@ wheel_leg_identification_recorder:
 wheel_leg:
   ros__parameters:
     board_serial: ""
-    joint_control_mode: "torque"
+    # Restart with "torque" to restore host PD; calibration/model stay identical.
+    joint_control_mode: "position_pd"
+    joint_position_kp: 160.0
+    joint_position_kd: 2.5
     require_enable_request: true
     # Only an armed RL session may keep control at left-MIDDLE/right-DOWN.
     allow_spin_switch: true
@@ -150,8 +164,8 @@ wheel_leg:
     dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
     dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
 
-    # This configuration uses zero-Kp/Kd MIT pure-torque commands.
-    # All six drive loops run on the PC (not DM internal position control).
+    # Legs use DM MIT position PD; saturated samples fall back to bounded torque.
+    # Wheel speed control stays on the host. Verify drive current protection.
 
 rl_controller:
   ros__parameters:

@@ -37,6 +37,20 @@ void RlController::before_updating() {
     // Executor::start sets /predefined/update_rate AFTER before_updating().
     // Calculate divisors on the first update instead.
     last_reset_count_ = *reset_count_;
+    use_motor_position_pd_ = motor_position_pd_.ready() && *motor_position_pd_;
+    if (use_motor_position_pd_) {
+        if (policy_profile_.name != kV6PolicyProfile.name || !motor_position_kp_.ready()
+            || !motor_position_kd_.ready() || *motor_position_kp_ != policy_profile_.leg_kp
+            || *motor_position_kd_ != policy_profile_.leg_kd || takeover_blend_seconds_ != 0.0)
+            throw std::runtime_error("Motor position PD requires native gains and direct takeover");
+        if ((leg_jacobian_.array().abs() - Eigen::Matrix4d::Identity().array()).abs().maxCoeff()
+            > 1e-9)
+            throw std::runtime_error("Motor position PD requires independent signed 1:1 axes");
+    }
+    RCLCPP_INFO(
+        get_logger(), "Joint PD backend: %s, Kp %.1f, Kd %.1f",
+        use_motor_position_pd_ ? "DM internal MIT" : "host torque", policy_profile_.leg_kp,
+        policy_profile_.leg_kd);
     const bool native_profile_ready =
         policy_profile_.name != kV6PolicyProfile.name || joint_reference_profile_ready_;
     if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_
@@ -60,6 +74,9 @@ void RlController::before_updating() {
 void RlController::clear_outputs_() {
     for (auto& output : torque_outputs_)
         *output = 0.0;
+    for (auto& output : angle_outputs_)
+        *output = std::numeric_limits<double>::quiet_NaN();
+    *joint_command_ns_ = 0;
 }
 
 void RlController::log_fault_(

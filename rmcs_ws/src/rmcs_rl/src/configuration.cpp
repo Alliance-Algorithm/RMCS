@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include <numbers>
 #include <ranges>
 #include <stdexcept>
@@ -107,8 +108,15 @@ RlController::RlController()
         }
         if (i < 4) {
             register_input(prefix + "/fault_code", fault_inputs_[i]);
+            register_output(
+                prefix + "/control_angle", angle_outputs_[i],
+                std::numeric_limits<double>::quiet_NaN());
         }
     }
+    register_input("/wheel_leg/joint_position_pd", motor_position_pd_, false);
+    register_input("/wheel_leg/joint_position_kp", motor_position_kp_, false);
+    register_input("/wheel_leg/joint_position_kd", motor_position_kd_, false);
+    register_output("/wheel_leg/joint_command_steady_ns", joint_command_ns_, std::uint64_t{0});
     register_input("/wheel_leg/feedback_fresh", feedback_fresh_);
     register_input("/wheel_leg/imu/quaternion", orientation_);
     register_input("/wheel_leg/imu/angular_velocity", gyro_);
