@@ -144,8 +144,8 @@ wheel_leg_identification_recorder:
 wheel_leg:
   ros__parameters:
     board_serial: ""
-    # Restart with "torque" to restore host PD; calibration/model stay identical.
-    joint_control_mode: "position_pd"
+    # Select "position_pd" and restart to use motor-side PD with the same calibration/model.
+    joint_control_mode: "torque"
     joint_position_kp: 160.0
     joint_position_kd: 2.5
     require_enable_request: true
@@ -164,8 +164,8 @@ wheel_leg:
     dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
     dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
 
-    # Legs use DM MIT position PD; saturated samples fall back to bounded torque.
-    # Wheel speed control stays on the host. Verify drive current protection.
+    # Host PD computes leg effort; DM MIT frames carry zero position/velocity gains.
+    # Wheel speed control also stays on the host.
 
 rl_controller:
   ros__parameters:
