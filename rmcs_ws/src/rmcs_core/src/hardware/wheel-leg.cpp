@@ -494,6 +494,7 @@ private:
         }
 
         void publish_drive_readiness() {
+            const bool was_ready = *dm_control_ready_output_;
             *feedback_fresh_output_ = feedback_fresh();
             *dm_feedback_fresh_output_ = dm_feedback_fresh();
             const std::array pairs{dm_pair_feedback(0), dm_pair_feedback(1)};
@@ -517,6 +518,28 @@ private:
                 const bool both_ready = ready_side(0) && ready_side(1);
                 *dm_control_ready_output_ =
                     *feedback_fresh_output_ && both_ready && position_pd_command_safe();
+            }
+            if (use_motor_position_pd_ && was_ready && !*dm_control_ready_output_
+                && (dm_enabled_[0].load(std::memory_order_relaxed)
+                    || dm_enabled_[1].load(std::memory_order_relaxed))) {
+                const auto* issue = position_pd_command_issue();
+                const auto stamp = joint_command_ns_.ready() ? *joint_command_ns_ : 0;
+                const double age_ms =
+                    stamp == 0
+                        ? -1.0
+                        : (static_cast<double>(now_ns()) - static_cast<double>(stamp)) * 1e-6;
+                RCLCPP_ERROR(
+                    status_.get_logger(),
+                    "DM position PD readiness lost: reason=%s feedback_fresh=%d "
+                    "command_age_ms=%.3f status[LH,LK,RH,RK]=[%d,%d,%d,%d] "
+                    "torque_nm=[%.3f,%.3f,%.3f,%.3f] target_api=[%.4f,%.4f,%.4f,%.4f]",
+                    issue ? issue : "drive_status_or_feedback", *feedback_fresh_output_, age_ms,
+                    hip_motors_[0].status_code(), knee_motors_[0].status_code(),
+                    hip_motors_[1].status_code(), knee_motors_[1].status_code(),
+                    hip_motors_[0].torque(), knee_motors_[0].torque(), hip_motors_[1].torque(),
+                    knee_motors_[1].torque(), hip_motors_[0].control_angle(),
+                    knee_motors_[0].control_angle(), hip_motors_[1].control_angle(),
+                    knee_motors_[1].control_angle());
             }
             dm_all_disabled_.store(
                 wheel_leg_dm_pair_confirmed_disabled(pairs[0])
@@ -727,29 +750,33 @@ private:
             return motor.generate_command(fresh ? motor.control_torque() : 0.0);
         }
 
-        bool position_pd_command_safe() const {
+        bool position_pd_command_safe() const { return position_pd_command_issue() == nullptr; }
+
+        const char* position_pd_command_issue() const {
             if (!use_motor_position_pd_)
-                return true;
+                return nullptr;
             const auto torque_safe = [](const device::DmMotor& motor) {
                 return motor.torque_feedback_within_limit();
             };
             if (!std::ranges::all_of(hip_motors_, torque_safe)
                 || !std::ranges::all_of(knee_motors_, torque_safe))
-                return false;
+                return "measured_torque_limit";
             if (!joint_command_ns_.ready() || *joint_command_ns_ == 0)
                 // Startup uses zero-gain MIT frames until the controller sees
                 // enabled feedback. No position target is applied in that gap.
-                return true;
+                return nullptr;
             const auto stamp = *joint_command_ns_;
             const auto now = static_cast<std::uint64_t>(now_ns());
             if (now < stamp || now - stamp >= 10'000'000)
-                return false;
+                return "expired_command";
             const auto valid_target = [](const device::DmMotor& motor) {
                 return motor.control_angle_ready()
                     && motor.position_target_valid(motor.control_angle());
             };
-            return std::ranges::all_of(hip_motors_, valid_target)
-                && std::ranges::all_of(knee_motors_, valid_target);
+            if (!std::ranges::all_of(hip_motors_, valid_target)
+                || !std::ranges::all_of(knee_motors_, valid_target))
+                return "invalid_position_target";
+            return nullptr;
         }
 
         template <typename Builder>
