@@ -104,6 +104,11 @@ private:
     std::array<InputInterface<double>, 6> max_torque_inputs_;
     std::array<InputInterface<double>, 6> torque_feedback_inputs_;
     std::array<OutputInterface<double>, 6> torque_outputs_;
+    std::array<OutputInterface<double>, 4> angle_outputs_;
+    InputInterface<bool> motor_position_pd_;
+    InputInterface<double> motor_position_kp_, motor_position_kd_;
+    OutputInterface<std::uint64_t> joint_command_ns_;
+    bool use_motor_position_pd_ = false;
     std::array<InputInterface<int>, 4> fault_inputs_;
     std::array<InputInterface<std::uint64_t>, 6> motor_feedback_sequences_;
     std::array<InputInterface<std::uint64_t>, 6> motor_feedback_ns_;
