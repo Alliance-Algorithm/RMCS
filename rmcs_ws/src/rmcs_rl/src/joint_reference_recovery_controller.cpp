@@ -176,8 +176,15 @@ void JointReferenceRecoveryController::fail_(int code) {
 }
 
 void JointReferenceRecoveryController::start_thrust_(const Vector4f& reference) {
-    thrust_anchor_ = reference + paired_delta_(config_.thrust.cast<float>(), reference);
-    plant_pitch_ = continuous_pitch_;
+    // Keep a grounded push between low capture and loaded support, aligned
+    // to gravity, so the legs can retract before the body starts descending.
+    Vector4f goal = config_.thrust.cast<float>();
+    if (push_off_required_) {
+        const Vector4f capture = config_.nominal.cast<float>();
+        goal = capture + 0.5f * paired_delta_(config_.support.cast<float>(), capture);
+    }
+    thrust_anchor_ = reference + paired_delta_(goal, reference);
+    plant_pitch_ = push_off_required_ ? 0.0f : continuous_pitch_;
     enter_(JointReferenceRecoveryPhase::kThrust);
 }
 
