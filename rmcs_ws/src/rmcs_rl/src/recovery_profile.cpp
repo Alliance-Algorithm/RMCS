@@ -1,5 +1,6 @@
 #include "recovery_profile.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <memory>
@@ -101,6 +102,7 @@ RecoveryProfile RecoveryProfile::load(
     controller.nominal = command.head<4>();
     controller.support = controller.nominal;
     controller.fold = policy_order(profile.at("targets").at("fold").at("control6_rad")).head<4>();
+    controller.insertion_fold = controller.fold;
     controller.thrust =
         policy_order(profile.at("targets").at("thrust").at("control6_rad")).head<4>();
     controller.root_axis_signs = vector<4>(profile.at("axis_signs"));
@@ -125,6 +127,31 @@ RecoveryProfile RecoveryProfile::load(
             || std::abs(table.wheel_axis_b.squaredNorm() - 1.0f) > 1e-5f
             || !std::isfinite(table.hip_reference_rad) || table.wheel_radius_m <= 0.0f)
             throw std::runtime_error("Invalid frozen V6 height lookup");
+        // Keep two degrees from the lower stop. The smaller suspended leg
+        // reaches farther under the shell before its wheel engages the floor.
+        const auto knees = data.at("passive_inner_deg").get<std::vector<float>>();
+        if (knees.size() != table.delta_rad.size()
+            || !std::ranges::all_of(knees, [](float value) { return std::isfinite(value); }))
+            throw std::runtime_error("Invalid insertion knee lookup");
+        const float knee = lookup.at("passive_knee_domain_deg").at(0).get<float>() + 2.0f;
+        bool insertion_pose_found = false;
+        for (std::size_t upper = 1; upper < knees.size(); ++upper) {
+            const auto lower = upper - 1;
+            if (knee < std::min(knees[lower], knees[upper])
+                || knee > std::max(knees[lower], knees[upper]) || knees[lower] == knees[upper])
+                continue;
+            const float delta = std::lerp(
+                table.delta_rad[lower], table.delta_rad[upper],
+                (knee - knees[lower]) / (knees[upper] - knees[lower]));
+            const int hip = static_cast<int>(2 * side);
+            const double mean = controller.fold.segment<2>(hip).mean();
+            controller.insertion_fold[hip] = mean - delta / 2.0;
+            controller.insertion_fold[hip + 1] = mean + delta / 2.0;
+            insertion_pose_found = true;
+            break;
+        }
+        if (!insertion_pose_found)
+            throw std::runtime_error("Insertion knee is outside the mechanism lookup");
     }
     return result;
 }

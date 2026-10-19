@@ -40,6 +40,7 @@ struct JointReferenceRecoveryConfig {
     // Load-corrected PREPARE reference, not the physical episode reset pose.
     Eigen::Vector4d nominal = Eigen::Vector4d::Zero();
     Eigen::Vector4d fold = Eigen::Vector4d::Zero();
+    Eigen::Vector4d insertion_fold = Eigen::Vector4d::Zero();
     Eigen::Vector4d thrust = Eigen::Vector4d::Zero();
     Eigen::Vector4d support = Eigen::Vector4d::Zero();
     JointReferenceRecoveryVector6 rl_nominal = JointReferenceRecoveryVector6::Zero();
@@ -57,6 +58,7 @@ struct JointReferenceRecoveryConfig {
     double stable_seconds = 1.0;
     double max_script_seconds = 8.0;
     double prepare_speed_rad_s = 1.0;
+    double insert_speed_rad_s = 8.0;
     double push_speed_rad_s = 4.0;
     double orbit_speed_rad_s = 4.0;
     double capture_speed_rad_s = 4.0;
@@ -180,6 +182,8 @@ private:
         double unsupported = 0.0;
     };
     static Vector4f paired_delta_(const Vector4f& goal, const Vector4f& reference);
+    static Vector4f shape_at_heading_(const Vector4f& shape, const Vector4f& reference);
+    bool folded_() const;
     JointGoal update_goal_(const StepContext& step, bool supported);
     ReferenceStep advance_reference_(const StepContext& step, const JointGoal& goal);
     void update_transitions_(
@@ -205,6 +209,8 @@ private:
     Vector6f last_raw_q_ = Vector6f::Zero();
     Vector4f orbit_start_ = Vector4f::Zero();
     Vector4f thrust_anchor_ = Vector4f::Zero();
+    Vector4f fold_anchor_ = Vector4f::Zero();
+    Vector4f insert_anchor_ = Vector4f::Zero();
     Vector4f side_start_ = Vector4f::Zero();
     Vector4f side_direction_ = Vector4f::Zero();
     Vector4f side_fold_ = Vector4f::Zero();
@@ -221,6 +227,7 @@ private:
     bool pitch_initialized_ = false, release_finished_ = true;
     bool wheel_balance_active_ = false;
     bool push_off_required_ = false;
+    bool grounded_start_ = false;
     float continuous_pitch_ = 0.0f, last_pitch_ = 0.0f;
     float orbit_angle_ = 0.0f, plant_pitch_ = 0.0f;
     double initial_release_seconds_ = 0.0;

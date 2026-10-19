@@ -447,6 +447,12 @@ RlController::RlController()
             || recovery_config.prepare_speed_rad_s <= 0.0
             || recovery_config.prepare_speed_rad_s > 6.0)
             throw std::runtime_error("Recovery FOLD/PLANT speed must be within 6 rad/s");
+        recovery_config.insert_speed_rad_s =
+            recovery_parameter("recovery_insert_speed_rad_s", recovery_config.insert_speed_rad_s);
+        if (!std::isfinite(recovery_config.insert_speed_rad_s)
+            || recovery_config.insert_speed_rad_s <= 0.0
+            || recovery_config.insert_speed_rad_s > 10.0)
+            throw std::runtime_error("Recovery low-knee insertion speed must be within 10 rad/s");
         recovery_config.orbit_speed_rad_s =
             recovery_parameter("recovery_orbit_speed_rad_s", recovery_config.orbit_speed_rad_s);
         if (!std::isfinite(recovery_config.orbit_speed_rad_s)
@@ -456,12 +462,13 @@ RlController::RlController()
         RCLCPP_INFO(
             get_logger(),
             "Self-righting takeover: %s, bounded upright capture=%d, "
-            "FOLD/PLANT %.2f, ORBIT %.2f rad/s, capture %.1f deg at %.2f..%.2f m, "
+            "FOLD/PLANT %.2f, low insertion %.2f, ORBIT %.2f rad/s, "
+            "capture %.1f deg at %.2f..%.2f m, "
             "hinge maxima %.3f/%.3f rad, "
             "leg error %.2f rad, upright gyro %.2f rad/s, motion %s",
             recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
             recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
-            recovery_config.orbit_speed_rad_s,
+            recovery_config.insert_speed_rad_s, recovery_config.orbit_speed_rad_s,
             recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
             recovery_config.dynamic_capture_height_min, recovery_config.dynamic_capture_height_max,
             recovery_capture_hinge_max_[0], recovery_capture_hinge_max_[1],

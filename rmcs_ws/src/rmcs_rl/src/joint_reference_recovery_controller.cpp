@@ -38,6 +38,7 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
         config.stable_seconds,
         config.max_script_seconds,
         config.prepare_speed_rad_s,
+        config.insert_speed_rad_s,
         config.push_speed_rad_s,
         config.orbit_speed_rad_s,
         config.capture_speed_rad_s,
@@ -70,7 +71,8 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
         || config.reroute_tilt_rad >= std::numbers::pi
         || config.prepare_tilt_limit_deg > config.capture_tilt_limit_deg
         || config.capture_tilt_limit_deg >= 90.0 || !config.nominal.allFinite()
-        || !config.fold.allFinite() || !config.thrust.allFinite() || !config.support.allFinite()
+        || !config.fold.allFinite() || !config.insertion_fold.allFinite()
+        || !config.thrust.allFinite() || !config.support.allFinite()
         || !config.rl_nominal.allFinite() || !config.root_axis_signs.allFinite()
         || !config.wheel_axis_signs.allFinite())
         throw std::invalid_argument("Invalid Joint reference recovery configuration");
@@ -120,8 +122,11 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
     continuous_pitch_ = last_pitch_ = orbit_angle_ = plant_pitch_ = 0.0f;
     pitch_initialized_ = wheel_balance_active_ = false;
     push_off_required_ = false;
+    grounded_start_ = false;
     orbit_start_.setZero();
     thrust_anchor_.setZero();
+    fold_anchor_.setZero();
+    insert_anchor_.setZero();
     side_start_.setZero();
     side_direction_.setZero();
     side_fold_.setZero();
@@ -159,6 +164,27 @@ Eigen::Vector4d JointReferenceRecoveryController::paired_delta(
     return paired_delta_(goal.cast<float>(), reference.cast<float>()).cast<double>();
 }
 
+JointReferenceRecoveryController::Vector4f JointReferenceRecoveryController::shape_at_heading_(
+    const Vector4f& shape, const Vector4f& reference) {
+    Vector4f result = shape;
+    for (int hip : {0, 2})
+        result.segment<2>(hip).array() +=
+            (reference.segment<2>(hip).sum() - shape.segment<2>(hip).sum()) / 2.0f;
+    return result;
+}
+
+bool JointReferenceRecoveryController::folded_() const {
+    for (int hip : {0, 2}) {
+        const float delta = continuous_q_[hip + 1] - continuous_q_[hip];
+        const double folded_delta = config_.insertion_fold[hip + 1] - config_.insertion_fold[hip];
+        // Bound measured relative-drive error, not just each drive's tracking
+        // error: spring deflection must not turn the insertion into a long-leg sweep.
+        if (std::abs(delta - folded_delta) > 0.24)
+            return false;
+    }
+    return true;
+}
+
 void JointReferenceRecoveryController::enter_(JointReferenceRecoveryPhase phase) {
     phase_ = phase;
     phase_ticks_ = 0;
@@ -176,15 +202,14 @@ void JointReferenceRecoveryController::fail_(int code) {
 }
 
 void JointReferenceRecoveryController::start_thrust_(const Vector4f& reference) {
-    // Keep a grounded push between low capture and loaded support, aligned
-    // to gravity, so the legs can retract before the body starts descending.
     Vector4f goal = config_.thrust.cast<float>();
     if (push_off_required_) {
-        const Vector4f capture = config_.nominal.cast<float>();
-        goal = capture + 0.5f * paired_delta_(config_.support.cast<float>(), capture);
+        // Extend at the engaged leg heading. Mixing a large common rotation
+        // into this stroke delays knee extension and keeps the shell grounded.
+        goal = shape_at_heading_(config_.support.cast<float>(), reference);
     }
     thrust_anchor_ = reference + paired_delta_(goal, reference);
-    plant_pitch_ = push_off_required_ ? 0.0f : continuous_pitch_;
+    plant_pitch_ = continuous_pitch_;
     enter_(JointReferenceRecoveryPhase::kThrust);
 }
 
@@ -290,8 +315,10 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
     if (unsupported
         && reached_(
             unsupported_ticks_, durations_.unsupported, config_.reroute_support_lost_seconds)) {
-        if (route_ == JointReferenceRecoveryRoute::kSide) {
-            // A failed side capture must not restart a full sagittal revolution.
+        if (grounded_start_ || route_ == JointReferenceRecoveryRoute::kUpright
+            || route_ == JointReferenceRecoveryRoute::kSide) {
+            // Upright insertion and side capture must never fall back to a
+            // sagittal revolution after losing their capture window.
             fail_(2);
         } else if (reroute_count_ < config_.max_reroutes) {
             ++reroute_count_;
@@ -316,6 +343,10 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
                           && (route_ == JointReferenceRecoveryRoute::kUpright
                               || route_ == JointReferenceRecoveryRoute::kPlant)
                           && height < body_geometry::support_depth(gravity) + kPushOffClearance;
+        grounded_start_ = push_off_required_;
+        if (push_off_required_)
+            fold_anchor_ =
+                shape_at_heading_(config_.insertion_fold.cast<float>(), continuous_q_.head<4>());
         if (route_ == JointReferenceRecoveryRoute::kSide) {
             side_lower_leg_ = gravity.y() >= 0.0f ? 0 : 1;
             side_direction_.setZero();
@@ -334,12 +365,9 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
                 side_fold_.segment<2>(hip).array() += offset;
             }
         }
-        if (near_upright && push_off_required_)
-            start_thrust_(targets_.head<4>());
-        else
-            enter_(
-                near_upright ? JointReferenceRecoveryPhase::kPrepare
-                             : JointReferenceRecoveryPhase::kFold);
+        enter_(
+            near_upright && !push_off_required_ ? JointReferenceRecoveryPhase::kPrepare
+                                                : JointReferenceRecoveryPhase::kFold);
     }
     // Transition predicates share one snapshot. A newly entered phase cannot
     // consume another trajectory step; wheel balancing uses the resulting phase.
@@ -383,7 +411,7 @@ JointReferenceRecoveryController::JointGoal
     const Vector4f axes = config_.root_axis_signs.cast<float>();
     Vector4f goal = config_.nominal.cast<float>();
     if (folding) {
-        goal = config_.fold.cast<float>();
+        goal = push_off_required_ ? fold_anchor_ : config_.fold.cast<float>();
         if (route_ == JointReferenceRecoveryRoute::kSide) {
             if (config_.dynamic_takeover) {
                 goal = side_fold_;
@@ -393,15 +421,23 @@ JointReferenceRecoveryController::JointGoal
             }
         }
     }
-    if ((preparing || capturing || blending) && supported && tilt < radians(85.0)) {
-        const float extension = std::clamp((tilt - radians(12.0)) / radians(43.0), 0.0f, 1.0f);
+    if ((preparing || capturing || blending) && (supported || (grounded_start_ && capturing))
+        && tilt < radians(85.0)) {
+        const float extension = grounded_start_
+                                  ? std::clamp((tilt - radians(30.0)) / radians(25.0), 0.0f, 1.0f)
+                                  : std::clamp((tilt - radians(12.0)) / radians(43.0), 0.0f, 1.0f);
         goal = config_.nominal.cast<float>()
              + extension * (config_.support - config_.nominal).cast<float>()
              - pitch * axes.cwiseInverse();
     }
     if (planting) {
-        goal = config_.fold.cast<float>();
-        if (std::abs(gravity.y()) < 0.5f) {
+        goal =
+            push_off_required_ ? config_.insertion_fold.cast<float>() : config_.fold.cast<float>();
+        if (push_off_required_ && !folded_()) {
+            goal = shape_at_heading_(goal, targets_.head<4>());
+        } else if (push_off_required_) {
+            goal = insert_anchor_ - continuous_pitch_ * axes.cwiseInverse();
+        } else if (std::abs(gravity.y()) < 0.5f) {
             const float sign = pitch > 0.0f ? 1.0f : pitch < 0.0f ? -1.0f : 0.0f;
             const float offset = std::clamp(
                 -pitch - static_cast<float>(config_.plant_angle_rad) * sign, -2.2f, 2.2f);
@@ -424,17 +460,30 @@ JointReferenceRecoveryController::JointGoal
         goal = side_start_ + side_direction_.cwiseProduct(axes.cwiseInverse()) * stroke;
     }
     float speed = static_cast<float>(config_.prepare_speed_rad_s);
+    if (planting && push_off_required_ && folded_()) {
+        // Brake over the last 100 mm of wheel-plane approach. A fast
+        // suspended stroke must not hit the floor at its free-space speed.
+        const float approach = std::clamp(
+            (body_geometry::support_depth(step.gravity) - step.height) / 0.10f, 0.0f, 1.0f);
+        const float insertion_speed = static_cast<float>(config_.insert_speed_rad_s);
+        speed = std::lerp(
+            std::min(insertion_speed, static_cast<float>(config_.push_speed_rad_s)),
+            insertion_speed, approach);
+    }
     if (preparing || thrusting)
         speed = static_cast<float>(config_.push_speed_rad_s);
     if (capturing)
-        speed = static_cast<float>(config_.capture_speed_rad_s);
+        speed = static_cast<float>(
+            grounded_start_ ? config_.insert_speed_rad_s : config_.capture_speed_rad_s);
     if (orbiting)
         speed = static_cast<float>(config_.orbit_speed_rad_s);
     if (side)
         speed = static_cast<float>(config_.side_speed_rad_s);
     return {
         goal, speed,
-        orbiting || thrusting || side ? Winding::kContinuous : Winding::kCoupledNearest};
+        orbiting || thrusting || side || (planting && push_off_required_)
+            ? Winding::kContinuous
+            : Winding::kCoupledNearest};
 }
 
 JointReferenceRecoveryController::ReferenceStep
@@ -477,10 +526,13 @@ void JointReferenceRecoveryController::update_transitions_(
     const bool blending = phase == JointReferenceRecoveryPhase::kBlend;
     // Start wheel-assisted capture before the planting arc carries a supported
     // leg pose past the actor's entry window. Keep this transition for one tick.
-    const bool plant_capture = config_.dynamic_takeover
-                            && route_ == JointReferenceRecoveryRoute::kPlant
-                            && (folding || planting) && feedback.support && height > 0.22f
-                            && tilt < radians(40.0) && gyro.norm() < 8.0f;
+    const bool plant_capture =
+        config_.dynamic_takeover
+        && (route_ == JointReferenceRecoveryRoute::kPlant
+            || (push_off_required_ && route_ == JointReferenceRecoveryRoute::kUpright))
+        && (folding || planting) && (!push_off_required_ || !folding)
+        && (!push_off_required_ || remaining < 0.15f) && feedback.support && height > 0.22f
+        && tilt < radians(40.0) && gyro.norm() < 8.0f;
     if (plant_capture) {
         if (push_off_required_)
             start_thrust_(reference);
@@ -491,7 +543,7 @@ void JointReferenceRecoveryController::update_transitions_(
     // Holding an unbalanced body here loses the impulse needed by the next stroke.
     const double fold_min_seconds = config_.dynamic_takeover ? 0.06 : 0.3;
     if (!plant_capture && folding && remaining < 0.02f && measured_error < 0.2f
-        && phase_reached_(step, fold_min_seconds)) {
+        && (!push_off_required_ || folded_()) && phase_reached_(step, fold_min_seconds)) {
         if (route_ == JointReferenceRecoveryRoute::kOrbitPositive
             || route_ == JointReferenceRecoveryRoute::kOrbitNegative) {
             orbit_start_ = reference;
@@ -501,6 +553,17 @@ void JointReferenceRecoveryController::update_transitions_(
             side_start_ = reference;
             enter_(JointReferenceRecoveryPhase::kSide);
         } else {
+            if (push_off_required_) {
+                Vector4f delta = paired_delta_(config_.insertion_fold.cast<float>(), reference);
+                for (int hip : {0, 2}) {
+                    const float axis = static_cast<float>(config_.root_axis_signs[hip]);
+                    // Near half a turn, choose one physical stroke direction
+                    // for both legs rather than letting IMU noise choose a turn.
+                    if (delta.segment<2>(hip).mean() * axis > kPi - radians(20.0))
+                        delta.segment<2>(hip).array() -= kTau / axis;
+                }
+                insert_anchor_ = reference + delta;
+            }
             enter_(JointReferenceRecoveryPhase::kPlant);
         }
     }
@@ -513,8 +576,12 @@ void JointReferenceRecoveryController::update_transitions_(
     durations_.plant = planting && feedback.support ? durations_.plant + dt : 0.0;
     const bool planted = !plant_capture && planting && remaining < 0.15f && measured_error < 0.2f
                       && reached_(plant_ticks_, durations_.plant, 0.06);
-    if (planted)
-        enter_(JointReferenceRecoveryPhase::kPrepare);
+    if (planted) {
+        if (push_off_required_)
+            start_thrust_(reference);
+        else
+            enter_(JointReferenceRecoveryPhase::kPrepare);
+    }
     if (!plant_capture && planting && !planted && phase_reached_(step, 2.5))
         fail_(3);
     const bool orbit_contact = orbiting && feedback.support && tilt < radians(145.0)
@@ -526,7 +593,8 @@ void JointReferenceRecoveryController::update_transitions_(
     // Ending the stroke uses geometry: the push can exceed the support
     // observer's acceleration window. Actor transfer still requires support.
     const float push_clearance = feedback.support ? kPushOffClearance : kCaptureClearance;
-    if (thrusting && push_off_required_ && tilt < radians(45.0)
+    const bool inserted_low = (folding || planting) && folded_() && feedback.support;
+    if ((thrusting || inserted_low) && push_off_required_ && tilt < radians(45.0)
         && height > body_geometry::support_depth(step.gravity) + push_clearance) {
         push_off_required_ = false;
         enter_(JointReferenceRecoveryPhase::kCapture);
@@ -540,7 +608,7 @@ void JointReferenceRecoveryController::update_transitions_(
     if (orbiting && !orbit_contact && !captured
         && orbit_angle_ >= static_cast<float>(2.0 * std::numbers::pi * config_.orbit_turns))
         fail_(4);
-    if (capturing && tilt < radians(20.0) && feedback.support && height > 0.22f)
+    if (capturing && !grounded_start_ && tilt < radians(20.0) && feedback.support && height > 0.22f)
         enter_(JointReferenceRecoveryPhase::kPrepare);
     const bool stable = feedback.support && feedback.body_clear
                      && tilt < static_cast<float>(config_.handover_tilt_rad)
@@ -609,11 +677,15 @@ void JointReferenceRecoveryController::update_wheels_(const StepContext& step, b
     const bool is_prepare = phase_ == JointReferenceRecoveryPhase::kPrepare;
     const bool is_push_off =
         phase_ == JointReferenceRecoveryPhase::kThrust && push_off_required_;
+    const bool is_insertion = phase_ == JointReferenceRecoveryPhase::kPlant && push_off_required_;
     const bool is_blend = enabled_ && phase_ == JointReferenceRecoveryPhase::kBlend;
     const float balance_limit =
         radians(is_capture ? config_.capture_tilt_limit_deg : config_.prepare_tilt_limit_deg);
-    const bool eligible = enabled_ && release_finished_ && supported && tilt < balance_limit
-                       && (is_prepare || is_capture || is_push_off
+    // Keep pitch damping while the grounded start acquires wheel load or its
+    // lift impulse changes acceleration. Actor transfer still requires support.
+    const bool eligible = enabled_ && release_finished_
+                       && (supported || is_insertion || is_push_off) && tilt < balance_limit
+                       && (is_prepare || is_capture || is_push_off || is_insertion
                            || (is_blend && phase == JointReferenceRecoveryPhase::kPrepare))
                        && config_.wheel_balance_enabled;
     const bool retained = is_blend && wheel_balance_active_ && supported && tilt < balance_limit;
