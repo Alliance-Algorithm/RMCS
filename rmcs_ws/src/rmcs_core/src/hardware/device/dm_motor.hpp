@@ -79,7 +79,9 @@ public:
         double position_max = 12.5;        // P_MAX [rad]，须与电机寄存器一致
         double velocity_max = 45.0;        // V_MAX [rad/s]，须与电机寄存器一致
         double torque_max = 54.0;          // T_MAX [Nm]，须与电机寄存器一致
-        double control_torque_max = 40.0;  // 纯力矩与前馈上限；不限制电机内部位置 PD
+        // Software command bound; motor-local effort between CAN frames still
+        // requires the drive's independently configured current protection.
+        double control_torque_max = 40.0;
     };
 
     static constexpr double kKpMax = 500.0;
@@ -156,9 +158,14 @@ public:
             torque = 0.0;
         torque = std::clamp(torque, -control_torque_max_, control_torque_max_);
         const double sign = reversed_ ? -1.0 : 1.0;
-        const double tff_motor = sign * torque;
-
-        return encode_mit_frame(0.0, 0.0, 0.0, 0.0, tff_motor);
+        auto packet = encode_mit_frame(0.0, 0.0, 0.0, 0.0, sign * torque);
+        // Rounding a 12-bit torque can put the encoded value outside the bound.
+        if (control_torque_max_ > torque_max_ / 4095.0
+            && std::abs(command_frame_torque(packet)) > control_torque_max_)
+            packet = encode_mit_frame(
+                0.0, 0.0, 0.0, 0.0,
+                sign * std::copysign(control_torque_max_ - 2.0 * torque_max_ / 4095.0, torque));
+        return packet;
     }
 
     /// Feed-forward torque actually encoded in a MIT frame, in API coordinates.
@@ -183,6 +190,8 @@ public:
         if (!std::isfinite(p_des) || !std::isfinite(v_des) || !std::isfinite(kp)
             || !std::isfinite(kd) || !std::isfinite(t_ff))
             return generate_command(0.0);
+        if (!position_target_valid(p_des) || !std::isfinite(angle_) || !std::isfinite(velocity_))
+            return generate_command(0.0);
         const double sign = reversed_ ? -1.0 : 1.0;
         const double p_motor =
             std::clamp(angle_bias_ + sign * p_des, -position_max_, position_max_);
@@ -191,7 +200,42 @@ public:
         kp = std::clamp(kp, 0.0, kKpMax);
         kd = std::clamp(kd, 0.0, kKdMax);
 
-        return encode_mit_frame(p_motor, v_motor, kp, kd, tff_motor);
+        const auto packet = encode_mit_frame(p_motor, v_motor, kp, kd, tff_motor);
+        // MIT has no per-frame total-effort limit. Saturated samples use a
+        // zero-gain torque frame, rather than adding host PD as feed-forward.
+        // Decode the wire gains and targets: even zero velocity/feed-forward
+        // have a quantization residual. This bounds the sampled prediction,
+        // not motor-local feedback changes before the next CAN command.
+        const double predicted = command_frame_effort(packet, angle_, velocity_);
+        if (!std::isfinite(predicted))
+            return generate_command(0.0);
+        if (std::abs(predicted) > control_torque_max_)
+            return generate_command(
+                kp * (p_des - angle_) + kd * (sign * v_motor - velocity_) + sign * tff_motor);
+        return packet;
+    }
+
+    static bool command_frame_uses_pd(CanPacket8 packet) {
+        const auto bytes = packet.as_bytes();
+        return (static_cast<std::uint8_t>(bytes[3]) & 0x0F) != 0
+            || static_cast<std::uint8_t>(bytes[4]) != 0 || static_cast<std::uint8_t>(bytes[5]) != 0
+            || (static_cast<std::uint8_t>(bytes[6]) & 0xF0) != 0;
+    }
+
+    double command_frame_effort(CanPacket8 packet, double position, double velocity) const {
+        const auto bytes = packet.as_bytes();
+        const auto byte = [&](std::size_t i) { return static_cast<std::uint8_t>(bytes[i]); };
+        const auto p = static_cast<std::uint16_t>((byte(0) << 8) | byte(1));
+        const auto v = static_cast<std::uint16_t>((byte(2) << 4) | (byte(3) >> 4));
+        const auto kp = static_cast<std::uint16_t>(((byte(3) & 0x0F) << 8) | byte(4));
+        const auto kd = static_cast<std::uint16_t>((byte(5) << 4) | (byte(6) >> 4));
+        const double sign = reversed_ ? -1.0 : 1.0;
+        const double target =
+            sign * (uint_to_float(p, -position_max_, position_max_, 16) - angle_bias_);
+        const double speed = sign * uint_to_float(v, -velocity_max_, velocity_max_, 12);
+        return uint_to_float(kp, 0.0, kKpMax, 12) * (target - position)
+             + uint_to_float(kd, 0.0, kKdMax, 12) * (speed - velocity)
+             + command_frame_torque(packet);
     }
 
     // ---- 系统命令 ----
@@ -272,6 +316,15 @@ public:
     }
 
     bool control_angle_ready() const noexcept { return control_angle_.ready(); }
+    bool position_target_valid(double position) const {
+        const double sign = reversed_ ? -1.0 : 1.0;
+        return std::isfinite(position) && std::abs(angle_bias_ + sign * position) <= position_max_;
+    }
+    bool torque_feedback_within_limit() const {
+        // One feedback quantization bin avoids tripping on its rounded endpoint.
+        return std::isfinite(torque_)
+            && std::abs(torque_) <= control_torque_max_ + 2.0 * torque_max_ / 4095.0;
+    }
     double control_angle() const {
         if (control_angle_.ready())
             return *control_angle_;

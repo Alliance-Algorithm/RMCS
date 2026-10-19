@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include <array>
 #include <atomic>
 #include <bit>
 #include <chrono>
@@ -139,6 +140,15 @@ public:
 
     Eigen::Vector2d joystick_right() const { return to_eigen_vector(joystick_right_); }
     Eigen::Vector2d joystick_left() const { return to_eigen_vector(joystick_left_); }
+
+    std::array<std::uint16_t, 4> raw_channels() const {
+        const auto packet =
+            std::bit_cast<Dr16DataPart1>(data_part1_.load(std::memory_order::relaxed));
+        return {static_cast<std::uint16_t>(packet.joystick_channel0),
+                static_cast<std::uint16_t>(packet.joystick_channel1),
+                static_cast<std::uint16_t>(packet.joystick_channel2),
+                static_cast<std::uint16_t>(packet.joystick_channel3)};
+    }
 
     rmcs_msgs::Switch switch_right() const {
         return std::bit_cast<rmcs_msgs::Switch>(switch_right_);
