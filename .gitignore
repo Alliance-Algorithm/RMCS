@@ -79,3 +79,11 @@ develop_ws
 .codex/
 .mimo/
 CLAUDE.md
+
+# Local wheel-leg documentation, validation and simulation records
+/docs/zh-cn/artifacts/
+/docs/zh-cn/wheel_leg_*.md
+/.script/simulation/
+/.script/tests/
+/.script/identification/test_*.py
+/rmcs_ws/src/rmcs_core/test/

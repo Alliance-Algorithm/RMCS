@@ -30,10 +30,10 @@ class WheelLegChassisController final
 public:
     explicit WheelLegChassisController()
         : Node{get_component_name(), node::options()}
-        , vx_max_(get_parameter_or<double>("vx_max", 3.0))
+        , vx_max_(get_parameter_or<double>("vx_max", 0.5))
         , vy_max_(get_parameter_or<double>("vy_max", 0.0))
-        , yaw_rate_max_(get_parameter_or<double>("yaw_rate_max", 6.283185307179586))
-        , spin_yaw_rate_(get_parameter_or<double>("spin_yaw_rate", 14.137166941154069)) {
+        , yaw_rate_max_(get_parameter_or<double>("yaw_rate_max", 1.0))
+        , spin_yaw_rate_(get_parameter_or<double>("spin_yaw_rate", 1.0)) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -105,7 +105,7 @@ private:
     using Clock = std::chrono::steady_clock;
 
     void load_parameters_() {
-        deadzone_ = get_parameter_or<double>("deadzone", 0.08);
+        deadzone_ = get_parameter_or<double>("deadzone", 0.05);
 
         command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
         command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
@@ -277,13 +277,13 @@ private:
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
 
-    double vx_max_ = 3.0;
+    double vx_max_ = 0.5;
     double vy_max_ = 0.0;
-    double yaw_rate_max_ = 6.283185307179586;
-    double spin_yaw_rate_ = 14.137166941154069;
+    double yaw_rate_max_ = 1.0;
+    double spin_yaw_rate_ = 1.0;
     double deadzone_ = 0.05;
     double command_height_min_ = 0.23;
-    double command_height_max_ = 0.42;
+    double command_height_max_ = 0.43;
     double default_command_height_ = 0.23;
     double height_rate_max_ = 0.02;
     double height_step_ = 0.01;

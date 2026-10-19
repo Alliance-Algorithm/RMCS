@@ -1,0 +1,2046 @@
+{
+  "schema": "rmcs-paired-branch107-cpu-audit-v1",
+  "created_at_utc": "2026-10-14T06:18:08.314874+00:00",
+  "rmcs_base_commit": "81785ca611771f6d1f921e782807ae5216b28cc0",
+  "source_sha256": {
+    "rmcs_ws/src/rmcs_rl/src/leg_target_winding.hpp": "a8b81f07e0f8cbc0b7cf40ca774f51f59c3bd44c819f5b4830bc8a04c5b322c5",
+    "rmcs_ws/src/rmcs_rl/src/action.cpp": "f25fdc740c248b67a1a9d201a5e974b415d45db068a315eed11f65ecfa7fb53a",
+    "rmcs_ws/src/rmcs_rl/src/configuration.cpp": "baedcbcf1ae7f63c21b77ffb341aea0acf9e6fd67c67c098183add8f0d5b0a7a",
+    "rmcs_ws/src/rmcs_rl/src/onnx_policy.cpp": "ee21740ef3cdad99ac657b9e4b36f3fa2b521ea94db7d7beb84e00b2194a5b97",
+    "rmcs_ws/src/rmcs_rl/src/recovery_profile.cpp": "682db6368794ebd3a7d573cb6b169de89e9e36f2116f880d1742efc598b394be",
+    "rmcs_ws/src/rmcs_rl/src/recovery_profile.hpp": "f520fe25a753714f18a6cfba2b5b20a2238c4f3dddea7f67ee41940a2d30bbb2",
+    "rmcs_ws/src/rmcs_rl/test/leg_target_branch107_test.cpp": "4ab301620862ab7a96628eaaa157c1f24a82fb11098625e28b7e43f472b1280d",
+    ".script/audit_leg_branch107.py": "ba9bb79cece47eb5dc896ac08282ff92fa6f38a99533345c90737550620b1531"
+  },
+  "training_decoder_sha256": "1aa2149a1651021f8de9edce832e90c6dca3ac7123e406cc9a2c143a9746add1",
+  "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+  "canonical_delta_bounds_rad": [
+    [
+      -0.14062820701680934,
+      1.3692123767724917
+    ],
+    [
+      -0.1406283965709381,
+      1.3692125038958158
+    ]
+  ],
+  "selftests": [
+    "production winding/parser checks passed",
+    "branch107 production checks passed: 204 math cases"
+  ],
+  "cross_language_math_cases": 488454,
+  "old_version_bytewise_cases": 976908,
+  "math_float64_max_target_error_rad": 0.0,
+  "common_mean_max_rounding_error_rad": 9.313225746154785e-10,
+  "native_float32_vs_rmcs_double_max_target_error_rad": 6.477179585956037,
+  "native_float32_vs_rmcs_double_max_delta_error_rad": 0.36921250354498625,
+  "native_precision_groups": {
+    "large_turn_stress": {
+      "cases": 278528,
+      "common_turn_different_lanes": 84,
+      "max_abs_target_error_rad": 6.477179585956037,
+      "max_target_error_after_common_turn_alignment_rad": 0.35049718618392944
+    },
+    "birth_turns_at_most_20": {
+      "cases": 208896,
+      "common_turn_different_lanes": 0,
+      "max_abs_target_error_rad": 1.4466861571804657e-05,
+      "max_target_error_after_common_turn_alignment_rad": 1.4466861571804657e-05
+    },
+    "half_turn_cut": {
+      "cases": 6,
+      "common_turn_different_lanes": 2,
+      "max_abs_target_error_rad": 6.283185320292608,
+      "max_target_error_after_common_turn_alignment_rad": 2.2569765256719165e-07
+    },
+    "random_control_coordinates": {
+      "cases": 1024,
+      "common_turn_different_lanes": 0,
+      "max_abs_target_error_rad": 1.473719585476374e-05,
+      "max_target_error_after_common_turn_alignment_rad": 1.473719585476374e-05
+    }
+  },
+  "native_and_rmcs_canonical_domain_violations": 0,
+  "birth_sampler": {
+    "population": 4096,
+    "seed": 290929,
+    "nominal_lanes": 1024
+  },
+  "corner_cases": [
+    {
+      "leg_actions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        -3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        -3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        -3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        -3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 4096
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -1000000,
+        1000000
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -100,
+        100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        -20,
+        20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        0,
+        0
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        20,
+        -20
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        100,
+        -100
+      ],
+      "projected_lanes": 0
+    },
+    {
+      "leg_actions": [
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "common_turns": [
+        1000000,
+        -1000000
+      ],
+      "projected_lanes": 0
+    }
+  ],
+  "angular_cut_cases": [
+    {
+      "offset_rad": -3.1415936535897933,
+      "rmcs_double_turns": [
+        -1.0,
+        -1.0
+      ],
+      "rmcs_double_targets_rad": [
+        -6.703185307179586,
+        -6.145762481225633,
+        -5.863185307179586,
+        -6.420600883437671
+      ],
+      "train_native_float32_targets_rad": [
+        -6.703185081481934,
+        -6.1457624435424805,
+        -5.863185405731201,
+        -6.420600891113281
+      ]
+    },
+    {
+      "offset_rad": -3.141592653589793,
+      "rmcs_double_turns": [
+        0.0,
+        -1.0
+      ],
+      "rmcs_double_targets_rad": [
+        -0.42,
+        0.13742282595395355,
+        -5.863185307179586,
+        -6.420600883437671
+      ],
+      "train_native_float32_targets_rad": [
+        -6.703185081481934,
+        -6.1457624435424805,
+        0.41999998688697815,
+        -0.1374155730009079
+      ]
+    },
+    {
+      "offset_rad": -3.141591653589793,
+      "rmcs_double_turns": [
+        0.0,
+        0.0
+      ],
+      "rmcs_double_targets_rad": [
+        -0.42,
+        0.13742282595395355,
+        0.41999999999999993,
+        -0.13741557625808506
+      ],
+      "train_native_float32_targets_rad": [
+        -0.41999998688697815,
+        0.1374228298664093,
+        0.41999998688697815,
+        -0.1374155730009079
+      ]
+    },
+    {
+      "offset_rad": 3.141591653589793,
+      "rmcs_double_turns": [
+        0.0,
+        0.0
+      ],
+      "rmcs_double_targets_rad": [
+        -0.42,
+        0.13742282595395355,
+        0.41999999999999993,
+        -0.13741557625808506
+      ],
+      "train_native_float32_targets_rad": [
+        -0.41999998688697815,
+        0.1374228298664093,
+        0.41999998688697815,
+        -0.1374155730009079
+      ]
+    },
+    {
+      "offset_rad": 3.141592653589793,
+      "rmcs_double_turns": [
+        1.0,
+        1.0
+      ],
+      "rmcs_double_targets_rad": [
+        5.863185307179586,
+        6.420608133133539,
+        6.703185307179586,
+        6.145769730921502
+      ],
+      "train_native_float32_targets_rad": [
+        5.863185405731201,
+        6.420608043670654,
+        0.41999998688697815,
+        -0.1374155730009079
+      ]
+    },
+    {
+      "offset_rad": 3.1415936535897933,
+      "rmcs_double_turns": [
+        1.0,
+        1.0
+      ],
+      "rmcs_double_targets_rad": [
+        5.863185307179586,
+        6.420608133133539,
+        6.703185307179586,
+        6.145769730921502
+      ],
+      "train_native_float32_targets_rad": [
+        5.863185405731201,
+        6.420608043670654,
+        6.703185081481934,
+        6.1457695960998535
+      ]
+    }
+  ],
+  "ort_version": "1.20.0",
+  "actual_ort_metadata_cases": [
+    {
+      "model_version": null,
+      "model_spec_sha256": null,
+      "configured_version": null,
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": null,
+      "model_spec_sha256": null,
+      "configured_version": "independent_nearest_v1",
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": null,
+      "model_spec_sha256": null,
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version independent_nearest_v1 does not match configured paired_common_v1"
+    },
+    {
+      "model_version": null,
+      "model_spec_sha256": null,
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version independent_nearest_v1 does not match configured paired_branch107_v1"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": null,
+      "configured_version": null,
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": null,
+      "configured_version": "independent_nearest_v1",
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": null,
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version independent_nearest_v1 does not match configured paired_common_v1"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": null,
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version independent_nearest_v1 does not match configured paired_branch107_v1"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": null,
+      "configured_version": null,
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_common_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": null,
+      "configured_version": "independent_nearest_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_common_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": null,
+      "configured_version": "paired_common_v1",
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": null,
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_common_v1 does not match configured paired_branch107_v1"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": null,
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "independent_nearest_v1",
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version independent_nearest_v1 does not match configured paired_common_v1"
+    },
+    {
+      "model_version": "independent_nearest_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version independent_nearest_v1 does not match configured paired_branch107_v1"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": null,
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_common_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "independent_nearest_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_common_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "paired_common_v1",
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": "paired_common_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_common_v1 does not match configured paired_branch107_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": null,
+      "configured_version": null,
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": null,
+      "configured_version": "independent_nearest_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": null,
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured paired_common_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": null,
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg target model_spec_sha256 must match paired_branch107_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "",
+      "configured_version": null,
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "",
+      "configured_version": "independent_nearest_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "",
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured paired_common_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "",
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg target model_spec_sha256 must match paired_branch107_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": null,
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "independent_nearest_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured paired_common_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "wrong",
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "ONNX leg target model_spec_sha256 must match paired_branch107_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+      "configured_version": null,
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+      "configured_version": "independent_nearest_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured independent_nearest_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "ONNX leg_winding_version paired_branch107_v1 does not match configured paired_common_v1"
+    },
+    {
+      "model_version": "paired_branch107_v1",
+      "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+      "configured_version": "paired_branch107_v1",
+      "accepted": true,
+      "message": "accepted 0 0 0 0 0 0"
+    },
+    {
+      "model_version": "unknown",
+      "model_spec_sha256": null,
+      "configured_version": null,
+      "accepted": false,
+      "message": "Unknown leg_winding_version: unknown"
+    },
+    {
+      "model_version": "unknown",
+      "model_spec_sha256": null,
+      "configured_version": "independent_nearest_v1",
+      "accepted": false,
+      "message": "Unknown leg_winding_version: unknown"
+    },
+    {
+      "model_version": "unknown",
+      "model_spec_sha256": null,
+      "configured_version": "paired_common_v1",
+      "accepted": false,
+      "message": "Unknown leg_winding_version: unknown"
+    },
+    {
+      "model_version": "unknown",
+      "model_spec_sha256": null,
+      "configured_version": "paired_branch107_v1",
+      "accepted": false,
+      "message": "Unknown leg_winding_version: unknown"
+    }
+  ],
+  "tracked_legacy_models": [
+    {
+      "path": "rmcs_ws/src/rmcs_rl/models/wheel_leg/flat.onnx",
+      "sha256": "ca9a1cf9711e6a25719dcc555bc468c2acbfca403ae2d0dbcdf7b35b90e3f26b",
+      "output_unchanged": true
+    },
+    {
+      "path": "rmcs_ws/src/rmcs_rl/models/wheel_leg/policy.onnx",
+      "sha256": "4006bf79182e14074f38c3e8f573fe1870fdfeba3fcc0760bb24cc5752161e8a",
+      "output_unchanged": true
+    }
+  ],
+  "recovery_scope": "New version + enabled script recovery rejects authenticated old105 profile; explicit authenticated current107 pair passes the SHA guard. Disabled script recovery retains prior configuration defaults. Neither case grants hardware readiness.",
+  "unchanged": [
+    "action clipping",
+    "real control_q selection",
+    "wheel outputs",
+    "action history",
+    "PD/FSM/torque limits",
+    "default YAML",
+    "tracked models",
+    "old two decoder versions"
+  ],
+  "scope": "CPU production decoder, production frozen-profile loading and real ORT metadata checks. No ROS node, hardware, SSH, native simulator, GPU, PPO, online run or budget change.",
+  "limitations": [
+    "The relative target projection changes PD preload; it does not prove closed-chain physics is repaired.",
+    "Double RMCS and native float32 retain different precision; common whole turns can differ at a half-turn cut, and coarse float32 large-turn coordinates can collapse a pair. No native bit parity is claimed.",
+    "No policy behavior, nonsteady takeover performance or hardware safety qualification was measured."
+  ]
+}
