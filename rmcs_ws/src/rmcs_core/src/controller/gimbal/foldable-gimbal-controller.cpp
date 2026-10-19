@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <numbers>
 #include <rclcpp/logging.hpp>
 #include <utility>
@@ -115,6 +116,9 @@ public:
         : Node{
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)} {
+        output_component->register_output(
+            "/rmcs_navigation/gimbal_fold_state", navigation_fold_state, 0);
+
         get_parameter_or("top_yaw_velocity_ff_gain", top_yaw_ff_.gain, 1.0);
         get_parameter_or("top_yaw_ff_cutoff_hz", top_yaw_ff_.cutoff_hz, 15.0);
         get_parameter_or("top_yaw_ff_max", top_yaw_ff_.max_rate, 6.0);
@@ -136,8 +140,7 @@ public:
             input_.navigation_toward.make_and_bind_directly(kVecNaN);
             RCLCPP_INFO(get_logger(), "Manual mode without navigation gimbal control");
         }
-        last_fold_request_ =
-            input_.gimbal_fold_request.ready() ? *input_.gimbal_fold_request : false;
+        last_fold_request_ = fold_request();
 
         enter_disabled_state();
         previous_actual_yaw_ = current_barrel_yaw_pitch().first;
@@ -255,6 +258,8 @@ private:
                 "/rmcs_navigation/enable_control", navigation_enable_control, false);
             component.register_input("/rmcs_navigation/gimbal_toward", navigation_toward, false);
             component.register_input("/gimbal/fold/request", gimbal_fold_request, false);
+            component.register_input(
+                "/rmcs_navigation/request/gimbal_fold", navigation_fold_request, false);
         }
 
         auto enable_control() const noexcept -> bool {
@@ -314,6 +319,7 @@ private:
         InputInterface<bool> navigation_enable_control;
         InputInterface<Eigen::Vector2d> navigation_toward;
         InputInterface<bool> gimbal_fold_request;
+        InputInterface<bool> navigation_fold_request;
     } input_{*this};
 
     struct Output {
@@ -348,6 +354,16 @@ private:
         OutputInterface<bool> fold_active;
         OutputInterface<bool> foldable_gimbal_friction_flag;
     } output_{*this};
+
+    struct SimpleComponent : public rmcs_executor::Component {
+        auto update() -> void override {}
+    };
+
+    std::shared_ptr<Component> output_component{
+        create_partner_component<SimpleComponent>(get_component_name() + "_output"),
+    };
+
+    OutputInterface<int> navigation_fold_state;
 
     pid::PidCalculator top_yaw_angle_pid_{pid::make_pid_calculator(*this, "top_yaw_angle_")};
     pid::PidCalculator top_yaw_velocity_pid_{pid::make_pid_calculator(*this, "top_yaw_velocity_")};
@@ -481,11 +497,16 @@ private:
         }
     }
 
-    auto update_fold_request() -> void {
-        if (!input_.gimbal_fold_request.ready())
-            return;
+    auto fold_request() const -> bool {
+        const auto tunnel_request =
+            input_.gimbal_fold_request.ready() && *input_.gimbal_fold_request;
+        const auto navigation_request =
+            input_.navigation_fold_request.ready() && *input_.navigation_fold_request;
+        return tunnel_request || navigation_request;
+    }
 
-        const auto request = *input_.gimbal_fold_request;
+    auto update_fold_request() -> void {
+        const auto request = fold_request();
         if (request == last_fold_request_)
             return;
 
@@ -649,6 +670,7 @@ private:
 
     auto publish_fold_state() -> void {
         *output_.fold_state = static_cast<int>(fold_state_);
+        *navigation_fold_state = static_cast<int>(fold_state_);
         *output_.fold_active = fold_state_ != FoldState::UnFold;
         *output_.foldable_gimbal_friction_flag = fold_state_ == FoldState::UnFold;
     }
