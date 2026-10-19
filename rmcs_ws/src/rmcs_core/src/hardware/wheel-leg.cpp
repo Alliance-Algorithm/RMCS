@@ -218,6 +218,10 @@ private:
                  << static_cast<int>(observed_right_switch_.load(std::memory_order_relaxed))
                  << "] (down=2, middle=3), last position PD age=" << age_ms(last_pd_ns_)
                  << " ms, IMU age=" << age_ms(imu_last_ns_) << " ms\n";
+            const auto channels = dr16_.raw_channels();
+            text << "  DR16 raw channels [right lateral, right forward, left yaw, left height]: ["
+                 << channels[0] << ',' << channels[1] << ',' << channels[2] << ',' << channels[3]
+                 << "] (center=1024, nominal range=[364,1684])\n";
             constexpr auto kNames = std::array{
                 "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
             constexpr std::array kSystemOrder{0, 2, 1, 3};
@@ -346,6 +350,17 @@ private:
             if (!std::isfinite(joint_kp_) || !std::isfinite(joint_kd_) || joint_kp_ <= 0
                 || joint_kp_ > 500 || joint_kd_ < 0 || joint_kd_ > 5)
                 throw std::invalid_argument("Invalid joint position PD gains");
+            status.register_output(
+                "/wheel_leg/joint_position_pd", joint_position_pd_output_, use_motor_position_pd_);
+            status.register_output("/wheel_leg/joint_position_kp", joint_kp_output_, joint_kp_);
+            status.register_output("/wheel_leg/joint_position_kd", joint_kd_output_, joint_kd_);
+            command.register_input("/wheel_leg/joint_command_steady_ns", joint_command_ns_, false);
+            if (use_motor_position_pd_)
+                RCLCPP_WARN(
+                    status_.get_logger(),
+                    "DM internal MIT PD: Kp %.1f, Kd %.1f; software saturation falls back to "
+                    "torque frames. Verify drive current protection separately.",
+                    joint_kp_, joint_kd_);
         }
 
         void configure_motors(WheelLeg& status) {
@@ -479,6 +494,7 @@ private:
         }
 
         void publish_drive_readiness() {
+            const bool was_ready = *dm_control_ready_output_;
             *feedback_fresh_output_ = feedback_fresh();
             *dm_feedback_fresh_output_ = dm_feedback_fresh();
             const std::array pairs{dm_pair_feedback(0), dm_pair_feedback(1)};
@@ -501,7 +517,29 @@ private:
             } else {
                 const bool both_ready = ready_side(0) && ready_side(1);
                 *dm_control_ready_output_ =
-                    !use_motor_position_pd_ && *feedback_fresh_output_ && both_ready;
+                    *feedback_fresh_output_ && both_ready && position_pd_command_safe();
+            }
+            if (use_motor_position_pd_ && was_ready && !*dm_control_ready_output_
+                && (dm_enabled_[0].load(std::memory_order_relaxed)
+                    || dm_enabled_[1].load(std::memory_order_relaxed))) {
+                const auto* issue = position_pd_command_issue();
+                const auto stamp = joint_command_ns_.ready() ? *joint_command_ns_ : 0;
+                const double age_ms =
+                    stamp == 0
+                        ? -1.0
+                        : (static_cast<double>(now_ns()) - static_cast<double>(stamp)) * 1e-6;
+                RCLCPP_ERROR(
+                    status_.get_logger(),
+                    "DM position PD readiness lost: reason=%s feedback_fresh=%d "
+                    "command_age_ms=%.3f status[LH,LK,RH,RK]=[%d,%d,%d,%d] "
+                    "torque_nm=[%.3f,%.3f,%.3f,%.3f] target_api=[%.4f,%.4f,%.4f,%.4f]",
+                    issue ? issue : "drive_status_or_feedback", *feedback_fresh_output_, age_ms,
+                    hip_motors_[0].status_code(), knee_motors_[0].status_code(),
+                    hip_motors_[1].status_code(), knee_motors_[1].status_code(),
+                    hip_motors_[0].torque(), knee_motors_[0].torque(), hip_motors_[1].torque(),
+                    knee_motors_[1].torque(), hip_motors_[0].control_angle(),
+                    knee_motors_[0].control_angle(), hip_motors_[1].control_angle(),
+                    knee_motors_[1].control_angle());
             }
             dm_all_disabled_.store(
                 wheel_leg_dm_pair_confirmed_disabled(pairs[0])
@@ -584,7 +622,13 @@ private:
                       && wheel_leg_normal_enable_request(
                           remote_fresh, dr16_.switch_left(), dr16_.switch_right(),
                           require_enable_request_, controller_request, feedback_fresh(), pairs,
-                          allow_spin_switch_ && !use_motor_position_pd_);
+                          allow_spin_switch_);
+            }
+            if (enable && !position_pd_command_safe()) {
+                enable = false;
+                RCLCPP_ERROR_THROTTLE(
+                    status_.get_logger(), *status_.get_clock(), 1000,
+                    "DM position PD disabled: expired/invalid target or measured torque limit");
             }
             const auto enable_sides =
                 wheel_leg_side_enable_requests(enable, side_bound, selected_side);
@@ -696,38 +740,67 @@ private:
                 return motor.disable_command();
             if (action == Action::kFeedbackPoll)
                 return motor.generate_command(0.0);
-            if (use_motor_position_pd_)
+            if (use_motor_position_pd_) {
+                if (!fresh || !motor.control_angle_ready()
+                    || !motor.position_target_valid(motor.control_angle())
+                    || (joint_command_ns_.ready() && *joint_command_ns_ == 0))
+                    return motor.generate_command(0.0);
                 return motor.generate_command_pd(joint_kp_, joint_kd_);
+            }
             return motor.generate_command(fresh ? motor.control_torque() : 0.0);
+        }
+
+        bool position_pd_command_safe() const { return position_pd_command_issue() == nullptr; }
+
+        const char* position_pd_command_issue() const {
+            if (!use_motor_position_pd_)
+                return nullptr;
+            const auto torque_safe = [](const device::DmMotor& motor) {
+                return motor.torque_feedback_within_limit();
+            };
+            if (!std::ranges::all_of(hip_motors_, torque_safe)
+                || !std::ranges::all_of(knee_motors_, torque_safe))
+                return "measured_torque_limit";
+            if (!joint_command_ns_.ready() || *joint_command_ns_ == 0)
+                // Startup uses zero-gain MIT frames until the controller sees
+                // enabled feedback. No position target is applied in that gap.
+                return nullptr;
+            const auto stamp = *joint_command_ns_;
+            const auto now = static_cast<std::uint64_t>(now_ns());
+            if (now < stamp || now - stamp >= 10'000'000)
+                return "expired_command";
+            const auto valid_target = [](const device::DmMotor& motor) {
+                return motor.control_angle_ready()
+                    && motor.position_target_valid(motor.control_angle());
+            };
+            if (!std::ranges::all_of(hip_motors_, valid_target)
+                || !std::ranges::all_of(knee_motors_, valid_target))
+                return "invalid_position_target";
+            return nullptr;
         }
 
         template <typename Builder>
         void queue_joint_commands(
             Builder& builder, const CommandCycle& cycle, const JointActions& actions) {
-            if (!cycle.side_bound && actions[0] == Action::kMit && use_motor_position_pd_) {
-                const auto valid_target = [](const device::DmMotor& motor) {
-                    return motor.control_angle_ready() && std::isfinite(motor.control_angle());
-                };
-                if (std::ranges::all_of(hip_motors_, valid_target)
-                    && std::ranges::all_of(knee_motors_, valid_target))
-                    last_pd_ns_.store(now_ns(), std::memory_order_relaxed);
-            }
             const auto send_joint = [&](const device::DmMotor& motor, std::size_t axis,
                                         const auto& can, Action action) {
                 auto packet = joint_command(motor, action, cycle.fresh);
                 builder.can_transmit(
                     can, {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
+                const bool position_pd =
+                    action == Action::kMit && device::DmMotor::command_frame_uses_pd(packet);
+                if (position_pd)
+                    last_pd_ns_.store(now_ns(), std::memory_order_relaxed);
                 publish_transmitted_frame(
                     axis, packet, static_cast<std::uint64_t>(now_ns()),
-                    wheel_leg_dm_tx_kind(action, use_motor_position_pd_), motor.send_id(),
+                    wheel_leg_dm_tx_kind(action, position_pd), motor.send_id(),
                     axis % 2 == 0 ? 1 : 2);
                 if (action != Action::kMit && action != Action::kFeedbackPoll) {
                     const auto command = static_cast<std::uint8_t>(packet.as_bytes()[7]);
                     last_system_command_[axis].store(command, std::memory_order_relaxed);
                     last_system_ns_[axis].store(now_ns(), std::memory_order_relaxed);
                 }
-                if (action == Action::kFeedbackPoll
-                    || (action == Action::kMit && !use_motor_position_pd_))
+                if (action == Action::kFeedbackPoll || (action == Action::kMit && !position_pd))
                     *frame_torque_outputs_[axis] = motor.command_frame_torque(packet);
             };
             const auto axis_order =
@@ -863,6 +936,8 @@ private:
         OutputInterface<bool> feedback_fresh_output_;
         OutputInterface<bool> dm_feedback_fresh_output_;
         OutputInterface<bool> dm_control_ready_output_;
+        OutputInterface<bool> joint_position_pd_output_;
+        OutputInterface<double> joint_kp_output_, joint_kd_output_;
         OutputInterface<bool> dr16_fresh_output_;
         std::array<OutputInterface<double>, 3> gravity_outputs_, gyro_outputs_;
         std::array<OutputInterface<std::uint64_t>, 6> feedback_ns_outputs_;
@@ -882,6 +957,7 @@ private:
         rmcs_executor::Component::InputInterface<bool> clear_error_request_;
         rmcs_executor::Component::InputInterface<bool> wheel_only_;
         rmcs_executor::Component::InputInterface<int> selected_side_;
+        rmcs_executor::Component::InputInterface<std::uint64_t> joint_command_ns_;
 
         device::DjiMotor wheel_motors_[2];
         device::DmMotor hip_motors_[2];

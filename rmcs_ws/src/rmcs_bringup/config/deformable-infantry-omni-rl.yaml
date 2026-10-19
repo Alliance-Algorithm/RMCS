@@ -179,6 +179,7 @@ rl_bridge:
     policy_rate: 200.0                     # 每 5 ms 推理
     history_rate: 100.0                    # 保留训练的 10 ms 历史帧间隔
     inference_timeout: 0.03
+    max_action_age: 0.01                   # 与 dev/rmcs_rl 一致：最多两个策略周期
     flat_hold_interface: "/chassis/rl/flat_hold"
 
     history_length: 8
