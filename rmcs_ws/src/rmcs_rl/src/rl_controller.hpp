@@ -61,6 +61,7 @@ private:
         double max_tilt_rad;
         double max_angular_velocity;
         double max_leg_error_rad;
+        double max_wheel_velocity;
         Eigen::Vector4d reference;
     };
 
@@ -268,6 +269,7 @@ private:
     double recovery_capture_max_tilt_rad_ = 0.2;
     double recovery_capture_max_angular_velocity_ = 1.0;
     double recovery_capture_max_leg_error_rad_ = 0.25;
+    double recovery_capture_max_wheel_velocity_ = 5.0;
     Eigen::Vector4d recovery_capture_reference_ = Eigen::Vector4d::Zero();
     std::array<double, 2> recovery_capture_hinge_max_{};
     double takeover_blend_seconds_ = 0.0;

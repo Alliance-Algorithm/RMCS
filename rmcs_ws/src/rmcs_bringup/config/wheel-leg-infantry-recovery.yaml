@@ -204,6 +204,8 @@ rl_controller:
     # Within the ordinary upright domain, capture a moving body before it tips.
     # Outside it retain 1 rad/s; above 30 deg reject outward tilt beyond tolerance.
     recovery_capture_max_angular_velocity: 2.0
+    # A supported moving capture must not wait for the script to stop the wheels.
+    recovery_capture_max_wheel_velocity: 20.0
     recovery_capture_height_min: 0.20
     recovery_capture_height_max: 0.29
     # Folded 50-degree knee reference; measured knees must stay at or below

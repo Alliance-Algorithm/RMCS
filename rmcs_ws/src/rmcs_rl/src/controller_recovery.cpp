@@ -59,6 +59,7 @@ bool RlController::upright_capture_ready_(double max_tilt_rad, double max_angula
         {.max_tilt_rad = max_tilt_rad,
          .max_angular_velocity = max_angular_velocity,
          .max_leg_error_rad = capture_max_leg_error_rad_,
+         .max_wheel_velocity = capture_max_wheel_velocity_,
          .reference = Eigen::Map<const Eigen::Vector4d>{nominal_.data()}},
         gravity, angular_velocity);
 }
@@ -70,7 +71,7 @@ bool RlController::upright_capture_ready_(
         || -gravity.z() < std::cos(limits.max_tilt_rad)
         || angular_velocity.norm() > limits.max_angular_velocity
         || dq_.head<4>().cwiseAbs().maxCoeff() > capture_max_leg_velocity_
-        || dq_.tail<2>().cwiseAbs().maxCoeff() > capture_max_wheel_velocity_)
+        || dq_.tail<2>().cwiseAbs().maxCoeff() > limits.max_wheel_velocity)
         return false;
     for (int i = 0; i < 4; ++i)
         if (std::abs(std::remainder(limits.reference[i] - q_[i], 2 * std::numbers::pi))
@@ -127,6 +128,7 @@ bool RlController::recovery_capture_ready_() const {
          .max_angular_velocity =
              upright ? recovery_capture_max_angular_velocity_ : capture_max_angular_velocity_,
          .max_leg_error_rad = recovery_capture_max_leg_error_rad_,
+         .max_wheel_velocity = recovery_capture_max_wheel_velocity_,
          .reference = recovery_capture_reference_},
         gravity, omega);
 }

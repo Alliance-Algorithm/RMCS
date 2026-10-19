@@ -12,7 +12,8 @@ namespace {
 constexpr float kPi = std::numbers::pi_v<float>;
 constexpr float kTau = 2.0f * kPi;
 constexpr float kPushOffClearance = 0.03f;
-constexpr float kCaptureClearance = 0.015f;
+// Reserve margin between the conditional wheel plane and the real support surface.
+constexpr float kCaptureClearance = 0.025f;
 constexpr float radians(double degrees) {
     return static_cast<float>(degrees * std::numbers::pi / 180.0);
 }
@@ -683,11 +684,14 @@ void JointReferenceRecoveryController::update_wheels_(const StepContext& step, b
         radians(is_capture ? config_.capture_tilt_limit_deg : config_.prepare_tilt_limit_deg);
     // Keep pitch damping while the grounded start acquires wheel load or its
     // lift impulse changes acceleration. Actor transfer still requires support.
-    const bool eligible = enabled_ && release_finished_
-                       && (supported || is_insertion || is_push_off) && tilt < balance_limit
-                       && (is_prepare || is_capture || is_push_off || is_insertion
-                           || (is_blend && phase == JointReferenceRecoveryPhase::kPrepare))
-                       && config_.wheel_balance_enabled;
+    // Grounded capture must retain the reaction torque through transient unloading.
+    const bool eligible =
+        enabled_ && release_finished_
+        && (supported || is_insertion || is_push_off || (grounded_start_ && is_capture))
+        && tilt < balance_limit
+        && (is_prepare || is_capture || is_push_off || is_insertion
+            || (is_blend && phase == JointReferenceRecoveryPhase::kPrepare))
+        && config_.wheel_balance_enabled;
     const bool retained = is_blend && wheel_balance_active_ && supported && tilt < balance_limit;
     Eigen::Vector2f desired =
         retained ? Eigen::Vector2f(targets_.tail<2>()) : Eigen::Vector2f::Zero();

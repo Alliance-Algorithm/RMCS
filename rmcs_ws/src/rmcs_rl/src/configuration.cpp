@@ -429,6 +429,8 @@ RlController::RlController()
             "recovery_capture_max_angular_velocity", capture_max_angular_velocity_);
         recovery_capture_max_leg_error_rad_ =
             recovery_parameter("recovery_capture_max_leg_error_rad", capture_max_leg_error_rad_);
+        recovery_capture_max_wheel_velocity_ =
+            recovery_parameter("recovery_capture_max_wheel_velocity", capture_max_wheel_velocity_);
         if (!std::isfinite(recovery_capture_max_tilt_rad_) || recovery_capture_max_tilt_rad_ <= 0.0
             || recovery_capture_max_tilt_rad_ > 40.0 * std::numbers::pi / 180.0)
             throw std::runtime_error("V6 recovery capture tilt must be within 40 degrees");
@@ -441,6 +443,10 @@ RlController::RlController()
             || recovery_capture_max_leg_error_rad_ <= 0.0
             || recovery_capture_max_leg_error_rad_ > 0.50)
             throw std::runtime_error("Recovery capture leg error must be within 0.50 rad");
+        if (!std::isfinite(recovery_capture_max_wheel_velocity_)
+            || recovery_capture_max_wheel_velocity_ <= 0.0
+            || recovery_capture_max_wheel_velocity_ > 20.0)
+            throw std::runtime_error("Recovery capture wheel speed must be within 20 rad/s");
         recovery_config.prepare_speed_rad_s = recovery_parameter(
             "recovery_fold_plant_speed_rad_s", recovery_config.prepare_speed_rad_s);
         if (!std::isfinite(recovery_config.prepare_speed_rad_s)
@@ -465,14 +471,15 @@ RlController::RlController()
             "FOLD/PLANT %.2f, low insertion %.2f, ORBIT %.2f rad/s, "
             "capture %.1f deg at %.2f..%.2f m, "
             "hinge maxima %.3f/%.3f rad, "
-            "leg error %.2f rad, upright gyro %.2f rad/s, motion %s",
+            "leg error %.2f rad, wheel speed %.1f rad/s, upright gyro %.2f rad/s, motion %s",
             recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
             recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
             recovery_config.insert_speed_rad_s, recovery_config.orbit_speed_rad_s,
             recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
             recovery_config.dynamic_capture_height_min, recovery_config.dynamic_capture_height_max,
             recovery_capture_hinge_max_[0], recovery_capture_hinge_max_[1],
-            recovery_capture_max_leg_error_rad_, recovery_capture_max_angular_velocity_,
+            recovery_capture_max_leg_error_rad_, recovery_capture_max_wheel_velocity_,
+            recovery_capture_max_angular_velocity_,
             recovery_config.release_motion_on_takeover ? "released at takeover"
                                                        : "held until stable");
         support_observer_.emplace(native.geometry, recovery_config.dt);
