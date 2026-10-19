@@ -1,4 +1,5 @@
 #include <limits>
+#include <stdexcept>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -38,9 +39,16 @@ public:
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
 
-        two_axis_gimbal_solver.enable_yaw_limit(
-            *this, get_parameter("yaw_upper_limit").as_double(),
-            get_parameter("yaw_lower_limit").as_double());
+        const bool has_yaw_upper_limit = has_parameter("yaw_upper_limit");
+        const bool has_yaw_lower_limit = has_parameter("yaw_lower_limit");
+        if (has_yaw_upper_limit != has_yaw_lower_limit)
+            throw std::runtime_error(
+                "yaw_upper_limit and yaw_lower_limit must be configured together");
+
+        if (has_yaw_upper_limit)
+            two_axis_gimbal_solver.enable_yaw_limit(
+                *this, get_parameter("yaw_upper_limit").as_double(),
+                get_parameter("yaw_lower_limit").as_double());
     }
 
     void update() override {
