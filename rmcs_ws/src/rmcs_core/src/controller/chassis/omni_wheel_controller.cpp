@@ -25,7 +25,7 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , translational_velocity_pid_calculator_(5.0, 0.0, 0.0)
+        , translational_velocity_pid_calculator_(7.0, 0.0, 0.0)
         , angular_velocity_pid_calculator_(5.0, 0.0, 0.0)
         , wheel_velocity_pid_(0.6, 0.0, 0.0) {
 

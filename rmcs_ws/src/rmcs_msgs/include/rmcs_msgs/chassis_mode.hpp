@@ -13,6 +13,7 @@ enum class ChassisMode : uint8_t {
     ALIGNMENT,
     ALIGNMENT_POWERED,
     CROSS,
+    ALIGN,
 };
 
 constexpr auto is_powered(ChassisMode mode) noexcept {

@@ -19,6 +19,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
       - rmcs_core::controller::chassis::SentryClimber -> sentry_climber
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::SentryChassisAlign -> sentry_chassis_align
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
 
@@ -154,6 +155,13 @@ chassis_controller:
     following_velocity_kp: 7.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
+
+sentry_chassis_align:
+  ros__parameters:
+    err: 0.15
+    w: 0.2
+    hold: 0.1
+    timeout: 5.0
 
 sentry_climber:
   ros__parameters:

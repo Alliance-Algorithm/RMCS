@@ -204,6 +204,7 @@ public:
         case rmcs_msgs::ChassisMode::ALIGNMENT: [[fallthrough]];
         case rmcs_msgs::ChassisMode::ALIGNMENT_POWERED: [[fallthrough]];
         case rmcs_msgs::ChassisMode::CROSS: [[fallthrough]];
+        case rmcs_msgs::ChassisMode::ALIGN: [[fallthrough]];
         case rmcs_msgs::ChassisMode::LAUNCH_RAMP: {
             double err = calculate_unsigned_chassis_angle_error(chassis_control_angle);
 

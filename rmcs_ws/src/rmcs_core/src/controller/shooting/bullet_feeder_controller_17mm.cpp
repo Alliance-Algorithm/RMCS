@@ -108,7 +108,7 @@ public:
                 if (*bullet_fired_)
                     single_shot_stop_counter_ = 0;
 
-                // if (*friction_ready_) {
+                if (*friction_ready_) {
                     if (shoot_mode == ShootMode::AUTOMATIC) {
                         auto aiming_enable = mouse_->right || (switch_right == Switch::UP);
                         auto attack_intent = mouse_->left || (switch_left == Switch::DOWN);
@@ -122,7 +122,7 @@ public:
                     }
                 }
                 
-            // }
+            }
 
             update_bullet_feeder_velocity(bullet_allowance);
         }

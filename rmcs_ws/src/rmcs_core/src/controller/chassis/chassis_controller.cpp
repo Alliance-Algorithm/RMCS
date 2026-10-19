@@ -38,6 +38,7 @@ public:
 
         register_input("/chassis/cross/direction", chassis_cross_direction_, false);
         register_input("/chassis/cross/speed", chassis_cross_speed_, false);
+        register_input("/chassis/align/direction", chassis_align_direction_, false);
         register_input("/chassis/climber/measure_yaw", chassis_measure_yaw_, false);
 
         register_input("/rmcs_navigation/enable_control", navigation_enable_control_, false);
@@ -65,6 +66,9 @@ public:
         }
         if (!chassis_cross_speed_.ready()) {
             chassis_cross_speed_.make_and_bind_directly(kNaN);
+        }
+        if (!chassis_align_direction_.ready()) {
+            chassis_align_direction_.make_and_bind_directly(kNaN);
         }
         if (!chassis_measure_yaw_.ready()) {
             chassis_measure_yaw_.make_and_bind_directly(kNaN);
@@ -127,14 +131,26 @@ public:
                 }
 
                 if (cross_active()) {
-                    if (mode != ChassisMode::CROSS)
-                        mode_before_cross_ = mode;
-                    mode = ChassisMode::CROSS;
-                } else if (mode == ChassisMode::CROSS) {
-                    mode = mode_before_cross_.value_or(ChassisMode::ALIGNMENT);
+                    if (mode != ChassisMode::CROSS) {
+                        if (mode != ChassisMode::ALIGN)
+                            mode_before_cross_ = mode;
+                        mode = ChassisMode::CROSS;
+                    }
+                    mode_before_align_.reset();
+                } else if (align_active()) {
+                    if (mode != ChassisMode::ALIGN) {
+                        if (mode != ChassisMode::CROSS)
+                            mode_before_align_ = mode;
+                        mode = ChassisMode::ALIGN;
+                    }
                     mode_before_cross_.reset();
                 } else {
+                    if (mode == ChassisMode::CROSS)
+                        mode = mode_before_cross_.value_or(ChassisMode::ALIGNMENT);
+                    else if (mode == ChassisMode::ALIGN)
+                        mode = mode_before_align_.value_or(ChassisMode::ALIGNMENT);
                     mode_before_cross_.reset();
+                    mode_before_align_.reset();
                 }
 
                 update_spin_stuck_watchdog(mode);
@@ -152,6 +168,7 @@ public:
     void reset_all_controls() {
         *mode_ = rmcs_msgs::ChassisMode::ALIGNMENT;
         mode_before_cross_.reset();
+        mode_before_align_.reset();
         *chassis_control_velocity_ = {kNaN, kNaN, kNaN};
 
         spin_stuck_count_ = 0;
@@ -204,6 +221,11 @@ public:
             && std::isfinite(*chassis_measure_yaw_);
     }
 
+    auto align_active() const -> bool {
+        return std::isfinite(*chassis_align_direction_)
+            && std::isfinite(*chassis_measure_yaw_);
+    }
+
     static auto normalize_signed_angle(double angle) noexcept {
         constexpr auto kTwoPi = 2.0 * std::numbers::pi;
         while (angle >= std::numbers::pi)
@@ -220,6 +242,9 @@ public:
             // speed 以底盘正向 direction 为正向：上坡为正前进，下坡为负倒车
             return {*chassis_cross_speed_, 0.0};
         }
+
+        if (*mode_ == ChassisMode::ALIGN)
+            return {0.0, 0.0};
 
         if (*navigation_enable_control_) {
             const auto command = *navigation_command_velocity_;
@@ -317,6 +342,16 @@ public:
             *chassis_control_angle_ = chassis_control_angle;
             return angular_velocity;
         }
+        case ChassisMode::ALIGN: {
+            chassis_control_angle = *chassis_align_direction_;
+
+            const auto err = normalize_signed_angle(chassis_control_angle - *chassis_measure_yaw_);
+            angular_velocity = following_velocity_controller_.update(err);
+
+            *chassis_angle_ = *chassis_measure_yaw_;
+            *chassis_control_angle_ = chassis_control_angle;
+            return angular_velocity;
+        }
         }
 
         *chassis_angle_ = 2 * std::numbers::pi - *gimbal_yaw_angle_;
@@ -359,6 +394,7 @@ private:
     InputInterface<double> chassis_yaw_velocity_imu_;
     InputInterface<double> chassis_cross_direction_;
     InputInterface<double> chassis_cross_speed_;
+    InputInterface<double> chassis_align_direction_;
     InputInterface<double> chassis_measure_yaw_;
 
     InputInterface<bool> navigation_enable_control_;
@@ -367,6 +403,7 @@ private:
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     std::optional<rmcs_msgs::ChassisMode> mode_before_cross_;
+    std::optional<rmcs_msgs::ChassisMode> mode_before_align_;
     bool spinning_forward_ = true;
 
     std::size_t spin_stuck_count_ = 0;

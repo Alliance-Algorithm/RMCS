@@ -11,7 +11,6 @@ rmcs_executor:
       - rmcs_core::referee::command::interaction::Ui -> referee_ui
 
       - rmcs_core::controller::gimbal::FoldableGimbalController -> gimbal_controller
-      - rmcs_core::controller::chassis::SentryTunnelCross -> sentry_tunnel_cross
 
       - rmcs_core::controller::shooting::ThreeFrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
@@ -22,6 +21,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
 
       - rmcs_core::controller::chassis::ChassisController -> chassis_controller
+      - rmcs_core::controller::chassis::SentryChassisAlign -> sentry_chassis_align
       - rmcs_core::controller::chassis::ChassisPowerController -> chassis_power_controller
       - rmcs_core::controller::chassis::OmniWheelController -> omni_wheel_controller
 
@@ -50,7 +50,7 @@ foldable_sentry:
     roll_motor_zero_point: 14733
     top_yaw_motor_zero_point: 3433
     pitch_motor_zero_point: 28369
-    bottom_yaw_motor_zero_point: 3558
+    bottom_yaw_motor_zero_point: 18677
 
 auto_aim_capturer:
   ros__parameters:
@@ -105,25 +105,12 @@ chassis_controller:
     alignment_angle_tolerance: 0.2
     alignment_velocity_tolerance: 0.2
 
-sentry_tunnel_cross:
+sentry_chassis_align:
   ros__parameters:
-    up:
-      speed: 2.4
-      duration: 2.5
-    down:
-      speed: 1.2
-      duration: 1.4
-    plain:
-      speed: 1.2
-      duration: 1.5
-    pre_drive_delay: 0.2
-    fold_timeout: 5.0
-    unfold_timeout: 5.0
-    align:
-      err: 0.5
-      w: 0.5
-      hold: 0.1
-      timeout: 5.0
+    err: 0.15
+    w: 0.2
+    hold: 0.1
+    timeout: 5.0
 
 value_broadcaster:
   ros__parameters:
@@ -147,8 +134,8 @@ gimbal_controller:
     pitch_lower_limit: 0.30
 
     fold_ready_time: 0.05
-    fold_velocity_tolerance: 0.4
-    fold_angle_tolerance: 0.4
+    fold_velocity_tolerance: 0.2
+    fold_angle_tolerance: 0.2
 
     top_yaw_velocity_ff_gain: 0.0
     top_yaw_ff_cutoff_hz: 0.0
