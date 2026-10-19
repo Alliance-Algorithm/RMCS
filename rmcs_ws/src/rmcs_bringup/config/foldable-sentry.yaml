@@ -58,9 +58,9 @@ auto_aim_capturer:
     exposure_us: 2000.0
     gain: 10.0
     framerate: 120.0
-    invert_image: true
+    invert_image: false
     rls_tau_sec: 10.0
-    use_hardware_sync: true
+    use_hardware_sync: false
     delay_ms: 6.5
 
 auto_aim_recorder:
@@ -108,11 +108,11 @@ chassis_controller:
 sentry_tunnel_cross:
   ros__parameters:
     up:
-      speed: 2.0
-      duration: 2.4
+      speed: 2.4
+      duration: 2.5
     down:
-      speed: 1.5
-      duration: 1.5
+      speed: 1.2
+      duration: 1.4
     plain:
       speed: 1.2
       duration: 1.5
