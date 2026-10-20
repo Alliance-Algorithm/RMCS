@@ -7,7 +7,8 @@ rmcs_executor:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::WheelLeg -> wheel_leg
-      - rmcs::rl::RlController -> rl_controller
+      - rmcs_core::controller::chassis::WheelLegController -> wheel_leg_controller
+      - rmcs_rl::RlBridge -> rl_bridge
       - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
       - rmcs_core::controller::identification::WheelLegIdentificationRecorder -> wheel_leg_identification_recorder
 
@@ -167,9 +168,16 @@ wheel_leg:
     # This configuration uses zero-Kp/Kd MIT pure-torque commands.
     # All six drive loops run on the PC (not DM internal position control).
 
-rl_controller:
+rl_bridge:
   ros__parameters:
-    # Shared rmcs_rl policy interface: feature order, scaling and actor mapping live here.
+    # YAML owns serialization, feature scaling, actor decoding and worker-thread inference.
+    rl_base: "/wheel_leg/rl"
+    enable_interface: "/wheel_leg/rl/input/enable"
+    reset_interface: "/chassis/reset_count"
+    context_interface: "/wheel_leg/rl/input/context"
+    enable_default: false
+    invalid_value: "nan"
+    max_action_age: 0.06
     policy_rate: 50.0
     history_length: 1
     rl_obs_size: 35
@@ -196,7 +204,12 @@ rl_controller:
       - index=10 type=joint_pos joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint relative=true name=joint_position clip=-100:100
       - index=14 type=joint_pos joints=left_wheel,right_wheel zero=true name=joint_position_wheels clip=-100:100
       - index=16 type=joint_vel joints=left_hip_joint,left_knee_joint,right_hip_joint,right_knee_joint,left_wheel,right_wheel scale=0.1 name=joint_velocity clip=-100:100
-      - index=22 type=last_action indices=0,1,2,3,4,5 name=previous_action clip=-100:100
+      - index=22 path=/wheel_leg/rl/effective_action/left_hip_joint name=previous_action/0 clip=-100:100
+      - index=23 path=/wheel_leg/rl/effective_action/left_knee_joint name=previous_action/1 clip=-100:100
+      - index=24 path=/wheel_leg/rl/effective_action/right_hip_joint name=previous_action/2 clip=-100:100
+      - index=25 path=/wheel_leg/rl/effective_action/right_knee_joint name=previous_action/3 clip=-100:100
+      - index=26 path=/wheel_leg/rl/effective_action/left_wheel name=previous_action/4 clip=-100:100
+      - index=27 path=/wheel_leg/rl/effective_action/right_wheel name=previous_action/5 clip=-100:100
       - index=28 type=constant value=1,0,0,0,0,0,0 name=context clip=-100:100
     # Same mapping as RlBridge: scale first, clip in target units.
     # Legs output position offsets (rad); wheels output wheel-side speed (rad/s).
@@ -213,6 +226,14 @@ rl_controller:
     leg_winding_version: "paired_branch107_v1"
     expected_model_spec_sha256: "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997"
     inference_timeout: 0.06
+
+wheel_leg_controller:
+  ros__parameters:
+    # Mechanical state, recovery, paired winding and feedback PD belong to RMCS.
+    control_profile: v6
+    leg_winding_version: "paired_branch107_v1"
+    nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
+    inference_timeout: 0.06
     heading_hold_enabled: true
     heading_hold_gain: 5.0
     heading_hold_yaw_rate_max: 6.283185307179586
@@ -222,8 +243,8 @@ rl_controller:
     pd_frequency: 1000.0
     recovery_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
-    recovery_profile_path: "models/wheel_leg/deployment/v7_recovery_profiles_107_v2.json"
-    height_lookup_path: "models/wheel_leg/deployment/v7_height_lookup_107.json"
+    recovery_profile_path: "config/wheel_leg/v7_recovery_profiles_107_v2.json"
+    height_lookup_path: "config/wheel_leg/v7_height_lookup_107.json"
     recovery_enabled: true
     recovery_profile_ready: true
     # At the measured capture condition, switch all six axes to actor effort
