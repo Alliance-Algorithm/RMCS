@@ -34,7 +34,7 @@ g_RL     = inverse(normalize(q_WB)) * [0,0,-1]
 
 车辆 YAML 加载 `rmcs_core::controller::chassis::WheelLegRlImu -> wheel_leg_rl_imu`，并通过 `take=vec3` 读取 RL 角速度与重力接口：
 
-- `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml`
+- `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-recovery.yaml`
 
 通用 `RlBridge` 的 `transform=projected_gravity` 按输入四元数直接乘重力；本车使用上面的向量接口，绕开该分支。无效输入会令两路 RL 输出为 NaN，避免沿用旧的有效观测。`/chassis/reset_count` 继续由桥清除观测历史及动作状态。
 
