@@ -134,8 +134,8 @@ gimbal_controller:
     pitch_lower_limit: 0.30
 
     fold_ready_time: 0.05
-    fold_velocity_tolerance: 0.2
-    fold_angle_tolerance: 0.2
+    fold_velocity_tolerance: 0.4
+    fold_angle_tolerance: 0.4
 
     top_yaw_velocity_ff_gain: 0.0
     top_yaw_ff_cutoff_hz: 0.0
