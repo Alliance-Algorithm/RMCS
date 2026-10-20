@@ -9,6 +9,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
+#include "deformable/flat_return_trajectory.hpp"
 #include "deformable/rl_contract.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -41,6 +42,17 @@ public:
         target_rate_limit_ = get_parameter_or("leg_target_rate_limit", 2.0);
         if (use_v3_ && (!std::isfinite(target_rate_limit_) || target_rate_limit_ <= 0.0))
             throw std::invalid_argument("V3 leg_target_rate_limit must be finite and positive");
+        flat_return_enabled_ = get_parameter_or("guard_flat_return_enabled", false);
+        flat_return_rate_limit_ = get_parameter_or("guard_flat_return_rate_limit", 0.5);
+        flat_return_acceleration_limit_ = get_parameter_or("guard_flat_return_acceleration_limit", 2.0);
+        flat_terminal_acceleration_limit_ = get_parameter_or("guard_flat_terminal_acceleration_limit", 1.0);
+        flat_return_minimum_duration_ = get_parameter_or("guard_flat_return_minimum_duration_s", 1.2);
+        if (flat_return_enabled_ && (!use_v3_
+            || !std::isfinite(flat_return_rate_limit_) || flat_return_rate_limit_ <= 0.0
+            || !std::isfinite(flat_return_acceleration_limit_) || flat_return_acceleration_limit_ <= 0.0
+            || !std::isfinite(flat_terminal_acceleration_limit_) || flat_terminal_acceleration_limit_ <= 0.0
+            || !std::isfinite(flat_return_minimum_duration_) || flat_return_minimum_duration_ <= 0.0))
+            throw std::invalid_argument("invalid coordinated flat-return contract");
         leg_action_scale_ = get_parameter_or("leg_action_scale", 0.15);
         q_target_min_rad_ = get_parameter_or("q_target_min_rad", 0.0);
         q_target_max_rad_ = get_parameter_or("q_target_max_rad", 1.0563);
@@ -64,6 +76,7 @@ public:
         register_input("/predefined/update_rate", update_rate_, false);
         register_input(rl_base + "/valid", valid_, false);
         register_input(rl_base + "/healthy", healthy_, false);
+        register_input(rl_base + "/flat_return", flat_return_, flat_return_enabled_);
         register_input("/chassis/active_suspension/active", active_suspension_);
         register_input("/chassis/deformable/reset_count", reset_count_);
         register_input("/chassis/deformable/rl_q_cmd", q_cmd_);
@@ -93,6 +106,8 @@ public:
             valid_.make_and_bind_directly(0.0);
         if (!healthy_.ready())
             healthy_.make_and_bind_directly(0.0);
+        if (!flat_return_.ready())
+            flat_return_.make_and_bind_directly(false);
 
         for (std::size_t leg = 0; leg < kLegCount; ++leg)
             if (!action_[leg].ready())
@@ -142,6 +157,25 @@ public:
             }
         }
 
+        const bool smooth = flat_return_enabled_ && *flat_return_;
+        if (smooth && !flat_return_active_) {
+            for (std::size_t leg = 0; leg < kLegCount; ++leg) {
+                const auto corner = kCornerForLeg[leg];
+                flat_return_start_[leg] = deformable_rl::kPhysicalZero
+                    - (std::isfinite(previous_target_[corner]) ? previous_target_[corner]
+                                                               : *physical_angle_[corner]);
+            }
+            flat_return_elapsed_ = 0.0;
+        }
+        flat_return_active_ = smooth;
+        deformable_rl::FlatReturnTarget flat_target;
+        if (smooth) {
+            flat_return_elapsed_ += dt;
+            flat_target = deformable_rl::coordinated_flat_return(flat_return_start_, q_cmd,
+                flat_return_elapsed_, flat_return_minimum_duration_, flat_return_rate_limit_,
+                flat_return_acceleration_limit_);
+        }
+
         for (std::size_t leg = 0; leg < kLegCount; ++leg) {
             const auto corner = kCornerForLeg[leg];
             const double physical = *physical_angle_[corner];
@@ -153,7 +187,14 @@ public:
             double p_target = std::clamp(
                 use_v3_ ? deformable_rl::kPhysicalZero - q_target : high_physical - q_target * span / q_max,
                 physical_min_rad_, physical_max_rad_);
-            if (use_v3_) {
+            double velocity = kNaN;
+            if (smooth) {
+                p_target = deformable_rl::kPhysicalZero - flat_target.position[leg];
+                velocity = -deformable_rl::flat_terminal_velocity(
+                    deformable_rl::kPhysicalZero - physical, q_cmd, flat_target.velocity[leg],
+                    flat_terminal_acceleration_limit_);
+                previous_target_[corner] = p_target;
+            } else if (use_v3_) {
                 if (!std::isfinite(previous_target_[corner]))
                     previous_target_[corner] = physical;
                 const double max_change = target_rate_limit_ * dt;
@@ -162,7 +203,7 @@ public:
                 previous_target_[corner] = p_target;
             }
             *target_angle_[corner] = p_target;
-            *target_velocity_[corner] = kNaN;
+            *target_velocity_[corner] = velocity;
             *target_acceleration_[corner] = kNaN;
             *angle_error_[corner] = physical - p_target;
         }
@@ -194,6 +235,9 @@ private:
 
     void publish_nan_targets_() {
         previous_target_.fill(kNaN);
+        flat_return_active_ = false;
+        flat_return_elapsed_ = 0.0;
+        flat_return_start_.setZero();
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             *target_angle_[corner] = kNaN;
             *target_velocity_[corner] = kNaN;
@@ -205,6 +249,7 @@ private:
     InputInterface<double> update_rate_;
     InputInterface<double> valid_;
     InputInterface<double> healthy_;
+    InputInterface<bool> flat_return_;
     InputInterface<bool> active_suspension_;
     InputInterface<std::size_t> reset_count_;
     InputInterface<double> q_cmd_;
@@ -221,6 +266,14 @@ private:
 
     bool use_v3_ = false;
     double target_rate_limit_ = 2.0;
+    bool flat_return_enabled_ = false;
+    bool flat_return_active_ = false;
+    double flat_return_rate_limit_ = 0.5;
+    double flat_return_acceleration_limit_ = 2.0;
+    double flat_terminal_acceleration_limit_ = 1.0;
+    double flat_return_minimum_duration_ = 1.2;
+    double flat_return_elapsed_ = 0.0;
+    Eigen::Vector4d flat_return_start_ = Eigen::Vector4d::Zero();
     std::array<double, kCornerCount> previous_target_{};
     double leg_action_scale_ = 0.15;
     double q_target_min_rad_ = 0.0;

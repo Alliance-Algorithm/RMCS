@@ -159,6 +159,16 @@ private:
 
         double reference_angle = inputs.setpoint_angle;
         double reference_velocity = inputs.setpoint_velocity;
+        const bool explicit_velocity = std::isfinite(reference_velocity);
+        if (explicit_velocity != explicit_velocity_) {
+            // Only the differentiator changes when the guard selects its trajectory.
+            // Keep the disturbance observer and applied-current history continuous.
+            const double velocity = explicit_velocity ? reference_velocity
+                : (inputs.setpoint_angle - previous_setpoint_angle_) / dt_;
+            td_.reset(inputs.setpoint_angle, velocity);
+            explicit_velocity_ = explicit_velocity;
+        }
+        previous_setpoint_angle_ = inputs.setpoint_angle;
         if (!std::isfinite(reference_velocity)) {
             const auto td_out = td_.update(inputs.setpoint_angle);
             reference_angle = td_out.x1;
@@ -177,6 +187,8 @@ private:
         td_.reset(setpoint_angle, 0.0);
         eso_.reset(measurement_angle);
         last_u_ = 0.0;
+        explicit_velocity_ = false;
+        previous_setpoint_angle_ = setpoint_angle;
     }
 
     void publish_control_output_(double control_torque) {
@@ -209,6 +221,8 @@ private:
     double b0_ = 1.0;
     double kt_ = 1.0;
     double last_u_ = 0.0;
+    double previous_setpoint_angle_ = 0.0;
+    bool explicit_velocity_ = false;
     bool use_setpoint_velocity_ = false;
     bool initialized_ = false;
 };

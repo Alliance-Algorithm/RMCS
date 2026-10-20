@@ -9,6 +9,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "component_fixture.hpp"
+#include "controller/chassis/deformable_joint_controller.cpp"
 #include "controller/chassis/deformable_rl_suspension.cpp"
 #include "deformable/rl_contract.hpp"
 #include "hardware/device/lk_motor.hpp"
@@ -26,6 +27,7 @@ public:
         register_output("/chassis/rl/valid", valid, 1.0);
         register_output("/chassis/rl/healthy", healthy, 1.0);
         register_output("/chassis/active_suspension/active", active, true);
+        register_output("/chassis/rl/flat_return", flat_return, false);
         register_output("/chassis/deformable/reset_count", reset_count, std::size_t{0});
         register_output("/chassis/deformable/rl_q_cmd", baseline, kBaselineQ);
         register_output(
@@ -45,7 +47,7 @@ public:
     }
     void update() override {}
     OutputInterface<double> rate, valid, healthy, baseline, high, low, q_max;
-    OutputInterface<bool> active;
+    OutputInterface<bool> active, flat_return;
     OutputInterface<std::size_t> reset_count;
     std::array<OutputInterface<double>, 4> action, physical;
     std::array<InputInterface<double>, 4> target, target_velocity;
@@ -173,13 +175,87 @@ TEST(DeformableRlContract, LegacyModeKeepsOriginalCoordinateMapping) {
         *rig.signals.target[3],
         *rig.signals.high - .625 * (*rig.signals.high - *rig.signals.low) / 1.36, 1e-12);
 }
+
+TEST(DeformableRlContract, CoordinatedFlatReturnReachesBaselineAndResetStartsFromEncoders) {
+    Rig rig;
+    *rig.signals.flat_return = true;
+    for (std::size_t i = 0; i < 4; ++i) {
+        *rig.signals.physical[i] = .4 + .1 * i;
+        *rig.signals.action[i] = -1.0;
+    }
+    rig.tick();
+    for (std::size_t i = 0; i < 4; ++i) {
+        EXPECT_NEAR(*rig.signals.target[i], *rig.signals.physical[i], 1e-7);
+        EXPECT_LE(*rig.signals.target_velocity[i], 0.0);
+    }
+    rig.tick(4000);
+    for (std::size_t i = 0; i < 4; ++i) {
+        EXPECT_NEAR(*rig.signals.target[i], kPhysicalZero - kBaselineQ, 1e-12);
+        EXPECT_DOUBLE_EQ(*rig.signals.target_velocity[i], 0.0);
+    }
+    ++*rig.signals.reset_count;
+    rig.tick();
+    for (auto& target : rig.signals.target)
+        EXPECT_TRUE(std::isnan(*target));
+    *rig.signals.physical[0] = .6;
+    rig.tick();
+    EXPECT_NEAR(*rig.signals.target[0], .6, 1e-7);
+    *rig.signals.healthy = 0;
+    rig.tick();
+    for (auto& target : rig.signals.target)
+        EXPECT_TRUE(std::isnan(*target));
+}
+
+TEST(DeformableRlContract, LeavingExplicitVelocityReseedsOnlyTheDifferentiator) {
+    class ServoSignals : public rmcs_executor::Component {
+    public:
+        ServoSignals() {
+            register_output("/test/joint/measurement", measurement, 0.0);
+            register_output("/test/joint/setpoint", setpoint, 0.0);
+            register_output("/test/joint/velocity", velocity, kNaN);
+            register_output("/chassis/joint_control_active", active, true);
+            register_input("/test/joint/control", control);
+        }
+        void update() override {}
+        OutputInterface<double> measurement, setpoint, velocity;
+        OutputInterface<bool> active;
+        InputInterface<double> control;
+    } signals;
+    using Servo = rmcs_core::controller::chassis::DeformableJointController;
+    auto servo = signals.create_partner_component<Servo>("manual5000_joint_test");
+    std::array<rmcs_executor::Component*, 2> components{&signals, servo.get()};
+    rmcs_executor::Executor::pair(components);
+    servo->update();
+    *signals.setpoint = .5;
+    *signals.velocity = 0.0;
+    servo->update();
+    *signals.setpoint = 1.0;
+    servo->update();
+    *signals.velocity = kNaN;
+    servo->update();
+    EXPECT_NEAR(*signals.control, 1.0, 1e-6);
+    *signals.active = false;
+    servo->update();
+    EXPECT_TRUE(std::isnan(*signals.control));
+    *signals.active = true;
+    *signals.measurement = *signals.setpoint = .4;
+    servo->update();
+    EXPECT_NEAR(*signals.control, 0.0, 1e-12);
+}
 } // namespace
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     const char* args[] = {
-        "deformable_rl_contract_test", "--ros-args", "--params-file", DEFORMABLE_RL_TEST_CONFIG};
-    rclcpp::init(4, args);
+        "deformable_rl_contract_test", "--ros-args", "--params-file", DEFORMABLE_RL_TEST_CONFIG,
+        "-p", "manual5000_joint_test:measurement_angle:=/test/joint/measurement",
+        "-p", "manual5000_joint_test:setpoint_angle:=/test/joint/setpoint",
+        "-p", "manual5000_joint_test:setpoint_velocity:=/test/joint/velocity",
+        "-p", "manual5000_joint_test:control:=/test/joint/control",
+        "-p", "manual5000_joint_test:dt:=0.000001",
+        "-p", "manual5000_joint_test:k1:=1.0",
+        "-p", "manual5000_joint_test:k2:=0.0"};
+    rclcpp::init(static_cast<int>(std::size(args)), args);
     const int result = RUN_ALL_TESTS();
     rclcpp::shutdown();
     return result;

@@ -41,6 +41,7 @@ public:
         for (std::size_t i = 0; i < 4; ++i)
             register_input(std::string("/chassis/") + names[i] + "_joint/urdf_angle", joint_q_[i]);
         register_output("/chassis/rl/flat_hold", flat_hold_, false);
+        register_output("/chassis/rl/flat_return", flat_return_, false);
         register_output("/chassis/rl/compensated_gravity_b", gravity_, Eigen::Vector3d::Constant(kNaN));
         register_output("/chassis/rl/linear_acceleration_b", acceleration_, Eigen::Vector3d::Constant(kNaN));
         register_output("/chassis/rl/estimated_support_grade_deg", grade_, kNaN);
@@ -73,6 +74,8 @@ public:
         const auto result = guard_.update(*attitude_, *gyro_, *specific_force_, *encoder_twist_, q,
             1.0 / *update_rate_);
         *flat_hold_ = *active_ && result.flat_hold;
+        *flat_return_ = *active_
+            && (result.flat_hold || result.flat_candidate || result.encoder_flat_candidate);
         *gravity_ = result.gravity_b;
         *acceleration_ = result.linear_acceleration_b;
         *grade_ = result.grade_deg;
@@ -84,6 +87,7 @@ private:
     void clear_() {
         guard_.reset();
         *flat_hold_ = false;
+        *flat_return_ = false;
         *gravity_ = Eigen::Vector3d::Constant(kNaN);
         *acceleration_ = Eigen::Vector3d::Constant(kNaN);
         *grade_ = *plane_error_ = kNaN;
@@ -94,7 +98,7 @@ private:
     InputInterface<Eigen::Quaterniond> attitude_;
     InputInterface<Eigen::Vector3d> gyro_, specific_force_, encoder_twist_;
     std::array<InputInterface<double>, 4> joint_q_;
-    OutputInterface<bool> flat_hold_;
+    OutputInterface<bool> flat_hold_, flat_return_;
     OutputInterface<Eigen::Vector3d> gravity_, acceleration_;
     OutputInterface<double> grade_, plane_error_;
     deformable_rl::SuspensionGuard guard_;

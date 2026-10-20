@@ -25,6 +25,9 @@ public:
 
     struct Result {
         bool flat_hold = false;
+        bool flat_candidate = false;
+        bool encoder_flat_candidate = false;
+        bool sensor_ready = false;
         Eigen::Vector3d gravity_b = Eigen::Vector3d::Constant(kNaN);
         Eigen::Vector3d linear_acceleration_b = Eigen::Vector3d::Constant(kNaN);
         double grade_deg = kNaN;
@@ -42,6 +45,7 @@ public:
 
     void reset() {
         initialized_ = false;
+        sensor_valid_time_ = 0.0;
         release_flat_hold();
         acceleration_.setZero();
         force_filter_.setZero();
@@ -115,6 +119,14 @@ public:
         result.grade_deg = std::acos(std::clamp(normal.dot(up_), -1.0, 1.0)) * 180.0 / std::acos(-1.0);
         const bool planar = std::isfinite(result.grade_deg)
             && result.plane_error_m <= config_.plane_tolerance_m;
+        sensor_valid_time_ += dt;
+        result.sensor_ready = sensor_valid_time_ + 1e-7 >= config_.confirmation_s;
+        result.flat_candidate = planar && result.grade_deg <= config_.enter_deg;
+        const Eigen::Vector3d initial_up = attitude.normalized().conjugate() * Eigen::Vector3d::UnitZ();
+        const double initial_grade = std::acos(std::clamp(normal.dot(initial_up), -1.0, 1.0))
+            * 180.0 / std::acos(-1.0);
+        result.encoder_flat_candidate = !result.sensor_ready
+            && result.plane_error_m <= config_.plane_tolerance_m && initial_grade <= config_.enter_deg;
         if (flat_hold_) {
             flat_hold_ = planar && result.grade_deg <= config_.exit_deg;
         } else if (planar && result.grade_deg <= config_.enter_deg) {
@@ -137,6 +149,7 @@ private:
     bool initialized_ = false;
     bool flat_hold_ = false;
     double candidate_time_ = 0.0;
+    double sensor_valid_time_ = 0.0;
     Eigen::Vector3d up_ = Eigen::Vector3d::UnitZ();
     Eigen::Vector3d velocity_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d acceleration_ = Eigen::Vector3d::Zero();

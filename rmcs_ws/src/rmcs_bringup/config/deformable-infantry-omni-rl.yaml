@@ -161,6 +161,12 @@ deformable_rl_suspension:
     leg_target_rate_limit: 2.0              # rad/s，匹配训练目标角限速
     q_target_min_rad: 0.05235635310555198    # 75° physical angle
     q_target_max_rad: 1.0821006117822065     # 16° physical angle
+    # manual_5000 的 sensor_plane_imu_v8 回位轨迹由原生控制器执行。
+    guard_flat_return_enabled: true
+    guard_flat_return_rate_limit: 0.5
+    guard_flat_return_acceleration_limit: 2.0
+    guard_flat_terminal_acceleration_limit: 1.0
+    guard_flat_return_minimum_duration_s: 1.2
 
 deformable_suspension_arbiter:
   ros__parameters:
@@ -177,8 +183,8 @@ rl_bridge:
     max_action_age: 0.01                   # 最多两个推理周期
     flat_hold_interface: "/chassis/rl/flat_hold"
 
-    rl_obs_size: 256                       # 8 × 32，最旧帧在前
-    history_length: 8
+    rl_obs_size: 160                       # 5 × 32，最旧帧在前
+    history_length: 5
     rl_action_size: 4
 
     # 使能取自上游 DeformableChassis；桥不得读消费侧输出，否则成环。
@@ -186,6 +192,7 @@ rl_bridge:
     enable_default: false
     invalid_value: "nan"                   # 必须加引号！
     reset_interface: "/chassis/deformable/reset_count"
+    expected_model_id: "0x7542eb585bbdd224"
 
     # RF, LF, LB, RB；URDF q=CAD零角-physical_angle，电流沿配置后的关节轴。
     joint_names: [right_front_joint, left_front_joint, left_back_joint, right_back_joint]
@@ -225,13 +232,13 @@ rl_bridge:
 policy_server:
   ros__parameters:
     rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable_v3_transformer.onnx"
+    rl_model_path: "models/deformable_guarded_mlp5_manual_5000.onnx"
     input_name: "obs"
     output_name: "actions"
-    model_type: "transformer"
-    sequence_length: 8
+    model_type: "mlp"
+    sequence_length: 5
     feature_size: 32
-    rl_obs_size: 256       # 与 rl_bridge 一致；模型输入 [1,8,32]
+    rl_obs_size: 160       # 与 rl_bridge 一致；模型输入 [1,160]
     rl_action_size: 4
     normalization_from_metadata: true
     publish_status: false
