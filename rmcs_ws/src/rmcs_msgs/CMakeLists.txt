@@ -20,7 +20,11 @@ rosidl_generate_interfaces(${PROJECT_NAME} ${RMCS_MSGS_MSGS}
 # in the scoped install layout. Keep both visible through the ROSIDL C++ target.
 target_include_directories(${PROJECT_NAME}__rosidl_generator_cpp INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cpp>
+  $<INSTALL_INTERFACE:include>
+  # --symlink-install 把生成头放到 <prefix>/include/<pkg>/<pkg>/msg/，
+  # 只导出 include 时 #include <rmcs_msgs/msg/...> 解析不到，故补上这一层。
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
 ament_export_dependencies(rosidl_default_runtime)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
