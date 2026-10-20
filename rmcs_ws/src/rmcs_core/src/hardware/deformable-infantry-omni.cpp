@@ -587,8 +587,6 @@ private:
         DeformableInfantryOmni& status_;
         Component& command_;
 
-        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
-
         // Interfaces
 
         OutputInterface<rmcs_description::Tf>& tf_{status_.tf_};
@@ -773,6 +771,10 @@ private:
         auto status() const -> std::vector<std::string> { return monitor_.text(); }
 
         StatusMonitor monitor_{};
+
+        // 必须最后声明：析构时最先销毁板卡并停止 libusb 线程，
+        // 否则回调会访问已析构的 monitor_ / imu_ 等成员（表现为启动失败后的 SIGSEGV）。
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
     auto status_service_callback(const std::shared_ptr<std_srvs::srv::Trigger::Response>& response)

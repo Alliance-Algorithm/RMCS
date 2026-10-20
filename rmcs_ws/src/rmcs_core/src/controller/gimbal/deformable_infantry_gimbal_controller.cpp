@@ -128,9 +128,6 @@ private:
             component.register_output("/gimbal/yaw/control_angle_error", yaw_angle_error, kNaN);
             component.register_output("/gimbal/pitch/control_angle_error", pitch_angle_error, kNaN);
 
-            component.register_output("/gimbal/yaw/velocity_ref", yaw_velocity_ref, kNaN);
-            component.register_output("/gimbal/pitch/velocity_ref", pitch_velocity_ref, kNaN);
-
             component.register_output("/gimbal/yaw/ref_velocity_ff", yaw_ref_velocity_ff, kNaN);
             component.register_output("/gimbal/pitch/ref_velocity_ff", pitch_ref_velocity_ff, kNaN);
 
@@ -143,8 +140,6 @@ private:
 
         OutputInterface<double> yaw_angle_error;
         OutputInterface<double> pitch_angle_error;
-        OutputInterface<double> yaw_velocity_ref;
-        OutputInterface<double> pitch_velocity_ref;
         OutputInterface<double> yaw_ref_velocity_ff;
         OutputInterface<double> pitch_ref_velocity_ff;
         OutputInterface<double> yaw_torque_ff;
@@ -270,8 +265,6 @@ private:
     auto reset_control_outputs() -> void {
         *output_.yaw_angle_error = kNaN;
         *output_.pitch_angle_error = kNaN;
-        *output_.yaw_velocity_ref = kNaN;
-        *output_.pitch_velocity_ref = kNaN;
         *output_.yaw_ref_velocity_ff = kNaN;
         *output_.pitch_ref_velocity_ff = kNaN;
         *output_.yaw_torque_ff = kNaN;

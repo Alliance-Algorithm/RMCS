@@ -44,7 +44,6 @@ rmcs_executor:
       - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
       - rmcs_rl::RlBridge -> rl_bridge
-      - rmcs_rl::PolicyServerLauncher -> policy_server_launcher
 
 auto_aim_recorder:
   ros__parameters:
@@ -174,10 +173,20 @@ deformable_suspension_arbiter:
     joint_base_path: "/chassis"
     joint_suffix: "_joint"
 
-# 桥：obs 组装 + 动作回写（两端 layout_hash 必须一致）
+# 桥：obs 组装 + 进程内推理 + 动作回写。
+# rmcs_rl 为单进程架构（RlBridge 内 worker 推理），不存在独立的 policy_server 进程；
+# 模型参数与观测/动作契约一起写在 rl_bridge 节点下。
 rl_bridge:
   ros__parameters:
     rl_base: "/chassis/rl"
+
+    # 相对路径解析到 share/rmcs_rl（即 rmcs_rl/models/），也可写绝对路径。
+    rl_model_path: "models/deformable_v3_transformer.onnx"
+    input_name: "obs"
+    output_name: "actions"
+    model_type: "transformer"
+    normalization_from_metadata: true      # 裁剪/归一化取自 ONNX 元数据（obs clip 10，action clip 1）
+
     policy_rate: 200.0                     # 每 5 ms 推理
     history_rate: 100.0                    # 保留训练的 10 ms 历史帧间隔
     max_action_age: 0.01                   # 最多两个推理周期
@@ -192,7 +201,9 @@ rl_bridge:
     enable_default: false
     invalid_value: "nan"                   # 必须加引号！
     reset_interface: "/chassis/deformable/reset_count"
-    expected_model_id: "0x7542eb585bbdd224"
+    # 单进程架构不再读取 expected_model_id（该字段只属于旧的 policy_server 架构），
+    # 模型身份由 ONNX 元数据（policy_layout_hash / obs_frame_size / history_length）
+    # 与 rl_obs_size / rl_action_size / 张量形状共同约束。
 
     # RF, LF, LB, RB；URDF q=CAD零角-physical_angle，电流沿配置后的关节轴。
     joint_names: [right_front_joint, left_front_joint, left_back_joint, right_back_joint]
@@ -226,33 +237,6 @@ rl_bridge:
       - index=1 output=/chassis/rl/action/joint_leg_2
       - index=2 output=/chassis/rl/action/joint_leg_3
       - index=3 output=/chassis/rl/action/joint_leg_4
-
-# 策略进程（独立可执行文件，不是 executor 组件）
-#   ros2 run rmcs_rl policy_server --ros-args --params-file <本文件>
-policy_server:
-  ros__parameters:
-    rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable_guarded_mlp5_manual_5000.onnx"
-    input_name: "obs"
-    output_name: "actions"
-    model_type: "mlp"
-    sequence_length: 5
-    feature_size: 32
-    rl_obs_size: 160       # 与 rl_bridge 一致；模型输入 [1,160]
-    rl_action_size: 4
-    normalization_from_metadata: true
-    publish_status: false
-    status_rate: 2.0
-
-# 由 executor 进程内组件随 rmcs 一起拉起 policy_server（不改 bringup/launch/服务）。
-# params_file 相对 share/rmcs_bringup/config 解析，也可写绝对路径。
-policy_server_launcher:
-  ros__parameters:
-    autostart: true
-    params_file: "deformable-infantry-omni-rl.yaml"
-    respawn: true
-    respawn_delay: 1.0
-    poll_interval: 0.5
 
 gimbal_controller:
   ros__parameters:
@@ -299,8 +283,8 @@ yaw_velocity_nn_pid_controller:
     control: /gimbal/yaw/control_torque
     gain_monitor_prefix: /gimbal/yaw/velocity_nn
 
-    kp: 13.0
-    ki: 0.02
+    kp: 0.0
+    ki: 0.0
     kd: 0.0
     integral_min: -5.0
     integral_max: 5.0
@@ -330,7 +314,7 @@ pitch_velocity_nn_pid_controller:
     control: /gimbal/pitch/control_torque
     gain_monitor_prefix: /gimbal/pitch/velocity_nn
 
-    kp: 2.0
+    kp: 0.0
     ki: 0.0
     kd: 0.0
     integral_min: -5.0
