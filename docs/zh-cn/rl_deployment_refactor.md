@@ -1,47 +1,51 @@
 # RL 部署整合
 
-目标分支为 RMCS `dev/rmcs_rl`，基于 `main`；独立 `rmcs_rl` 在
-`integrate/wheel-leg` 分支上基于其 `main` 整理历史。RMCS 通过
-`rmcs_ws/src/rmcs_rl` 子模块引用部署包。
+RMCS 通过 `rmcs_ws/src/rmcs_rl` 子模块加载通用策略接口。车辆的标定、
+自起恢复和电机控制由 `rmcs_core` 负责，车辆配置在 `rmcs_bringup/config`。
 
 ## 控制链
 
-- wheel-leg：`WheelLeg` → `RlController` → 力矩接口 → 硬件命令伙伴组件。
-  `WheelLegChassisController` 提供遥控命令及复位。策略 50 Hz，反馈 PD
-  和恢复调度 1000 Hz，保留实车分支的关节顺序、坐标转换和控制参数。
-- deformable：硬件/悬挂保护 → `RlBridge` → `policy_server` →
-  `DeformableRlSuspension` → `DeformableSuspensionArbiter` → 关节控制器。
-  保留 V3 物理角动作转换、目标限速和四腿整体失效逻辑。
+wheel-leg 使用 `WheelLegChassisController` 提供遥控命令及双下复位；
+`WheelLegController` 维护标定、航向保持、自起恢复及 1000 Hz 反馈 PD，
+通过 `register_output` 发布未归一化的模型坐标、命令和实际执行动作历史。
+`RlBridge` 按 YAML 的 `observation_terms` 组装并序列化观测，以 50 Hz
+提交给进程内推理线程，再按 `action_terms` 缩放和裁剪返回动作。
 
-## 换模型
+动作发布由桥创建的 RMCS 伙伴组件执行，调度关系为：动作发布 →
+底盘控制 → 观测组装/提交。伙伴组件使用前次已提交请求的推理结果，
+从而保持有向无环的组件依赖；执行器线程不等待 ONNX 推理。
+`/chassis/reset_count` 同时进入动作发布和观测组装，旧代次结果被拒绝。
+第一帧推理尚未返回时保持 PREPARE 并输出零力矩；超时失效后停止控制。
 
-wheel-leg 修改 `rl_controller.model_path`；deformable 修改
-`policy_server.rl_model_path`，然后重启。相对路径以独立包安装 share
-目录为基准，也可填写绝对路径。
+自起逻辑跟随 `dev/wheel_leg_rl` 的 recovery 配置，包括低膝插入流程、
+运动中的捕获、独立恢复轮速限制和 paired-107 绕组。恢复的实际动作历史
+经 YAML 配置的各电机尺度转换后回送；策略接管继续受标定、铰链限位、
+IMU/电机反馈时效及力矩边界约束。
 
-不需要盖章、文件 hash 或 expected model ID。启动时检查输入输出类型、
-数量、形状及试推理。deformable 的观测/动作/历史维度由桥组件通过
-接口交给 launcher，不重复维护 policy_server 维度配置。启动握手失败
-会抛出带路径及期望/实际维度的错误；运行中重新拉起使用非阻塞就绪检查。
+Deformable 继续通过同一 `RlBridge` 的通用线程接口交给
+`DeformableRlSuspension` / `DeformableSuspensionArbiter`，保留原有动作及历史契约。
 
-输入输出数量兼容的模型内部网络变化只需更换路径。更改观测语义、动作
-语义、多输入或循环状态时需要相应配置，不能只按元素数量推断兼容。
+## 配置与换模型
 
-## 重构与清理
+wheel-leg 的正式配置为 `wheel-leg-infantry-rl.yaml`。
+两种底盘均修改 `rl_bridge.rl_model_path` 后重启；相对模型路径以
+`rmcs_rl` 的安装 share 目录为基准。轮腿恢复 JSON 标定文件随
+`rmcs_core/config/wheel_leg` 安装，路径以 `rmcs_core` 的 share 为基准。
 
-- wheel-leg 部署实现迁入独立包的 `src/wheel_leg`，保留原许可证。
-- 遥控组件在构造函数直接注册接口；推理/PD/恢复调度组织为结构体。
-- 双下复位即使已处于 Idle，也强制清理内部状态及输出。
-- 删除旧 `WheelLegRlConsumer`、过时单测/姿态查看器、模型盖章工具及
-  合成模型资源，同步清理构建、CI 和文档引用。
-- 保留用于实车采样/辨识的控制器和消息，它们是运行功能。
+`rl_bridge` 声明模型、观测和动作布局、历史长度及推理时效；
+`wheel_leg_controller` 声明机械标定、恢复、准备姿态和反馈 PD。
+桥同时发布每个动作的尺度和限幅，控制器据此处理执行历史，避免重复缩放。
+启动时检查模型张量维度、试推理、paired-107 模型与恢复标定契约。
+桥和控制器的动作时效须一致；配置仅在启动时读取。
 
-## 验证
+## 离线验证
 
-在 Jazzy 开发容器构建 `rmcs_msgs`、`rmcs_rl`、`rmcs_core`、
-`rmcs_bringup`。离线 executor 仅加载桥和 launcher，验证正确模型
-就绪、错误维度向 RMCS 启动层传播。直接 wheel-leg 推理验证 6 个
-有限值动作以及不兼容 rank-3 模型拒绝。完整实车执行仍需车辆连接。
+```sh
+colcon build --merge-install --symlink-install --packages-select rmcs_rl rmcs_core rmcs_bringup --cmake-args -DBUILD_TESTING=ON
+colcon test --merge-install --packages-select rmcs_core
+python3 src/rmcs_core/tools/verify_wheel_leg_reference.py --reference origin/dev/wheel_leg_rl
+```
 
-独立包修改尚未提交时，父仓库 gitlink 只能指向已存在的历史提交。
-发布时应先提交并推送独立包，再提交 RMCS 子模块引用与集成修改。
+验证覆盖无硬件的实际组件调度、线程推理与复位，以及参考分支的硬件/
+恢复参数、模型字节和恢复轨迹回放。它不代表 CAN 时序、实车运动或自起验收。
+发布时先推送子模块提交，再更新并推送 RMCS 的 gitlink。

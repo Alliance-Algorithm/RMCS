@@ -22,7 +22,7 @@
 namespace rmcs_core::controller::chassis {
 
 // Chassis command source of the wheel-leg. It decodes the remote control into the chassis command
-// interfaces. RlController alone owns PREPARE -> RL, so the executor graph stays acyclic.
+// interfaces. WheelLegController owns PREPARE -> RL, so the executor graph stays acyclic.
 class WheelLegChassisController final
     : public rmcs_executor::Component
     , public rclcpp::Node

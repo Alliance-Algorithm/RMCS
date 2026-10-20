@@ -6,6 +6,7 @@
   <description>TODO: Package description</description>
   <maintainer email="qzhhh@foxmail.com">developer</maintainer>
   <license>TODO: License declaration</license>
+  <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
@@ -25,7 +26,11 @@
   <depend>mavlink</depend>
   <depend>nav_msgs</depend>
   <depend>ament_index_cpp</depend>
+  <depend>openssl</depend>
+  <depend>nlohmann_json</depend>
 
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>rmcs_rl</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
