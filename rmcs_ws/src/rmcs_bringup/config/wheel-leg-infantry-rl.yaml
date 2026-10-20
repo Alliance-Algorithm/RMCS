@@ -1,7 +1,7 @@
-# Supervised V7 paired-107 real-robot recovery commissioning.
-# Fresh double DOWN -> double MIDDLE starts the native script, then RL takeover.
-# Uses the user-confirmed dev/rmcs_rl wiring/zeros and the 107..108-degree stop.
-# This enables the current ground test; it is not qualification of every fallen pose.
+# Wheel-leg infantry RL deployment, V7 paired-107 (official vehicle profile).
+# Fresh double DOWN arms; double MIDDLE starts the native self-righting script,
+# then the actor takes over all six axes inside the measured capture window.
+# Wiring, zeros and the 107..108-degree leg stop follow the confirmed dev/rmcs_rl set.
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
