@@ -127,8 +127,8 @@ gimbal_controller:
     # 折叠/展开姿态角，按实车标定。
     roll_folded_angle: 3.264
     roll_unfold_angle: 6.2808
-    top_yaw_folded_angle: 6.21
-    pitch_folded_angle: 0.63
+    top_yaw_folded_angle: 0.085
+    pitch_folded_angle: 0.58
 
     pitch_upper_limit: -0.52
     pitch_lower_limit: 0.30
