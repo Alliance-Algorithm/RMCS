@@ -66,9 +66,12 @@ bool WheelLegController::read_model_state_() {
                         if (stamp <= previous_motor_sample_ns_[i])
                             return false;
                         const double dt = (stamp - previous_motor_sample_ns_[i]) * 1e-9;
-                        if (dt > 0.05
-                            || std::abs(motor_q[i] - previous_motor_angle_[i]) > 45.0 * dt + 0.15)
-                            // MIT P_MAX is a quantization bound, not proof of wrapping.
+                        const double delta = motor_q[i] - previous_motor_angle_[i];
+                        const double displacement =
+                            leg_target_winding_ == LegTargetWinding::kPairedBranch107
+                                ? std::remainder(delta, 2 * std::numbers::pi)
+                                : delta;
+                        if (dt > 0.05 || std::abs(displacement) > 45.0 * dt + 0.15)
                             return false;
                     }
                 }
@@ -93,7 +96,15 @@ bool WheelLegController::read_model_state_() {
     if (!gyro_->allFinite() || !orientation_->coeffs().allFinite()
         || orientation_->squaredNorm() < 0.5 || orientation_->squaredNorm() > 1.5)
         return feedback_valid_ = false;
-    q_.head<4>() = leg_jacobian_ * motor_q + leg_offset_;
+    const Eigen::Vector4d measured = leg_jacobian_ * motor_q + leg_offset_;
+    std::array<double, 4> raw{}, previous{};
+    for (int i = 0; i < 4; ++i) {
+        raw[i] = measured[i];
+        previous[i] = leg_feedback_initialized_ ? q_[i] : measured[i];
+    }
+    const auto continuous = wind_leg_feedback(raw, previous, leg_target_winding_);
+    q_.head<4>() = Eigen::Map<const Eigen::Vector4d>{continuous.data()};
+    leg_feedback_initialized_ = true;
     dq_.head<4>() = leg_jacobian_ * motor_dq;
     for (int i = 0; i < 2; ++i) {
         q_[4 + i] = wheel_scale_[i] * *angle_inputs_[4 + i];

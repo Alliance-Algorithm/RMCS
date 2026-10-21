@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <optional>
+#include <stdexcept>
 
 namespace rmcs_core::controller::chassis {
 
@@ -11,6 +12,13 @@ namespace rmcs_core::controller::chassis {
 class ControlInterval {
 public:
     using Clock = std::chrono::steady_clock;
+
+    void set_maximum_interval(Clock::duration maximum) {
+        if (maximum <= Clock::duration::zero() || maximum > std::chrono::milliseconds{50})
+            throw std::invalid_argument("Control interval must be in (0, 50 ms]");
+        maximum_interval_ = maximum;
+        reset();
+    }
 
     void reset() noexcept {
         previous_.reset();
@@ -22,7 +30,7 @@ public:
         if (!valid_)
             return std::nullopt;
         const auto elapsed = previous_ ? now - *previous_ : initial_interval;
-        if (elapsed <= Clock::duration::zero() || elapsed > kMaximumInterval) {
+        if (elapsed <= Clock::duration::zero() || elapsed > maximum_interval_) {
             valid_ = false;
             return std::nullopt;
         }
@@ -31,12 +39,12 @@ public:
     }
 
     bool fresh(Clock::time_point now) const noexcept {
-        return valid_ && previous_ && now >= *previous_ && now - *previous_ <= kMaximumInterval;
+        return valid_ && previous_ && now >= *previous_ && now - *previous_ <= maximum_interval_;
     }
 
 private:
     static constexpr auto kInitialInterval = std::chrono::milliseconds{5};
-    static constexpr auto kMaximumInterval = std::chrono::milliseconds{20};
+    Clock::duration maximum_interval_ = std::chrono::milliseconds{20};
     std::optional<Clock::time_point> previous_;
     bool valid_ = true;
 };

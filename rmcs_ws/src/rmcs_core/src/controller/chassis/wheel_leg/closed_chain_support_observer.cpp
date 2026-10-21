@@ -10,11 +10,16 @@
 
 namespace rmcs_core::controller::chassis {
 ClosedChainSupportObserver::ClosedChainSupportObserver(
-    std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds)
-    : geometry_{std::move(geometry)} {
+    std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds,
+    double maximum_elapsed_seconds)
+    : geometry_{std::move(geometry)}
+    , maximum_elapsed_seconds_{maximum_elapsed_seconds} {
     if (!std::isfinite(period_seconds)
         || (std::abs(period_seconds - 0.001) > 1e-12 && std::abs(period_seconds - 0.005) > 1e-12))
         throw std::invalid_argument("Closed-chain observation period must be 1 ms or 5 ms");
+    if (!std::isfinite(maximum_elapsed_seconds) || maximum_elapsed_seconds <= 0.0
+        || maximum_elapsed_seconds > 0.05)
+        throw std::invalid_argument("Closed-chain observation gap must be in (0, 50 ms]");
     period_seconds_ = std::abs(period_seconds - 0.001) <= 1e-12 ? 0.001 : 0.005;
     reset();
 }
@@ -51,7 +56,8 @@ JointReferenceRecoveryFeedback ClosedChainSupportObserver::observe(
     const JointReferenceRecoveryVector6& dq, const Eigen::Vector3d& gravity,
     const Eigen::Vector3d& gyro, const Eigen::Vector3d& acceleration,
     JointReferenceRecoveryPhase phase, double elapsed_seconds) {
-    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0 || elapsed_seconds > 0.020) {
+    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0
+        || elapsed_seconds > maximum_elapsed_seconds_) {
         reset();
         JointReferenceRecoveryFeedback feedback;
         feedback.q.setConstant(std::numeric_limits<double>::quiet_NaN());
@@ -195,7 +201,8 @@ Eigen::Vector2d ClosedChainSupportObserver::probe_command(bool scripted_and_rele
 
 Eigen::Vector2d
     ClosedChainSupportObserver::probe_command(bool scripted_and_released, double elapsed_seconds) {
-    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0 || elapsed_seconds > 0.020) {
+    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0
+        || elapsed_seconds > maximum_elapsed_seconds_) {
         reset();
         return Eigen::Vector2d::Zero();
     }
