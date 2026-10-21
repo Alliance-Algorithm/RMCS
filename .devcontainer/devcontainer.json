@@ -7,6 +7,9 @@
     ],
     "service": "rmcs-develop",
     "workspaceFolder": "/workspaces/RMCS",
+    "containerEnv": {
+        "PATH": "/opt/cmake/bin:${containerEnv:PATH}"
+    },
     "initializeCommand": "bash .devcontainer/scripts/generate-local-override.sh && bash .devcontainer/scripts/probe-host-tools.sh",
     "postCreateCommand": "bash .devcontainer/scripts/setup-shell-history.sh && bash .devcontainer/scripts/bootstrap-tools.sh",
     "customizations": {

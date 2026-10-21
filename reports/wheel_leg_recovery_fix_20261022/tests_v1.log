@@ -1,0 +1,9 @@
+Starting >>> rmcs_core
+--- stderr: rmcs_core
+Errors while running CTest
+---
+Finished <<< rmcs_core [4.48s]	[ with test failures ]
+
+Summary: 1 package finished [4.59s]
+  1 package had stderr output: rmcs_core
+  1 package had test failures: rmcs_core

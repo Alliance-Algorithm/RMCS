@@ -113,23 +113,33 @@ void WheelLegController::log_fault_(
         hinge[side] =
             hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
     }
+    double motor_range_margin = std::numeric_limits<double>::infinity();
+    for (int i = 0; i < 4; ++i)
+        motor_range_margin = std::min(
+            motor_range_margin, dm_feedback_position_max_[i] - 0.1 - std::abs(*angle_inputs_[i]));
     RCLCPP_ERROR(
         get_logger(),
-        "RL stopped at %s:%u: state=%d failure=%d feedback_fresh=%d sensor_valid=%d "
+        "RL stopped at %s:%u: state=%d failure=%d native_failure=%d feedback_fresh=%d "
+        "feedback_valid=%d "
+        "sensor_valid=%d "
         "sensor_issue=%d mask=0x%02x age_ms[motor,imu,accel]=[%.3f,%.3f,%.3f] "
         "last_hinge=[%.4f,%.4f] dq_max[leg,wheel]=[%.3f,%.3f] gyro=%.3f height_command=%.3f "
         "command_vx=%.3f obs_vx=%.3f wheel_ref=[%.3f,%.3f] wheel_dq=[%.3f,%.3f] "
-        "leg_torque_fb=[%.3f,%.3f,%.3f,%.3f]",
+        "leg_torque_fb=[%.3f,%.3f,%.3f,%.3f] motor_q=[%.4f,%.4f,%.4f,%.4f] "
+        "motor_range_margin=%.4f rad",
         location.file_name(), location.line(), static_cast<int>(state_),
-        reason ? static_cast<int>(*reason) : 0, *feedback_fresh_, recovery_sensor_status_.valid,
-        static_cast<int>(recovery_sensor_status_.issue),
+        static_cast<int>(reason.value_or(recovery_failure_latched_)),
+        joint_reference_failure_latched_, *feedback_fresh_, feedback_valid_,
+        recovery_sensor_status_.valid, static_cast<int>(recovery_sensor_status_.issue),
         static_cast<unsigned>(recovery_sensor_status_.invalid_mask),
         recovery_sensor_status_.maximum_motor_age_ms, recovery_sensor_status_.imu_age_ms,
         recovery_sensor_status_.acceleration_age_ms, hinge[0], hinge[1],
         dq_.head<4>().cwiseAbs().maxCoeff(), dq_.tail<2>().cwiseAbs().maxCoeff(), gyro_->norm(),
         *height_command_, velocity_command_->vector.x(), policy_command_output_->x(),
         policy_targets_[4], policy_targets_[5], dq_[4], dq_[5], *torque_feedback_inputs_[0],
-        *torque_feedback_inputs_[1], *torque_feedback_inputs_[2], *torque_feedback_inputs_[3]);
+        *torque_feedback_inputs_[1], *torque_feedback_inputs_[2], *torque_feedback_inputs_[3],
+        *angle_inputs_[0], *angle_inputs_[1], *angle_inputs_[2], *angle_inputs_[3],
+        motor_range_margin);
 }
 
 void WheelLegController::latch_fault_(
