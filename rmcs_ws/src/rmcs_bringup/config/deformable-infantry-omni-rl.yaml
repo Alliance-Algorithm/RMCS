@@ -171,7 +171,7 @@ deformable_suspension_arbiter:
 rl_bridge:
   ros__parameters:
     rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable_v3_transformer.onnx"
+    rl_model_path: "models/deformable/deformable_v3_transformer.onnx"
     input_name: ""
     output_name: ""
     model_type: "auto"

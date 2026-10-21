@@ -177,8 +177,8 @@ rl_bridge:
     context_interface: "/wheel_leg/rl/input/context"
     enable_default: false
     invalid_value: "nan"
-    max_action_age: 0.06
-    policy_rate: 50.0
+    max_action_age: 0.015
+    policy_rate: 200.0
     history_length: 1
     rl_obs_size: 35
     rl_feature_size: 35
@@ -220,12 +220,13 @@ rl_bridge:
       - index=3 output=/wheel_leg/rl/target/right_knee_joint scale=0.25 clip=-0.75:0.75
       - index=4 output=/wheel_leg/rl/target/left_wheel scale=10.0 clip=-90:90
       - index=5 output=/wheel_leg/rl/target/right_wheel scale=10.0 clip=-90:90
-    # Dev real-robot recovery contract: V7 actor and paired 107-degree targets.
-    rl_model_path: "models/wheel_leg/recovery_candidate.onnx"
+    # Directional 200 Hz preview actor; retain the paired 107-degree mechanical contract.
+    # Software integration does not qualify this actor's physical recovery takeover.
+    rl_model_path: "models/wheel_leg/flat_directional200_1346_preview_20261020.onnx"
     model_type: "wheel_leg_v7"
     leg_winding_version: "paired_branch107_v1"
     expected_model_spec_sha256: "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997"
-    inference_timeout: 0.06
+    inference_timeout: 0.015
 
 wheel_leg_controller:
   ros__parameters:
@@ -233,13 +234,13 @@ wheel_leg_controller:
     control_profile: v6
     leg_winding_version: "paired_branch107_v1"
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
-    inference_timeout: 0.06
+    inference_timeout: 0.015
     heading_hold_enabled: true
     heading_hold_gain: 5.0
-    heading_hold_yaw_rate_max: 6.283185307179586
+    heading_hold_yaw_rate_max: 4.0
     vx_max: 3.0
-    yaw_rate_max: 14.137166941154069
-    # Update feedback PD and recovery references every 1 ms; policy targets stay at 50 Hz.
+    yaw_rate_max: 4.0
+    # Feedback PD and recovery run every 1 ms; policy targets update every 5 ms.
     pd_frequency: 1000.0
     recovery_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
@@ -360,8 +361,8 @@ wheel_leg_chassis_controller:
   ros__parameters:
     vx_max: 3.0
     vy_max: 0.0
-    yaw_rate_max: 6.283185307179586
-    spin_yaw_rate: 14.137166941154069
+    yaw_rate_max: 4.0
+    spin_yaw_rate: 4.0
     deadzone: 0.05
     # Start at the minimum height; the left stick holds changes on release.
     command_height_min: 0.23
