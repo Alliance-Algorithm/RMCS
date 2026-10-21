@@ -1,12 +1,16 @@
 // Uses the production controller, bridge, actor and executor with in-memory
 // sensor snapshots only. No hardware component or transport is constructed.
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <iostream>
 #include <memory>
 #include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include <pluginlib/class_loader.hpp>
@@ -102,6 +106,9 @@ public:
         register_input("/wheel_leg/rl/action_seq", sequence_);
         register_input("/wheel_leg/rl/state", state_);
         register_input("/wheel_leg/enable_request", enable_);
+        register_input("/wheel_leg/rl/policy_rate", rate_);
+        register_input("/wheel_leg/rl/action_age", age_);
+        register_input("/wheel_leg/rl/performance/inference_us", inference_);
     }
     void update() override {
         ++ticks;
@@ -114,17 +121,25 @@ public:
             invalid_effort = true;
         all_zero = zero;
         valid = *valid_ > 0.5;
+        if (*valid_ > 0.5 && *sequence_ != action_sequence.load()) {
+            inference_times.push_back(*inference_);
+            action_ages.push_back(*age_);
+        }
         action_sequence = *sequence_;
+        policy_rate = *rate_;
         state = *state_;
         enabled = *enable_;
     }
     std::atomic<std::size_t> ticks{0}, action_sequence{0};
     std::atomic<bool> valid{false}, enabled{false}, all_zero{true}, invalid_effort{false};
     std::atomic<int> state{0};
+    std::atomic<double> policy_rate{0.0};
+    // Read only after the executor thread has joined.
+    std::vector<double> inference_times, action_ages;
 
 private:
     std::array<InputInterface<double>, 6> torque_;
-    InputInterface<double> valid_;
+    InputInterface<double> valid_, rate_, age_, inference_;
     InputInterface<std::size_t> sequence_;
     InputInterface<int> state_;
     InputInterface<bool> enable_;
@@ -158,7 +173,7 @@ TEST(WheelLegPolicyIntegration, AcyclicWorkerPipelineResetRearmAndSensorExpiry) 
         EXPECT_TRUE(observe->enabled);
         EXPECT_GE(observe->state.load(), 2);
         const auto first_sequence = observe->action_sequence.load();
-        EXPECT_GT(first_sequence, 0u);
+        EXPECT_GE(first_sequence, static_cast<std::size_t>(observe->policy_rate / 20.0));
         phase = 2;
         std::this_thread::sleep_for(30ms);
         EXPECT_TRUE(observe->all_zero);
@@ -184,13 +199,23 @@ TEST(WheelLegPolicyIntegration, AcyclicWorkerPipelineResetRearmAndSensorExpiry) 
         EXPECT_GT(observe->ticks.load(), 100u);
         rclcpp::shutdown();
     }
+    ASSERT_FALSE(observe->inference_times.empty());
+    std::ranges::sort(observe->inference_times);
+    std::cout << "Policy " << observe->policy_rate << " Hz, " << observe->inference_times.size()
+              << " returned actions, inference us p50/p95/max "
+              << observe->inference_times[observe->inference_times.size() / 2] << "/"
+              << observe->inference_times[observe->inference_times.size() * 95 / 100] << "/"
+              << observe->inference_times.back() << ", max accepted age ms "
+              << *std::ranges::max_element(observe->action_ages) * 1000.0 << '\n';
 }
 } // namespace
 
 int main(int argc, char** argv) {
     testing::InitGoogleTest(&argc, argv);
+    const char* profile = std::getenv("RMCS_TEST_PROFILE");
     const char* arguments[]{
-        "wheel_leg_policy_integration", "--ros-args", "--params-file", RMCS_PROFILE};
+        "wheel_leg_policy_integration", "--ros-args", "--params-file",
+        profile ? profile : RMCS_PROFILE};
     rclcpp::init(4, arguments);
     const int result = RUN_ALL_TESTS();
     if (rclcpp::ok())

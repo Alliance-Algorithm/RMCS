@@ -320,7 +320,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
         || policy_profile_.forward_limit <= 0 || policy_profile_.negative_yaw_limit <= 0
         || policy_profile_.positive_yaw_limit <= 0
-        || inference_frequency_ != DeployedPolicyContract::kPolicyFrequencyHz
         || pd_frequency_ < DeployedPolicyContract::kControlFrequencyHz || pd_frequency_ > 1000.0
         || std::fmod(pd_frequency_, DeployedPolicyContract::kControlFrequencyHz) != 0.0
         || (recovery_frequency_ != 200.0 && recovery_frequency_ != 1000.0)

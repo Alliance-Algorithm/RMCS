@@ -12,8 +12,9 @@ namespace rmcs_core::controller::chassis {
 // Model selection belongs to the startup model_path parameter.
 struct DeployedPolicyContract {
     static constexpr std::string_view kName = "v6";
+    // Legacy default only; the paired bridge supplies the model's policy cadence.
     static constexpr double kPolicyFrequencyHz = 50.0;
-    // Frozen training cadence; deployed PD and recovery periods are configured separately.
+    // Minimum feedback cadence; deployed PD and recovery periods are configured separately.
     static constexpr double kControlFrequencyHz = 200.0;
     static constexpr double kPolicyPeriodSeconds = 1.0 / kPolicyFrequencyHz;
     static constexpr double kControlPeriodSeconds = 1.0 / kControlFrequencyHz;
