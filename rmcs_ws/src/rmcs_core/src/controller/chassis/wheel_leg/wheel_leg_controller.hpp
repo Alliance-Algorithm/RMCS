@@ -166,6 +166,10 @@ private:
     OutputInterface<double> takeover_blend_output_;
     OutputInterface<double> recovery_height_output_;
     OutputInterface<bool> recovery_tuck_ready_output_;
+    OutputInterface<bool> recovery_tuck_valid_output_, recovery_tuck_active_output_;
+    OutputInterface<double> recovery_remaining_output_, recovery_tracking_output_;
+    std::array<OutputInterface<double>, 4> recovery_reference_outputs_;
+    std::array<OutputInterface<double>, 4> recovery_tuck_target_outputs_, recovery_hold_outputs_;
     std::array<OutputInterface<double>, 2> recovery_tuck_knee_outputs_;
     std::array<OutputInterface<double>, 2> recovery_tuck_sagittal_outputs_;
     OutputInterface<double> pd_time_us_;
@@ -235,6 +239,7 @@ private:
     std::array<std::uint64_t, 4> previous_motor_sequence_{};
     std::array<std::uint64_t, 4> previous_motor_sample_ns_{};
     std::array<double, 4> previous_motor_angle_{};
+    bool leg_feedback_initialized_ = false;
     std::array<double, 4> dm_feedback_position_max_{};
     Vector6 targets_ = Vector6::Zero();
     Vector6 policy_targets_ = Vector6::Zero();
@@ -300,6 +305,7 @@ private:
     double recovery_capture_max_angular_velocity_ = 1.0;
     double recovery_capture_max_wheel_velocity_ = 2.0;
     double recovery_capture_max_leg_error_rad_ = 0.25;
+    bool recovery_trajectory_takeover_ = false;
     Eigen::Vector4d recovery_capture_reference_ = Eigen::Vector4d::Zero();
     std::optional<RecoveryTuckController> recovery_tuck_;
     RecoveryTuckState recovery_tuck_state_;

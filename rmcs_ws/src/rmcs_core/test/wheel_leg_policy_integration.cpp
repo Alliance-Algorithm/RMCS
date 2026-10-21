@@ -28,8 +28,9 @@ constexpr std::array kNames{"left_hip_joint",   "left_knee_joint", "right_hip_jo
 
 class Snapshots final : public Component {
 public:
-    explicit Snapshots(std::atomic<int>& phase)
-        : phase_(phase) {
+    Snapshots(std::atomic<int>& phase, std::array<std::atomic<double>, 4>& trajectory)
+        : phase_(phase)
+        , trajectory_(trajectory) {
         constexpr std::array nominal{-0.42, 0.13742282595395358, 0.42, -0.1374155762580851};
         constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
         for (std::size_t i = 0; i < 6; ++i) {
@@ -65,8 +66,31 @@ public:
     }
     void update() override {
         const int phase = phase_.load();
-        *state_ = phase == 0 || phase == 2 || phase == 5 ? 1 : 3;
-        *reset_ = phase < 2 ? 1 : phase < 5 ? 2 : 3;
+        *state_ = phase == 0 || phase == 2 || phase == 5 || phase == 7 ? 1 : 3;
+        *reset_ = phase < 2 ? 1 : phase < 5 ? 2 : phase < 7 ? 3 : 4;
+        if (phase >= 7) {
+            if (last_phase_ < 7) {
+                // Exact reported hinge differences, including the right
+                // encoder's extra turn. No hardware transport is constructed.
+                plant_q_ = {-0.42, -0.42 + 1.2945, 0.42, 0.42 - (-4.9422 + 2 * std::numbers::pi)};
+            }
+            constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
+            for (int i = 0; i < 4; ++i) {
+                // Kinematic fixture follows the previous executor tick's
+                // reference. It tests wiring and handover, not real dynamics.
+                const double step =
+                    phase >= 8 ? std::clamp(trajectory_[i].load() - plant_q_[i], -0.002, 0.002)
+                               : 0.0;
+                plant_q_[i] += step;
+                *angle_[i] = offsets[i] - plant_q_[i] - (i == 3 ? 2 * std::numbers::pi : 0.0);
+                *velocity_[i] = -step / 0.001;
+            }
+            const double tilt = phase == 8 ? 0.72 : 0.60;
+            *orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{tilt, Eigen::Vector3d::UnitY()}};
+            *gyro_ = Eigen::Vector3d{0, 3, 0};
+            *acceleration_ = Eigen::Vector3d{0, 0, 1}; // Never passes the old support gate.
+        }
+        last_phase_ = phase;
         const auto now = std::chrono::steady_clock::now();
         const auto ns = static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
@@ -83,6 +107,9 @@ public:
 
 private:
     std::atomic<int>& phase_;
+    std::array<std::atomic<double>, 4>& trajectory_;
+    std::array<double, 4> plant_q_{};
+    int last_phase_ = 0;
     std::array<OutputInterface<double>, 6> angle_, velocity_, torque_, limit_;
     std::array<OutputInterface<std::uint64_t>, 6> sequence_, stamp_;
     std::array<OutputInterface<int>, 4> fault_;
@@ -99,7 +126,8 @@ private:
 
 class Observe final : public Component {
 public:
-    Observe() {
+    explicit Observe(std::array<std::atomic<double>, 4>& trajectory)
+        : trajectory_(trajectory) {
         for (std::size_t i = 0; i < 6; ++i)
             register_input(std::string{"/wheel_leg/"} + kNames[i] + "/control_torque", torque_[i]);
         register_input("/wheel_leg/rl/valid", valid_);
@@ -109,6 +137,11 @@ public:
         register_input("/wheel_leg/rl/policy_rate", rate_);
         register_input("/wheel_leg/rl/action_age", age_);
         register_input("/wheel_leg/rl/performance/inference_us", inference_);
+        register_input("/wheel_leg/rl/input/context", context_);
+        register_input("/wheel_leg/rl/recovery/contact_candidate", support_);
+        for (int i = 0; i < 4; ++i)
+            register_input(
+                std::string{"/wheel_leg/rl/recovery/"} + kNames[i] + "/reference", reference_[i]);
     }
     void update() override {
         ++ticks;
@@ -129,11 +162,17 @@ public:
         policy_rate = *rate_;
         state = *state_;
         enabled = *enable_;
+        context = *context_;
+        support = *support_;
+        for (int i = 0; i < 4; ++i)
+            trajectory_[i] = *reference_[i];
     }
     std::atomic<std::size_t> ticks{0}, action_sequence{0};
     std::atomic<bool> valid{false}, enabled{false}, all_zero{true}, invalid_effort{false};
     std::atomic<int> state{0};
     std::atomic<double> policy_rate{0.0};
+    std::atomic<std::size_t> context{0};
+    std::atomic<bool> support{false};
     // Read only after the executor thread has joined.
     std::vector<double> inference_times, action_ages;
 
@@ -143,20 +182,25 @@ private:
     InputInterface<std::size_t> sequence_;
     InputInterface<int> state_;
     InputInterface<bool> enable_;
+    InputInterface<bool> support_;
+    InputInterface<std::size_t> context_;
+    std::array<InputInterface<double>, 4> reference_;
+    std::array<std::atomic<double>, 4>& trajectory_;
 };
 
 TEST(WheelLegPolicyIntegration, AcyclicWorkerPipelineResetRearmAndSensorExpiry) {
     rclcpp::executors::SingleThreadedExecutor ros;
     pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
     std::atomic<int> phase{0};
+    std::array<std::atomic<double>, 4> trajectory{};
     Component::initializing_component_name = "snapshots";
-    auto sensors = std::make_shared<Snapshots>(phase);
+    auto sensors = std::make_shared<Snapshots>(phase, trajectory);
     Component::initializing_component_name = "wheel_leg_controller";
     auto controller = std::make_shared<Controller>();
     Component::initializing_component_name = "rl_bridge";
     auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
     Component::initializing_component_name = "observe";
-    auto observe = std::make_shared<Observe>();
+    auto observe = std::make_shared<Observe>(trajectory);
     {
         rmcs_executor::Executor executor{"rmcs_executor", ros};
         executor.add_component(sensors);
@@ -197,6 +241,24 @@ TEST(WheelLegPolicyIntegration, AcyclicWorkerPipelineResetRearmAndSensorExpiry) 
         EXPECT_TRUE(observe->enabled);
         EXPECT_FALSE(observe->invalid_effort);
         EXPECT_GT(observe->ticks.load(), 100u);
+        phase = 7;
+        std::this_thread::sleep_for(30ms);
+        EXPECT_FALSE(observe->enabled);
+        phase = 8;
+        std::this_thread::sleep_for(3000ms);
+        EXPECT_TRUE(observe->valid);
+        EXPECT_TRUE(observe->enabled);
+        EXPECT_EQ(observe->state, 2); // Above 40 deg: keep the actor in shadow.
+        EXPECT_EQ(observe->context, 1u);
+        EXPECT_FALSE(observe->support);
+        phase = 9;
+        for (int i = 0; i < 200 && observe->state != 3; ++i)
+            std::this_thread::sleep_for(10ms);
+        EXPECT_EQ(observe->state, 3); // Within 40 deg: direct moving handover.
+        EXPECT_TRUE(observe->enabled);
+        EXPECT_TRUE(observe->valid);
+        EXPECT_FALSE(observe->support);
+        EXPECT_FALSE(observe->invalid_effort);
         rclcpp::shutdown();
     }
     ASSERT_FALSE(observe->inference_times.empty());

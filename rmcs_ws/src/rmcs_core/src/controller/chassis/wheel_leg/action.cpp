@@ -235,7 +235,11 @@ void WheelLegController::compute_motor_torques_() {
                                   + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
             if (!std::isfinite(relative) || relative < hinge_min_[side] - hinge_margin_
                 || relative > hinge_max_[side] + hinge_margin_) {
-                latch_fault_();
+                RCLCPP_ERROR(
+                    get_logger(), "Measured %s hinge %.4f rad outside [%.4f, %.4f] rad",
+                    side == 0 ? "left" : "right", relative, hinge_min_[side] - hinge_margin_,
+                    hinge_max_[side] + hinge_margin_);
+                latch_fault_(RecoveryFailure::kInvalidFeedback);
                 return;
             }
         }

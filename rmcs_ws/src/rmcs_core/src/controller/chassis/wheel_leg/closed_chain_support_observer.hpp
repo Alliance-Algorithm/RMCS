@@ -13,7 +13,8 @@ namespace rmcs_core::controller::chassis {
 class ClosedChainSupportObserver {
 public:
     explicit ClosedChainSupportObserver(
-        std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds = 0.005);
+        std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds = 0.005,
+        double maximum_elapsed_seconds = 0.02);
     void reset();
     JointReferenceRecoveryFeedback observe(
         const RecoverySensorData& sensors, const JointReferenceRecoveryVector6& q,
@@ -48,6 +49,7 @@ private:
     std::array<std::array<double, 2>, 2> evidence_elapsed_seconds_{};
     std::array<std::array<double, 2>, 2> bad_elapsed_seconds_{};
     double period_seconds_ = 0.005;
+    double maximum_elapsed_seconds_ = 0.02;
     std::uint64_t reference_tick_ = 0;
     float lost_seconds_ = 0.0f;
     double lost_elapsed_seconds_ = 0.0;

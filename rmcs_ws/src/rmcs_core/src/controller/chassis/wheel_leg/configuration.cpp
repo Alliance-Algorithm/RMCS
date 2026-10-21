@@ -168,6 +168,17 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     register_output("/wheel_leg/rl/recovery/contact_candidate", recovery_contact_output_, false);
     register_output("/wheel_leg/rl/recovery/height_if_grounded", recovery_height_output_, 0.0);
     register_output("/wheel_leg/rl/recovery/tuck/ready", recovery_tuck_ready_output_, false);
+    register_output("/wheel_leg/rl/recovery/tuck/valid", recovery_tuck_valid_output_, false);
+    register_output("/wheel_leg/rl/recovery/tuck/active", recovery_tuck_active_output_, false);
+    register_output(
+        "/wheel_leg/rl/recovery/trajectory_remaining_rad", recovery_remaining_output_, 0.0);
+    register_output("/wheel_leg/rl/recovery/tracking_error_rad", recovery_tracking_output_, 0.0);
+    for (int i = 0; i < 4; ++i) {
+        const std::string prefix = std::string{"/wheel_leg/rl/recovery/"} + kMotorNames[i] + "/";
+        register_output(prefix + "reference", recovery_reference_outputs_[i], 0.0);
+        register_output(prefix + "tuck_target", recovery_tuck_target_outputs_[i], 0.0);
+        register_output(prefix + "hold_torque", recovery_hold_outputs_[i], 0.0);
+    }
     for (int side = 0; side < 2; ++side) {
         const std::string prefix =
             std::string{"/wheel_leg/rl/recovery/tuck/"} + (side == 0 ? "left/" : "right/");
@@ -431,6 +442,14 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
             recovery_parameter("recovery_blend_seconds", recovery_config.blend_seconds);
         recovery_config.dynamic_takeover = recovery_parameter("recovery_dynamic_takeover", false);
         recovery_config.tuck_before_takeover = recovery_parameter("recovery_tuck_enabled", false);
+        recovery_trajectory_takeover_ = recovery_config.trajectory_takeover =
+            recovery_parameter("recovery_trajectory_takeover", false);
+        if (recovery_trajectory_takeover_) {
+            recovery_config.tuck_rotation_direction = recovery_parameter(
+                "recovery_tuck_rotation_direction", recovery_config.tuck_rotation_direction);
+            recovery_interval_.set_maximum_interval(std::chrono::milliseconds{40});
+            recovery_actuation_interval_.set_maximum_interval(std::chrono::milliseconds{40});
+        }
         recovery_capture_hinge_max_ = hinge_max_;
         if (recovery_config.tuck_before_takeover) {
             recovery_config.tuck_speed_rad_s =
@@ -517,6 +536,7 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
             || recovery_capture_max_leg_error_rad_ <= 0.0
             || recovery_capture_max_leg_error_rad_ > 0.50)
             throw std::runtime_error("Recovery capture leg error must be within 0.50 rad");
+        recovery_config.trajectory_max_tracking_error_rad = recovery_capture_max_leg_error_rad_;
         if (!std::isfinite(recovery_capture_max_wheel_velocity_)
             || recovery_capture_max_wheel_velocity_ <= 0.0
             || recovery_capture_max_wheel_velocity_ > 20.0)
@@ -539,24 +559,37 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
             || recovery_config.orbit_speed_rad_s <= 0.0 || recovery_config.orbit_speed_rad_s > 6.0)
             throw std::runtime_error("Recovery ORBIT speed must be within 6 rad/s");
         joint_reference_recovery_.emplace(recovery_config);
-        RCLCPP_INFO(
-            get_logger(),
-            "Self-righting takeover: %s, bounded upright capture=%d, "
-            "FOLD/PLANT %.2f, low insertion %.2f, ORBIT %.2f rad/s, "
-            "capture %.1f deg at %.2f..%.2f m, "
-            "hinge maxima %.3f/%.3f rad, "
-            "leg error %.2f rad, wheel speed %.1f rad/s, upright gyro %.2f rad/s, motion %s",
-            recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
-            recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
-            recovery_config.insert_speed_rad_s, recovery_config.orbit_speed_rad_s,
-            recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
-            recovery_config.dynamic_capture_height_min, recovery_config.dynamic_capture_height_max,
-            recovery_capture_hinge_max_[0], recovery_capture_hinge_max_[1],
-            recovery_capture_max_leg_error_rad_, recovery_capture_max_wheel_velocity_,
-            recovery_capture_max_angular_velocity_,
-            recovery_config.release_motion_on_takeover ? "released at takeover"
-                                                       : "held until stable");
-        support_observer_.emplace(native.geometry, recovery_config.dt);
+        if (recovery_trajectory_takeover_) {
+            RCLCPP_INFO(
+                get_logger(),
+                "Trajectory takeover: fold then fixed-direction rotation under COM "
+                "(root direction %+.0f, both stages %.2f rad/s), "
+                "then direct RL; remaining <0.005 rad, tracking <%.2f rad, tilt <%.1f deg; "
+                "no support/height/static/velocity dwell; maximum control gap 40 ms",
+                recovery_config.tuck_rotation_direction, recovery_config.tuck_speed_rad_s,
+                recovery_capture_max_leg_error_rad_,
+                recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi);
+        } else {
+            RCLCPP_INFO(
+                get_logger(),
+                "Self-righting takeover: %s, bounded upright capture=%d, "
+                "FOLD/PLANT %.2f, low insertion %.2f, ORBIT %.2f rad/s, "
+                "capture %.1f deg at %.2f..%.2f m, "
+                "hinge maxima %.3f/%.3f rad, "
+                "leg error %.2f rad, wheel speed %.1f rad/s, upright gyro %.2f rad/s, motion %s",
+                recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
+                recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
+                recovery_config.insert_speed_rad_s, recovery_config.orbit_speed_rad_s,
+                recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
+                recovery_config.dynamic_capture_height_min,
+                recovery_config.dynamic_capture_height_max, recovery_capture_hinge_max_[0],
+                recovery_capture_hinge_max_[1], recovery_capture_max_leg_error_rad_,
+                recovery_capture_max_wheel_velocity_, recovery_capture_max_angular_velocity_,
+                recovery_config.release_motion_on_takeover ? "released at takeover"
+                                                           : "held until stable");
+        }
+        support_observer_.emplace(
+            native.geometry, recovery_config.dt, recovery_trajectory_takeover_ ? 0.04 : 0.02);
         prepare_target_ = native.controller.nominal;
         joint_reference_profile_ready_ = true;
         if (prepare_kp_ != policy_profile_.leg_kp || prepare_kd_ != policy_profile_.leg_kd)

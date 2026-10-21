@@ -5,6 +5,7 @@ Fixtures hold body attitude to isolate leg geometry. This does not qualify a
 free-body self-righting policy or a real vehicle. No actor or training runs.
 """
 import argparse
+import csv
 import ctypes
 import hashlib
 import json
@@ -29,6 +30,11 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seconds", type=float, default=6.)
     parser.add_argument("--cases", nargs="+")
+    parser.add_argument("--csv-start", type=Path,
+                        help="CSV supplying a measured failed start, closed-chain passive joints are solved")
+    parser.add_argument("--csv-index", type=int, default=5025)
+    parser.add_argument("--trajectory", action="store_true",
+                        help="Run production two-stage FSM until handover; fixture PD holds afterward")
     args = parser.parse_args()
     if not 3. <= args.seconds <= 10.:
         parser.error("Probe duration must be 3..10 seconds")
@@ -49,6 +55,11 @@ def main():
     library.wheel_leg_tuck_step.argtypes = [ctypes.c_void_p, pointer, pointer,
                                            ctypes.c_double, ctypes.c_int, pointer]
     library.wheel_leg_tuck_error.restype = ctypes.c_char_p
+    if args.trajectory:
+        library.wheel_leg_trajectory_create.argtypes = [ctypes.c_char_p, ctypes.c_double]
+        library.wheel_leg_trajectory_create.restype = ctypes.c_void_p
+        library.wheel_leg_trajectory_step.argtypes = [ctypes.c_void_p, pointer, pointer, pointer,
+                                                     ctypes.c_double, pointer]
     baseline = builder.balanced_pose(50.)
     cases = [
         ("front", 0., (1.2, 1.2), False, 100.),
@@ -58,15 +69,48 @@ def main():
         ("pitch_backward", -20., (.8, .8), False, 100.),
         ("ground_supported", 0., (0., 0.), True, 100.),
         ("ground_no_integral", 0., (0., 0.), True, 0.),
+        ("extended_front", 0., (1.2, 1.2), False, 100.),
+        ("extended_back", 0., (-1.2, -1.2), False, 100.),
+        ("ground_front", 0., (1.2, 1.2), True, 100.),
+        ("ground_back", 0., (-1.2, -1.2), True, 100.),
     ]
+    csv_pose = None
+    if args.csv_start:
+        with args.csv_start.open() as handle:
+            reader = csv.DictReader(handle)
+            row = next(row for row in reader if row["index"] == str(args.csv_index))
+        joint_names = ("left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint")
+        active_names = ("L_joint1", "LL_joint1", "R_joint1", "RR_joint1")
+        desired = np.array([float(row[f"/wheel_leg/rl/model/{n}/angle"]) for n in joint_names])
+        initial = builder.knee_pose(103., 105.)
+        start = np.array([initial[n] for n in active_names])
+        # Continue the same passive assembly branch while prescribing the four
+        # actual motor angles; no knee-angle clipping or sampled reset writes.
+        for fraction in np.linspace(0., 1., 80)[1:]:
+            fixed = {n: initial[n] for n in builder.controls}
+            fixed.update(zip(active_names, start + fraction * (desired - start)))
+            initial = builder.solve(fixed, initial)
+        g = np.array([float(row[f"/wheel_leg/rl/input/projected_gravity/{axis}"])
+                      for axis in "xyz"])
+        g /= np.linalg.norm(g)
+        rotation = Rotation.from_euler("xyz", [math.atan2(-g[1], -g[2]), math.asin(g[0]), 0.])
+        if not np.allclose(rotation.inv().apply([0., 0., -1.]), g, atol=1e-9):
+            raise ValueError("CSV gravity reconstruction failed")
+        csv_pose = (rotation, initial)
+        cases.extend([("csv_failed_suspended", 0., (0., 0.), False, 100.),
+                      ("csv_failed_ground", 0., (0., 0.), True, 100.)])
     if args.cases:
         cases = [case for case in cases if case[0] in args.cases]
         if len(cases) != len(args.cases):
             parser.error("Unknown or duplicate case name")
     prepared = []
     for name, pitch, headings, grounded, ki in cases:
-        q = builder.common_rotate(baseline["q"], headings[0], -headings[1])
-        rotation = Rotation.from_euler("yx", [math.radians(pitch), baseline["root_roll_rad"]])
+        if name.startswith("csv_failed_"):
+            prepared.append((name, *csv_pose, grounded, ki))
+            continue
+        start = builder.balanced_pose(104.) if name.startswith("extended_") else baseline
+        q = builder.common_rotate(start["q"], headings[0], -headings[1])
+        rotation = Rotation.from_euler("yx", [math.radians(pitch), start["root_roll_rad"]])
         prepared.append((name, rotation, q, grounded, ki))
     from isaaclab.app import AppLauncher
     launcher = AppLauncher({"headless": True, "device": "cpu"})
@@ -133,11 +177,12 @@ def main():
                 guide.CreateLocalRot0Attr(Gf.Quatf(quat[3], Gf.Vec3f(*quat[:3])))
                 guide.CreateLocalRot1Attr(Gf.Quatf(1.))
             guide.CreateExcludeFromArticulationAttr(True)
-            context = library.wheel_leg_tuck_create(str(geometry).encode(), ki)
+            context = (library.wheel_leg_trajectory_create(str(geometry.parent).encode(), ki)
+                       if args.trajectory else library.wheel_leg_tuck_create(str(geometry).encode(), ki))
             if not context:
                 raise ValueError(library.wheel_leg_tuck_error().decode())
             rigs.append(dict(name=name, rotation=rotation, initial=q, grounded=grounded,
-                             ki=ki, robot=robot, context=context, index=index, samples=[]))
+                             ki=ki, robot=robot, context=context, index=index, samples=[], handover=None))
         sim.reset()
         bounds = UsdGeom.BBoxCache(0., ["default", "render", "proxy"]).ComputeWorldBound(
             sim.stage.GetPrimAtPath("/World/Ground")).ComputeAlignedRange()
@@ -164,10 +209,11 @@ def main():
             robot.reset()
             robot.update(dt)
             rig["target"] = joint[0, rig["ids"]].numpy().astype(np.float64)
-            rig["output"] = np.zeros(15, dtype=np.float64)
+            rig["output"] = np.zeros(35 if args.trajectory else 15, dtype=np.float64)
             rig["gravity"] = np.ascontiguousarray(rig["rotation"].inv().apply([0., 0., -1.]))
             rig["effort"] = torch.zeros_like(joint)
             rig["max_clamp_mm"] = 0.
+            rig["hinge_range"] = [float("inf"), -float("inf")]
         started = time.monotonic()
         for step in range(round(args.seconds / dt)):
             for rig in rigs:
@@ -176,14 +222,37 @@ def main():
                 dq = robot.data.joint_vel.torch[0]
                 measured = np.ascontiguousarray(q[rig["ids"]].numpy(), dtype=np.float64)
                 out = rig["output"]
-                code = library.wheel_leg_tuck_step(rig["context"], measured.ctypes.data_as(pointer),
-                    rig["gravity"].ctypes.data_as(pointer), dt, int(step > 20), out.ctypes.data_as(pointer))
+                if args.trajectory:
+                    active_ids = rig["ids"] + rig["wheel_ids"]
+                    q6 = np.ascontiguousarray(q[active_ids].numpy(), dtype=np.float64)
+                    dq6 = np.ascontiguousarray(dq[active_ids].numpy(), dtype=np.float64)
+                    code = library.wheel_leg_trajectory_step(rig["context"], q6.ctypes.data_as(pointer),
+                        dq6.ctypes.data_as(pointer), rig["gravity"].ctypes.data_as(pointer), dt,
+                        out.ctypes.data_as(pointer))
+                    if out[25] and rig["handover"] is None:
+                        rig["handover"] = dict(time_s=step * dt, phase=int(out[21]),
+                            knee_deg=[math.degrees(float(q[rig["knee_ids"][0]]) + builder.knee_zero_rad),
+                                      math.degrees(-float(q[rig["knee_ids"][1]]) + builder.knee_zero_rad)],
+                            measured_fk_knee_deg=out[8:10].tolist(),
+                            wheel_com_error_mm=(out[10:12] * 1000.).tolist(),
+                            tracking_error_rad=float(out[23]), remaining_rad=float(out[22]),
+                            integral_nm=out[4:8].tolist())
+                        print("TRAJECTORY_HANDOVER", rig["name"], rig["handover"], flush=True)
+                    rig["target"] = out[:4].copy()
+                    motor = out[15:19]
+                    measured = out[31:35]
+                else:
+                    code = library.wheel_leg_tuck_step(rig["context"], measured.ctypes.data_as(pointer),
+                        rig["gravity"].ctypes.data_as(pointer), dt, int(step > 20), out.ctypes.data_as(pointer))
+                    delta = out[:4] - rig["target"]
+                    fraction = min(1. * dt / max(float(np.abs(delta).max()), 1e-6), 1.)
+                    rig["target"] += delta * fraction
+                    motor = 160. * (rig["target"] - measured) - 2.5 * dq[rig["ids"]].numpy() + out[4:8]
+                hinges = np.array([measured[1] - measured[0], measured[2] - measured[3]])
+                rig["hinge_range"][0] = min(rig["hinge_range"][0], float(hinges.min()))
+                rig["hinge_range"][1] = max(rig["hinge_range"][1], float(hinges.max()))
                 if code <= 0:
-                    raise RuntimeError(f"Invalid C++ tuck geometry: {rig['name']}, {code}, {measured}")
-                delta = out[:4] - rig["target"]
-                fraction = min(1. * dt / max(float(np.abs(delta).max()), 1e-6), 1.)
-                rig["target"] += delta * fraction
-                motor = 160. * (rig["target"] - measured) - 2.5 * dq[rig["ids"]].numpy() + out[4:8]
+                    raise RuntimeError(f"Invalid C++ tuck/trajectory: {rig['name']}, {code}, {measured}, {out}")
                 effort = rig["effort"]
                 effort.zero_()
                 effort[0, rig["ids"]] = torch.tensor(np.clip(motor, -40., 40.), dtype=torch.float32)
@@ -197,7 +266,8 @@ def main():
                 force = np.polynomial.polynomial.polyval(np.clip(compression, 0., .072) / .08,
                                                          fit["monomial_coefficients_n"])
                 effort[0, rig["spring_ids"]] = torch.tensor(force, dtype=torch.float32)
-                effort[0, rig["wheel_ids"]] = -.6 * dq[rig["wheel_ids"]]
+                effort[0, rig["wheel_ids"]] = (torch.tensor(out[19:21], dtype=torch.float32)
+                    if args.trajectory else -.6 * dq[rig["wheel_ids"]])
                 robot.set_joint_effort_target_index(target=effort)
                 robot.write_data_to_sim()
             sim.step(render=False)
@@ -233,8 +303,11 @@ def main():
                         nonwheel_support_n=float(np.linalg.norm(forces[others], axis=1).sum()),
                         contacts_n={name: force.tolist() for name, force in zip(rig["contact_paths"], forces)
                                     if np.linalg.norm(force) > .1},
-                        active_q_rad=q[rig["ids"]].tolist(),
+                        active_q_rad=(rig["output"][31:35].tolist() if args.trajectory
+                                      else q[rig["ids"]].tolist()),
+                        reference_q_rad=rig["target"].tolist(),
                         max_closure_gap_m=max(constraint_gap(c) for c in spec["constraints"]),
+                        native_phase=int(rig["output"][21]) if args.trajectory else None,
                         integral_nm=rig["output"][4:8].tolist(),
                         max_leg_torque_nm=float(rig["effort"][0, rig["ids"]].abs().max()),
                         base_z_m=float(poses[robot.body_names.index("base_link"), 2])))
@@ -242,8 +315,14 @@ def main():
                         print("FIRST_SAMPLE", rig["name"], rig["samples"][-1], "bodies", robot.body_names, flush=True)
             if step % 1000 == 0:
                 print("TUCK_STEP", step, "wall_s", round(time.monotonic() - started, 1), flush=True)
-        report = dict(isaac_sim_version="6.0.0.1", fixture="fixed attitude; five suspended, two vertically guided wheel-supported rigs",
-            scope="leg geometry and load tracking only; no free-body recovery or actor handover validation",
+        report = dict(isaac_sim_version="6.0.0.1", fixture="fixed body attitude; suspended or vertically guided ground fixtures",
+            scope=("production trajectory to RL phase on fixed-attitude closed-chain fixtures; "
+                   "fixture PD holds legs after transfer, no actor or free-body recovery validation"
+                   if args.trajectory else
+                   "leg geometry and load tracking only; no free-body recovery or actor handover validation"),
+            production_trajectory=args.trajectory,
+            csv_start_sha256=digest(args.csv_start) if args.csv_start else None,
+            csv_start_index=args.csv_index if args.csv_start else None,
             asset_manifest_sha256=digest(bundle / "manifest.json"), model_spec_sha256=digest(bundle / "model_spec.json"),
             geometry_sha256=digest(geometry), library_sha256=digest(args.library),
             script_sha256=digest(Path(__file__)), dt=dt, duration_s=args.seconds, results=[])
@@ -260,6 +339,7 @@ def main():
                 settled_knee_range_deg=[float(knees.min()), float(knees.max())],
                 max_settled_wheel_com_error_mm=float(np.abs(error).max() * 1000),
                 max_closure_gap_mm=max(s["max_closure_gap_m"] for s in samples) * 1000,
+                measured_hinge_range_rad=rig["hinge_range"],
                 gas_curve_max_clamp_exposure_mm=rig["max_clamp_mm"],
                 final_wheel_z_m=samples[-1]["wheel_z_m"],
                 mean_wheel_support_n=np.asarray([s["wheel_support_n"] for s in settled]).mean(axis=0).tolist(),
@@ -269,6 +349,13 @@ def main():
                 wheel_support_check=contact_ok,
                 passed=bool(knees.min() >= 39.9 and knees.max() <= 41.0 and np.abs(error).max() <= .005
                             and max(s["max_closure_gap_m"] for s in settled) < .002 and contact_ok))
+            if args.trajectory:
+                row["handover"] = rig["handover"]
+                row["settled_geometry_passed"] = row["passed"]
+                row["passed"] = row["passed"] and rig["handover"] is not None
+            row["mechanical_guard_passed"] = bool(rig["hinge_range"][0] >= -.170638855
+                                                   and rig["hinge_range"][1] <= 1.4189088544)
+            row["passed"] = row["passed"] and row["mechanical_guard_passed"]
             report["results"].append(row)
             (args.output / (rig["name"] + "_samples.json")).write_text(json.dumps(samples, indent=2) + "\n")
         report["passed"] = all(r["passed"] for r in report["results"] if r["integral_gain"] > 0.)

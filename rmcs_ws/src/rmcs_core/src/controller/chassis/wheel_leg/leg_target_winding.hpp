@@ -57,6 +57,29 @@ inline void validate_leg_target_recovery_profile(
         validate_leg_target_model_spec(version, model_spec_sha256, "Script recovery profile");
 }
 
+// An encoder's whole-turn choice is not a mechanism hinge angle. Restore the
+// measured paired branch before observations, recovery, PD and hinge checks.
+// Unlike target winding, this never clamps a measured mechanical violation.
+inline std::array<double, 4> wind_leg_feedback(
+    const std::array<double, 4>& measured, const std::array<double, 4>& previous,
+    LegTargetWinding version) {
+    if (version != LegTargetWinding::kPairedBranch107)
+        return measured;
+    constexpr double tau = 2 * std::numbers::pi;
+    auto result = measured;
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side, aux = hip + 1;
+        const double sign = side == 0 ? 1.0 : -1.0;
+        const auto bounds = kBranch107SignedDeltaBoundsRad[side];
+        const double midpoint = (bounds[0] + bounds[1]) / 2;
+        const double delta = sign * (measured[aux] - measured[hip]);
+        const double relative = delta + tau * std::nearbyint((midpoint - delta) / tau);
+        result[hip] += tau * std::nearbyint((previous[hip] - measured[hip]) / tau);
+        result[aux] = result[hip] + sign * relative;
+    }
+    return result;
+}
+
 inline std::array<double, 4> wind_leg_targets(
     const std::array<double, 4>& desired, const std::array<double, 4>& current,
     LegTargetWinding version) {

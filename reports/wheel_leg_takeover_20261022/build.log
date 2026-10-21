@@ -1,0 +1,30 @@
+Starting >>> rmcs_bringup
+Finished <<< rmcs_bringup [0.15s]
+Starting >>> rmcs_core
+[0.336s] WARNING:colcon.colcon_core.shell:The following packages are in the workspace but haven't been built:
+- fast_tf
+- rmcs_msgs
+- rmcs_utility
+- rmcs_description
+- rmcs_executor
+- rmcs_rl
+They are being used from the following locations instead:
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+To suppress this warning ignore these packages in the workspace:
+--packages-ignore fast_tf rmcs_msgs rmcs_utility rmcs_description rmcs_executor rmcs_rl
+--- stderr: rmcs_core
+In this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_core` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.
+---
+[Processing: rmcs_core]
+[Processing: rmcs_core]
+[Processing: rmcs_core]
+[Processing: rmcs_core]
+Finished <<< rmcs_core [2min 28s]
+
+Summary: 2 packages finished [2min 28s]
+  1 package had stderr output: rmcs_core

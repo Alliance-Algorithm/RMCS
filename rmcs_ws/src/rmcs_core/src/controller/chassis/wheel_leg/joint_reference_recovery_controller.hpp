@@ -52,7 +52,13 @@ struct JointReferenceRecoveryConfig {
     // End any script at the caller's bounded upright capture before stabilization.
     bool dynamic_takeover = false;
     bool tuck_before_takeover = false;
+    // Follow the folded-under-COM trajectory, then give the actor all axes.
+    // Contact inference and static standing gates do not own this transition.
+    bool trajectory_takeover = false;
+    double trajectory_max_tracking_error_rad = 0.20;
     double tuck_speed_rad_s = 1.0;
+    // Physical common rotation, multiplied by each side's root-axis sign.
+    double tuck_rotation_direction = -1.0;
     double dynamic_capture_height_min = 0.27;
     double dynamic_capture_height_max = 0.36;
     // Deployment may accept driver commands as soon as the actor owns all axes.
@@ -118,6 +124,8 @@ struct JointReferenceRecoveryCommand {
     bool release_finished = true;
     bool wheel_balance_active = false;
     bool tucking = false;
+    double trajectory_remaining_rad = 0.0;
+    double tracking_error_rad = 0.0;
     int failure_code = 0;
     std::uint64_t age_ticks = 0;
     std::uint64_t phase_ticks = 0;
@@ -192,6 +200,7 @@ private:
     };
     static Vector4f paired_delta_(const Vector4f& goal, const Vector4f& reference);
     static Vector4f shape_at_heading_(const Vector4f& shape, const Vector4f& reference);
+    Vector4f directed_tuck_goal_(const Vector4f& goal, const Vector4f& reference) const;
     bool folded_() const;
     JointGoal update_goal_(const StepContext& step, const JointReferenceRecoveryFeedback& feedback);
     ReferenceStep advance_reference_(const StepContext& step, const JointGoal& goal);
@@ -219,6 +228,7 @@ private:
     Vector4f orbit_start_ = Vector4f::Zero();
     Vector4f thrust_anchor_ = Vector4f::Zero();
     Vector4f fold_anchor_ = Vector4f::Zero();
+    Vector4f tuck_rotation_goal_ = Vector4f::Zero();
     Vector4f insert_anchor_ = Vector4f::Zero();
     Vector4f side_start_ = Vector4f::Zero();
     Vector4f side_direction_ = Vector4f::Zero();
@@ -239,6 +249,7 @@ private:
     bool push_off_required_ = false;
     bool grounded_start_ = false;
     bool tucking_ = false;
+    bool tuck_rotation_initialized_ = false;
     float continuous_pitch_ = 0.0f, last_pitch_ = 0.0f;
     float orbit_angle_ = 0.0f, plant_pitch_ = 0.0f;
     double initial_release_seconds_ = 0.0;

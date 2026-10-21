@@ -1,6 +1,6 @@
 # Wheel-leg infantry RL deployment, V7 paired-107 (official vehicle profile).
 # Fresh double DOWN arms; double MIDDLE starts the native self-righting script,
-# then the actor takes over all six axes inside the measured capture window.
+# then the folded-under-COM trajectory hands all six axes directly to the actor.
 # Wiring, zeros and the 107..108-degree leg stop follow the confirmed dev/rmcs_rl set.
 rmcs_executor:
   ros__parameters:
@@ -180,6 +180,27 @@ value_collector:
       - /wheel_leg/rl/recovery/contact_candidate
       - /wheel_leg/rl/recovery/native_motion_released
       - /wheel_leg/rl/recovery/height_if_grounded
+      - /wheel_leg/rl/recovery/trajectory_remaining_rad
+      - /wheel_leg/rl/recovery/tracking_error_rad
+      - /wheel_leg/rl/recovery/tuck/valid
+      - /wheel_leg/rl/recovery/tuck/active
+      - /wheel_leg/rl/recovery/tuck/ready
+      - /wheel_leg/rl/recovery/tuck/left/knee_deg
+      - /wheel_leg/rl/recovery/tuck/right/knee_deg
+      - /wheel_leg/rl/recovery/tuck/left/sagittal_error_m
+      - /wheel_leg/rl/recovery/tuck/right/sagittal_error_m
+      - /wheel_leg/rl/recovery/left_hip_joint/reference
+      - /wheel_leg/rl/recovery/left_hip_joint/tuck_target
+      - /wheel_leg/rl/recovery/left_hip_joint/hold_torque
+      - /wheel_leg/rl/recovery/left_knee_joint/reference
+      - /wheel_leg/rl/recovery/left_knee_joint/tuck_target
+      - /wheel_leg/rl/recovery/left_knee_joint/hold_torque
+      - /wheel_leg/rl/recovery/right_hip_joint/reference
+      - /wheel_leg/rl/recovery/right_hip_joint/tuck_target
+      - /wheel_leg/rl/recovery/right_hip_joint/hold_torque
+      - /wheel_leg/rl/recovery/right_knee_joint/reference
+      - /wheel_leg/rl/recovery/right_knee_joint/tuck_target
+      - /wheel_leg/rl/recovery/right_knee_joint/hold_torque
       - /wheel_leg/rl/recovery/blend
       - /wheel_leg/rl/recovery/motor_age_ms
       - /wheel_leg/rl/recovery/imu_age_ms
@@ -305,6 +326,27 @@ value_broadcaster:
       - /wheel_leg/rl/recovery/support_confirmed
       - /wheel_leg/rl/recovery/geometry_valid
       - /wheel_leg/rl/recovery/height_if_grounded
+      - /wheel_leg/rl/recovery/trajectory_remaining_rad
+      - /wheel_leg/rl/recovery/tracking_error_rad
+      - /wheel_leg/rl/recovery/tuck/valid
+      - /wheel_leg/rl/recovery/tuck/active
+      - /wheel_leg/rl/recovery/tuck/ready
+      - /wheel_leg/rl/recovery/tuck/left/knee_deg
+      - /wheel_leg/rl/recovery/tuck/right/knee_deg
+      - /wheel_leg/rl/recovery/tuck/left/sagittal_error_m
+      - /wheel_leg/rl/recovery/tuck/right/sagittal_error_m
+      - /wheel_leg/rl/recovery/left_hip_joint/reference
+      - /wheel_leg/rl/recovery/left_hip_joint/tuck_target
+      - /wheel_leg/rl/recovery/left_hip_joint/hold_torque
+      - /wheel_leg/rl/recovery/left_knee_joint/reference
+      - /wheel_leg/rl/recovery/left_knee_joint/tuck_target
+      - /wheel_leg/rl/recovery/left_knee_joint/hold_torque
+      - /wheel_leg/rl/recovery/right_hip_joint/reference
+      - /wheel_leg/rl/recovery/right_hip_joint/tuck_target
+      - /wheel_leg/rl/recovery/right_hip_joint/hold_torque
+      - /wheel_leg/rl/recovery/right_knee_joint/reference
+      - /wheel_leg/rl/recovery/right_knee_joint/tuck_target
+      - /wheel_leg/rl/recovery/right_knee_joint/hold_torque
       - /wheel_leg/rl/recovery/motion_hold
       - /wheel_leg/rl/recovery/blend
       - /wheel_leg/rl/v6_takeover/blend_fraction
@@ -469,22 +511,17 @@ wheel_leg_controller:
     # in that same recovery tick, accepting motion commands immediately.
     recovery_blend_seconds: 0.0
     recovery_release_motion_on_takeover: true
-    # Match the dev supervised recovery takeover behavior.
     recovery_dynamic_takeover: true
-    # Wheel-assisted capture raises the supported body into the actor's entry
-    # window. Transfer directly without requiring settled wheel probes.
-    recovery_capture_max_tilt_rad: 0.5235987755982988
-    recovery_capture_max_leg_error_rad: 0.45
-    # Within the ordinary upright domain, capture a moving body before it tips.
-    # Outside it retain 1 rad/s; above 30 deg reject outward tilt beyond tolerance.
-    recovery_capture_max_angular_velocity: 2.0
-    # A supported moving capture must not wait for the script to stop the wheels.
-    recovery_capture_max_wheel_velocity: 20.0
-    recovery_capture_height_min: 0.20
-    recovery_capture_height_max: 0.29
-    # Final measured closed-chain tuck: 0.5 degree above the 40-degree stop.
-    # Each wheel aligns fore/aft with the whole-robot COM along measured gravity.
-    # Bounded integral rejects spring load; capture uses geometry, not PD references.
+    # Fold, then rotate on one fixed branch under COM; no extension before RL.
+    # Opposite to the failing CSV: model LH/LA decrease, RH/RA increase.
+    recovery_tuck_rotation_direction: -1.0
+    # At the final reference, allow 0.20 rad actual tracking error and 40 deg tilt.
+    # No contact probe, height, gyro/wheel-speed or stationary dwell gates.
+    recovery_trajectory_takeover: true
+    recovery_capture_max_tilt_rad: 0.6981317007977318
+    recovery_capture_max_leg_error_rad: 0.20
+    # Closed-chain target remains 0.5 degree above the 40-degree stop.
+    # Strict 40..41 deg / 5 mm readiness is recorded, not required for takeover.
     recovery_tuck_enabled: true
     recovery_tuck_geometry_path: "config/wheel_leg/tuck_geometry_107_v1.json"
     recovery_tuck_knee_deg: 40.5
@@ -492,17 +529,19 @@ wheel_leg_controller:
     recovery_tuck_max_sagittal_error_m: 0.005
     recovery_tuck_integral_gain: 100.0
     recovery_tuck_integral_limit_nm: 20.0
-    recovery_tuck_speed_rad_s: 1.0
+    # Both stages run 3x the previous 1 rad/s reference speed.
+    recovery_tuck_speed_rad_s: 3.0
     # Ordinary fold/plant and orbit rates; grounded insertion has its own bound.
     recovery_fold_plant_speed_rad_s: 6.0
     # Tuck near the lower knee domain before the free-space insertion stroke.
     recovery_insert_speed_rad_s: 10.0
     recovery_orbit_speed_rad_s: 6.0
-    # Shared real sensor age/skew guards apply to ordinary RL and recovery.
-    recovery_motor_age_s: 0.02
-    recovery_imu_age_s: 0.02
-    recovery_acceleration_age_s: 0.03
-    recovery_sensor_skew_s: 0.01
+    # Allow the recorded 22..24 ms scheduling/CAN gaps; reject stale data >40 ms.
+    # Trajectory mode also allows control intervals up to 40 ms.
+    recovery_motor_age_s: 0.04
+    recovery_imu_age_s: 0.04
+    recovery_acceleration_age_s: 0.04
+    recovery_sensor_skew_s: 0.03
     # V7 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
     # and its encoder/gyro response thresholds. It is a conditional support
     # estimate; queued CAN torque and motor-current truth are not substituted

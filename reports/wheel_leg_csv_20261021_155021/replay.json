@@ -1,0 +1,231 @@
+{
+  "method": "Production C++ FSM and tuck controller on 200 Hz recorded snapshots, five zero-order-held native substeps; not an exact 1 kHz execution trace or a dynamics prediction",
+  "library_sha256": "122f37f0e64b3a6d0e6e42e1013d892f5c99d39080a0849d4f9dd2103624e931",
+  "results": [
+    {
+      "episode": 1,
+      "native_start": 4729,
+      "native_end": 5040,
+      "phase_match_fraction": 1.0,
+      "replay_phases": [
+        1.0
+      ],
+      "tucking_fraction": 0.0,
+      "integral_eligible_count": 0,
+      "minimum_tuck_reference_error_rad": 1.1481179474281498,
+      "max_integral_nm": 0.0,
+      "torque_median_error_nm": 2.6123032625946507e-09,
+      "settled_median_torque_error_nm": 2.4951170018994162e-09,
+      "final_targets": [
+        1.110767126083374,
+        1.0285255908966064,
+        -1.1332801580429077,
+        -1.0510268211364746
+      ],
+      "final_tuck_reference": [
+        0.12653314123406792,
+        0.0006935541787850637,
+        -0.12429264324504806,
+        0.0015593291256688867
+      ],
+      "final_integral": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_model_torque": [
+        23.16167640686035,
+        -22.801544189453125,
+        -19.146421432495117,
+        17.730396270751953
+      ],
+      "actual_final_model_torque": [
+        23.16167641,
+        -22.80154419,
+        -19.14642143,
+        17.73039627
+      ]
+    },
+    {
+      "episode": 2,
+      "native_start": 5630,
+      "native_end": 7228,
+      "phase_match_fraction": 1.0,
+      "replay_phases": [
+        1.0
+      ],
+      "tucking_fraction": 0.0,
+      "integral_eligible_count": 0,
+      "minimum_tuck_reference_error_rad": 1.1513479820341526,
+      "max_integral_nm": 0.0,
+      "torque_median_error_nm": 0.030517573598633163,
+      "settled_median_torque_error_nm": 0.015258789201661571,
+      "final_targets": [
+        1.1218299865722656,
+        1.039588451385498,
+        -1.127748727798462,
+        -1.0454953908920288
+      ],
+      "final_tuck_reference": [
+        0.11936661951494529,
+        -0.006472967540337543,
+        -0.11724483876811785,
+        0.008607133602599085
+      ],
+      "final_integral": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_model_torque": [
+        23.167774200439453,
+        -21.763927459716797,
+        -19.659130096435547,
+        17.150562286376953
+      ],
+      "actual_final_model_torque": [
+        23.13725662,
+        -21.79444504,
+        -19.6591301,
+        17.15056229
+      ]
+    },
+    {
+      "episode": 3,
+      "native_start": 9161,
+      "native_end": 9238,
+      "phase_match_fraction": 1.0,
+      "replay_phases": [
+        7.0
+      ],
+      "tucking_fraction": 1.0,
+      "integral_eligible_count": 0,
+      "minimum_tuck_reference_error_rad": 1.3501678426660848,
+      "max_integral_nm": 0.0,
+      "torque_median_error_nm": 0.348724126827484,
+      "settled_median_torque_error_nm": 0.348724126827484,
+      "final_targets": [
+        0.12278477102518082,
+        1.0608769655227661,
+        -0.11570252478122711,
+        -1.0962637662887573
+      ],
+      "final_tuck_reference": [
+        -0.0038427967837545954,
+        -0.12968238383903744,
+        0.0038985362953677222,
+        0.12975050866608465
+      ],
+      "final_integral": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_model_torque": [
+        15.18466854095459,
+        -18.961528778076172,
+        -15.247614860534668,
+        17.91402816772461
+      ],
+      "actual_final_model_torque": [
+        15.40077686,
+        -18.52278137,
+        -15.41595173,
+        17.46606827
+      ]
+    },
+    {
+      "episode": 4,
+      "native_start": 10582,
+      "native_end": 11253,
+      "phase_match_fraction": 1.0,
+      "replay_phases": [
+        7.0
+      ],
+      "tucking_fraction": 1.0,
+      "integral_eligible_count": 0,
+      "minimum_tuck_reference_error_rad": 0.16003065669441385,
+      "max_integral_nm": 0.0,
+      "torque_median_error_nm": 0.260061738371582,
+      "settled_median_torque_error_nm": 0.012372970994873,
+      "final_targets": [
+        -0.3644600808620453,
+        -0.4902997314929962,
+        0.3588930368423462,
+        0.48474499583244324
+      ],
+      "final_tuck_reference": [
+        -0.47977383689884645,
+        -0.6056134239541293,
+        0.4723948873521703,
+        0.5982468597228873
+      ],
+      "final_integral": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_model_torque": [
+        19.050771713256836,
+        -30.256309509277344,
+        -10.267217636108398,
+        13.211262702941895
+      ],
+      "actual_final_model_torque": [
+        19.04151344,
+        -30.26555252,
+        -10.2580719,
+        13.22041035
+      ]
+    },
+    {
+      "episode": 5,
+      "native_start": 12172,
+      "native_end": 12192,
+      "phase_match_fraction": 1.0,
+      "replay_phases": [
+        1.0
+      ],
+      "tucking_fraction": 0.0,
+      "integral_eligible_count": 0,
+      "minimum_tuck_reference_error_rad": 2.0554686878196633,
+      "max_integral_nm": 0.0,
+      "torque_median_error_nm": 2.7305335992561037,
+      "settled_median_torque_error_nm": 2.7305335992561037,
+      "final_targets": [
+        -1.4598989486694336,
+        -1.3935604095458984,
+        1.4350824356079102,
+        1.3642069101333618
+      ],
+      "final_tuck_reference": [
+        0.15218095394282016,
+        0.02634136688753733,
+        -0.14951766881966375,
+        -0.02366569644894681
+      ],
+      "final_integral": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_model_torque": [
+        40.0,
+        -38.317466735839844,
+        -40.0,
+        40.0
+      ],
+      "actual_final_model_torque": [
+        40.0,
+        -35.53627014,
+        -40.0,
+        40.0
+      ]
+    }
+  ]
+}

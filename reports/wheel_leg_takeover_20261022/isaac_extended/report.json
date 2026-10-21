@@ -1,0 +1,352 @@
+{
+  "isaac_sim_version": "6.0.0.1",
+  "fixture": "fixed body attitude; suspended or vertically guided ground fixtures",
+  "scope": "production trajectory to RL phase on fixed-attitude closed-chain fixtures; fixture PD holds legs after transfer, no actor or free-body recovery validation",
+  "production_trajectory": true,
+  "asset_manifest_sha256": "d3af5b544b874c8629860a9cc0c1529d215b0e3644126b3b9da7ad87b3256690",
+  "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+  "geometry_sha256": "1b5b1a2b2c07c3436b916867eca8e86491dd6487d9ae492f7b55976ea311bc9b",
+  "library_sha256": "d40b90424efffed5d74b42701f677bbdb1addb7ad791d1a24d2eaa57f01f3e0b",
+  "script_sha256": "b15b0ab22d293daa005d0e89e51b0b87161ab0979840e8e6ea6b649644b549f0",
+  "dt": 0.001,
+  "duration_s": 6.0,
+  "results": [
+    {
+      "case": "extended_front",
+      "integral_gain": 100.0,
+      "final_knee_deg": [
+        40.57923219732198,
+        40.57893252277215
+      ],
+      "settled_knee_range_deg": [
+        40.57893252277215,
+        40.59669357593512
+      ],
+      "max_settled_wheel_com_error_mm": 0.7019831561660763,
+      "max_closure_gap_mm": 0.035472454021799736,
+      "gas_curve_max_clamp_exposure_mm": 0.45096986500690883,
+      "final_wheel_z_m": [
+        0.5372971002290284,
+        0.5372982955109953
+      ],
+      "mean_wheel_support_n": [
+        0.0,
+        0.0
+      ],
+      "max_settled_nonwheel_support_n": 0.0,
+      "final_wheel_axis_w": [
+        [
+          -3.4874031697995633e-06,
+          0.9999999990928976,
+          -4.245046712580969e-05
+        ],
+        [
+          -3.42542224152087e-06,
+          0.9999999990847706,
+          -4.264652058681706e-05
+        ]
+      ],
+      "contact_paths": [
+        "/World/extended_front/base_link",
+        "/World/extended_front/L_link1",
+        "/World/extended_front/R_link1",
+        "/World/extended_front/LL_link1",
+        "/World/extended_front/RR_link1",
+        "/World/extended_front/L_link2",
+        "/World/extended_front/R_link2",
+        "/World/extended_front/LL_link2",
+        "/World/extended_front/RR_link2",
+        "/World/extended_front/L_link3",
+        "/World/extended_front/LLL_link2",
+        "/World/extended_front/R_link3",
+        "/World/extended_front/RRR_link2",
+        "/World/extended_front/LL_link3",
+        "/World/extended_front/RR_link3",
+        "/World/extended_front/LLL_link1",
+        "/World/extended_front/RRR_link1",
+        "/World/extended_front/LL_link4",
+        "/World/extended_front/RR_link4"
+      ],
+      "wheel_support_check": true,
+      "passed": true,
+      "handover": {
+        "time_s": 1.84,
+        "phase": 9,
+        "knee_deg": [
+          41.46026299411698,
+          41.4601323667491
+        ],
+        "measured_fk_knee_deg": [
+          41.425407824810286,
+          41.42540080690122
+        ],
+        "wheel_com_error_mm": [
+          -2.3215882392999267,
+          -2.321727149493375
+        ],
+        "tracking_error_rad": 0.021796539425849915,
+        "remaining_rad": 0.004547731950879097,
+        "integral_nm": [
+          6.988326193793907,
+          -8.470093928813009,
+          -6.988356358194148,
+          8.470210621150901
+        ]
+      },
+      "settled_geometry_passed": true
+    },
+    {
+      "case": "extended_back",
+      "integral_gain": 100.0,
+      "final_knee_deg": [
+        40.57886294021998,
+        40.57887489305102
+      ],
+      "settled_knee_range_deg": [
+        40.57886294021998,
+        40.596461349503336
+      ],
+      "max_settled_wheel_com_error_mm": 0.4213965292165778,
+      "max_closure_gap_mm": 0.03636844394444662,
+      "gas_curve_max_clamp_exposure_mm": 0.4509568264908642,
+      "final_wheel_z_m": [
+        0.5371573832490653,
+        0.5371575663679521
+      ],
+      "mean_wheel_support_n": [
+        0.0,
+        0.0
+      ],
+      "max_settled_nonwheel_support_n": 0.0,
+      "final_wheel_axis_w": [
+        [
+          -3.829186651038707e-06,
+          0.9999999990839283,
+          -4.2631922140858036e-05
+        ],
+        [
+          -3.5561075378831575e-06,
+          0.9999999990897062,
+          -4.251990002578088e-05
+        ]
+      ],
+      "contact_paths": [
+        "/World/extended_back/base_link",
+        "/World/extended_back/L_link1",
+        "/World/extended_back/R_link1",
+        "/World/extended_back/LL_link1",
+        "/World/extended_back/RR_link1",
+        "/World/extended_back/L_link2",
+        "/World/extended_back/R_link2",
+        "/World/extended_back/LL_link2",
+        "/World/extended_back/RR_link2",
+        "/World/extended_back/L_link3",
+        "/World/extended_back/LLL_link2",
+        "/World/extended_back/R_link3",
+        "/World/extended_back/RRR_link2",
+        "/World/extended_back/LL_link3",
+        "/World/extended_back/RR_link3",
+        "/World/extended_back/LLL_link1",
+        "/World/extended_back/RRR_link1",
+        "/World/extended_back/LL_link4",
+        "/World/extended_back/RR_link4"
+      ],
+      "wheel_support_check": true,
+      "passed": true,
+      "handover": {
+        "time_s": 1.985,
+        "phase": 9,
+        "knee_deg": [
+          41.3765280765438,
+          41.376183792320944
+        ],
+        "measured_fk_knee_deg": [
+          41.34150003442206,
+          41.34147596144572
+        ],
+        "wheel_com_error_mm": [
+          1.8461466779159872,
+          1.8462279904744896
+        ],
+        "tracking_error_rad": 0.022510193288326263,
+        "remaining_rad": 0.004000587854534388,
+        "integral_nm": [
+          9.087980308756212,
+          -6.693265201151373,
+          -9.088171241432413,
+          6.693022188544278
+        ]
+      },
+      "settled_geometry_passed": true
+    },
+    {
+      "case": "ground_front",
+      "integral_gain": 100.0,
+      "final_knee_deg": [
+        40.42438882063003,
+        40.42446053761631
+      ],
+      "settled_knee_range_deg": [
+        40.38662641225632,
+        40.42446053761631
+      ],
+      "max_settled_wheel_com_error_mm": 0.4991548181503269,
+      "max_closure_gap_mm": 0.0501148262525707,
+      "gas_curve_max_clamp_exposure_mm": 0.793482601103887,
+      "final_wheel_z_m": [
+        0.06000052649341823,
+        0.06000042009620165
+      ],
+      "mean_wheel_support_n": [
+        67.97685153667743,
+        68.20305574857272
+      ],
+      "max_settled_nonwheel_support_n": 0.0,
+      "final_wheel_axis_w": [
+        [
+          -3.770785694579004e-06,
+          0.9999999991422929,
+          -4.1245551987090234e-05
+        ],
+        [
+          -3.4203066340832144e-06,
+          0.999999999144925,
+          -4.121227448372622e-05
+        ]
+      ],
+      "contact_paths": [
+        "/World/ground_front/base_link",
+        "/World/ground_front/L_link1",
+        "/World/ground_front/R_link1",
+        "/World/ground_front/LL_link1",
+        "/World/ground_front/RR_link1",
+        "/World/ground_front/L_link2",
+        "/World/ground_front/R_link2",
+        "/World/ground_front/LL_link2",
+        "/World/ground_front/RR_link2",
+        "/World/ground_front/L_link3",
+        "/World/ground_front/LLL_link2",
+        "/World/ground_front/R_link3",
+        "/World/ground_front/RRR_link2",
+        "/World/ground_front/LL_link3",
+        "/World/ground_front/RR_link3",
+        "/World/ground_front/LLL_link1",
+        "/World/ground_front/RRR_link1",
+        "/World/ground_front/LL_link4",
+        "/World/ground_front/RR_link4"
+      ],
+      "wheel_support_check": true,
+      "passed": true,
+      "handover": {
+        "time_s": 1.304,
+        "phase": 9,
+        "knee_deg": [
+          39.9999177500363,
+          39.9999177500363
+        ],
+        "measured_fk_knee_deg": [
+          39.97252329578024,
+          39.972614448815705
+        ],
+        "wheel_com_error_mm": [
+          -3.9766812658688817,
+          -3.9788267947451286
+        ],
+        "tracking_error_rad": 0.031735628843307495,
+        "remaining_rad": 0.0044098664075136185,
+        "integral_nm": [
+          0.546215344080703,
+          -7.0992809948569535,
+          -0.5451876289211214,
+          7.1029734378680685
+        ]
+      },
+      "settled_geometry_passed": true
+    },
+    {
+      "case": "ground_back",
+      "integral_gain": 100.0,
+      "final_knee_deg": [
+        40.45954295051444,
+        40.459406346731036
+      ],
+      "settled_knee_range_deg": [
+        40.440879885494205,
+        40.45954295051444
+      ],
+      "max_settled_wheel_com_error_mm": 0.514030572009716,
+      "max_closure_gap_mm": 0.04583003521772173,
+      "gas_curve_max_clamp_exposure_mm": 0.7933987820721716,
+      "final_wheel_z_m": [
+        0.060000275138748546,
+        0.06000019019727544
+      ],
+      "mean_wheel_support_n": [
+        68.2819102360652,
+        68.12890947782077
+      ],
+      "max_settled_nonwheel_support_n": 0.0,
+      "final_wheel_axis_w": [
+        [
+          -3.6665313388195564e-06,
+          0.9999999991466585,
+          -4.114898832424663e-05
+        ],
+        [
+          -3.14048239929976e-06,
+          0.9999999991587174,
+          -4.089868686513176e-05
+        ]
+      ],
+      "contact_paths": [
+        "/World/ground_back/base_link",
+        "/World/ground_back/L_link1",
+        "/World/ground_back/R_link1",
+        "/World/ground_back/LL_link1",
+        "/World/ground_back/RR_link1",
+        "/World/ground_back/L_link2",
+        "/World/ground_back/R_link2",
+        "/World/ground_back/LL_link2",
+        "/World/ground_back/RR_link2",
+        "/World/ground_back/L_link3",
+        "/World/ground_back/LLL_link2",
+        "/World/ground_back/R_link3",
+        "/World/ground_back/RRR_link2",
+        "/World/ground_back/LL_link3",
+        "/World/ground_back/RR_link3",
+        "/World/ground_back/LLL_link1",
+        "/World/ground_back/RRR_link1",
+        "/World/ground_back/LL_link4",
+        "/World/ground_back/RR_link4"
+      ],
+      "wheel_support_check": true,
+      "passed": true,
+      "handover": {
+        "time_s": 1.345,
+        "phase": 9,
+        "knee_deg": [
+          40.00281801911262,
+          39.99986566984388
+        ],
+        "measured_fk_knee_deg": [
+          40.01103869113674,
+          40.00870392374077
+        ],
+        "wheel_com_error_mm": [
+          3.6091701755290635,
+          3.7227021381951406
+        ],
+        "tracking_error_rad": 0.026524215936660767,
+        "remaining_rad": 0.004624099005013704,
+        "integral_nm": [
+          6.670768499746914,
+          0.39087571799755233,
+          -6.6990988060832,
+          -0.4050892129540466
+        ]
+      },
+      "settled_geometry_passed": true
+    }
+  ],
+  "passed": true
+}

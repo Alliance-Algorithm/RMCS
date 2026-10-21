@@ -1,0 +1,12 @@
+{
+  "git_head": "4215bf3ba4146c8a2ca58c1546a930ea29991388",
+  "files_sha256": {
+    "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml": "8d562afe88cae8aa618479fd2289854a2e4ce11522719cf6520319301a299908",
+    "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp": "4dd92f0f45db87446eff3aa22a75986c10106700c5020b795dcb57cb26d92884",
+    "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp": "39181f7ed1434079445140fd4c373ef97256307bb7ac39ab6c1d99ba1ac0c42b",
+    "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/observation.cpp": "adee6c18d4014818c3ad0ea0a06820d1448938e32251a904ebb52e01abfe6194",
+    "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp": "e566cef239bcd0dff887ce3ad2e1056c6221f0e87e8a465c5b8c457468d4744f",
+    "/home/noir/.codex/attachments/ab8a69e1-5480-42dc-84c2-f45f8bc08f7d/已粘贴的文本.txt": "44f5c65ac7eec9ea423b83dd3ca67b92929ecfd2e01c8a47e50c313ecd1e9104",
+    "/tmp/codex-clipboard-1e781b0d-26d3-47c0-977c-81eb4f61a619.png": "08cbba4b9a8e6f2688c8fa231b4953148bbc42ce0ddc942749cf178d6773c65c"
+  }
+}
