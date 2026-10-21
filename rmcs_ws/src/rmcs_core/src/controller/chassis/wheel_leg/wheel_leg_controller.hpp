@@ -8,6 +8,7 @@
 #include "recovery_controller.hpp"
 #include "recovery_observer.hpp"
 #include "recovery_sensor_guard.hpp"
+#include "recovery_tuck_controller.hpp"
 
 #include <array>
 #include <chrono>
@@ -164,6 +165,9 @@ private:
     OutputInterface<double> recovery_acceleration_age_output_, recovery_blend_output_;
     OutputInterface<double> takeover_blend_output_;
     OutputInterface<double> recovery_height_output_;
+    OutputInterface<bool> recovery_tuck_ready_output_;
+    std::array<OutputInterface<double>, 2> recovery_tuck_knee_outputs_;
+    std::array<OutputInterface<double>, 2> recovery_tuck_sagittal_outputs_;
     OutputInterface<double> pd_time_us_;
     std::array<OutputInterface<double>, PolicyAction{}.size()> action_outputs_;
     std::array<OutputInterface<double>, 6> effective_action_outputs_;
@@ -297,6 +301,8 @@ private:
     double recovery_capture_max_wheel_velocity_ = 2.0;
     double recovery_capture_max_leg_error_rad_ = 0.25;
     Eigen::Vector4d recovery_capture_reference_ = Eigen::Vector4d::Zero();
+    std::optional<RecoveryTuckController> recovery_tuck_;
+    RecoveryTuckState recovery_tuck_state_;
     std::array<double, 2> recovery_capture_hinge_max_{};
     double takeover_blend_seconds_ = 0.0;
     double takeover_blend_fraction_ = 0.0;

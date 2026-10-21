@@ -89,13 +89,15 @@ bool WheelLegController::upright_capture_ready_(
 }
 
 bool WheelLegController::recovery_capture_ready_() const {
+    if (recovery_tuck_ && (!recovery_tuck_state_.valid || !recovery_tuck_state_.ready))
+        return false;
     // Hinge differences determine actual knee extension independently of the
     // leg's common rotation. A low reference alone cannot limit a spring-loaded leg.
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side;
         const double relative =
             hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
-        if (relative > recovery_capture_hinge_max_[side])
+        if (!recovery_tuck_ && relative > recovery_capture_hinge_max_[side])
             return false;
     }
     const Eigen::Vector3d gravity =
@@ -130,7 +132,8 @@ bool WheelLegController::recovery_capture_ready_() const {
              upright ? recovery_capture_max_angular_velocity_ : capture_max_angular_velocity_,
          .max_leg_error_rad = recovery_capture_max_leg_error_rad_,
          .max_wheel_velocity = recovery_capture_max_wheel_velocity_,
-         .reference = recovery_capture_reference_},
+         .reference =
+             recovery_tuck_ ? recovery_tuck_state_.reference : recovery_capture_reference_},
         gravity, omega);
 }
 
@@ -260,6 +263,15 @@ JointReferenceRecoveryFeedback WheelLegController::joint_reference_recovery_feed
 bool WheelLegController::advance_joint_reference_recovery_() {
     if (!joint_reference_recovery_ || !support_observer_)
         return false;
+    if (recovery_tuck_) {
+        recovery_tuck_state_ = recovery_tuck_->update(
+            joint_reference_feedback_.q.head<4>(), joint_reference_feedback_.gravity, recovery_dt_,
+            joint_reference_recovery_->command().tucking);
+        joint_reference_feedback_.tuck_reference = recovery_tuck_state_.reference;
+        joint_reference_feedback_.tuck_hold_torque = recovery_tuck_state_.hold_torque;
+        joint_reference_feedback_.tuck_valid = recovery_tuck_state_.valid;
+        joint_reference_feedback_.tuck_ready = recovery_tuck_state_.ready;
+    }
     joint_reference_feedback_.rl_capture_ready = recovery_capture_ready_();
     const auto& command =
         joint_reference_recovery_->update(joint_reference_feedback_, recovery_dt_);
@@ -279,6 +291,14 @@ bool WheelLegController::advance_joint_reference_recovery_() {
         return false;
     }
     if (command.pure_rl && state_ == State::kPrepare) {
+        if (recovery_tuck_)
+            RCLCPP_INFO(
+                get_logger(),
+                "Measured tuck at handover: knees %.2f/%.2f deg, "
+                "wheel-COM sagittal error %.2f/%.2f mm",
+                recovery_tuck_state_.knee_deg[0], recovery_tuck_state_.knee_deg[1],
+                recovery_tuck_state_.sagittal_error_m[0] * 1000.0,
+                recovery_tuck_state_.sagittal_error_m[1] * 1000.0);
         RCLCPP_INFO(
             get_logger(), "Self-righting handover: policy owns all six axes, motion %s",
             command.motion_hold ? "held" : "released");

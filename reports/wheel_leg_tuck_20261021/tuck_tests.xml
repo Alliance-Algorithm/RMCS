@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="6" failures="0" disabled="0" errors="0" time="0.032" timestamp="2026-10-21T22:45:31.442" name="AllTests">
+  <testsuite name="WheelLegRecoveryTuck" tests="6" failures="0" disabled="0" skipped="0" errors="0" time="0.032" timestamp="2026-10-21T22:45:31.442">
+    <testcase name="FrontBackAsymmetryAndCommonTurnsReachSameMeasuredGeometry" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp" line="18" status="run" result="completed" time="0.004" timestamp="2026-10-21T22:45:31.442" classname="WheelLegRecoveryTuck" />
+    <testcase name="MeasuredKneeAndComBlockEarlyOrUpsideDownTransfer" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp" line="41" status="run" result="completed" time="0.002" timestamp="2026-10-21T22:45:31.447" classname="WheelLegRecoveryTuck" />
+    <testcase name="LoadIntegralIsBoundedAndClearedOnResetAndInvalidFeedback" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp" line="63" status="run" result="completed" time="0.012" timestamp="2026-10-21T22:45:31.449" classname="WheelLegRecoveryTuck" />
+    <testcase name="RejectsWrongModelAndUnsafeBounds" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp" line="81" status="run" result="completed" time="0.003" timestamp="2026-10-21T22:45:31.462" classname="WheelLegRecoveryTuck" />
+    <testcase name="FsmRequiresMeasuredTuckEvenWhenLegacyCaptureIsReady" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp" line="91" status="run" result="completed" time="0.005" timestamp="2026-10-21T22:45:31.466" classname="WheelLegRecoveryTuck" />
+    <testcase name="NonfiniteTuckReferenceFailsBeforeActuation" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp" line="127" status="run" result="completed" time="0.003" timestamp="2026-10-21T22:45:31.472" classname="WheelLegRecoveryTuck" />
+  </testsuite>
+</testsuites>

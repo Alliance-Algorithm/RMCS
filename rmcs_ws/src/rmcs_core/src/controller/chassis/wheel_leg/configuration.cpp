@@ -167,6 +167,17 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         "/wheel_leg/rl/recovery/acceleration_age_ms", recovery_acceleration_age_output_, -1.0);
     register_output("/wheel_leg/rl/recovery/contact_candidate", recovery_contact_output_, false);
     register_output("/wheel_leg/rl/recovery/height_if_grounded", recovery_height_output_, 0.0);
+    register_output("/wheel_leg/rl/recovery/tuck/ready", recovery_tuck_ready_output_, false);
+    for (int side = 0; side < 2; ++side) {
+        const std::string prefix =
+            std::string{"/wheel_leg/rl/recovery/tuck/"} + (side == 0 ? "left/" : "right/");
+        register_output(
+            prefix + "knee_deg", recovery_tuck_knee_outputs_[side],
+            std::numeric_limits<double>::quiet_NaN());
+        register_output(
+            prefix + "sagittal_error_m", recovery_tuck_sagittal_outputs_[side],
+            std::numeric_limits<double>::quiet_NaN());
+    }
     register_output("/wheel_leg/rl/recovery/blend", recovery_blend_output_, 0.0);
     register_output("/wheel_leg/rl/v6_takeover/blend_fraction", takeover_blend_output_, 0.0);
     register_output("/wheel_leg/rl/performance/pd_us", pd_time_us_, 0.0);
@@ -419,40 +430,73 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         recovery_config.blend_seconds =
             recovery_parameter("recovery_blend_seconds", recovery_config.blend_seconds);
         recovery_config.dynamic_takeover = recovery_parameter("recovery_dynamic_takeover", false);
+        recovery_config.tuck_before_takeover = recovery_parameter("recovery_tuck_enabled", false);
+        recovery_capture_hinge_max_ = hinge_max_;
+        if (recovery_config.tuck_before_takeover) {
+            recovery_config.tuck_speed_rad_s =
+                recovery_parameter("recovery_tuck_speed_rad_s", recovery_config.tuck_speed_rad_s);
+            RecoveryTuckConfig tuck;
+            tuck.knee_deg = recovery_parameter("recovery_tuck_knee_deg", tuck.knee_deg);
+            tuck.knee_tolerance_deg =
+                recovery_parameter("recovery_tuck_knee_tolerance_deg", tuck.knee_tolerance_deg);
+            tuck.max_sagittal_error_m =
+                recovery_parameter("recovery_tuck_max_sagittal_error_m", tuck.max_sagittal_error_m);
+            tuck.integral_gain =
+                recovery_parameter("recovery_tuck_integral_gain", tuck.integral_gain);
+            tuck.integral_limit_nm =
+                recovery_parameter("recovery_tuck_integral_limit_nm", tuck.integral_limit_nm);
+            recovery_tuck_.emplace(
+                resolve(recovery_parameter(
+                    "recovery_tuck_geometry_path",
+                    std::string{"config/wheel_leg/tuck_geometry_107_v1.json"})),
+                native.model_spec_sha256, tuck);
+            RCLCPP_INFO(
+                get_logger(),
+                "Recovery tuck: measured knee %.2f +/- %.2f deg, "
+                "COM alignment %.1f mm, integral %.1f capped at %.1f Nm",
+                tuck.knee_deg, tuck.knee_tolerance_deg, tuck.max_sagittal_error_m * 1000.0,
+                tuck.integral_gain, tuck.integral_limit_nm);
+        }
         recovery_config.release_motion_on_takeover =
             recovery_parameter("recovery_release_motion_on_takeover", false);
         recovery_config.dynamic_capture_height_min = recovery_parameter(
             "recovery_capture_height_min", recovery_config.dynamic_capture_height_min);
         recovery_config.dynamic_capture_height_max = recovery_parameter(
             "recovery_capture_height_max", recovery_config.dynamic_capture_height_max);
-        const auto capture_positions = recovery_parameter(
-            "recovery_capture_joint_positions",
-            std::vector<double>{
-                recovery_config.nominal.data(), recovery_config.nominal.data() + 4});
-        if (capture_positions.size() != 4
-            || !std::ranges::all_of(capture_positions, [](double v) { return std::isfinite(v); }))
-            throw std::runtime_error("Recovery capture requires four finite joint positions");
-        recovery_capture_reference_ = Eigen::Map<const Eigen::Vector4d>{capture_positions.data()};
-        const auto capture_hinge_max = recovery_parameter(
-            "recovery_capture_hinge_max",
-            std::vector<double>{hinge_max_.begin(), hinge_max_.end()});
-        if (capture_hinge_max.size() != 2)
-            throw std::runtime_error("Recovery capture requires two calibrated hinge limits");
-        for (int side = 0; side < 2; ++side) {
-            const double maximum = capture_hinge_max[side];
-            const int hip = 2 * side;
-            const double reference_hinge =
-                hinge_coeff_[hip] * recovery_capture_reference_[hip]
-                + hinge_coeff_[hip + 1] * recovery_capture_reference_[hip + 1] + hinge_bias_[side];
-            if (!std::isfinite(maximum) || maximum <= hinge_min_[side] || maximum > hinge_max_[side]
-                || reference_hinge < hinge_min_[side] || reference_hinge > maximum)
-                throw std::runtime_error(
-                    "Recovery capture reference exceeds calibrated hinge limits");
-            recovery_capture_hinge_max_[side] = maximum;
+        if (!recovery_config.tuck_before_takeover) {
+            const auto capture_positions = recovery_parameter(
+                "recovery_capture_joint_positions",
+                std::vector<double>{
+                    recovery_config.nominal.data(), recovery_config.nominal.data() + 4});
+            if (capture_positions.size() != 4
+                || !std::ranges::all_of(
+                    capture_positions, [](double v) { return std::isfinite(v); }))
+                throw std::runtime_error("Recovery capture requires four finite joint positions");
+            recovery_capture_reference_ =
+                Eigen::Map<const Eigen::Vector4d>{capture_positions.data()};
+            const auto capture_hinge_max = recovery_parameter(
+                "recovery_capture_hinge_max",
+                std::vector<double>{hinge_max_.begin(), hinge_max_.end()});
+            if (capture_hinge_max.size() != 2)
+                throw std::runtime_error("Recovery capture requires two calibrated hinge limits");
+            for (int side = 0; side < 2; ++side) {
+                const double maximum = capture_hinge_max[side];
+                const int hip = 2 * side;
+                const double reference_hinge =
+                    hinge_coeff_[hip] * recovery_capture_reference_[hip]
+                    + hinge_coeff_[hip + 1] * recovery_capture_reference_[hip + 1]
+                    + hinge_bias_[side];
+                if (!std::isfinite(maximum) || maximum <= hinge_min_[side]
+                    || maximum > hinge_max_[side] || reference_hinge < hinge_min_[side]
+                    || reference_hinge > maximum)
+                    throw std::runtime_error(
+                        "Recovery capture reference exceeds calibrated hinge limits");
+                recovery_capture_hinge_max_[side] = maximum;
+            }
+            // Keep the extended support pose; the low reference only defines actor entry.
+            if (recovery_config.dynamic_takeover)
+                recovery_config.nominal = recovery_capture_reference_;
         }
-        // Keep the extended support pose; the low reference only defines actor entry.
-        if (recovery_config.dynamic_takeover)
-            recovery_config.nominal = recovery_capture_reference_;
         recovery_capture_max_tilt_rad_ =
             recovery_parameter("recovery_capture_max_tilt_rad", prepare_max_tilt_rad_);
         recovery_capture_max_angular_velocity_ = recovery_parameter(
