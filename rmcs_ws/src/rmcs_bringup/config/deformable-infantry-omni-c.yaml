@@ -179,17 +179,17 @@ gimbal_controller:
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 10.0
+    yaw_angle_kp: 7.5
     yaw_angle_ki: 0.0
     yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 13.0
+    yaw_velocity_kp: 9.0
     yaw_velocity_ki: 0.02
     yaw_velocity_kd: 0.0
     yaw_velocity_integral_min: -5.0
     yaw_velocity_integral_max: 5.0
 
-    pitch_angle_kp: 35.0
+    pitch_angle_kp: 30.0
     pitch_angle_ki: 0.02
     pitch_angle_kd: 0.3
     pitch_angle_integral_min: -0.5

@@ -1,0 +1,127 @@
+{
+  "isaac_sim_version": "6.0.0.1",
+  "fixture": "fixed attitude; five suspended, two vertically guided wheel-supported rigs",
+  "scope": "leg geometry and load tracking only; no free-body recovery or actor handover validation",
+  "asset_manifest_sha256": "d3af5b544b874c8629860a9cc0c1529d215b0e3644126b3b9da7ad87b3256690",
+  "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+  "geometry_sha256": "1b5b1a2b2c07c3436b916867eca8e86491dd6487d9ae492f7b55976ea311bc9b",
+  "library_sha256": "7f15b9f8a619142000095bc0f0e7ae50c663677e6f1a706bc2f03faa3636cd3d",
+  "script_sha256": "5318a3291da715a4fa8fbdfc189f2367763a35af4022ecb270b7b9c395dd9eef",
+  "dt": 0.001,
+  "duration_s": 6.0,
+  "results": [
+    {
+      "case": "front",
+      "integral_gain": 60.0,
+      "final_knee_deg": [
+        42.277238569328304,
+        42.27715468606756
+      ],
+      "settled_knee_range_deg": [
+        42.276925447843546,
+        42.27746460590115
+      ],
+      "max_settled_wheel_com_error_mm": 0.3986262285935217,
+      "max_closure_gap_mm": 0.03766347636575145,
+      "gas_curve_max_clamp_exposure_mm": 0.0,
+      "passed": false
+    },
+    {
+      "case": "back",
+      "integral_gain": 60.0,
+      "final_knee_deg": [
+        42.2775356825572,
+        42.2771867025793
+      ],
+      "settled_knee_range_deg": [
+        42.276859280385956,
+        42.27756022854953
+      ],
+      "max_settled_wheel_com_error_mm": 0.3986552765113949,
+      "max_closure_gap_mm": 0.0396713436226808,
+      "gas_curve_max_clamp_exposure_mm": 0.0,
+      "passed": false
+    },
+    {
+      "case": "asymmetric",
+      "integral_gain": 60.0,
+      "final_knee_deg": [
+        42.2769209655319,
+        42.27724134409266
+      ],
+      "settled_knee_range_deg": [
+        42.27675127801971,
+        42.27759309883491
+      ],
+      "max_settled_wheel_com_error_mm": 0.3989623981870416,
+      "max_closure_gap_mm": 0.039917942989543646,
+      "gas_curve_max_clamp_exposure_mm": 0.0,
+      "passed": false
+    },
+    {
+      "case": "pitch_forward",
+      "integral_gain": 60.0,
+      "final_knee_deg": [
+        42.272658927489815,
+        42.27189373285936
+      ],
+      "settled_knee_range_deg": [
+        42.271563749345084,
+        42.27274665273197
+      ],
+      "max_settled_wheel_com_error_mm": 0.891202034152716,
+      "max_closure_gap_mm": 0.039181492839951315,
+      "gas_curve_max_clamp_exposure_mm": 0.0,
+      "passed": false
+    },
+    {
+      "case": "pitch_backward",
+      "integral_gain": 60.0,
+      "final_knee_deg": [
+        42.27752693137733,
+        42.27760697265666
+      ],
+      "settled_knee_range_deg": [
+        42.276609978481254,
+        42.27878197863732
+      ],
+      "max_settled_wheel_com_error_mm": 0.12816856177444436,
+      "max_closure_gap_mm": 0.04049413395891543,
+      "gas_curve_max_clamp_exposure_mm": 0.0,
+      "passed": false
+    },
+    {
+      "case": "ground_supported",
+      "integral_gain": 60.0,
+      "final_knee_deg": [
+        40.59518026214714,
+        40.59733049107522
+      ],
+      "settled_knee_range_deg": [
+        40.59518026214714,
+        40.620191134227255
+      ],
+      "max_settled_wheel_com_error_mm": 0.9398734059500313,
+      "max_closure_gap_mm": 0.03973538756797898,
+      "gas_curve_max_clamp_exposure_mm": 0.7923240358210654,
+      "passed": true
+    },
+    {
+      "case": "ground_no_integral",
+      "integral_gain": 0.0,
+      "final_knee_deg": [
+        41.15305346496768,
+        41.15373349567692
+      ],
+      "settled_knee_range_deg": [
+        41.14848748350752,
+        41.1559814816875
+      ],
+      "max_settled_wheel_com_error_mm": 1.797761192702474,
+      "max_closure_gap_mm": 0.03972031571004525,
+      "gas_curve_max_clamp_exposure_mm": 0.7847894033617825,
+      "passed": false
+    }
+  ],
+  "passed": false
+}

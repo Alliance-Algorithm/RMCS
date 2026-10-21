@@ -51,6 +51,8 @@ struct JointReferenceRecoveryConfig {
     double blend_seconds = 0.2;
     // End any script at the caller's bounded upright capture before stabilization.
     bool dynamic_takeover = false;
+    bool tuck_before_takeover = false;
+    double tuck_speed_rad_s = 1.0;
     double dynamic_capture_height_min = 0.27;
     double dynamic_capture_height_max = 0.36;
     // Deployment may accept driver commands as soon as the actor owns all axes.
@@ -94,6 +96,10 @@ struct JointReferenceRecoveryFeedback {
     bool body_clear = false;
     // Caller validates the mechanism's upright pose/velocity envelope and sensing.
     bool rl_capture_ready = false;
+    Eigen::Vector4d tuck_reference = Eigen::Vector4d::Zero();
+    Eigen::Vector4d tuck_hold_torque = Eigen::Vector4d::Zero();
+    bool tuck_valid = false;
+    bool tuck_ready = false;
     Eigen::Vector2d wheel_probe_torque = Eigen::Vector2d::Zero();
 };
 
@@ -111,6 +117,7 @@ struct JointReferenceRecoveryCommand {
     bool failed = false;
     bool release_finished = true;
     bool wheel_balance_active = false;
+    bool tucking = false;
     int failure_code = 0;
     std::uint64_t age_ticks = 0;
     std::uint64_t phase_ticks = 0;
@@ -186,7 +193,7 @@ private:
     static Vector4f paired_delta_(const Vector4f& goal, const Vector4f& reference);
     static Vector4f shape_at_heading_(const Vector4f& shape, const Vector4f& reference);
     bool folded_() const;
-    JointGoal update_goal_(const StepContext& step, bool supported);
+    JointGoal update_goal_(const StepContext& step, const JointReferenceRecoveryFeedback& feedback);
     ReferenceStep advance_reference_(const StepContext& step, const JointGoal& goal);
     void update_transitions_(
         const StepContext& step, const ReferenceStep& reference,
@@ -216,6 +223,7 @@ private:
     Vector4f side_start_ = Vector4f::Zero();
     Vector4f side_direction_ = Vector4f::Zero();
     Vector4f side_fold_ = Vector4f::Zero();
+    Vector4f tuck_hold_torque_ = Vector4f::Zero();
     int side_lower_leg_ = 0;
     JointReferenceRecoveryPhase phase_ = JointReferenceRecoveryPhase::kRl;
     JointReferenceRecoveryRoute route_ = JointReferenceRecoveryRoute::kUpright;
@@ -230,6 +238,7 @@ private:
     bool wheel_balance_active_ = false;
     bool push_off_required_ = false;
     bool grounded_start_ = false;
+    bool tucking_ = false;
     float continuous_pitch_ = 0.0f, last_pitch_ = 0.0f;
     float orbit_angle_ = 0.0f, plant_pitch_ = 0.0f;
     double initial_release_seconds_ = 0.0;

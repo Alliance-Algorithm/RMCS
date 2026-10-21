@@ -1,0 +1,22 @@
+Starting >>> rmcs_bringup
+Finished <<< rmcs_bringup [0.06s]
+Starting >>> rmcs_core
+[0.182s] WARNING:colcon.colcon_core.shell:The following packages are in the workspace but haven't been built:
+- fast_tf
+- rmcs_msgs
+- rmcs_utility
+- rmcs_description
+- rmcs_executor
+- rmcs_rl
+They are being used from the following locations instead:
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+To suppress this warning ignore these packages in the workspace:
+--packages-ignore fast_tf rmcs_msgs rmcs_utility rmcs_description rmcs_executor rmcs_rl
+Finished <<< rmcs_core [25.5s]
+
+Summary: 2 packages finished [25.6s]

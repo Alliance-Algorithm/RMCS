@@ -39,6 +39,7 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
         config.stable_seconds,
         config.max_script_seconds,
         config.prepare_speed_rad_s,
+        config.tuck_speed_rad_s,
         config.insert_speed_rad_s,
         config.push_speed_rad_s,
         config.orbit_speed_rad_s,
@@ -62,7 +63,8 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
         || (config.dt != 0.005 && config.dt != 0.001) || !std::isfinite(config.blend_seconds)
         || (config.blend_seconds != 0.0 && config.blend_seconds != 0.2)
         || (config.dynamic_takeover && config.blend_seconds != 0.0)
-        || config.dynamic_capture_height_min < 0.20
+        || (config.tuck_before_takeover && !config.dynamic_takeover)
+        || config.tuck_speed_rad_s > 2.0 || config.dynamic_capture_height_min < 0.20
         || config.dynamic_capture_height_min > config.handover_height_min
         || config.dynamic_capture_height_min >= config.dynamic_capture_height_max
         || config.dynamic_capture_height_max > config.handover_height_max
@@ -124,6 +126,7 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
     pitch_initialized_ = wheel_balance_active_ = false;
     push_off_required_ = false;
     grounded_start_ = false;
+    tucking_ = false;
     orbit_start_.setZero();
     thrust_anchor_.setZero();
     fold_anchor_.setZero();
@@ -131,6 +134,7 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
     side_start_.setZero();
     side_direction_.setZero();
     side_fold_.setZero();
+    tuck_hold_torque_.setZero();
     side_lower_leg_ = 0;
 }
 
@@ -234,6 +238,7 @@ void JointReferenceRecoveryController::publish_() {
     command_.motion_released = !membership_ || (release_finished_ && motion_released_);
     command_.motion_hold = membership_ && !command_.motion_released;
     command_.wheel_balance_active = wheel_balance_active_;
+    command_.tucking = tucking_ && command_.scripted;
     command_.failure_code = failure_code_;
     command_.age_ticks = age_ticks_;
     command_.phase_ticks = phase_ticks_;
@@ -248,10 +253,13 @@ const JointReferenceRecoveryCommand&
 
 const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
     const JointReferenceRecoveryFeedback& feedback, double elapsed_seconds) {
-    const bool valid = std::isfinite(elapsed_seconds) && elapsed_seconds > 0.0
-                    && elapsed_seconds <= 0.02 && feedback.q.allFinite() && feedback.dq.allFinite()
-                    && feedback.gravity.allFinite() && feedback.gyro.allFinite()
-                    && std::isfinite(feedback.estimated_height) && feedback.gravity.norm() > 0.5;
+    const bool valid =
+        std::isfinite(elapsed_seconds) && elapsed_seconds > 0.0 && elapsed_seconds <= 0.02
+        && feedback.q.allFinite() && feedback.dq.allFinite() && feedback.gravity.allFinite()
+        && feedback.gyro.allFinite() && std::isfinite(feedback.estimated_height)
+        && feedback.gravity.norm() > 0.5
+        && (!config_.tuck_before_takeover || !feedback.tuck_valid
+            || (feedback.tuck_reference.allFinite() && feedback.tuck_hold_torque.allFinite()));
     if (!valid) {
         // Invalid sensing also terminates a zero-effort release episode.
         enabled_ = membership_;
@@ -260,6 +268,9 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         return command_;
     }
     double dt = config_.dt == 0.005 ? config_.dt : elapsed_seconds;
+    tuck_hold_torque_.setZero();
+    if (config_.tuck_before_takeover && feedback.tuck_valid)
+        tuck_hold_torque_ = feedback.tuck_hold_torque.cast<float>();
     elapsed_seconds_ += dt;
     const Vector6f raw_q = feedback.q.cast<float>();
     canonical_q_ = raw_q;
@@ -384,7 +395,7 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         phase_elapsed_(),
         durations_.phase,
         near_upright};
-    const auto goal = update_goal_(step, feedback.support);
+    const auto goal = update_goal_(step, feedback);
     const auto reference = advance_reference_(step, goal);
     update_transitions_(step, reference, feedback, dt);
     update_wheels_(step, feedback.support);
@@ -393,8 +404,9 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
     return command_;
 }
 
-JointReferenceRecoveryController::JointGoal
-    JointReferenceRecoveryController::update_goal_(const StepContext& step, bool supported) {
+JointReferenceRecoveryController::JointGoal JointReferenceRecoveryController::update_goal_(
+    const StepContext& step, const JointReferenceRecoveryFeedback& feedback) {
+    const bool supported = feedback.support;
     const auto phase = step.phase;
     const auto& gravity = step.gravity;
     const float tilt = step.tilt;
@@ -430,6 +442,10 @@ JointReferenceRecoveryController::JointGoal
              + extension * (config_.support - config_.nominal).cast<float>()
              - pitch * axes.cwiseInverse();
     }
+    tucking_ = config_.tuck_before_takeover && (preparing || capturing || blending)
+            && !push_off_required_ && feedback.tuck_valid && tilt < radians(55.0);
+    if (tucking_)
+        goal = feedback.tuck_reference.cast<float>();
     if (planting) {
         goal =
             push_off_required_ ? config_.insertion_fold.cast<float>() : config_.fold.cast<float>();
@@ -479,6 +495,8 @@ JointReferenceRecoveryController::JointGoal
         speed = static_cast<float>(config_.orbit_speed_rad_s);
     if (side)
         speed = static_cast<float>(config_.side_speed_rad_s);
+    if (tucking_)
+        speed = std::min(speed, static_cast<float>(config_.tuck_speed_rad_s));
     return {
         goal, speed,
         orbiting || thrusting || side || (planting && push_off_required_)
@@ -631,6 +649,7 @@ void JointReferenceRecoveryController::update_transitions_(
         && phase_ < JointReferenceRecoveryPhase::kBlend
         && reached_(age_ticks_, durations_.age, 0.06) && config_.dynamic_takeover
         && feedback.rl_capture_ready && feedback.support
+        && (!config_.tuck_before_takeover || (feedback.tuck_valid && feedback.tuck_ready))
         && height > body_geometry::support_depth(step.gravity) + kCaptureClearance
         && height > static_cast<float>(config_.dynamic_capture_height_min)
         && height < static_cast<float>(config_.dynamic_capture_height_max);
@@ -714,6 +733,11 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::torques(
     const Vector6f dq = feedback.dq.cast<float>();
     Vector6f script;
     script.head<4>() = 160.0f * (targets_.head<4>() - q.head<4>()) - 2.5f * dq.head<4>();
+    if (config_.tuck_before_takeover && command_.tucking) {
+        if (!feedback.tuck_valid || !feedback.tuck_hold_torque.allFinite())
+            return JointReferenceRecoveryVector6::Zero();
+        script.head<4>() += feedback.tuck_hold_torque.cast<float>();
+    }
     script.tail<2>() =
         0.6f * (targets_.tail<2>() - dq.tail<2>()) + feedback.wheel_probe_torque.cast<float>();
     script.head<4>() = script.head<4>().cwiseMax(-40.0f).cwiseMin(40.0f);
@@ -744,7 +768,9 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::effective_action
     if (!release_finished_ || command_.failed)
         return JointReferenceRecoveryVector6::Zero();
     Vector6f script = Vector6f::Zero();
-    const Vector4f delta = targets_.head<4>() - nominal.head<4>().cast<float>();
+    Vector4f delta = targets_.head<4>() - nominal.head<4>().cast<float>();
+    if (config_.tuck_before_takeover && command_.tucking)
+        delta += tuck_hold_torque_ / 160.0f;
     for (int i = 0; i < 4; ++i)
         script[i] = wrapped(delta[i]) / static_cast<float>(action_scales[i]);
     script.tail<2>() = targets_.tail<2>().cwiseQuotient(action_scales.tail<2>().cast<float>());
