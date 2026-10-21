@@ -186,6 +186,7 @@ void WheelLegController::enter_(State next, bool force_reset) {
         schedule_.last_recovery_tick.reset();
         motor_control_started_ = false;
         motor_feedback_initialized_ = false;
+        leg_feedback_initialized_ = false;
         recovery_sensor_guard_.reset();
         recovery_sensor_status_ = {};
         recovery_command_ = {};
@@ -262,6 +263,19 @@ void WheelLegController::update_state_output_() {
                                     : -1;
     *recovery_native_failure_output_ = joint_reference_failure_latched_;
     const bool tuck_valid = recovery_started_ && recovery_tuck_state_.valid;
+    const bool native_active = native && recovery_started_;
+    *recovery_tuck_valid_output_ = tuck_valid;
+    *recovery_tuck_active_output_ = native_active && joint_reference_recovery_->command().tucking;
+    *recovery_remaining_output_ =
+        native_active ? joint_reference_recovery_->command().trajectory_remaining_rad : 0.0;
+    *recovery_tracking_output_ =
+        native_active ? joint_reference_recovery_->command().tracking_error_rad : 0.0;
+    for (int i = 0; i < 4; ++i) {
+        *recovery_reference_outputs_[i] =
+            native_active ? joint_reference_recovery_->command().targets[i] : 0.0;
+        *recovery_tuck_target_outputs_[i] = tuck_valid ? recovery_tuck_state_.reference[i] : 0.0;
+        *recovery_hold_outputs_[i] = tuck_valid ? recovery_tuck_state_.hold_torque[i] : 0.0;
+    }
     *recovery_tuck_ready_output_ = tuck_valid && recovery_tuck_state_.ready;
     for (int side = 0; side < 2; ++side) {
         *recovery_tuck_knee_outputs_[side] = tuck_valid ? recovery_tuck_state_.knee_deg[side]

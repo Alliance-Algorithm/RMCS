@@ -39,6 +39,10 @@ public:
     void reset();
     RecoveryTuckState
         update(const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking);
+    // Integrate against the executed, rate-limited reference, including FOLD.
+    RecoveryTuckState update(
+        const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking,
+        const Eigen::Vector4d& executed_reference, const Eigen::Vector4d& dq);
     RecoveryTuckState measure(const Eigen::Vector4d& q, const Eigen::Vector3d& gravity) const;
 
 private:
@@ -57,6 +61,9 @@ private:
     };
     Knot interpolate_(int side, double delta) const;
     Eigen::Vector3d rotate_(int side, const Eigen::Vector3d& vector, double angle) const;
+    void integrate_(
+        const Eigen::Vector4d& q, const Eigen::Vector4d& reference, const Eigen::Vector4d& dq,
+        double dt);
     RecoveryTuckConfig config_;
     std::array<Leg, 2> legs_;
     Eigen::Vector3d base_moment_ = Eigen::Vector3d::Zero();

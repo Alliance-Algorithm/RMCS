@@ -164,7 +164,7 @@ RecoveryTuckState
 RecoveryTuckState RecoveryTuckController::update(
     const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking) {
     auto state = measure(q, gravity);
-    if (!state.valid || !std::isfinite(dt) || dt <= 0.0 || dt > 0.02) {
+    if (!state.valid || !std::isfinite(dt) || dt <= 0.0 || dt > 0.04) {
         reset();
         state.valid = state.ready = false;
         return state;
@@ -233,16 +233,45 @@ RecoveryTuckState RecoveryTuckController::update(
     }
     state.reference = goal;
     if (tucking) {
-        const Eigen::Vector4d error = goal - q;
-        // Integrate only the final, nearby tuck. Large recovery strokes receive no integral.
-        if (error.cwiseAbs().maxCoeff() < 0.15)
-            integral_ = (integral_ + config_.integral_gain * dt * error)
-                            .cwiseMax(-config_.integral_limit_nm)
-                            .cwiseMin(config_.integral_limit_nm);
+        integrate_(q, goal, Eigen::Vector4d::Zero(), dt);
     } else {
         reset();
     }
     state.hold_torque = integral_;
+    return state;
+}
+
+void RecoveryTuckController::integrate_(
+    const Eigen::Vector4d& q, const Eigen::Vector4d& reference, const Eigen::Vector4d& dq,
+    double dt) {
+    Eigen::Vector4d error = reference - q;
+    for (int hip : {0, 2})
+        error.segment<2>(hip).array() -=
+            2 * std::numbers::pi * std::nearbyint(error[hip] / (2 * std::numbers::pi));
+    for (int i = 0; i < 4; ++i) {
+        const double effort = 160.0 * error[i] - 2.5 * dq[i] + integral_[i];
+        const double increment = config_.integral_gain * dt * error[i];
+        // Saturation stops outward integration per axis; unloading may unwind
+        // immediately. A loaded axis cannot freeze compensation on another axis.
+        if ((effort >= 40.0 && increment > 0.0) || (effort <= -40.0 && increment < 0.0))
+            continue;
+        integral_[i] = std::clamp(
+            integral_[i] + increment, -config_.integral_limit_nm, config_.integral_limit_nm);
+    }
+}
+
+RecoveryTuckState RecoveryTuckController::update(
+    const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking,
+    const Eigen::Vector4d& executed_reference, const Eigen::Vector4d& dq) {
+    const Eigen::Vector4d previous_integral = integral_;
+    auto state = update(q, gravity, dt, false);
+    if (state.valid && tucking && executed_reference.allFinite() && dq.allFinite()) {
+        integral_ = previous_integral;
+        integrate_(q, executed_reference, dq, dt);
+        state.hold_torque = integral_;
+    } else if (tucking && (!executed_reference.allFinite() || !dq.allFinite())) {
+        state.valid = state.ready = false;
+    }
     return state;
 }
 

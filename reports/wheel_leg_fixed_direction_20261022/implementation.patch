@@ -1,0 +1,1759 @@
+diff --git a/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml b/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml
+index 8c08112b..e7e6c3ff 100644
+--- a/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml
++++ b/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml
+@@ -1,6 +1,6 @@
+ # Wheel-leg infantry RL deployment, V7 paired-107 (official vehicle profile).
+ # Fresh double DOWN arms; double MIDDLE starts the native self-righting script,
+-# then the actor takes over all six axes inside the measured capture window.
++# then the folded-under-COM trajectory hands all six axes directly to the actor.
+ # Wiring, zeros and the 107..108-degree leg stop follow the confirmed dev/rmcs_rl set.
+ rmcs_executor:
+   ros__parameters:
+@@ -180,6 +180,27 @@ value_collector:
+       - /wheel_leg/rl/recovery/contact_candidate
+       - /wheel_leg/rl/recovery/native_motion_released
+       - /wheel_leg/rl/recovery/height_if_grounded
++      - /wheel_leg/rl/recovery/trajectory_remaining_rad
++      - /wheel_leg/rl/recovery/tracking_error_rad
++      - /wheel_leg/rl/recovery/tuck/valid
++      - /wheel_leg/rl/recovery/tuck/active
++      - /wheel_leg/rl/recovery/tuck/ready
++      - /wheel_leg/rl/recovery/tuck/left/knee_deg
++      - /wheel_leg/rl/recovery/tuck/right/knee_deg
++      - /wheel_leg/rl/recovery/tuck/left/sagittal_error_m
++      - /wheel_leg/rl/recovery/tuck/right/sagittal_error_m
++      - /wheel_leg/rl/recovery/left_hip_joint/reference
++      - /wheel_leg/rl/recovery/left_hip_joint/tuck_target
++      - /wheel_leg/rl/recovery/left_hip_joint/hold_torque
++      - /wheel_leg/rl/recovery/left_knee_joint/reference
++      - /wheel_leg/rl/recovery/left_knee_joint/tuck_target
++      - /wheel_leg/rl/recovery/left_knee_joint/hold_torque
++      - /wheel_leg/rl/recovery/right_hip_joint/reference
++      - /wheel_leg/rl/recovery/right_hip_joint/tuck_target
++      - /wheel_leg/rl/recovery/right_hip_joint/hold_torque
++      - /wheel_leg/rl/recovery/right_knee_joint/reference
++      - /wheel_leg/rl/recovery/right_knee_joint/tuck_target
++      - /wheel_leg/rl/recovery/right_knee_joint/hold_torque
+       - /wheel_leg/rl/recovery/blend
+       - /wheel_leg/rl/recovery/motor_age_ms
+       - /wheel_leg/rl/recovery/imu_age_ms
+@@ -305,6 +326,27 @@ value_broadcaster:
+       - /wheel_leg/rl/recovery/support_confirmed
+       - /wheel_leg/rl/recovery/geometry_valid
+       - /wheel_leg/rl/recovery/height_if_grounded
++      - /wheel_leg/rl/recovery/trajectory_remaining_rad
++      - /wheel_leg/rl/recovery/tracking_error_rad
++      - /wheel_leg/rl/recovery/tuck/valid
++      - /wheel_leg/rl/recovery/tuck/active
++      - /wheel_leg/rl/recovery/tuck/ready
++      - /wheel_leg/rl/recovery/tuck/left/knee_deg
++      - /wheel_leg/rl/recovery/tuck/right/knee_deg
++      - /wheel_leg/rl/recovery/tuck/left/sagittal_error_m
++      - /wheel_leg/rl/recovery/tuck/right/sagittal_error_m
++      - /wheel_leg/rl/recovery/left_hip_joint/reference
++      - /wheel_leg/rl/recovery/left_hip_joint/tuck_target
++      - /wheel_leg/rl/recovery/left_hip_joint/hold_torque
++      - /wheel_leg/rl/recovery/left_knee_joint/reference
++      - /wheel_leg/rl/recovery/left_knee_joint/tuck_target
++      - /wheel_leg/rl/recovery/left_knee_joint/hold_torque
++      - /wheel_leg/rl/recovery/right_hip_joint/reference
++      - /wheel_leg/rl/recovery/right_hip_joint/tuck_target
++      - /wheel_leg/rl/recovery/right_hip_joint/hold_torque
++      - /wheel_leg/rl/recovery/right_knee_joint/reference
++      - /wheel_leg/rl/recovery/right_knee_joint/tuck_target
++      - /wheel_leg/rl/recovery/right_knee_joint/hold_torque
+       - /wheel_leg/rl/recovery/motion_hold
+       - /wheel_leg/rl/recovery/blend
+       - /wheel_leg/rl/v6_takeover/blend_fraction
+@@ -469,22 +511,17 @@ wheel_leg_controller:
+     # in that same recovery tick, accepting motion commands immediately.
+     recovery_blend_seconds: 0.0
+     recovery_release_motion_on_takeover: true
+-    # Match the dev supervised recovery takeover behavior.
+     recovery_dynamic_takeover: true
+-    # Wheel-assisted capture raises the supported body into the actor's entry
+-    # window. Transfer directly without requiring settled wheel probes.
+-    recovery_capture_max_tilt_rad: 0.5235987755982988
+-    recovery_capture_max_leg_error_rad: 0.45
+-    # Within the ordinary upright domain, capture a moving body before it tips.
+-    # Outside it retain 1 rad/s; above 30 deg reject outward tilt beyond tolerance.
+-    recovery_capture_max_angular_velocity: 2.0
+-    # A supported moving capture must not wait for the script to stop the wheels.
+-    recovery_capture_max_wheel_velocity: 20.0
+-    recovery_capture_height_min: 0.20
+-    recovery_capture_height_max: 0.29
+-    # Final measured closed-chain tuck: 0.5 degree above the 40-degree stop.
+-    # Each wheel aligns fore/aft with the whole-robot COM along measured gravity.
+-    # Bounded integral rejects spring load; capture uses geometry, not PD references.
++    # Fold, then rotate on one fixed branch under COM; no extension before RL.
++    # Opposite to the failing CSV: model LH/LA decrease, RH/RA increase.
++    recovery_tuck_rotation_direction: -1.0
++    # At the final reference, allow 0.20 rad actual tracking error and 40 deg tilt.
++    # No contact probe, height, gyro/wheel-speed or stationary dwell gates.
++    recovery_trajectory_takeover: true
++    recovery_capture_max_tilt_rad: 0.6981317007977318
++    recovery_capture_max_leg_error_rad: 0.20
++    # Closed-chain target remains 0.5 degree above the 40-degree stop.
++    # Strict 40..41 deg / 5 mm readiness is recorded, not required for takeover.
+     recovery_tuck_enabled: true
+     recovery_tuck_geometry_path: "config/wheel_leg/tuck_geometry_107_v1.json"
+     recovery_tuck_knee_deg: 40.5
+@@ -492,17 +529,19 @@ wheel_leg_controller:
+     recovery_tuck_max_sagittal_error_m: 0.005
+     recovery_tuck_integral_gain: 100.0
+     recovery_tuck_integral_limit_nm: 20.0
+-    recovery_tuck_speed_rad_s: 1.0
++    # Both stages run 3x the previous 1 rad/s reference speed.
++    recovery_tuck_speed_rad_s: 3.0
+     # Ordinary fold/plant and orbit rates; grounded insertion has its own bound.
+     recovery_fold_plant_speed_rad_s: 6.0
+     # Tuck near the lower knee domain before the free-space insertion stroke.
+     recovery_insert_speed_rad_s: 10.0
+     recovery_orbit_speed_rad_s: 6.0
+-    # Shared real sensor age/skew guards apply to ordinary RL and recovery.
+-    recovery_motor_age_s: 0.02
+-    recovery_imu_age_s: 0.02
+-    recovery_acceleration_age_s: 0.03
+-    recovery_sensor_skew_s: 0.01
++    # Allow the recorded 22..24 ms scheduling/CAN gaps; reject stale data >40 ms.
++    # Trajectory mode also allows control intervals up to 40 ms.
++    recovery_motor_age_s: 0.04
++    recovery_imu_age_s: 0.04
++    recovery_acceleration_age_s: 0.04
++    recovery_sensor_skew_s: 0.03
+     # V7 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
+     # and its encoder/gyro response thresholds. It is a conditional support
+     # estimate; queued CAN torque and motor-current truth are not substituted
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp
+index 73cdedb5..c792eda1 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp
+@@ -235,7 +235,11 @@ void WheelLegController::compute_motor_torques_() {
+                                   + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
+             if (!std::isfinite(relative) || relative < hinge_min_[side] - hinge_margin_
+                 || relative > hinge_max_[side] + hinge_margin_) {
+-                latch_fault_();
++                RCLCPP_ERROR(
++                    get_logger(), "Measured %s hinge %.4f rad outside [%.4f, %.4f] rad",
++                    side == 0 ? "left" : "right", relative, hinge_min_[side] - hinge_margin_,
++                    hinge_max_[side] + hinge_margin_);
++                latch_fault_(RecoveryFailure::kInvalidFeedback);
+                 return;
+             }
+         }
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.cpp
+index 05d31d4a..f6593029 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.cpp
+@@ -10,11 +10,16 @@
+ 
+ namespace rmcs_core::controller::chassis {
+ ClosedChainSupportObserver::ClosedChainSupportObserver(
+-    std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds)
+-    : geometry_{std::move(geometry)} {
++    std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds,
++    double maximum_elapsed_seconds)
++    : geometry_{std::move(geometry)}
++    , maximum_elapsed_seconds_{maximum_elapsed_seconds} {
+     if (!std::isfinite(period_seconds)
+         || (std::abs(period_seconds - 0.001) > 1e-12 && std::abs(period_seconds - 0.005) > 1e-12))
+         throw std::invalid_argument("Closed-chain observation period must be 1 ms or 5 ms");
++    if (!std::isfinite(maximum_elapsed_seconds) || maximum_elapsed_seconds <= 0.0
++        || maximum_elapsed_seconds > 0.05)
++        throw std::invalid_argument("Closed-chain observation gap must be in (0, 50 ms]");
+     period_seconds_ = std::abs(period_seconds - 0.001) <= 1e-12 ? 0.001 : 0.005;
+     reset();
+ }
+@@ -51,7 +56,8 @@ JointReferenceRecoveryFeedback ClosedChainSupportObserver::observe(
+     const JointReferenceRecoveryVector6& dq, const Eigen::Vector3d& gravity,
+     const Eigen::Vector3d& gyro, const Eigen::Vector3d& acceleration,
+     JointReferenceRecoveryPhase phase, double elapsed_seconds) {
+-    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0 || elapsed_seconds > 0.020) {
++    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0
++        || elapsed_seconds > maximum_elapsed_seconds_) {
+         reset();
+         JointReferenceRecoveryFeedback feedback;
+         feedback.q.setConstant(std::numeric_limits<double>::quiet_NaN());
+@@ -195,7 +201,8 @@ Eigen::Vector2d ClosedChainSupportObserver::probe_command(bool scripted_and_rele
+ 
+ Eigen::Vector2d
+     ClosedChainSupportObserver::probe_command(bool scripted_and_released, double elapsed_seconds) {
+-    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0 || elapsed_seconds > 0.020) {
++    if (!std::isfinite(elapsed_seconds) || elapsed_seconds <= 0.0
++        || elapsed_seconds > maximum_elapsed_seconds_) {
+         reset();
+         return Eigen::Vector2d::Zero();
+     }
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.hpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.hpp
+index d8eeb8b4..05c909fb 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.hpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.hpp
+@@ -13,7 +13,8 @@ namespace rmcs_core::controller::chassis {
+ class ClosedChainSupportObserver {
+ public:
+     explicit ClosedChainSupportObserver(
+-        std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds = 0.005);
++        std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds = 0.005,
++        double maximum_elapsed_seconds = 0.02);
+     void reset();
+     JointReferenceRecoveryFeedback observe(
+         const RecoverySensorData& sensors, const JointReferenceRecoveryVector6& q,
+@@ -48,6 +49,7 @@ private:
+     std::array<std::array<double, 2>, 2> evidence_elapsed_seconds_{};
+     std::array<std::array<double, 2>, 2> bad_elapsed_seconds_{};
+     double period_seconds_ = 0.005;
++    double maximum_elapsed_seconds_ = 0.02;
+     std::uint64_t reference_tick_ = 0;
+     float lost_seconds_ = 0.0f;
+     double lost_elapsed_seconds_ = 0.0;
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp
+index 2ff9d08b..a7707919 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp
+@@ -168,6 +168,17 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
+     register_output("/wheel_leg/rl/recovery/contact_candidate", recovery_contact_output_, false);
+     register_output("/wheel_leg/rl/recovery/height_if_grounded", recovery_height_output_, 0.0);
+     register_output("/wheel_leg/rl/recovery/tuck/ready", recovery_tuck_ready_output_, false);
++    register_output("/wheel_leg/rl/recovery/tuck/valid", recovery_tuck_valid_output_, false);
++    register_output("/wheel_leg/rl/recovery/tuck/active", recovery_tuck_active_output_, false);
++    register_output(
++        "/wheel_leg/rl/recovery/trajectory_remaining_rad", recovery_remaining_output_, 0.0);
++    register_output("/wheel_leg/rl/recovery/tracking_error_rad", recovery_tracking_output_, 0.0);
++    for (int i = 0; i < 4; ++i) {
++        const std::string prefix = std::string{"/wheel_leg/rl/recovery/"} + kMotorNames[i] + "/";
++        register_output(prefix + "reference", recovery_reference_outputs_[i], 0.0);
++        register_output(prefix + "tuck_target", recovery_tuck_target_outputs_[i], 0.0);
++        register_output(prefix + "hold_torque", recovery_hold_outputs_[i], 0.0);
++    }
+     for (int side = 0; side < 2; ++side) {
+         const std::string prefix =
+             std::string{"/wheel_leg/rl/recovery/tuck/"} + (side == 0 ? "left/" : "right/");
+@@ -431,6 +442,14 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
+             recovery_parameter("recovery_blend_seconds", recovery_config.blend_seconds);
+         recovery_config.dynamic_takeover = recovery_parameter("recovery_dynamic_takeover", false);
+         recovery_config.tuck_before_takeover = recovery_parameter("recovery_tuck_enabled", false);
++        recovery_trajectory_takeover_ = recovery_config.trajectory_takeover =
++            recovery_parameter("recovery_trajectory_takeover", false);
++        if (recovery_trajectory_takeover_) {
++            recovery_config.tuck_rotation_direction = recovery_parameter(
++                "recovery_tuck_rotation_direction", recovery_config.tuck_rotation_direction);
++            recovery_interval_.set_maximum_interval(std::chrono::milliseconds{40});
++            recovery_actuation_interval_.set_maximum_interval(std::chrono::milliseconds{40});
++        }
+         recovery_capture_hinge_max_ = hinge_max_;
+         if (recovery_config.tuck_before_takeover) {
+             recovery_config.tuck_speed_rad_s =
+@@ -517,6 +536,7 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
+             || recovery_capture_max_leg_error_rad_ <= 0.0
+             || recovery_capture_max_leg_error_rad_ > 0.50)
+             throw std::runtime_error("Recovery capture leg error must be within 0.50 rad");
++        recovery_config.trajectory_max_tracking_error_rad = recovery_capture_max_leg_error_rad_;
+         if (!std::isfinite(recovery_capture_max_wheel_velocity_)
+             || recovery_capture_max_wheel_velocity_ <= 0.0
+             || recovery_capture_max_wheel_velocity_ > 20.0)
+@@ -539,24 +559,37 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
+             || recovery_config.orbit_speed_rad_s <= 0.0 || recovery_config.orbit_speed_rad_s > 6.0)
+             throw std::runtime_error("Recovery ORBIT speed must be within 6 rad/s");
+         joint_reference_recovery_.emplace(recovery_config);
+-        RCLCPP_INFO(
+-            get_logger(),
+-            "Self-righting takeover: %s, bounded upright capture=%d, "
+-            "FOLD/PLANT %.2f, low insertion %.2f, ORBIT %.2f rad/s, "
+-            "capture %.1f deg at %.2f..%.2f m, "
+-            "hinge maxima %.3f/%.3f rad, "
+-            "leg error %.2f rad, wheel speed %.1f rad/s, upright gyro %.2f rad/s, motion %s",
+-            recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
+-            recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
+-            recovery_config.insert_speed_rad_s, recovery_config.orbit_speed_rad_s,
+-            recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
+-            recovery_config.dynamic_capture_height_min, recovery_config.dynamic_capture_height_max,
+-            recovery_capture_hinge_max_[0], recovery_capture_hinge_max_[1],
+-            recovery_capture_max_leg_error_rad_, recovery_capture_max_wheel_velocity_,
+-            recovery_capture_max_angular_velocity_,
+-            recovery_config.release_motion_on_takeover ? "released at takeover"
+-                                                       : "held until stable");
+-        support_observer_.emplace(native.geometry, recovery_config.dt);
++        if (recovery_trajectory_takeover_) {
++            RCLCPP_INFO(
++                get_logger(),
++                "Trajectory takeover: fold then fixed-direction rotation under COM "
++                "(root direction %+.0f, both stages %.2f rad/s), "
++                "then direct RL; remaining <0.005 rad, tracking <%.2f rad, tilt <%.1f deg; "
++                "no support/height/static/velocity dwell; maximum control gap 40 ms",
++                recovery_config.tuck_rotation_direction, recovery_config.tuck_speed_rad_s,
++                recovery_capture_max_leg_error_rad_,
++                recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi);
++        } else {
++            RCLCPP_INFO(
++                get_logger(),
++                "Self-righting takeover: %s, bounded upright capture=%d, "
++                "FOLD/PLANT %.2f, low insertion %.2f, ORBIT %.2f rad/s, "
++                "capture %.1f deg at %.2f..%.2f m, "
++                "hinge maxima %.3f/%.3f rad, "
++                "leg error %.2f rad, wheel speed %.1f rad/s, upright gyro %.2f rad/s, motion %s",
++                recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
++                recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
++                recovery_config.insert_speed_rad_s, recovery_config.orbit_speed_rad_s,
++                recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
++                recovery_config.dynamic_capture_height_min,
++                recovery_config.dynamic_capture_height_max, recovery_capture_hinge_max_[0],
++                recovery_capture_hinge_max_[1], recovery_capture_max_leg_error_rad_,
++                recovery_capture_max_wheel_velocity_, recovery_capture_max_angular_velocity_,
++                recovery_config.release_motion_on_takeover ? "released at takeover"
++                                                           : "held until stable");
++        }
++        support_observer_.emplace(
++            native.geometry, recovery_config.dt, recovery_trajectory_takeover_ ? 0.04 : 0.02);
+         prepare_target_ = native.controller.nominal;
+         joint_reference_profile_ready_ = true;
+         if (prepare_kp_ != policy_profile_.leg_kp || prepare_kd_ != policy_profile_.leg_kd)
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/control_interval.hpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/control_interval.hpp
+index 5ce78f89..65e220ad 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/control_interval.hpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/control_interval.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <chrono>
+ #include <optional>
++#include <stdexcept>
+ 
+ namespace rmcs_core::controller::chassis {
+ 
+@@ -12,6 +13,13 @@ class ControlInterval {
+ public:
+     using Clock = std::chrono::steady_clock;
+ 
++    void set_maximum_interval(Clock::duration maximum) {
++        if (maximum <= Clock::duration::zero() || maximum > std::chrono::milliseconds{50})
++            throw std::invalid_argument("Control interval must be in (0, 50 ms]");
++        maximum_interval_ = maximum;
++        reset();
++    }
++
+     void reset() noexcept {
+         previous_.reset();
+         valid_ = true;
+@@ -22,7 +30,7 @@ public:
+         if (!valid_)
+             return std::nullopt;
+         const auto elapsed = previous_ ? now - *previous_ : initial_interval;
+-        if (elapsed <= Clock::duration::zero() || elapsed > kMaximumInterval) {
++        if (elapsed <= Clock::duration::zero() || elapsed > maximum_interval_) {
+             valid_ = false;
+             return std::nullopt;
+         }
+@@ -31,12 +39,12 @@ public:
+     }
+ 
+     bool fresh(Clock::time_point now) const noexcept {
+-        return valid_ && previous_ && now >= *previous_ && now - *previous_ <= kMaximumInterval;
++        return valid_ && previous_ && now >= *previous_ && now - *previous_ <= maximum_interval_;
+     }
+ 
+ private:
+     static constexpr auto kInitialInterval = std::chrono::milliseconds{5};
+-    static constexpr auto kMaximumInterval = std::chrono::milliseconds{20};
++    Clock::duration maximum_interval_ = std::chrono::milliseconds{20};
+     std::optional<Clock::time_point> previous_;
+     bool valid_ = true;
+ };
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/controller_recovery.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/controller_recovery.cpp
+index 8bf93a9a..b3fe4eca 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/controller_recovery.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/controller_recovery.cpp
+@@ -89,6 +89,14 @@ bool WheelLegController::upright_capture_ready_(
+ }
+ 
+ bool WheelLegController::recovery_capture_ready_() const {
++    if (recovery_trajectory_takeover_) {
++        const Eigen::Vector3d gravity =
++            world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
++        // The FSM checks completion and actual tracking of the tuck trajectory.
++        // Support probes, conditional height and settling are diagnostic only.
++        return feedback_valid_ && recovery_sensor_status_.valid && recovery_tuck_state_.valid
++            && -gravity.z() >= std::cos(recovery_capture_max_tilt_rad_);
++    }
+     if (recovery_tuck_ && (!recovery_tuck_state_.valid || !recovery_tuck_state_.ready))
+         return false;
+     // Hinge differences determine actual knee extension independently of the
+@@ -264,17 +272,37 @@ bool WheelLegController::advance_joint_reference_recovery_() {
+     if (!joint_reference_recovery_ || !support_observer_)
+         return false;
+     if (recovery_tuck_) {
++        const auto& previous = joint_reference_recovery_->command();
+         recovery_tuck_state_ = recovery_tuck_->update(
+             joint_reference_feedback_.q.head<4>(), joint_reference_feedback_.gravity, recovery_dt_,
+-            joint_reference_recovery_->command().tucking);
++            previous.tucking, previous.targets.head<4>(), joint_reference_feedback_.dq.head<4>());
+         joint_reference_feedback_.tuck_reference = recovery_tuck_state_.reference;
+         joint_reference_feedback_.tuck_hold_torque = recovery_tuck_state_.hold_torque;
+         joint_reference_feedback_.tuck_valid = recovery_tuck_state_.valid;
+         joint_reference_feedback_.tuck_ready = recovery_tuck_state_.ready;
+     }
+     joint_reference_feedback_.rl_capture_ready = recovery_capture_ready_();
++    const auto previous_phase = joint_reference_recovery_->command().phase;
+     const auto& command =
+         joint_reference_recovery_->update(joint_reference_feedback_, recovery_dt_);
++    if (command.phase != previous_phase) {
++        RCLCPP_INFO(
++            get_logger(),
++            "Recovery %s -> %s: remaining=%.3f tracking=%.3f rad, "
++            "knees=%.2f/%.2f deg, wheel-COM=%.1f/%.1f mm, hold=[%.1f,%.1f,%.1f,%.1f] Nm",
++            recovery_phase_name(previous_phase).data(), recovery_phase_name(command.phase).data(),
++            command.trajectory_remaining_rad, command.tracking_error_rad,
++            recovery_tuck_state_.knee_deg[0], recovery_tuck_state_.knee_deg[1],
++            recovery_tuck_state_.sagittal_error_m[0] * 1000.0,
++            recovery_tuck_state_.sagittal_error_m[1] * 1000.0, recovery_tuck_state_.hold_torque[0],
++            recovery_tuck_state_.hold_torque[1], recovery_tuck_state_.hold_torque[2],
++            recovery_tuck_state_.hold_torque[3]);
++    }
++    if (command.pure_rl && recovery_tuck_) {
++        recovery_tuck_->reset();
++        recovery_tuck_state_.hold_torque.setZero();
++        joint_reference_feedback_.tuck_hold_torque.setZero();
++    }
+     joint_reference_feedback_.wheel_probe_torque = support_observer_->probe_command(
+         command.scripted && command.release_finished, recovery_dt_);
+     if (command.failed) {
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp
+index c2f47c51..214778d3 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp
+@@ -40,6 +40,7 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
+         config.max_script_seconds,
+         config.prepare_speed_rad_s,
+         config.tuck_speed_rad_s,
++        config.trajectory_max_tracking_error_rad,
+         config.insert_speed_rad_s,
+         config.push_speed_rad_s,
+         config.orbit_speed_rad_s,
+@@ -64,7 +65,10 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
+         || (config.blend_seconds != 0.0 && config.blend_seconds != 0.2)
+         || (config.dynamic_takeover && config.blend_seconds != 0.0)
+         || (config.tuck_before_takeover && !config.dynamic_takeover)
+-        || config.tuck_speed_rad_s > 2.0 || config.dynamic_capture_height_min < 0.20
++        || (config.trajectory_takeover && !config.tuck_before_takeover)
++        || config.trajectory_max_tracking_error_rad > 0.50 || config.tuck_speed_rad_s > 3.0
++        || std::abs(config.tuck_rotation_direction) != 1.0
++        || config.dynamic_capture_height_min < 0.20
+         || config.dynamic_capture_height_min > config.handover_height_min
+         || config.dynamic_capture_height_min >= config.dynamic_capture_height_max
+         || config.dynamic_capture_height_max > config.handover_height_max
+@@ -127,14 +131,17 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
+     push_off_required_ = false;
+     grounded_start_ = false;
+     tucking_ = false;
++    tuck_rotation_initialized_ = false;
+     orbit_start_.setZero();
+     thrust_anchor_.setZero();
+     fold_anchor_.setZero();
++    tuck_rotation_goal_.setZero();
+     insert_anchor_.setZero();
+     side_start_.setZero();
+     side_direction_.setZero();
+     side_fold_.setZero();
+     tuck_hold_torque_.setZero();
++    command_.trajectory_remaining_rad = command_.tracking_error_rad = 0.0;
+     side_lower_leg_ = 0;
+ }
+ 
+@@ -178,6 +185,21 @@ JointReferenceRecoveryController::Vector4f JointReferenceRecoveryController::sha
+     return result;
+ }
+ 
++JointReferenceRecoveryController::Vector4f JointReferenceRecoveryController::directed_tuck_goal_(
++    const Vector4f& goal, const Vector4f& reference) const {
++    Vector4f result = goal;
++    for (int hip : {0, 2}) {
++        const float direction =
++            static_cast<float>(config_.tuck_rotation_direction * config_.root_axis_signs[hip]);
++        const float travel = direction * (goal.segment<2>(hip) - reference.segment<2>(hip)).mean();
++        // Select a whole-turn branch once, after folding. An already reached
++        // goal must not become a full revolution because of float roundoff.
++        if (std::abs(travel) > 0.005f)
++            result.segment<2>(hip).array() -= std::floor(travel / kTau) * direction * kTau;
++    }
++    return result;
++}
++
+ bool JointReferenceRecoveryController::folded_() const {
+     for (int hip : {0, 2}) {
+         const float delta = continuous_q_[hip + 1] - continuous_q_[hip];
+@@ -254,12 +276,14 @@ const JointReferenceRecoveryCommand&
+ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
+     const JointReferenceRecoveryFeedback& feedback, double elapsed_seconds) {
+     const bool valid =
+-        std::isfinite(elapsed_seconds) && elapsed_seconds > 0.0 && elapsed_seconds <= 0.02
+-        && feedback.q.allFinite() && feedback.dq.allFinite() && feedback.gravity.allFinite()
+-        && feedback.gyro.allFinite() && std::isfinite(feedback.estimated_height)
+-        && feedback.gravity.norm() > 0.5
++        std::isfinite(elapsed_seconds) && elapsed_seconds > 0.0
++        && elapsed_seconds <= (config_.trajectory_takeover ? 0.04 : 0.02) && feedback.q.allFinite()
++        && feedback.dq.allFinite() && feedback.gravity.allFinite() && feedback.gyro.allFinite()
++        && std::isfinite(feedback.estimated_height) && feedback.gravity.norm() > 0.5
+         && (!config_.tuck_before_takeover || !feedback.tuck_valid
+-            || (feedback.tuck_reference.allFinite() && feedback.tuck_hold_torque.allFinite()));
++            || (feedback.tuck_reference.allFinite() && feedback.tuck_hold_torque.allFinite()))
++        && (!config_.trajectory_takeover || !enabled_
++            || phase_ >= JointReferenceRecoveryPhase::kBlend || feedback.tuck_valid);
+     if (!valid) {
+         // Invalid sensing also terminates a zero-effort release episode.
+         enabled_ = membership_;
+@@ -355,6 +379,15 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
+                               || route_ == JointReferenceRecoveryRoute::kPlant)
+                           && height < body_geometry::support_depth(gravity) + kPushOffClearance;
+         grounded_start_ = push_off_required_;
++        const bool upright_trajectory = config_.trajectory_takeover && feedback.tuck_valid;
++        if (upright_trajectory) {
++            route_ = JointReferenceRecoveryRoute::kUpright;
++            push_off_required_ = grounded_start_ = false;
++            // First shorten at the measured heading, then rotate the folded
++            // pair under COM. Conditional support height cannot stall this path.
++            fold_anchor_ =
++                shape_at_heading_(feedback.tuck_reference.cast<float>(), continuous_q_.head<4>());
++        }
+         if (push_off_required_)
+             fold_anchor_ =
+                 shape_at_heading_(config_.insertion_fold.cast<float>(), continuous_q_.head<4>());
+@@ -377,8 +410,9 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
+             }
+         }
+         enter_(
+-            near_upright && !push_off_required_ ? JointReferenceRecoveryPhase::kPrepare
+-                                                : JointReferenceRecoveryPhase::kFold);
++            near_upright && !push_off_required_ && !upright_trajectory
++                ? JointReferenceRecoveryPhase::kPrepare
++                : JointReferenceRecoveryPhase::kFold);
+     }
+     // Transition predicates share one snapshot. A newly entered phase cannot
+     // consume another trajectory step; wheel balancing uses the resulting phase.
+@@ -397,7 +431,16 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
+         near_upright};
+     const auto goal = update_goal_(step, feedback);
+     const auto reference = advance_reference_(step, goal);
++    command_.trajectory_remaining_rad = reference.remaining;
++    command_.tracking_error_rad = reference.measured_error;
+     update_transitions_(step, reference, feedback, dt);
++    if (enabled_ && phase_ != JointReferenceRecoveryPhase::kRl
++        && (reached_(age_ticks_, durations_.age, config_.max_script_seconds)
++            || (membership_
++                && (config_.dt == 0.005 ? static_cast<double>(elapsed_ticks_) * config_.dt
++                                        : elapsed_seconds_ + 1e-12)
++                       >= config_.max_script_seconds)))
++        fail_(6);
+     update_wheels_(step, feedback.support);
+     ++elapsed_ticks_;
+     publish_();
+@@ -420,6 +463,28 @@ JointReferenceRecoveryController::JointGoal JointReferenceRecoveryController::up
+     const bool preparing = phase == JointReferenceRecoveryPhase::kPrepare;
+     const bool capturing = phase == JointReferenceRecoveryPhase::kCapture;
+     const bool blending = phase == JointReferenceRecoveryPhase::kBlend;
++    if (config_.trajectory_takeover) {
++        // This path has exactly two leg goals. In particular a changing IMU
++        // tilt cannot replace the folded shape with legacy standing/THRUST.
++        tucking_ = feedback.tuck_valid && (folding || preparing);
++        if (!tucking_)
++            return {targets_.head<4>(), 0.0f, Winding::kContinuous};
++        Vector4f goal = fold_anchor_;
++        if (preparing) {
++            if (!tuck_rotation_initialized_) {
++                tuck_rotation_goal_ =
++                    directed_tuck_goal_(feedback.tuck_reference.cast<float>(), targets_.head<4>());
++                tuck_rotation_initialized_ = true;
++            } else {
++                // Track gravity continuously on the selected branch. Never
++                // reselect the shorter route from the measured motor angles.
++                tuck_rotation_goal_ +=
++                    paired_delta_(feedback.tuck_reference.cast<float>(), tuck_rotation_goal_);
++            }
++            goal = tuck_rotation_goal_;
++        }
++        return {goal, static_cast<float>(config_.tuck_speed_rad_s), Winding::kContinuous};
++    }
+     const Vector4f axes = config_.root_axis_signs.cast<float>();
+     Vector4f goal = config_.nominal.cast<float>();
+     if (folding) {
+@@ -442,9 +507,10 @@ JointReferenceRecoveryController::JointGoal JointReferenceRecoveryController::up
+              + extension * (config_.support - config_.nominal).cast<float>()
+              - pitch * axes.cwiseInverse();
+     }
+-    tucking_ = config_.tuck_before_takeover && (preparing || capturing || blending)
+-            && !push_off_required_ && feedback.tuck_valid && tilt < radians(55.0);
+-    if (tucking_)
++    const bool final_tuck = config_.tuck_before_takeover && (preparing || capturing || blending)
++                         && !push_off_required_ && feedback.tuck_valid && tilt < radians(55.0);
++    tucking_ = final_tuck && feedback.tuck_valid;
++    if (final_tuck)
+         goal = feedback.tuck_reference.cast<float>();
+     if (planting) {
+         goal =
+@@ -534,6 +600,17 @@ void JointReferenceRecoveryController::update_transitions_(
+     const auto& reference = reference_step.position;
+     const float remaining = reference_step.remaining;
+     const float measured_error = reference_step.measured_error;
++    if (config_.trajectory_takeover && phase < JointReferenceRecoveryPhase::kBlend) {
++        if (phase == JointReferenceRecoveryPhase::kFold && remaining < 0.005f
++            && measured_error < static_cast<float>(config_.trajectory_max_tracking_error_rad)
++            && phase_reached_(step, 0.06 / config_.tuck_speed_rad_s))
++            enter_(JointReferenceRecoveryPhase::kPrepare);
++        if (phase == JointReferenceRecoveryPhase::kPrepare && feedback.tuck_valid
++            && feedback.rl_capture_ready && remaining < 0.005f
++            && measured_error < static_cast<float>(config_.trajectory_max_tracking_error_rad))
++            enter_(JointReferenceRecoveryPhase::kRl);
++        return;
++    }
+     const bool folding = phase == JointReferenceRecoveryPhase::kFold;
+     const bool planting = phase == JointReferenceRecoveryPhase::kPlant;
+     const bool orbiting = phase == JointReferenceRecoveryPhase::kOrbit;
+@@ -646,7 +723,7 @@ void JointReferenceRecoveryController::update_transitions_(
+     // baseline. This is startup sensing time, not a standing-stability dwell.
+     const bool captured_for_rl =
+         !plant_capture && !push_off_required_ && enabled_
+-        && phase_ < JointReferenceRecoveryPhase::kBlend
++        && phase_ < JointReferenceRecoveryPhase::kBlend && !config_.trajectory_takeover
+         && reached_(age_ticks_, durations_.age, 0.06) && config_.dynamic_takeover
+         && feedback.rl_capture_ready && feedback.support
+         && (!config_.tuck_before_takeover || (feedback.tuck_valid && feedback.tuck_ready))
+@@ -673,14 +750,6 @@ void JointReferenceRecoveryController::update_transitions_(
+             || (phase_ == JointReferenceRecoveryPhase::kRl && !motion_released_))
+         && tilt > radians(45.0))
+         fail_(5);
+-    if (enabled_ && phase_ != JointReferenceRecoveryPhase::kRl
+-        && reached_(age_ticks_, durations_.age, config_.max_script_seconds))
+-        fail_(6);
+-    if (membership_ && phase_ != JointReferenceRecoveryPhase::kRl
+-        && (config_.dt == 0.005 ? static_cast<double>(elapsed_ticks_) * config_.dt
+-                                : elapsed_seconds_ + 1e-12)
+-               >= config_.max_script_seconds)
+-        fail_(6);
+ }
+ 
+ void JointReferenceRecoveryController::update_wheels_(const StepContext& step, bool supported) {
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.hpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.hpp
+index 8686e535..e033c706 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.hpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.hpp
+@@ -52,7 +52,13 @@ struct JointReferenceRecoveryConfig {
+     // End any script at the caller's bounded upright capture before stabilization.
+     bool dynamic_takeover = false;
+     bool tuck_before_takeover = false;
++    // Follow the folded-under-COM trajectory, then give the actor all axes.
++    // Contact inference and static standing gates do not own this transition.
++    bool trajectory_takeover = false;
++    double trajectory_max_tracking_error_rad = 0.20;
+     double tuck_speed_rad_s = 1.0;
++    // Physical common rotation, multiplied by each side's root-axis sign.
++    double tuck_rotation_direction = -1.0;
+     double dynamic_capture_height_min = 0.27;
+     double dynamic_capture_height_max = 0.36;
+     // Deployment may accept driver commands as soon as the actor owns all axes.
+@@ -118,6 +124,8 @@ struct JointReferenceRecoveryCommand {
+     bool release_finished = true;
+     bool wheel_balance_active = false;
+     bool tucking = false;
++    double trajectory_remaining_rad = 0.0;
++    double tracking_error_rad = 0.0;
+     int failure_code = 0;
+     std::uint64_t age_ticks = 0;
+     std::uint64_t phase_ticks = 0;
+@@ -192,6 +200,7 @@ private:
+     };
+     static Vector4f paired_delta_(const Vector4f& goal, const Vector4f& reference);
+     static Vector4f shape_at_heading_(const Vector4f& shape, const Vector4f& reference);
++    Vector4f directed_tuck_goal_(const Vector4f& goal, const Vector4f& reference) const;
+     bool folded_() const;
+     JointGoal update_goal_(const StepContext& step, const JointReferenceRecoveryFeedback& feedback);
+     ReferenceStep advance_reference_(const StepContext& step, const JointGoal& goal);
+@@ -219,6 +228,7 @@ private:
+     Vector4f orbit_start_ = Vector4f::Zero();
+     Vector4f thrust_anchor_ = Vector4f::Zero();
+     Vector4f fold_anchor_ = Vector4f::Zero();
++    Vector4f tuck_rotation_goal_ = Vector4f::Zero();
+     Vector4f insert_anchor_ = Vector4f::Zero();
+     Vector4f side_start_ = Vector4f::Zero();
+     Vector4f side_direction_ = Vector4f::Zero();
+@@ -239,6 +249,7 @@ private:
+     bool push_off_required_ = false;
+     bool grounded_start_ = false;
+     bool tucking_ = false;
++    bool tuck_rotation_initialized_ = false;
+     float continuous_pitch_ = 0.0f, last_pitch_ = 0.0f;
+     float orbit_angle_ = 0.0f, plant_pitch_ = 0.0f;
+     double initial_release_seconds_ = 0.0;
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/leg_target_winding.hpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/leg_target_winding.hpp
+index 3006ca7b..0f662ade 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/leg_target_winding.hpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/leg_target_winding.hpp
+@@ -57,6 +57,29 @@ inline void validate_leg_target_recovery_profile(
+         validate_leg_target_model_spec(version, model_spec_sha256, "Script recovery profile");
+ }
+ 
++// An encoder's whole-turn choice is not a mechanism hinge angle. Restore the
++// measured paired branch before observations, recovery, PD and hinge checks.
++// Unlike target winding, this never clamps a measured mechanical violation.
++inline std::array<double, 4> wind_leg_feedback(
++    const std::array<double, 4>& measured, const std::array<double, 4>& previous,
++    LegTargetWinding version) {
++    if (version != LegTargetWinding::kPairedBranch107)
++        return measured;
++    constexpr double tau = 2 * std::numbers::pi;
++    auto result = measured;
++    for (int side = 0; side < 2; ++side) {
++        const int hip = 2 * side, aux = hip + 1;
++        const double sign = side == 0 ? 1.0 : -1.0;
++        const auto bounds = kBranch107SignedDeltaBoundsRad[side];
++        const double midpoint = (bounds[0] + bounds[1]) / 2;
++        const double delta = sign * (measured[aux] - measured[hip]);
++        const double relative = delta + tau * std::nearbyint((midpoint - delta) / tau);
++        result[hip] += tau * std::nearbyint((previous[hip] - measured[hip]) / tau);
++        result[aux] = result[hip] + sign * relative;
++    }
++    return result;
++}
++
+ inline std::array<double, 4> wind_leg_targets(
+     const std::array<double, 4>& desired, const std::array<double, 4>& current,
+     LegTargetWinding version) {
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/observation.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/observation.cpp
+index 8581c25b..62cf2cb0 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/observation.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/observation.cpp
+@@ -66,9 +66,12 @@ bool WheelLegController::read_model_state_() {
+                         if (stamp <= previous_motor_sample_ns_[i])
+                             return false;
+                         const double dt = (stamp - previous_motor_sample_ns_[i]) * 1e-9;
+-                        if (dt > 0.05
+-                            || std::abs(motor_q[i] - previous_motor_angle_[i]) > 45.0 * dt + 0.15)
+-                            // MIT P_MAX is a quantization bound, not proof of wrapping.
++                        const double delta = motor_q[i] - previous_motor_angle_[i];
++                        const double displacement =
++                            leg_target_winding_ == LegTargetWinding::kPairedBranch107
++                                ? std::remainder(delta, 2 * std::numbers::pi)
++                                : delta;
++                        if (dt > 0.05 || std::abs(displacement) > 45.0 * dt + 0.15)
+                             return false;
+                     }
+                 }
+@@ -93,7 +96,15 @@ bool WheelLegController::read_model_state_() {
+     if (!gyro_->allFinite() || !orientation_->coeffs().allFinite()
+         || orientation_->squaredNorm() < 0.5 || orientation_->squaredNorm() > 1.5)
+         return feedback_valid_ = false;
+-    q_.head<4>() = leg_jacobian_ * motor_q + leg_offset_;
++    const Eigen::Vector4d measured = leg_jacobian_ * motor_q + leg_offset_;
++    std::array<double, 4> raw{}, previous{};
++    for (int i = 0; i < 4; ++i) {
++        raw[i] = measured[i];
++        previous[i] = leg_feedback_initialized_ ? q_[i] : measured[i];
++    }
++    const auto continuous = wind_leg_feedback(raw, previous, leg_target_winding_);
++    q_.head<4>() = Eigen::Map<const Eigen::Vector4d>{continuous.data()};
++    leg_feedback_initialized_ = true;
+     dq_.head<4>() = leg_jacobian_ * motor_dq;
+     for (int i = 0; i < 2; ++i) {
+         q_[4 + i] = wheel_scale_[i] * *angle_inputs_[4 + i];
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp
+index 15bbb20c..587b986f 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp
+@@ -164,7 +164,7 @@ RecoveryTuckState
+ RecoveryTuckState RecoveryTuckController::update(
+     const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking) {
+     auto state = measure(q, gravity);
+-    if (!state.valid || !std::isfinite(dt) || dt <= 0.0 || dt > 0.02) {
++    if (!state.valid || !std::isfinite(dt) || dt <= 0.0 || dt > 0.04) {
+         reset();
+         state.valid = state.ready = false;
+         return state;
+@@ -233,12 +233,7 @@ RecoveryTuckState RecoveryTuckController::update(
+     }
+     state.reference = goal;
+     if (tucking) {
+-        const Eigen::Vector4d error = goal - q;
+-        // Integrate only the final, nearby tuck. Large recovery strokes receive no integral.
+-        if (error.cwiseAbs().maxCoeff() < 0.15)
+-            integral_ = (integral_ + config_.integral_gain * dt * error)
+-                            .cwiseMax(-config_.integral_limit_nm)
+-                            .cwiseMin(config_.integral_limit_nm);
++        integrate_(q, goal, Eigen::Vector4d::Zero(), dt);
+     } else {
+         reset();
+     }
+@@ -246,4 +241,38 @@ RecoveryTuckState RecoveryTuckController::update(
+     return state;
+ }
+ 
++void RecoveryTuckController::integrate_(
++    const Eigen::Vector4d& q, const Eigen::Vector4d& reference, const Eigen::Vector4d& dq,
++    double dt) {
++    Eigen::Vector4d error = reference - q;
++    for (int hip : {0, 2})
++        error.segment<2>(hip).array() -=
++            2 * std::numbers::pi * std::nearbyint(error[hip] / (2 * std::numbers::pi));
++    for (int i = 0; i < 4; ++i) {
++        const double effort = 160.0 * error[i] - 2.5 * dq[i] + integral_[i];
++        const double increment = config_.integral_gain * dt * error[i];
++        // Saturation stops outward integration per axis; unloading may unwind
++        // immediately. A loaded axis cannot freeze compensation on another axis.
++        if ((effort >= 40.0 && increment > 0.0) || (effort <= -40.0 && increment < 0.0))
++            continue;
++        integral_[i] = std::clamp(
++            integral_[i] + increment, -config_.integral_limit_nm, config_.integral_limit_nm);
++    }
++}
++
++RecoveryTuckState RecoveryTuckController::update(
++    const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking,
++    const Eigen::Vector4d& executed_reference, const Eigen::Vector4d& dq) {
++    const Eigen::Vector4d previous_integral = integral_;
++    auto state = update(q, gravity, dt, false);
++    if (state.valid && tucking && executed_reference.allFinite() && dq.allFinite()) {
++        integral_ = previous_integral;
++        integrate_(q, executed_reference, dq, dt);
++        state.hold_torque = integral_;
++    } else if (tucking && (!executed_reference.allFinite() || !dq.allFinite())) {
++        state.valid = state.ready = false;
++    }
++    return state;
++}
++
+ } // namespace rmcs_core::controller::chassis
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.hpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.hpp
+index 07da2908..64fc0e58 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.hpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.hpp
+@@ -39,6 +39,10 @@ public:
+     void reset();
+     RecoveryTuckState
+         update(const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking);
++    // Integrate against the executed, rate-limited reference, including FOLD.
++    RecoveryTuckState update(
++        const Eigen::Vector4d& q, const Eigen::Vector3d& gravity, double dt, bool tucking,
++        const Eigen::Vector4d& executed_reference, const Eigen::Vector4d& dq);
+     RecoveryTuckState measure(const Eigen::Vector4d& q, const Eigen::Vector3d& gravity) const;
+ 
+ private:
+@@ -57,6 +61,9 @@ private:
+     };
+     Knot interpolate_(int side, double delta) const;
+     Eigen::Vector3d rotate_(int side, const Eigen::Vector3d& vector, double angle) const;
++    void integrate_(
++        const Eigen::Vector4d& q, const Eigen::Vector4d& reference, const Eigen::Vector4d& dq,
++        double dt);
+     RecoveryTuckConfig config_;
+     std::array<Leg, 2> legs_;
+     Eigen::Vector3d base_moment_ = Eigen::Vector3d::Zero();
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp
+index 7a757d58..28263b5b 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp
+@@ -186,6 +186,7 @@ void WheelLegController::enter_(State next, bool force_reset) {
+         schedule_.last_recovery_tick.reset();
+         motor_control_started_ = false;
+         motor_feedback_initialized_ = false;
++        leg_feedback_initialized_ = false;
+         recovery_sensor_guard_.reset();
+         recovery_sensor_status_ = {};
+         recovery_command_ = {};
+@@ -262,6 +263,19 @@ void WheelLegController::update_state_output_() {
+                                     : -1;
+     *recovery_native_failure_output_ = joint_reference_failure_latched_;
+     const bool tuck_valid = recovery_started_ && recovery_tuck_state_.valid;
++    const bool native_active = native && recovery_started_;
++    *recovery_tuck_valid_output_ = tuck_valid;
++    *recovery_tuck_active_output_ = native_active && joint_reference_recovery_->command().tucking;
++    *recovery_remaining_output_ =
++        native_active ? joint_reference_recovery_->command().trajectory_remaining_rad : 0.0;
++    *recovery_tracking_output_ =
++        native_active ? joint_reference_recovery_->command().tracking_error_rad : 0.0;
++    for (int i = 0; i < 4; ++i) {
++        *recovery_reference_outputs_[i] =
++            native_active ? joint_reference_recovery_->command().targets[i] : 0.0;
++        *recovery_tuck_target_outputs_[i] = tuck_valid ? recovery_tuck_state_.reference[i] : 0.0;
++        *recovery_hold_outputs_[i] = tuck_valid ? recovery_tuck_state_.hold_torque[i] : 0.0;
++    }
+     *recovery_tuck_ready_output_ = tuck_valid && recovery_tuck_state_.ready;
+     for (int side = 0; side < 2; ++side) {
+         *recovery_tuck_knee_outputs_[side] = tuck_valid ? recovery_tuck_state_.knee_deg[side]
+diff --git a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.hpp b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.hpp
+index 6fa38f78..ce15f818 100644
+--- a/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.hpp
++++ b/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.hpp
+@@ -166,6 +166,10 @@ private:
+     OutputInterface<double> takeover_blend_output_;
+     OutputInterface<double> recovery_height_output_;
+     OutputInterface<bool> recovery_tuck_ready_output_;
++    OutputInterface<bool> recovery_tuck_valid_output_, recovery_tuck_active_output_;
++    OutputInterface<double> recovery_remaining_output_, recovery_tracking_output_;
++    std::array<OutputInterface<double>, 4> recovery_reference_outputs_;
++    std::array<OutputInterface<double>, 4> recovery_tuck_target_outputs_, recovery_hold_outputs_;
+     std::array<OutputInterface<double>, 2> recovery_tuck_knee_outputs_;
+     std::array<OutputInterface<double>, 2> recovery_tuck_sagittal_outputs_;
+     OutputInterface<double> pd_time_us_;
+@@ -235,6 +239,7 @@ private:
+     std::array<std::uint64_t, 4> previous_motor_sequence_{};
+     std::array<std::uint64_t, 4> previous_motor_sample_ns_{};
+     std::array<double, 4> previous_motor_angle_{};
++    bool leg_feedback_initialized_ = false;
+     std::array<double, 4> dm_feedback_position_max_{};
+     Vector6 targets_ = Vector6::Zero();
+     Vector6 policy_targets_ = Vector6::Zero();
+@@ -300,6 +305,7 @@ private:
+     double recovery_capture_max_angular_velocity_ = 1.0;
+     double recovery_capture_max_wheel_velocity_ = 2.0;
+     double recovery_capture_max_leg_error_rad_ = 0.25;
++    bool recovery_trajectory_takeover_ = false;
+     Eigen::Vector4d recovery_capture_reference_ = Eigen::Vector4d::Zero();
+     std::optional<RecoveryTuckController> recovery_tuck_;
+     RecoveryTuckState recovery_tuck_state_;
+diff --git a/rmcs_ws/src/rmcs_core/test/wheel_leg_policy_integration.cpp b/rmcs_ws/src/rmcs_core/test/wheel_leg_policy_integration.cpp
+index a7ea739e..f6e90f7f 100644
+--- a/rmcs_ws/src/rmcs_core/test/wheel_leg_policy_integration.cpp
++++ b/rmcs_ws/src/rmcs_core/test/wheel_leg_policy_integration.cpp
+@@ -28,8 +28,9 @@ constexpr std::array kNames{"left_hip_joint",   "left_knee_joint", "right_hip_jo
+ 
+ class Snapshots final : public Component {
+ public:
+-    explicit Snapshots(std::atomic<int>& phase)
+-        : phase_(phase) {
++    Snapshots(std::atomic<int>& phase, std::array<std::atomic<double>, 4>& trajectory)
++        : phase_(phase)
++        , trajectory_(trajectory) {
+         constexpr std::array nominal{-0.42, 0.13742282595395358, 0.42, -0.1374155762580851};
+         constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
+         for (std::size_t i = 0; i < 6; ++i) {
+@@ -65,8 +66,31 @@ public:
+     }
+     void update() override {
+         const int phase = phase_.load();
+-        *state_ = phase == 0 || phase == 2 || phase == 5 ? 1 : 3;
+-        *reset_ = phase < 2 ? 1 : phase < 5 ? 2 : 3;
++        *state_ = phase == 0 || phase == 2 || phase == 5 || phase == 7 ? 1 : 3;
++        *reset_ = phase < 2 ? 1 : phase < 5 ? 2 : phase < 7 ? 3 : 4;
++        if (phase >= 7) {
++            if (last_phase_ < 7) {
++                // Exact reported hinge differences, including the right
++                // encoder's extra turn. No hardware transport is constructed.
++                plant_q_ = {-0.42, -0.42 + 1.2945, 0.42, 0.42 - (-4.9422 + 2 * std::numbers::pi)};
++            }
++            constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
++            for (int i = 0; i < 4; ++i) {
++                // Kinematic fixture follows the previous executor tick's
++                // reference. It tests wiring and handover, not real dynamics.
++                const double step =
++                    phase >= 8 ? std::clamp(trajectory_[i].load() - plant_q_[i], -0.002, 0.002)
++                               : 0.0;
++                plant_q_[i] += step;
++                *angle_[i] = offsets[i] - plant_q_[i] - (i == 3 ? 2 * std::numbers::pi : 0.0);
++                *velocity_[i] = -step / 0.001;
++            }
++            const double tilt = phase == 8 ? 0.72 : 0.60;
++            *orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{tilt, Eigen::Vector3d::UnitY()}};
++            *gyro_ = Eigen::Vector3d{0, 3, 0};
++            *acceleration_ = Eigen::Vector3d{0, 0, 1}; // Never passes the old support gate.
++        }
++        last_phase_ = phase;
+         const auto now = std::chrono::steady_clock::now();
+         const auto ns = static_cast<std::uint64_t>(
+             std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
+@@ -83,6 +107,9 @@ public:
+ 
+ private:
+     std::atomic<int>& phase_;
++    std::array<std::atomic<double>, 4>& trajectory_;
++    std::array<double, 4> plant_q_{};
++    int last_phase_ = 0;
+     std::array<OutputInterface<double>, 6> angle_, velocity_, torque_, limit_;
+     std::array<OutputInterface<std::uint64_t>, 6> sequence_, stamp_;
+     std::array<OutputInterface<int>, 4> fault_;
+@@ -99,7 +126,8 @@ private:
+ 
+ class Observe final : public Component {
+ public:
+-    Observe() {
++    explicit Observe(std::array<std::atomic<double>, 4>& trajectory)
++        : trajectory_(trajectory) {
+         for (std::size_t i = 0; i < 6; ++i)
+             register_input(std::string{"/wheel_leg/"} + kNames[i] + "/control_torque", torque_[i]);
+         register_input("/wheel_leg/rl/valid", valid_);
+@@ -109,6 +137,11 @@ public:
+         register_input("/wheel_leg/rl/policy_rate", rate_);
+         register_input("/wheel_leg/rl/action_age", age_);
+         register_input("/wheel_leg/rl/performance/inference_us", inference_);
++        register_input("/wheel_leg/rl/input/context", context_);
++        register_input("/wheel_leg/rl/recovery/contact_candidate", support_);
++        for (int i = 0; i < 4; ++i)
++            register_input(
++                std::string{"/wheel_leg/rl/recovery/"} + kNames[i] + "/reference", reference_[i]);
+     }
+     void update() override {
+         ++ticks;
+@@ -129,11 +162,17 @@ public:
+         policy_rate = *rate_;
+         state = *state_;
+         enabled = *enable_;
++        context = *context_;
++        support = *support_;
++        for (int i = 0; i < 4; ++i)
++            trajectory_[i] = *reference_[i];
+     }
+     std::atomic<std::size_t> ticks{0}, action_sequence{0};
+     std::atomic<bool> valid{false}, enabled{false}, all_zero{true}, invalid_effort{false};
+     std::atomic<int> state{0};
+     std::atomic<double> policy_rate{0.0};
++    std::atomic<std::size_t> context{0};
++    std::atomic<bool> support{false};
+     // Read only after the executor thread has joined.
+     std::vector<double> inference_times, action_ages;
+ 
+@@ -143,20 +182,25 @@ private:
+     InputInterface<std::size_t> sequence_;
+     InputInterface<int> state_;
+     InputInterface<bool> enable_;
++    InputInterface<bool> support_;
++    InputInterface<std::size_t> context_;
++    std::array<InputInterface<double>, 4> reference_;
++    std::array<std::atomic<double>, 4>& trajectory_;
+ };
+ 
+ TEST(WheelLegPolicyIntegration, AcyclicWorkerPipelineResetRearmAndSensorExpiry) {
+     rclcpp::executors::SingleThreadedExecutor ros;
+     pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
+     std::atomic<int> phase{0};
++    std::array<std::atomic<double>, 4> trajectory{};
+     Component::initializing_component_name = "snapshots";
+-    auto sensors = std::make_shared<Snapshots>(phase);
++    auto sensors = std::make_shared<Snapshots>(phase, trajectory);
+     Component::initializing_component_name = "wheel_leg_controller";
+     auto controller = std::make_shared<Controller>();
+     Component::initializing_component_name = "rl_bridge";
+     auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
+     Component::initializing_component_name = "observe";
+-    auto observe = std::make_shared<Observe>();
++    auto observe = std::make_shared<Observe>(trajectory);
+     {
+         rmcs_executor::Executor executor{"rmcs_executor", ros};
+         executor.add_component(sensors);
+@@ -197,6 +241,24 @@ TEST(WheelLegPolicyIntegration, AcyclicWorkerPipelineResetRearmAndSensorExpiry)
+         EXPECT_TRUE(observe->enabled);
+         EXPECT_FALSE(observe->invalid_effort);
+         EXPECT_GT(observe->ticks.load(), 100u);
++        phase = 7;
++        std::this_thread::sleep_for(30ms);
++        EXPECT_FALSE(observe->enabled);
++        phase = 8;
++        std::this_thread::sleep_for(3000ms);
++        EXPECT_TRUE(observe->valid);
++        EXPECT_TRUE(observe->enabled);
++        EXPECT_EQ(observe->state, 2); // Above 40 deg: keep the actor in shadow.
++        EXPECT_EQ(observe->context, 1u);
++        EXPECT_FALSE(observe->support);
++        phase = 9;
++        for (int i = 0; i < 200 && observe->state != 3; ++i)
++            std::this_thread::sleep_for(10ms);
++        EXPECT_EQ(observe->state, 3); // Within 40 deg: direct moving handover.
++        EXPECT_TRUE(observe->enabled);
++        EXPECT_TRUE(observe->valid);
++        EXPECT_FALSE(observe->support);
++        EXPECT_FALSE(observe->invalid_effort);
+         rclcpp::shutdown();
+     }
+     ASSERT_FALSE(observe->inference_times.empty());
+diff --git a/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp b/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp
+index d4bbb03b..af54cbdf 100644
+--- a/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp
++++ b/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp
+@@ -4,7 +4,11 @@
+ 
+ #include <gtest/gtest.h>
+ 
++#include "controller/chassis/wheel_leg/closed_chain_support_observer.hpp"
++#include "controller/chassis/wheel_leg/control_interval.hpp"
++#include "controller/chassis/wheel_leg/leg_target_winding.hpp"
+ #include "controller/chassis/wheel_leg/recovery_profile.hpp"
++#include "controller/chassis/wheel_leg/recovery_sensor_guard.hpp"
+ #include "controller/chassis/wheel_leg/recovery_tuck_controller.hpp"
+ 
+ using namespace rmcs_core::controller::chassis;
+@@ -78,10 +82,331 @@ TEST(WheelLegRecoveryTuck, LoadIntegralIsBoundedAndClearedOnResetAndInvalidFeedb
+     tuck.reset();
+     EXPECT_EQ(tuck.update(q, gravity, 0.001, false).hold_torque.norm(), 0.0);
+     tuck.update(q, gravity, 0.001, true);
+-    EXPECT_FALSE(tuck.update(q, gravity, 0.03, true).valid);
++    EXPECT_FALSE(tuck.update(q, gravity, 0.041, true).valid);
+     EXPECT_EQ(tuck.update(q, gravity, 0.001, false).hold_torque.norm(), 0.0);
+ }
+ 
++TEST(WheelLegRecoveryTuck, LoggedWholeTurnHingeIsRestoredWithoutClampingRealViolations) {
++    constexpr double tau = 2 * std::numbers::pi;
++    const std::array<double, 4> raw{0.0, 1.2945, 0.0, 4.9422};
++    const auto canonical = wind_leg_feedback(raw, raw, LegTargetWinding::kPairedBranch107);
++    EXPECT_NEAR(canonical[1] - canonical[0], 1.2945, 1e-12);
++    EXPECT_NEAR(canonical[2] - canonical[3], -4.9422 + tau, 1e-12);
++    EXPECT_LT(canonical[2] - canonical[3], 1.3889088544);
++    auto wrapped = raw;
++    wrapped[0] += tau;
++    wrapped[1] -= tau;
++    wrapped[2] -= tau;
++    const auto next = wind_leg_feedback(wrapped, canonical, LegTargetWinding::kPairedBranch107);
++    for (int i = 0; i < 4; ++i)
++        EXPECT_NEAR(next[i], canonical[i], 1e-12);
++    auto bad = raw;
++    bad[1] = 1.50;
++    const auto violation = wind_leg_feedback(bad, canonical, LegTargetWinding::kPairedBranch107);
++    EXPECT_GT(violation[1] - violation[0], 1.3889088544 + 0.03);
++    bad = raw;
++    bad[3] = bad[2] + 0.1734; // Latest log is a real lower-limit violation, not an extra turn.
++    const auto lower_violation =
++        wind_leg_feedback(bad, canonical, LegTargetWinding::kPairedBranch107);
++    EXPECT_LT(lower_violation[2] - lower_violation[3], -0.140638855 - 0.03);
++    EXPECT_EQ(wind_leg_feedback(raw, raw, LegTargetWinding::kIndependentNearest), raw);
++}
++
++TEST(WheelLegRecoveryTuck, LoadCompensationUsesExecutedReferenceAndPerAxisAntiwindup) {
++    RecoveryTuckController tuck{kGeometry, kSpec, {}};
++    const Eigen::Vector3d gravity{0.0, 0.0, -1.0};
++    const Eigen::Vector4d q = kNominal;
++    Eigen::Vector4d reference = q;
++    reference[0] += 0.4;      // Saturated axis must not freeze another loaded drive.
++    reference[2] += 0.17;     // Previously blocked by the all-axis 0.15 rad threshold.
++    reference[3] += 0.04;
++    RecoveryTuckState state;
++    for (int i = 0; i < 1000; ++i)
++        state = tuck.update(q, gravity, 0.001, true, reference, Eigen::Vector4d::Zero());
++    EXPECT_EQ(state.hold_torque[0], 0.0);
++    EXPECT_GT(state.hold_torque[2], 12.0);
++    EXPECT_NEAR(state.hold_torque[3], 4.0, 1e-8);
++    EXPECT_LE(state.hold_torque.cwiseAbs().maxCoeff(), 20.0);
++    const auto cleared = tuck.update(q, gravity, 0.001, false, reference, Eigen::Vector4d::Zero());
++    EXPECT_EQ(cleared.hold_torque.norm(), 0.0);
++    // Being far from the final IK target must not integrate against that target.
++    state = tuck.update(q, gravity, 0.001, true, q, Eigen::Vector4d::Zero());
++    EXPECT_GT((state.reference - q).norm(), 0.15);
++    EXPECT_EQ(state.hold_torque.norm(), 0.0);
++}
++
++TEST(WheelLegRecoveryTuck, TrajectoryHandsOverWithoutSupportHeightVelocityOrStrictTuckGates) {
++    for (double heading : {-1.2, 1.2}) {
++        RecoveryTuckController tuck{kGeometry, kSpec, {}};
++        auto config =
++            RecoveryProfile::load(
++                kRoot / "v7_recovery_profiles_107_v2.json", kRoot / "v7_height_lookup_107.json")
++                .controller;
++        config.dt = 0.001;
++        config.dynamic_takeover = config.tuck_before_takeover = config.trajectory_takeover = true;
++        config.release_motion_on_takeover = true;
++        config.blend_seconds = 0.0;
++        config.tuck_speed_rad_s = 3.0;
++        JointReferenceRecoveryController controller{config};
++        JointReferenceRecoveryFeedback feedback;
++        feedback.q.head<4>() = kNominal;
++        feedback.q.head<2>().array() += heading;
++        feedback.q.segment<2>(2).array() -= heading;
++        feedback.gravity = {std::sin(0.62), 0.0, -std::cos(0.62)};
++        feedback.gyro.y() = 3.0;
++        feedback.dq << 5, -5, 5, -5, 30, -30;
++        feedback.support = feedback.support_confirmed = feedback.body_clear = false;
++        feedback.estimated_height = 0.137; // The CSV's stalled, grounded FOLD.
++        feedback.rl_capture_ready = true;
++        controller.reset(feedback.q);
++        bool folded = false, prepared = false;
++        int steps = 0;
++        for (; steps < 5000; ++steps) {
++            const auto& previous = controller.command();
++            const auto state = tuck.update(
++                feedback.q.head<4>(), feedback.gravity, config.dt, previous.tucking,
++                previous.targets.head<4>(), feedback.dq.head<4>());
++            ASSERT_TRUE(state.valid);
++            feedback.tuck_valid = state.valid;
++            feedback.tuck_reference = state.reference;
++            feedback.tuck_hold_torque = state.hold_torque;
++            feedback.tuck_ready = false;   // Narrow 40..41 deg / 5 mm is diagnostic only.
++            const auto& command = controller.update(feedback);
++            ASSERT_FALSE(command.failed);
++            folded |= command.phase == JointReferenceRecoveryPhase::kFold;
++            prepared |= command.phase == JointReferenceRecoveryPhase::kPrepare;
++            if (command.pure_rl) {
++                EXPECT_TRUE(command.motion_released);
++                EXPECT_FALSE(command.tucking);
++                EXPECT_LT(command.tracking_error_rad, config.trajectory_max_tracking_error_rad);
++                EXPECT_LT(command.trajectory_remaining_rad, 0.005);
++                break;
++            }
++            feedback.q.head<4>() = command.targets.head<4>();
++        }
++        EXPECT_TRUE(folded);
++        EXPECT_TRUE(prepared);
++        EXPECT_LT(steps, 5000);
++    }
++}
++
++TEST(WheelLegRecoveryTuck, FixedReverseBranchFoldsThenRotatesWithoutExtensionAndResets) {
++    auto config =
++        RecoveryProfile::load(
++            kRoot / "v7_recovery_profiles_107_v2.json", kRoot / "v7_height_lookup_107.json")
++            .controller;
++    config.dt = 0.001;
++    config.dynamic_takeover = config.tuck_before_takeover = config.trajectory_takeover = true;
++    config.release_motion_on_takeover = true;
++    config.blend_seconds = 0.0;
++    config.tuck_speed_rad_s = 3.0;
++    config.tuck_rotation_direction = -1.0;
++    JointReferenceRecoveryController controller{config};
++    // CSV row 5025 is the failed start: left increased and right decreased.
++    // Reuse one controller across starts to exercise rearming and branch reset.
++    const std::array<Eigen::Vector4d, 5> starts{
++        Eigen::Vector4d{4.1988, 5.4956, -4.2316, -5.5650}, kNominal,
++        kNominal + Eigen::Vector4d{1.2, 1.2, -1.2, -1.2},
++        kNominal + Eigen::Vector4d{-1.2, -1.2, 1.2, 1.2},
++        kNominal + Eigen::Vector4d{7.0, 7.0, -4.8, -4.8}};
++    for (const auto& start : starts) {
++        RecoveryTuckController tuck{kGeometry, kSpec, {}};
++        JointReferenceRecoveryFeedback feedback;
++        feedback.q.head<4>() = start;
++        feedback.rl_capture_ready = true;
++        controller.reset(feedback.q);
++        Eigen::Vector4d previous = start;
++        bool rotated = false;
++        for (int step = 0; step < 4000; ++step) {
++            const auto state =
++                tuck.update(feedback.q.head<4>(), feedback.gravity, config.dt, false);
++            ASSERT_TRUE(state.valid);
++            feedback.tuck_reference = state.reference;
++            feedback.tuck_valid = true;
++            const auto& command = controller.update(feedback);
++            ASSERT_FALSE(command.failed);
++            const Eigen::Vector4d reference = command.targets.head<4>();
++            EXPECT_LE((reference - previous).cwiseAbs().maxCoeff(), 0.003002);
++            ASSERT_TRUE(
++                command.phase == JointReferenceRecoveryPhase::kFold
++                || command.phase == JointReferenceRecoveryPhase::kPrepare
++                || command.phase == JointReferenceRecoveryPhase::kRl);
++            const bool rotating =
++                rotated || std::abs((reference - previous).head<2>().mean()) > 1e-5;
++            if (rotating) {
++                rotated = true;
++                EXPECT_LE((reference - previous).head<2>().mean(), 1e-6);
++                EXPECT_GE((reference - previous).tail<2>().mean(), -1e-6);
++                for (int hip : {0, 2})
++                    EXPECT_NEAR(
++                        reference[hip + 1] - reference[hip],
++                        state.reference[hip + 1] - state.reference[hip], 0.0101);
++            } else {
++                EXPECT_NEAR(reference.head<2>().mean(), start.head<2>().mean(), 2e-5);
++                EXPECT_NEAR(reference.tail<2>().mean(), start.tail<2>().mean(), 2e-5);
++            }
++            previous = reference;
++            feedback.q.head<4>() = reference;
++            if (command.pure_rl)
++                break;
++        }
++        ASSERT_TRUE(controller.command().pure_rl);
++        EXPECT_TRUE(controller.command().motion_released);
++        EXPECT_TRUE(tuck.measure(feedback.q.head<4>(), feedback.gravity).ready);
++        if (start[0] == starts.front()[0]) {
++            EXPECT_LT(previous.head<2>().mean(), 1.0);
++            EXPECT_GT(previous.tail<2>().mean(), -1.0);
++        }
++        controller.reset(feedback.q, false);
++        EXPECT_FALSE(controller.command().tucking);
++    }
++    // Starting at the final geometry must not queue another revolution.
++    RecoveryTuckController tuck{kGeometry, kSpec, {}};
++    JointReferenceRecoveryFeedback feedback;
++    const auto state = tuck.update(kNominal, feedback.gravity, config.dt, false);
++    feedback.q.head<4>() = feedback.tuck_reference = state.reference;
++    feedback.tuck_valid = feedback.rl_capture_ready = true;
++    controller.reset(feedback.q);
++    for (int i = 0; i < 50 && !controller.command().pure_rl; ++i) {
++        const auto& command = controller.update(feedback);
++        EXPECT_LT((command.targets.head<4>() - feedback.q.head<4>()).norm(), 1e-5);
++    }
++    EXPECT_TRUE(controller.command().pure_rl);
++    // Missing geometry terminates this path; it cannot select legacy extension.
++    controller.reset(feedback.q);
++    feedback.tuck_valid = false;
++    EXPECT_TRUE(controller.update(feedback).failed);
++    EXPECT_EQ(controller.torques(feedback, JointReferenceRecoveryVector6::Ones()).norm(), 0.0);
++}
++
++TEST(WheelLegRecoveryTuck, ReferenceDurationsScaleByThreeAndTiltingNeverCommandsExtension) {
++    auto config =
++        RecoveryProfile::load(
++            kRoot / "v7_recovery_profiles_107_v2.json", kRoot / "v7_height_lookup_107.json")
++            .controller;
++    config.dt = 0.001;
++    config.dynamic_takeover = config.tuck_before_takeover = config.trajectory_takeover = true;
++    config.blend_seconds = 0.0;
++    std::array<int, 2> duration{};
++    for (int run = 0; run < 2; ++run) {
++        config.tuck_speed_rad_s = run ? 3.0 : 1.0;
++        JointReferenceRecoveryController controller{config};
++        RecoveryTuckController tuck{kGeometry, kSpec, {}};
++        JointReferenceRecoveryFeedback feedback;
++        feedback.q.head<4>() = Eigen::Vector4d{4.1988, 5.4956, -4.2316, -5.5650};
++        feedback.rl_capture_ready = true;
++        controller.reset(feedback.q);
++        for (; duration[run] < 7500; ++duration[run]) {
++            const auto state =
++                tuck.update(feedback.q.head<4>(), feedback.gravity, config.dt, false);
++            feedback.tuck_reference = state.reference;
++            feedback.tuck_valid = state.valid;
++            const auto& command = controller.update(feedback);
++            ASSERT_FALSE(command.failed);
++            feedback.q.head<4>() = command.targets.head<4>();
++            if (command.pure_rl)
++                break;
++        }
++        ASSERT_TRUE(controller.command().pure_rl);
++    }
++    EXPECT_NEAR(duration[0], 3 * duration[1], 8);
++
++    JointReferenceRecoveryController controller{config};
++    RecoveryTuckController tuck{kGeometry, kSpec, {}};
++    JointReferenceRecoveryFeedback feedback;
++    feedback.q.head<4>() = kNominal;
++    controller.reset(feedback.q);
++    for (int step = 0; step < 2500; ++step) {
++        const double pitch = step > 500 && step < 650 ? 1.05 : 0.20; // Cross old 55 deg fallback.
++        feedback.gravity = {std::sin(pitch), 0.0, -std::cos(pitch)};
++        const auto state = tuck.update(feedback.q.head<4>(), feedback.gravity, config.dt, false);
++        ASSERT_TRUE(state.valid);
++        feedback.tuck_valid = true;
++        feedback.tuck_reference = state.reference;
++        feedback.support = true;
++        feedback.estimated_height = 0.30;
++        feedback.rl_capture_ready = false; // Inspect the final goal until actor entry is allowed.
++        const auto& command = controller.update(feedback);
++        ASSERT_FALSE(command.failed);
++        EXPECT_TRUE(command.tucking);
++        feedback.q.head<4>() = command.targets.head<4>();
++        if (step > 400) {
++            for (int hip : {0, 2})
++                EXPECT_NEAR(
++                    command.targets[hip + 1] - command.targets[hip],
++                    state.reference[hip + 1] - state.reference[hip], 0.0101);
++        }
++    }
++    feedback.rl_capture_ready = true;
++    EXPECT_TRUE(controller.update(feedback).pure_rl);
++}
++
++TEST(WheelLegRecoveryTuck, TrajectoryDoesNotHandOverWhenActualLegsStayFarAway) {
++    RecoveryTuckController tuck{kGeometry, kSpec, {}};
++    auto config =
++        RecoveryProfile::load(
++            kRoot / "v7_recovery_profiles_107_v2.json", kRoot / "v7_height_lookup_107.json")
++            .controller;
++    config.dt = 0.001;
++    config.dynamic_takeover = config.tuck_before_takeover = config.trajectory_takeover = true;
++    config.blend_seconds = 0.0;
++    JointReferenceRecoveryController controller{config};
++    JointReferenceRecoveryFeedback feedback;
++    feedback.q.head<4>() = kNominal;
++    feedback.q.head<2>().array() += 1.2;
++    feedback.q.segment<2>(2).array() -= 1.2;
++    feedback.rl_capture_ready = true;
++    feedback.tuck_valid = true;
++    feedback.tuck_ready = true;            // A stale readiness bit must not bypass real tracking.
++    feedback.tuck_reference =
++        tuck.update(feedback.q.head<4>(), feedback.gravity, config.dt, false).reference;
++    controller.reset(feedback.q);
++    for (int i = 0; i < 8001; ++i) {
++        const auto& command = controller.update(feedback);
++        ASSERT_FALSE(command.pure_rl);
++        if (command.failed)
++            break;
++    }
++    EXPECT_TRUE(controller.command().failed);
++    EXPECT_EQ(controller.command().failure_code, 6);
++    EXPECT_EQ(controller.torques(feedback, JointReferenceRecoveryVector6::Ones()).norm(), 0.0);
++}
++
++TEST(WheelLegRecoveryTuck, RecordedSchedulingGapPassesButStaleOrReversedFeedbackDoesNot) {
++    using namespace std::chrono_literals;
++    ControlInterval interval;
++    interval.set_maximum_interval(40ms);
++    auto now = ControlInterval::Clock::now();
++    ASSERT_TRUE(interval.sample(now));
++    EXPECT_TRUE(interval.sample(now + 25ms));
++    EXPECT_FALSE(interval.sample(now + 66ms));
++    EXPECT_FALSE(interval.sample(now + 67ms)); // A real gap still latches until reset.
++    auto profile = RecoveryProfile::load(
++        kRoot / "v7_recovery_profiles_107_v2.json", kRoot / "v7_height_lookup_107.json");
++    ClosedChainSupportObserver observer{profile.geometry, 0.001, 0.04};
++    JointReferenceRecoveryVector6 q = JointReferenceRecoveryVector6::Zero();
++    q.head<4>() = kNominal;
++    const auto valid = observer.observe(
++        {}, q, JointReferenceRecoveryVector6::Zero(), {0, 0, -1}, Eigen::Vector3d::Zero(),
++        {0, 0, 9.81}, JointReferenceRecoveryPhase::kPrepare, 0.025);
++    EXPECT_TRUE(valid.q.allFinite());
++    EXPECT_FALSE(observer
++                     .observe(
++                         {}, q, JointReferenceRecoveryVector6::Zero(), {0, 0, -1},
++                         Eigen::Vector3d::Zero(), {0, 0, 9.81},
++                         JointReferenceRecoveryPhase::kPrepare, 0.041)
++                     .q.allFinite());
++    RecoverySensorGuard guard{{0.04, 0.04, 0.04, 0.03}};
++    std::array<RecoverySampleStamp, 8> samples;
++    samples.fill({1, 975000000});
++    EXPECT_TRUE(guard.update(1000000000, samples).valid);
++    EXPECT_FALSE(guard.update(1016000000, samples).valid);
++    samples.fill({2, 1001000000});
++    EXPECT_TRUE(guard.update(1002000000, samples).valid);
++    samples[0] = {1, 1000000000};
++    EXPECT_EQ(guard.update(1003000000, samples).issue, RecoverySensorIssue::kReversed);
++}
++
+ TEST(WheelLegRecoveryTuck, RejectsWrongModelAndUnsafeBounds) {
+     EXPECT_THROW((RecoveryTuckController{kGeometry, "wrong-model", {}}), std::invalid_argument);
+     RecoveryTuckConfig config;
+diff --git a/rmcs_ws/src/rmcs_core/tools/probe_wheel_leg_tuck.py b/rmcs_ws/src/rmcs_core/tools/probe_wheel_leg_tuck.py
+index 74aaffa5..abd01c87 100644
+--- a/rmcs_ws/src/rmcs_core/tools/probe_wheel_leg_tuck.py
++++ b/rmcs_ws/src/rmcs_core/tools/probe_wheel_leg_tuck.py
+@@ -5,6 +5,7 @@ Fixtures hold body attitude to isolate leg geometry. This does not qualify a
+ free-body self-righting policy or a real vehicle. No actor or training runs.
+ """
+ import argparse
++import csv
+ import ctypes
+ import hashlib
+ import json
+@@ -29,6 +30,11 @@ def main():
+     parser.add_argument("--output", type=Path, required=True)
+     parser.add_argument("--seconds", type=float, default=6.)
+     parser.add_argument("--cases", nargs="+")
++    parser.add_argument("--csv-start", type=Path,
++                        help="CSV supplying a measured failed start, closed-chain passive joints are solved")
++    parser.add_argument("--csv-index", type=int, default=5025)
++    parser.add_argument("--trajectory", action="store_true",
++                        help="Run production two-stage FSM until handover; fixture PD holds afterward")
+     args = parser.parse_args()
+     if not 3. <= args.seconds <= 10.:
+         parser.error("Probe duration must be 3..10 seconds")
+@@ -49,6 +55,11 @@ def main():
+     library.wheel_leg_tuck_step.argtypes = [ctypes.c_void_p, pointer, pointer,
+                                            ctypes.c_double, ctypes.c_int, pointer]
+     library.wheel_leg_tuck_error.restype = ctypes.c_char_p
++    if args.trajectory:
++        library.wheel_leg_trajectory_create.argtypes = [ctypes.c_char_p, ctypes.c_double]
++        library.wheel_leg_trajectory_create.restype = ctypes.c_void_p
++        library.wheel_leg_trajectory_step.argtypes = [ctypes.c_void_p, pointer, pointer, pointer,
++                                                     ctypes.c_double, pointer]
+     baseline = builder.balanced_pose(50.)
+     cases = [
+         ("front", 0., (1.2, 1.2), False, 100.),
+@@ -58,15 +69,48 @@ def main():
+         ("pitch_backward", -20., (.8, .8), False, 100.),
+         ("ground_supported", 0., (0., 0.), True, 100.),
+         ("ground_no_integral", 0., (0., 0.), True, 0.),
++        ("extended_front", 0., (1.2, 1.2), False, 100.),
++        ("extended_back", 0., (-1.2, -1.2), False, 100.),
++        ("ground_front", 0., (1.2, 1.2), True, 100.),
++        ("ground_back", 0., (-1.2, -1.2), True, 100.),
+     ]
++    csv_pose = None
++    if args.csv_start:
++        with args.csv_start.open() as handle:
++            reader = csv.DictReader(handle)
++            row = next(row for row in reader if row["index"] == str(args.csv_index))
++        joint_names = ("left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint")
++        active_names = ("L_joint1", "LL_joint1", "R_joint1", "RR_joint1")
++        desired = np.array([float(row[f"/wheel_leg/rl/model/{n}/angle"]) for n in joint_names])
++        initial = builder.knee_pose(103., 105.)
++        start = np.array([initial[n] for n in active_names])
++        # Continue the same passive assembly branch while prescribing the four
++        # actual motor angles; no knee-angle clipping or sampled reset writes.
++        for fraction in np.linspace(0., 1., 80)[1:]:
++            fixed = {n: initial[n] for n in builder.controls}
++            fixed.update(zip(active_names, start + fraction * (desired - start)))
++            initial = builder.solve(fixed, initial)
++        g = np.array([float(row[f"/wheel_leg/rl/input/projected_gravity/{axis}"])
++                      for axis in "xyz"])
++        g /= np.linalg.norm(g)
++        rotation = Rotation.from_euler("xyz", [math.atan2(-g[1], -g[2]), math.asin(g[0]), 0.])
++        if not np.allclose(rotation.inv().apply([0., 0., -1.]), g, atol=1e-9):
++            raise ValueError("CSV gravity reconstruction failed")
++        csv_pose = (rotation, initial)
++        cases.extend([("csv_failed_suspended", 0., (0., 0.), False, 100.),
++                      ("csv_failed_ground", 0., (0., 0.), True, 100.)])
+     if args.cases:
+         cases = [case for case in cases if case[0] in args.cases]
+         if len(cases) != len(args.cases):
+             parser.error("Unknown or duplicate case name")
+     prepared = []
+     for name, pitch, headings, grounded, ki in cases:
+-        q = builder.common_rotate(baseline["q"], headings[0], -headings[1])
+-        rotation = Rotation.from_euler("yx", [math.radians(pitch), baseline["root_roll_rad"]])
++        if name.startswith("csv_failed_"):
++            prepared.append((name, *csv_pose, grounded, ki))
++            continue
++        start = builder.balanced_pose(104.) if name.startswith("extended_") else baseline
++        q = builder.common_rotate(start["q"], headings[0], -headings[1])
++        rotation = Rotation.from_euler("yx", [math.radians(pitch), start["root_roll_rad"]])
+         prepared.append((name, rotation, q, grounded, ki))
+     from isaaclab.app import AppLauncher
+     launcher = AppLauncher({"headless": True, "device": "cpu"})
+@@ -133,11 +177,12 @@ def main():
+                 guide.CreateLocalRot0Attr(Gf.Quatf(quat[3], Gf.Vec3f(*quat[:3])))
+                 guide.CreateLocalRot1Attr(Gf.Quatf(1.))
+             guide.CreateExcludeFromArticulationAttr(True)
+-            context = library.wheel_leg_tuck_create(str(geometry).encode(), ki)
++            context = (library.wheel_leg_trajectory_create(str(geometry.parent).encode(), ki)
++                       if args.trajectory else library.wheel_leg_tuck_create(str(geometry).encode(), ki))
+             if not context:
+                 raise ValueError(library.wheel_leg_tuck_error().decode())
+             rigs.append(dict(name=name, rotation=rotation, initial=q, grounded=grounded,
+-                             ki=ki, robot=robot, context=context, index=index, samples=[]))
++                             ki=ki, robot=robot, context=context, index=index, samples=[], handover=None))
+         sim.reset()
+         bounds = UsdGeom.BBoxCache(0., ["default", "render", "proxy"]).ComputeWorldBound(
+             sim.stage.GetPrimAtPath("/World/Ground")).ComputeAlignedRange()
+@@ -164,10 +209,11 @@ def main():
+             robot.reset()
+             robot.update(dt)
+             rig["target"] = joint[0, rig["ids"]].numpy().astype(np.float64)
+-            rig["output"] = np.zeros(15, dtype=np.float64)
++            rig["output"] = np.zeros(35 if args.trajectory else 15, dtype=np.float64)
+             rig["gravity"] = np.ascontiguousarray(rig["rotation"].inv().apply([0., 0., -1.]))
+             rig["effort"] = torch.zeros_like(joint)
+             rig["max_clamp_mm"] = 0.
++            rig["hinge_range"] = [float("inf"), -float("inf")]
+         started = time.monotonic()
+         for step in range(round(args.seconds / dt)):
+             for rig in rigs:
+@@ -176,14 +222,37 @@ def main():
+                 dq = robot.data.joint_vel.torch[0]
+                 measured = np.ascontiguousarray(q[rig["ids"]].numpy(), dtype=np.float64)
+                 out = rig["output"]
+-                code = library.wheel_leg_tuck_step(rig["context"], measured.ctypes.data_as(pointer),
+-                    rig["gravity"].ctypes.data_as(pointer), dt, int(step > 20), out.ctypes.data_as(pointer))
++                if args.trajectory:
++                    active_ids = rig["ids"] + rig["wheel_ids"]
++                    q6 = np.ascontiguousarray(q[active_ids].numpy(), dtype=np.float64)
++                    dq6 = np.ascontiguousarray(dq[active_ids].numpy(), dtype=np.float64)
++                    code = library.wheel_leg_trajectory_step(rig["context"], q6.ctypes.data_as(pointer),
++                        dq6.ctypes.data_as(pointer), rig["gravity"].ctypes.data_as(pointer), dt,
++                        out.ctypes.data_as(pointer))
++                    if out[25] and rig["handover"] is None:
++                        rig["handover"] = dict(time_s=step * dt, phase=int(out[21]),
++                            knee_deg=[math.degrees(float(q[rig["knee_ids"][0]]) + builder.knee_zero_rad),
++                                      math.degrees(-float(q[rig["knee_ids"][1]]) + builder.knee_zero_rad)],
++                            measured_fk_knee_deg=out[8:10].tolist(),
++                            wheel_com_error_mm=(out[10:12] * 1000.).tolist(),
++                            tracking_error_rad=float(out[23]), remaining_rad=float(out[22]),
++                            integral_nm=out[4:8].tolist())
++                        print("TRAJECTORY_HANDOVER", rig["name"], rig["handover"], flush=True)
++                    rig["target"] = out[:4].copy()
++                    motor = out[15:19]
++                    measured = out[31:35]
++                else:
++                    code = library.wheel_leg_tuck_step(rig["context"], measured.ctypes.data_as(pointer),
++                        rig["gravity"].ctypes.data_as(pointer), dt, int(step > 20), out.ctypes.data_as(pointer))
++                    delta = out[:4] - rig["target"]
++                    fraction = min(1. * dt / max(float(np.abs(delta).max()), 1e-6), 1.)
++                    rig["target"] += delta * fraction
++                    motor = 160. * (rig["target"] - measured) - 2.5 * dq[rig["ids"]].numpy() + out[4:8]
++                hinges = np.array([measured[1] - measured[0], measured[2] - measured[3]])
++                rig["hinge_range"][0] = min(rig["hinge_range"][0], float(hinges.min()))
++                rig["hinge_range"][1] = max(rig["hinge_range"][1], float(hinges.max()))
+                 if code <= 0:
+-                    raise RuntimeError(f"Invalid C++ tuck geometry: {rig['name']}, {code}, {measured}")
+-                delta = out[:4] - rig["target"]
+-                fraction = min(1. * dt / max(float(np.abs(delta).max()), 1e-6), 1.)
+-                rig["target"] += delta * fraction
+-                motor = 160. * (rig["target"] - measured) - 2.5 * dq[rig["ids"]].numpy() + out[4:8]
++                    raise RuntimeError(f"Invalid C++ tuck/trajectory: {rig['name']}, {code}, {measured}, {out}")
+                 effort = rig["effort"]
+                 effort.zero_()
+                 effort[0, rig["ids"]] = torch.tensor(np.clip(motor, -40., 40.), dtype=torch.float32)
+@@ -197,7 +266,8 @@ def main():
+                 force = np.polynomial.polynomial.polyval(np.clip(compression, 0., .072) / .08,
+                                                          fit["monomial_coefficients_n"])
+                 effort[0, rig["spring_ids"]] = torch.tensor(force, dtype=torch.float32)
+-                effort[0, rig["wheel_ids"]] = -.6 * dq[rig["wheel_ids"]]
++                effort[0, rig["wheel_ids"]] = (torch.tensor(out[19:21], dtype=torch.float32)
++                    if args.trajectory else -.6 * dq[rig["wheel_ids"]])
+                 robot.set_joint_effort_target_index(target=effort)
+                 robot.write_data_to_sim()
+             sim.step(render=False)
+@@ -233,8 +303,11 @@ def main():
+                         nonwheel_support_n=float(np.linalg.norm(forces[others], axis=1).sum()),
+                         contacts_n={name: force.tolist() for name, force in zip(rig["contact_paths"], forces)
+                                     if np.linalg.norm(force) > .1},
+-                        active_q_rad=q[rig["ids"]].tolist(),
++                        active_q_rad=(rig["output"][31:35].tolist() if args.trajectory
++                                      else q[rig["ids"]].tolist()),
++                        reference_q_rad=rig["target"].tolist(),
+                         max_closure_gap_m=max(constraint_gap(c) for c in spec["constraints"]),
++                        native_phase=int(rig["output"][21]) if args.trajectory else None,
+                         integral_nm=rig["output"][4:8].tolist(),
+                         max_leg_torque_nm=float(rig["effort"][0, rig["ids"]].abs().max()),
+                         base_z_m=float(poses[robot.body_names.index("base_link"), 2])))
+@@ -242,8 +315,14 @@ def main():
+                         print("FIRST_SAMPLE", rig["name"], rig["samples"][-1], "bodies", robot.body_names, flush=True)
+             if step % 1000 == 0:
+                 print("TUCK_STEP", step, "wall_s", round(time.monotonic() - started, 1), flush=True)
+-        report = dict(isaac_sim_version="6.0.0.1", fixture="fixed attitude; five suspended, two vertically guided wheel-supported rigs",
+-            scope="leg geometry and load tracking only; no free-body recovery or actor handover validation",
++        report = dict(isaac_sim_version="6.0.0.1", fixture="fixed body attitude; suspended or vertically guided ground fixtures",
++            scope=("production trajectory to RL phase on fixed-attitude closed-chain fixtures; "
++                   "fixture PD holds legs after transfer, no actor or free-body recovery validation"
++                   if args.trajectory else
++                   "leg geometry and load tracking only; no free-body recovery or actor handover validation"),
++            production_trajectory=args.trajectory,
++            csv_start_sha256=digest(args.csv_start) if args.csv_start else None,
++            csv_start_index=args.csv_index if args.csv_start else None,
+             asset_manifest_sha256=digest(bundle / "manifest.json"), model_spec_sha256=digest(bundle / "model_spec.json"),
+             geometry_sha256=digest(geometry), library_sha256=digest(args.library),
+             script_sha256=digest(Path(__file__)), dt=dt, duration_s=args.seconds, results=[])
+@@ -260,6 +339,7 @@ def main():
+                 settled_knee_range_deg=[float(knees.min()), float(knees.max())],
+                 max_settled_wheel_com_error_mm=float(np.abs(error).max() * 1000),
+                 max_closure_gap_mm=max(s["max_closure_gap_m"] for s in samples) * 1000,
++                measured_hinge_range_rad=rig["hinge_range"],
+                 gas_curve_max_clamp_exposure_mm=rig["max_clamp_mm"],
+                 final_wheel_z_m=samples[-1]["wheel_z_m"],
+                 mean_wheel_support_n=np.asarray([s["wheel_support_n"] for s in settled]).mean(axis=0).tolist(),
+@@ -269,6 +349,13 @@ def main():
+                 wheel_support_check=contact_ok,
+                 passed=bool(knees.min() >= 39.9 and knees.max() <= 41.0 and np.abs(error).max() <= .005
+                             and max(s["max_closure_gap_m"] for s in settled) < .002 and contact_ok))
++            if args.trajectory:
++                row["handover"] = rig["handover"]
++                row["settled_geometry_passed"] = row["passed"]
++                row["passed"] = row["passed"] and rig["handover"] is not None
++            row["mechanical_guard_passed"] = bool(rig["hinge_range"][0] >= -.170638855
++                                                   and rig["hinge_range"][1] <= 1.4189088544)
++            row["passed"] = row["passed"] and row["mechanical_guard_passed"]
+             report["results"].append(row)
+             (args.output / (rig["name"] + "_samples.json")).write_text(json.dumps(samples, indent=2) + "\n")
+         report["passed"] = all(r["passed"] for r in report["results"] if r["integral_gain"] > 0.)
+diff --git a/rmcs_ws/src/rmcs_core/tools/wheel_leg_tuck_probe.cpp b/rmcs_ws/src/rmcs_core/tools/wheel_leg_tuck_probe.cpp
+index 6dd1d9ae..ea59f07b 100644
+--- a/rmcs_ws/src/rmcs_core/tools/wheel_leg_tuck_probe.cpp
++++ b/rmcs_ws/src/rmcs_core/tools/wheel_leg_tuck_probe.cpp
+@@ -1,4 +1,6 @@
+ // Small C ABI for a simulator to exercise production tuck code without ROS or CAN.
++#include "controller/chassis/wheel_leg/leg_target_winding.hpp"
++#include "controller/chassis/wheel_leg/recovery_profile.hpp"
+ #include "controller/chassis/wheel_leg/recovery_tuck_controller.hpp"
+ 
+ #include <algorithm>
+@@ -8,7 +10,35 @@
+ using namespace rmcs_core::controller::chassis;
+ namespace {
+ thread_local std::string error;
++JointReferenceRecoveryConfig trajectory_config(const std::filesystem::path& directory) {
++    auto config =
++        RecoveryProfile::load(
++            directory / "v7_recovery_profiles_107_v2.json", directory / "v7_height_lookup_107.json")
++            .controller;
++    config.dt = 0.001;
++    config.blend_seconds = 0.0;
++    config.dynamic_takeover = config.tuck_before_takeover = config.trajectory_takeover = true;
++    config.release_motion_on_takeover = true;
++    config.tuck_speed_rad_s = 3.0;
++    config.tuck_rotation_direction = -1.0;
++    config.prepare_speed_rad_s = 6.0;
++    config.insert_speed_rad_s = 10.0;
++    config.orbit_speed_rad_s = 6.0;
++    return config;
+ }
++struct TrajectoryProbe {
++    RecoveryTuckController tuck;
++    JointReferenceRecoveryController trajectory;
++    bool initialized = false;
++    std::array<double, 4> previous_q{};
++    TrajectoryProbe(const std::filesystem::path& directory, double gain)
++        : tuck{
++              directory / "tuck_geometry_107_v1.json",
++              "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
++              {.integral_gain = gain}}
++        , trajectory{trajectory_config(directory)} {}
++};
++} // namespace
+ extern "C" {
+ const char* wheel_leg_tuck_error() { return error.c_str(); }
+ void* wheel_leg_tuck_create(const char* geometry, double integral_gain) {
+@@ -41,4 +71,79 @@ int wheel_leg_tuck_step(
+         return -1;
+     }
+ }
++
++void* wheel_leg_trajectory_create(const char* directory, double integral_gain) {
++    try {
++        return new TrajectoryProbe{directory, integral_gain};
++    } catch (const std::exception& e) {
++        error = e.what();
++        return nullptr;
++    }
++}
++void wheel_leg_trajectory_destroy(void* context) { delete static_cast<TrajectoryProbe*>(context); }
++// Output: reference4, I4, knees2, sagittal2, COM3, effort6,
++// phase, remaining, tracking, tucking, pure_rl, failure, IK_goal4, canonical_q4.
++int wheel_leg_trajectory_step(
++    void* context, const double* q, const double* dq, const double* gravity, double dt,
++    double* output) {
++    try {
++        auto& probe = *static_cast<TrajectoryProbe*>(context);
++        JointReferenceRecoveryFeedback feedback;
++        feedback.q = Eigen::Map<const JointReferenceRecoveryVector6>{q};
++        feedback.dq = Eigen::Map<const JointReferenceRecoveryVector6>{dq};
++        feedback.gravity = Eigen::Map<const Eigen::Vector3d>{gravity};
++        std::array<double, 4> raw;
++        std::copy_n(q, 4, raw.begin());
++        // PhysX also wraps individual revolute joints on long common turns.
++        // Exercise the same input normalization as the native RMCS controller.
++        probe.previous_q = wind_leg_feedback(
++            raw, probe.initialized ? probe.previous_q : raw, LegTargetWinding::kPairedBranch107);
++        feedback.q.head<4>() = Eigen::Map<const Eigen::Vector4d>{probe.previous_q.data()};
++        if (!probe.initialized) {
++            probe.trajectory.reset(feedback.q);
++            probe.initialized = true;
++        }
++        const auto& previous = probe.trajectory.command();
++        // After the handover event, a fixture PD holds the final legs for
++        // geometry inspection. It is deliberately not an RL actor test.
++        const auto state = probe.tuck.update(
++            feedback.q.head<4>(), feedback.gravity, dt, previous.tucking || previous.pure_rl,
++            previous.targets.head<4>(), feedback.dq.head<4>());
++        feedback.tuck_reference = state.reference;
++        feedback.tuck_hold_torque = state.hold_torque;
++        feedback.tuck_valid = state.valid;
++        feedback.tuck_ready = state.ready;
++        feedback.rl_capture_ready =
++            state.valid && -feedback.gravity.z() >= std::cos(40 * std::numbers::pi / 180);
++        if (!previous.pure_rl)
++            probe.trajectory.update(feedback, dt);
++        const auto& command = probe.trajectory.command();
++        auto effort = probe.trajectory.torques(feedback, JointReferenceRecoveryVector6::Zero());
++        if (command.pure_rl) {
++            effort.head<4>() = (160 * (command.targets.head<4>() - feedback.q.head<4>())
++                                - 2.5 * feedback.dq.head<4>() + state.hold_torque)
++                                   .cwiseMax(-40.0)
++                                   .cwiseMin(40.0);
++            effort.tail<2>() = (-0.6 * feedback.dq.tail<2>()).cwiseMax(-4.5).cwiseMin(4.5);
++        }
++        std::copy_n(command.targets.data(), 4, output);
++        std::copy_n(state.hold_torque.data(), 4, output + 4);
++        std::copy_n(state.knee_deg.data(), 2, output + 8);
++        std::copy_n(state.sagittal_error_m.data(), 2, output + 10);
++        std::copy_n(state.com_b_m.data(), 3, output + 12);
++        std::copy_n(effort.data(), 6, output + 15);
++        output[21] = static_cast<int>(command.phase);
++        output[22] = command.trajectory_remaining_rad;
++        output[23] = command.tracking_error_rad;
++        output[24] = command.tucking;
++        output[25] = command.pure_rl;
++        output[26] = command.failure_code;
++        std::copy_n(state.reference.data(), 4, output + 27);
++        std::copy_n(feedback.q.data(), 4, output + 31);
++        return state.valid && !command.failed ? (state.ready ? 2 : 1) : 0;
++    } catch (const std::exception& e) {
++        error = e.what();
++        return -1;
++    }
++}
+ }
