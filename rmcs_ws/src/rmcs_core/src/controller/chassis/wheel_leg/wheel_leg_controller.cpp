@@ -38,8 +38,9 @@ bool accepts_motion_command(
 
 void WheelLegController::before_updating() {
     inference_frequency_ = *policy_rate_input_;
-    if (inference_frequency_ != DeployedPolicyContract::kPolicyFrequencyHz)
-        throw std::runtime_error("Invalid bridge policy rate");
+    if (!std::isfinite(inference_frequency_) || inference_frequency_ <= 0.0
+        || !almost_integer(pd_frequency_ / inference_frequency_))
+        throw std::runtime_error("Bridge policy rate must divide the feedback PD frequency");
     for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
         action_scales_[i] = *policy_scale_inputs_[i];
         action_clip_min_[i] = *policy_clip_min_inputs_[i];

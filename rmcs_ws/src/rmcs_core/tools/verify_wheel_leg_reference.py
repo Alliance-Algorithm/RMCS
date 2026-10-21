@@ -58,6 +58,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--reference', default='origin/dev/wheel_leg_rl')
     parser.add_argument('--build-dir', type=Path, default=CORE.parents[1] / 'build/rmcs_rl')
+    parser.add_argument('--policy-receipt', type=Path,
+                        help='Allow the authenticated flat 200 Hz actor/time/command migration')
     args = parser.parse_args()
     reference = run(['git', 'rev-parse', args.reference], cwd=ROOT, text=True).strip()
     print(f'Reference: {reference}')
@@ -67,17 +69,39 @@ def main():
 
     original = yaml.safe_load(source(CONFIG + 'wheel-leg-infantry-recovery.yaml'))
     current = yaml.safe_load((ROOT / CONFIG / 'wheel-leg-infantry-rl.yaml').read_text())
-    for name in ('wheel_leg', 'wheel_leg_chassis_controller'):
-        require(current[name] == original[name], f'{name} parameters differ')
     expected = original['rl_controller']['ros__parameters']
     controller = current['wheel_leg_controller']['ros__parameters']
     bridge = current['rl_bridge']['ros__parameters']
+    model = RL / bridge['rl_model_path']
+    overrides = {}
+    expected_commands = dict(original['wheel_leg_chassis_controller']['ros__parameters'])
+    if args.policy_receipt:
+        receipt = json.loads(args.policy_receipt.read_text())
+        require(receipt['schema'] == 'rmcs-flat-policy-deployment-v1'
+                and receipt['model_filename'] == model.name
+                and receipt['model_sha256'] == hashlib.sha256(model.read_bytes()).hexdigest(),
+                'Policy receipt does not identify the deployed actor')
+        require(receipt['policy_hz'] == 200 and receipt['physics_hz'] == 1000
+                and receipt['action_timeout_seconds'] == 0.015
+                and receipt['vx_max_m_s'] == 3.0 and receipt['yaw_rate_max_rad_s'] == 4.0
+                and receipt['heading_hold_yaw_rate_max_rad_s'] == 4.0,
+                'Unsupported policy migration')
+        overrides = dict(rl_model_path=bridge['rl_model_path'], policy_rate=receipt['policy_hz'],
+                         inference_timeout=receipt['action_timeout_seconds'],
+                         heading_hold_yaw_rate_max=receipt['heading_hold_yaw_rate_max_rad_s'],
+                         yaw_rate_max=receipt['yaw_rate_max_rad_s'])
+        expected_commands.update(yaw_rate_max=4.0, spin_yaw_rate=4.0)
+        print('Actor/time/command migration verified against the policy receipt')
+    require(current['wheel_leg'] == original['wheel_leg'], 'Hardware parameters differ')
+    require(current['wheel_leg_chassis_controller']['ros__parameters'] == expected_commands,
+            'Chassis command parameters differ')
     renamed = {'model_path': 'rl_model_path', 'rl_inference_frequency': 'policy_rate',
                'rl_history_length': 'history_length'}
     for name, value in expected.items():
         if name == 'spin_yaw_rate':
             continue
         key = renamed.get(name, name)
+        value = overrides.get(key, value)
         actual = controller.get(key, bridge.get(key))
         if key in ('recovery_profile_path', 'height_lookup_path'):
             value = value.replace('models/wheel_leg/deployment/', 'config/wheel_leg/')
@@ -98,9 +122,9 @@ def main():
         require(asset.read_bytes() == source(REFERENCE_PACKAGE + expected[name]),
                 f'Recovery asset differs: {name}')
         print(f'Asset SHA256 {asset.name}: {hashlib.sha256(asset.read_bytes()).hexdigest()}')
-    model = RL / bridge['rl_model_path']
-    require(model.read_bytes() == source(REFERENCE_PACKAGE + expected['model_path']),
-            'Actor bytes differ')
+    if not args.policy_receipt:
+        require(model.read_bytes() == source(REFERENCE_PACKAGE + expected['model_path']),
+                'Actor bytes differ')
     print(f'Actor SHA256: {hashlib.sha256(model.read_bytes()).hexdigest()}')
     for path in ('hardware/wheel-leg.cpp', 'hardware/device/dm_motor.hpp',
                  'hardware/device/dr16.hpp', 'broadcaster/value_broadcaster.cpp'):
