@@ -281,7 +281,8 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         && feedback.dq.allFinite() && feedback.gravity.allFinite() && feedback.gyro.allFinite()
         && std::isfinite(feedback.estimated_height) && feedback.gravity.norm() > 0.5
         && (!config_.tuck_before_takeover || !feedback.tuck_valid
-            || (feedback.tuck_reference.allFinite() && feedback.tuck_hold_torque.allFinite()))
+            || (feedback.tuck_reference.allFinite() && feedback.tuck_fold_reference.allFinite()
+                && feedback.tuck_hold_torque.allFinite()))
         && (!config_.trajectory_takeover || !enabled_
             || phase_ >= JointReferenceRecoveryPhase::kBlend || feedback.tuck_valid);
     if (!valid) {
@@ -344,7 +345,8 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
 
     const bool recapturable = phase_ == JointReferenceRecoveryPhase::kPrepare
                            || phase_ == JointReferenceRecoveryPhase::kCapture;
-    const bool unsupported = enabled_ && recapturable && !feedback.support
+    const bool unsupported = enabled_ && !config_.trajectory_takeover && recapturable
+                          && !feedback.support
                           && tilt > static_cast<float>(config_.reroute_tilt_rad);
     unsupported_ticks_ = unsupported ? unsupported_ticks_ + 1 : 0;
     durations_.unsupported = unsupported ? durations_.unsupported + dt : 0.0;
@@ -381,12 +383,10 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         grounded_start_ = push_off_required_;
         const bool upright_trajectory = config_.trajectory_takeover && feedback.tuck_valid;
         if (upright_trajectory) {
-            route_ = JointReferenceRecoveryRoute::kUpright;
             push_off_required_ = grounded_start_ = false;
             // First shorten at the measured heading, then rotate the folded
             // pair under COM. Conditional support height cannot stall this path.
-            fold_anchor_ =
-                shape_at_heading_(feedback.tuck_reference.cast<float>(), continuous_q_.head<4>());
+            fold_anchor_ = feedback.tuck_fold_reference.cast<float>();
         }
         if (push_off_required_)
             fold_anchor_ =
@@ -601,12 +601,13 @@ void JointReferenceRecoveryController::update_transitions_(
     const float remaining = reference_step.remaining;
     const float measured_error = reference_step.measured_error;
     if (config_.trajectory_takeover && phase < JointReferenceRecoveryPhase::kBlend) {
-        if (phase == JointReferenceRecoveryPhase::kFold && remaining < 0.005f
+        if (phase == JointReferenceRecoveryPhase::kFold && feedback.tuck_folded
+            && remaining < 0.005f
             && measured_error < static_cast<float>(config_.trajectory_max_tracking_error_rad)
             && phase_reached_(step, 0.06 / config_.tuck_speed_rad_s))
             enter_(JointReferenceRecoveryPhase::kPrepare);
         if (phase == JointReferenceRecoveryPhase::kPrepare && feedback.tuck_valid
-            && feedback.rl_capture_ready && remaining < 0.005f
+            && feedback.tuck_folded && feedback.rl_capture_ready && remaining < 0.005f
             && measured_error < static_cast<float>(config_.trajectory_max_tracking_error_rad))
             enter_(JointReferenceRecoveryPhase::kRl);
         return;
@@ -762,6 +763,8 @@ void JointReferenceRecoveryController::update_wheels_(const StepContext& step, b
     // recomputes once; subsequent BLEND ticks retain that velocity reference.
     const bool is_capture = phase_ == JointReferenceRecoveryPhase::kCapture;
     const bool is_prepare = phase_ == JointReferenceRecoveryPhase::kPrepare;
+    const bool is_trajectory =
+        config_.trajectory_takeover && (phase_ == JointReferenceRecoveryPhase::kFold || is_prepare);
     const bool is_push_off = phase_ == JointReferenceRecoveryPhase::kThrust && push_off_required_;
     const bool is_insertion = phase_ == JointReferenceRecoveryPhase::kPlant && push_off_required_;
     const bool is_blend = enabled_ && phase_ == JointReferenceRecoveryPhase::kBlend;
@@ -770,13 +773,13 @@ void JointReferenceRecoveryController::update_wheels_(const StepContext& step, b
     // Keep pitch damping while the grounded start acquires wheel load or its
     // lift impulse changes acceleration. Actor transfer still requires support.
     // Grounded capture must retain the reaction torque through transient unloading.
-    const bool eligible =
-        enabled_ && release_finished_
-        && (supported || is_insertion || is_push_off || (grounded_start_ && is_capture))
-        && tilt < balance_limit
-        && (is_prepare || is_capture || is_push_off || is_insertion
-            || (is_blend && phase == JointReferenceRecoveryPhase::kPrepare))
-        && config_.wheel_balance_enabled;
+    const bool eligible = enabled_ && release_finished_
+                       && (is_trajectory || supported || is_insertion || is_push_off
+                           || (grounded_start_ && is_capture))
+                       && tilt < balance_limit
+                       && (is_trajectory || is_prepare || is_capture || is_push_off || is_insertion
+                           || (is_blend && phase == JointReferenceRecoveryPhase::kPrepare))
+                       && config_.wheel_balance_enabled;
     const bool retained = is_blend && wheel_balance_active_ && supported && tilt < balance_limit;
     Eigen::Vector2f desired =
         retained ? Eigen::Vector2f(targets_.tail<2>()) : Eigen::Vector2f::Zero();

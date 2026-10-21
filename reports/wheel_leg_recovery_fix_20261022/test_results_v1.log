@@ -1,0 +1,83 @@
+build/rmcs_core/Testing/20261021-1900/Test.xml: 2 tests, 0 errors, 1 failure, 0 skipped
+- wheel_leg_recovery_tuck
+  <<< failure message
+    -- run_test.py: invoking following command in '/workspaces/RMCS/rmcs_ws/build/rmcs_core':
+     - /workspaces/RMCS/rmcs_ws/build/rmcs_core/wheel_leg_recovery_tuck --gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml
+    Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+    [==========] Running 18 tests from 1 test suite.
+    [----------] Global test environment set-up.
+    [----------] 18 tests from WheelLegRecoveryTuck
+    [ RUN      ] WheelLegRecoveryTuck.FrontBackAsymmetryAndCommonTurnsReachSameMeasuredGeometry
+    [       OK ] WheelLegRecoveryTuck.FrontBackAsymmetryAndCommonTurnsReachSameMeasuredGeometry (4 ms)
+    [ RUN      ] WheelLegRecoveryTuck.MeasuredKneeAndComBlockEarlyOrUpsideDownTransfer
+    [       OK ] WheelLegRecoveryTuck.MeasuredKneeAndComBlockEarlyOrUpsideDownTransfer (2 ms)
+    [ RUN      ] WheelLegRecoveryTuck.LoadIntegralIsBoundedAndClearedOnResetAndInvalidFeedback
+    [       OK ] WheelLegRecoveryTuck.LoadIntegralIsBoundedAndClearedOnResetAndInvalidFeedback (11 ms)
+    [ RUN      ] WheelLegRecoveryTuck.LoggedRollDoesNotTurnAFeasibleTargetIntoInvalidFeedback
+    [       OK ] WheelLegRecoveryTuck.LoggedRollDoesNotTurnAFeasibleTargetIntoInvalidFeedback (1 ms)
+    [ RUN      ] WheelLegRecoveryTuck.BodyFixedTargetDoesNotChaseImuOrRejectSideFalls
+    [       OK ] WheelLegRecoveryTuck.BodyFixedTargetDoesNotChaseImuOrRejectSideFalls (1 ms)
+    [ RUN      ] WheelLegRecoveryTuck.CenteredLegsFoldWithoutARevolutionAndUseWheelsDuringFolding
+    [       OK ] WheelLegRecoveryTuck.CenteredLegsFoldWithoutARevolutionAndUseWheelsDuringFolding (5 ms)
+    [ RUN      ] WheelLegRecoveryTuck.CompletedReferenceCannotRotateAnUnfoldedMeasuredLeg
+    [       OK ] WheelLegRecoveryTuck.CompletedReferenceCannotRotateAnUnfoldedMeasuredLeg (5 ms)
+    [ RUN      ] WheelLegRecoveryTuck.LoggedWholeTurnHingeIsRestoredWithoutClampingRealViolations
+    [       OK ] WheelLegRecoveryTuck.LoggedWholeTurnHingeIsRestoredWithoutClampingRealViolations (0 ms)
+    [ RUN      ] WheelLegRecoveryTuck.LoadCompensationUsesExecutedReferenceAndPerAxisAntiwindup
+    [       OK ] WheelLegRecoveryTuck.LoadCompensationUsesExecutedReferenceAndPerAxisAntiwindup (2 ms)
+    [ RUN      ] WheelLegRecoveryTuck.TrajectoryHandsOverWithoutSupportHeightVelocityOrStrictTuckGates
+    [       OK ] WheelLegRecoveryTuck.TrajectoryHandsOverWithoutSupportHeightVelocityOrStrictTuckGates (13 ms)
+    [ RUN      ] WheelLegRecoveryTuck.FixedReverseBranchFoldsThenRotatesWithoutExtensionAndResets
+    /workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp:334: Failure
+    Expected: ((reference - previous).head<2>().mean()) <= (1e-6), actual: 0.00051695387810468674 vs 1e-06
+    
+    /workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp:335: Failure
+    Expected: ((reference - previous).tail<2>().mean()) >= (-1e-6), actual: -0.00051695574074983597 vs -1e-06
+    
+    /workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp:372: Failure
+    Value of: controller.command().pure_rl
+      Actual: false
+    Expected: true
+    
+    [  FAILED  ] WheelLegRecoveryTuck.FixedReverseBranchFoldsThenRotatesWithoutExtensionAndResets (21 ms)
+    [ RUN      ] WheelLegRecoveryTuck.ReferenceDurationsScaleByThreeAndTiltingNeverCommandsExtension
+    [       OK ] WheelLegRecoveryTuck.ReferenceDurationsScaleByThreeAndTiltingNeverCommandsExtension (20 ms)
+    [ RUN      ] WheelLegRecoveryTuck.TrajectoryDoesNotHandOverWhenActualLegsStayFarAway
+    [       OK ] WheelLegRecoveryTuck.TrajectoryDoesNotHandOverWhenActualLegsStayFarAway (6 ms)
+    [ RUN      ] WheelLegRecoveryTuck.RecordedSchedulingGapPassesButStaleOrReversedFeedbackDoesNot
+    [       OK ] WheelLegRecoveryTuck.RecordedSchedulingGapPassesButStaleOrReversedFeedbackDoesNot (3 ms)
+    [ RUN      ] WheelLegRecoveryTuck.RejectsWrongModelAndUnsafeBounds
+    [       OK ] WheelLegRecoveryTuck.RejectsWrongModelAndUnsafeBounds (33 ms)
+    [ RUN      ] WheelLegRecoveryTuck.FsmRequiresMeasuredTuckEvenWhenLegacyCaptureIsReady
+    [       OK ] WheelLegRecoveryTuck.FsmRequiresMeasuredTuckEvenWhenLegacyCaptureIsReady (5 ms)
+    [ RUN      ] WheelLegRecoveryTuck.NonfiniteTuckReferenceFailsBeforeActuation
+    [       OK ] WheelLegRecoveryTuck.NonfiniteTuckReferenceFailsBeforeActuation (3 ms)
+    [ RUN      ] WheelLegRecoveryTuck.LoadCompensationMatchesTorqueAndExecutedActionHistory
+    [       OK ] WheelLegRecoveryTuck.LoadCompensationMatchesTorqueAndExecutedActionHistory (5 ms)
+    [----------] 18 tests from WheelLegRecoveryTuck (148 ms total)
+    
+    [----------] Global test environment tear-down
+    [==========] 18 tests from 1 test suite ran. (148 ms total)
+    [  PASSED  ] 17 tests.
+    [  FAILED  ] 1 test, listed below:
+    [  FAILED  ] WheelLegRecoveryTuck.FixedReverseBranchFoldsThenRotatesWithoutExtensionAndResets
+    
+     1 FAILED TEST
+    -- run_test.py: return code 1
+    -- run_test.py: inject classname prefix into gtest result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml'
+    -- run_test.py: verify result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml'
+  >>>
+build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml: 18 tests, 0 errors, 1 failure, 0 skipped
+- rmcs_core.WheelLegRecoveryTuck FixedReverseBranchFoldsThenRotatesWithoutExtensionAndResets (/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp:290)
+  <<< failure message
+    /workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp:334
+    Expected: ((reference - previous).head<2>().mean()) <= (1e-6), actual: 0.00051695387810468674 vs 1e-06
+    /workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp:335
+    Expected: ((reference - previous).tail<2>().mean()) >= (-1e-6), actual: -0.00051695574074983597 vs -1e-06
+    /workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp:372
+    Value of: controller.command().pure_rl
+      Actual: false
+    Expected: true
+  >>>
+
+Summary: 22 tests, 0 errors, 2 failures, 0 skipped

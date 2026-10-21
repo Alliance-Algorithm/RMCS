@@ -54,7 +54,7 @@ wheel-leg 的正式配置为 `wheel-leg-infantry-rl.yaml`。
 ## 离线验证
 
 ```sh
-colcon build --merge-install --symlink-install --packages-select rmcs_rl rmcs_core rmcs_bringup --cmake-args -DBUILD_TESTING=ON
+build-rmcs --packages-select rmcs_rl rmcs_core rmcs_bringup
 colcon test --merge-install --packages-select rmcs_rl rmcs_core
 python3 src/rmcs_core/tools/verify_wheel_leg_reference.py --reference origin/dev/wheel_leg_rl --policy-receipt src/rmcs_rl/models/wheel_leg/flat_directional200_1346_preview_20261020.deployment.json
 ```

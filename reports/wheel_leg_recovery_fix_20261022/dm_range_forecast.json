@@ -1,0 +1,106 @@
+[
+  {
+    "case": "csv_first_upright",
+    "csv_index": 3577,
+    "start_q": [
+      4.048882277,
+      5.343023575,
+      -4.066048676,
+      -5.407492943
+    ],
+    "common_turn_offset": [
+      6.283185307179586,
+      6.283185307179586,
+      -6.283185307179586,
+      -6.283185307179586
+    ],
+    "motor_min": [
+      -3.1336599270450036,
+      -2.446362923775808,
+      -1.5687439759625037,
+      -3.0401967652691444
+    ],
+    "motor_max": [
+      1.5689533074749549,
+      3.040508139933451,
+      3.165677277241842,
+      2.49308879295458
+    ],
+    "first_guard_crossing": null,
+    "coordinate_source": "Native canonical feedback, with PhysX whole-turn coordinate branches removed; restored source CSV common turns. No drive rollover is inferred.",
+    "source_physics_report": "isaac_final/report.json (earlier physics-only run, not final acceptance)",
+    "source_samples_sha256": "bb12e3e77ac112ff6cdc61c689752b3d0194700b12e176ef9501498f3b1748ed"
+  },
+  {
+    "case": "csv_upside_down",
+    "csv_index": 6409,
+    "start_q": [
+      -1.987586786,
+      -0.6907751583,
+      2.001701381,
+      0.6575867857
+    ],
+    "common_turn_offset": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "motor_min": [
+      2.9025410175323487,
+      3.5873044657707216,
+      -7.975320434570312,
+      -9.373972587585449
+    ],
+    "motor_max": [
+      7.981063938140869,
+      9.375926189422607,
+      -2.8928118705749513,
+      -3.573662512302399
+    ],
+    "first_guard_crossing": null,
+    "coordinate_source": "Native canonical feedback, with PhysX whole-turn coordinate branches removed; restored source CSV common turns. No drive rollover is inferred.",
+    "source_physics_report": "isaac_final/report.json (earlier physics-only run, not final acceptance)",
+    "source_samples_sha256": "aa31cdd28cce61bdb88c6eb0c75843b43de56e79e11d2e86d2e4a62607946e05"
+  },
+  {
+    "case": "csv_latest_asymmetric",
+    "csv_index": 19349,
+    "start_q": [
+      -8.351743343,
+      -7.059890898,
+      -13.00669108,
+      -14.32868009
+    ],
+    "common_turn_offset": [
+      -6.283185307179586,
+      -6.283185307179586,
+      -12.566370614359172,
+      -12.566370614359172
+    ],
+    "motor_min": [
+      9.260995546971456,
+      9.956296857987539,
+      10.97221272263864,
+      9.500974744746479
+    ],
+    "motor_max": [
+      14.14058295885195,
+      15.611963268910543,
+      12.09786775905827,
+      11.423513844797405
+    ],
+    "first_guard_crossing": {
+      "time_s": 1.3900000000000001,
+      "motor_position": [
+        10.975064436589376,
+        12.407593485509054,
+        11.697345228979382,
+        10.284955695459637
+      ]
+    },
+    "coordinate_source": "Native canonical feedback, with PhysX whole-turn coordinate branches removed; restored source CSV common turns. No drive rollover is inferred.",
+    "source_physics_report": "isaac_final/report.json (earlier physics-only run, not final acceptance)",
+    "source_samples_sha256": "815cae46ea290a8d2c8fb6aa24d6af619cbc3ef771cfde92c0e565b5891b68b5"
+  }
+]

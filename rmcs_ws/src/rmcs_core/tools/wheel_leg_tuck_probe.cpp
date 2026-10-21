@@ -35,7 +35,7 @@ struct TrajectoryProbe {
         : tuck{
               directory / "tuck_geometry_107_v1.json",
               "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
-              {.integral_gain = gain}}
+              {.integral_gain = gain, .body_fixed = true}}
         , trajectory{trajectory_config(directory)} {}
 };
 } // namespace
@@ -110,11 +110,13 @@ int wheel_leg_trajectory_step(
             feedback.q.head<4>(), feedback.gravity, dt, previous.tucking || previous.pure_rl,
             previous.targets.head<4>(), feedback.dq.head<4>());
         feedback.tuck_reference = state.reference;
+        feedback.tuck_fold_reference = state.fold_reference;
         feedback.tuck_hold_torque = state.hold_torque;
         feedback.tuck_valid = state.valid;
         feedback.tuck_ready = state.ready;
-        feedback.rl_capture_ready =
-            state.valid && -feedback.gravity.z() >= std::cos(40 * std::numbers::pi / 180);
+        feedback.tuck_folded = state.folded;
+        feedback.rl_capture_ready = state.knees_at_target && state.valid
+                                 && -feedback.gravity.z() >= std::cos(40 * std::numbers::pi / 180);
         if (!previous.pure_rl)
             probe.trajectory.update(feedback, dt);
         const auto& command = probe.trajectory.command();

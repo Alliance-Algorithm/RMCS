@@ -1,0 +1,399 @@
+{
+  "scope": "Unrestrained 6-DOF base and ground contacts; production C++ tuck/FSM/native support observer with dynamic simulated IMU. Stops motor outputs at first script failure or RL ownership event. No actor, ROS transport, CAN delays, hardware acceptance, or self collision clearance validation.",
+  "fixture": "none",
+  "isaac_sim_version": "6.0.0.1",
+  "dt": 0.001,
+  "duration_s": 4.0,
+  "source_csv_sha256": "23aaf4e6eae10ec722ea6b1406860eb7c7ceb8762d18c9acd08139cf6bf9c565",
+  "library_sha256": "6a1f83e16dc2af2a4d24eaa5e923ed3e5b110b186e686b0a716cb7268feb5555",
+  "script_sha256": "c5ac42d9c0ac85a6350985f26f4dd2e808bc03f9285a50ec3cb18e6b12b39fd1",
+  "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+  "manifest_sha256": "d3af5b544b874c8629860a9cc0c1529d215b0e3644126b3b9da7ad87b3256690",
+  "results": [
+    {
+      "name": "standing_50",
+      "z0": 0.2598813043450965,
+      "terminal": {
+        "time_s": 2.215,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 19.781479930203762
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 0.26141053695262667,
+          "knee_deg": [
+            50.00006512724609,
+            50.00006507914308
+          ],
+          "remaining_rad": 0.12702013552188873,
+          "tracking_rad": 0.003000006079673767,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.041,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 0.2798908832817553,
+          "knee_deg": [
+            48.88440288779531,
+            48.8728508570697
+          ],
+          "remaining_rad": 0.004020166117697954,
+          "tracking_rad": 0.11292226612567902,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 2.215,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 19.781479930203762,
+          "knee_deg": [
+            39.98160227644053,
+            40.02359314522091
+          ],
+          "remaining_rad": 0.003523609135299921,
+          "tracking_rad": 0.03139781951904297,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 33.59634815738561,
+      "max_tilt": 33.59634815738561,
+      "max_closure": 6.577530224672053e-05,
+      "gas_clamp_mm": 0.8027727766163201,
+      "max_torque": 17.42873191833496,
+      "hinge_min": -0.14199423789978027,
+      "hinge_max": 0.15555431693792343
+    },
+    {
+      "name": "folded_40_5",
+      "z0": 0.22550234719730067,
+      "terminal": {
+        "time_s": 0.021,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 0.281905917381153
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 0.26143602778390196,
+          "knee_deg": [
+            40.500050910197324,
+            40.50005099260943
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 7.599592208862305e-07,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.02,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 0.2815495471750668,
+          "knee_deg": [
+            41.221109275233545,
+            41.21016652518415
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.011515796184539795,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.021,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 0.281905917381153,
+          "knee_deg": [
+            41.21162654494615,
+            41.200676034139875
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.012618407607078552,
+          "helper_valid": true,
+          "support": true
+        }
+      ],
+      "max_pre_tilt": 0.281905917381153,
+      "max_tilt": 9.354386744028492,
+      "max_closure": 0.00018943053851037126,
+      "gas_clamp_mm": 0.4997418312556595,
+      "max_torque": 7.892490863800049,
+      "hinge_min": -0.1258504674769938,
+      "hinge_max": -0.1015452966094017
+    },
+    {
+      "name": "roll_18",
+      "z0": 0.3179443107501033,
+      "terminal": {
+        "time_s": 0.0,
+        "kind": "failure",
+        "native_failure": 1,
+        "tilt_deg": 17.99999768308042
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 10,
+          "failure": 1,
+          "tilt_deg": 17.99999768308042,
+          "knee_deg": [
+            50.00006512724609,
+            50.00006507914308
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.0,
+          "helper_valid": false,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 17.99999768308042,
+      "max_tilt": 18.978980305259444,
+      "max_closure": 2.940296778999719e-05,
+      "gas_clamp_mm": 0.0,
+      "max_torque": 0.0,
+      "hinge_min": 0.13418832793831825,
+      "hinge_max": 0.13419808633625507
+    },
+    {
+      "name": "standing_305",
+      "z0": 0.3080000000000003,
+      "terminal": {
+        "time_s": 2.2640000000000002,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 19.78284944001316
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 0.2613794810204721,
+          "knee_deg": [
+            63.866491690291014,
+            63.866491802527605
+          ],
+          "remaining_rad": 0.2937599718570709,
+          "tracking_rad": 0.00299999862909317,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.097,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 0.5991259819049686,
+          "knee_deg": [
+            49.014805675569455,
+            49.01632449973777
+          ],
+          "remaining_rad": 0.0027600773610174656,
+          "tracking_rad": 0.1148097887635231,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 2.2640000000000002,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 19.78284944001316,
+          "knee_deg": [
+            39.99613879613645,
+            40.032614037856355
+          ],
+          "remaining_rad": 0.002774497726932168,
+          "tracking_rad": 0.03324747085571289,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 33.65928636651593,
+      "max_tilt": 53.0828684520287,
+      "max_closure": 0.00010299803920316089,
+      "gas_clamp_mm": 0.8163544865525812,
+      "max_torque": 18.694345474243164,
+      "hinge_min": -0.14237582683563232,
+      "hinge_max": 0.4883967936038971
+    },
+    {
+      "name": "csv_first_upright",
+      "z0": 0.2109086386877381,
+      "terminal": {
+        "time_s": 1.928,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 19.609943347313497
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 5.811854577811606,
+          "knee_deg": [
+            103.21770147188299,
+            105.59829751931068
+          ],
+          "remaining_rad": 0.7306481599807739,
+          "tracking_rad": 0.003000020980834961,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.242,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 27.72744230792116,
+          "knee_deg": [
+            49.0164924783882,
+            50.27794269526168
+          ],
+          "remaining_rad": 0.004643103573471308,
+          "tracking_rad": 0.15186023712158203,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 1.928,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 19.609943347313497,
+          "knee_deg": [
+            39.96349594770425,
+            39.98641613314754
+          ],
+          "remaining_rad": 0.004334231838583946,
+          "tracking_rad": 0.04819297790527344,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 29.415291920879394,
+      "max_tilt": 29.415291920879394,
+      "max_closure": 6.35967195409393e-05,
+      "gas_clamp_mm": 0.7952518811650128,
+      "max_torque": 40.0,
+      "hinge_min": -0.14188671112060547,
+      "hinge_max": 1.3690404295921326
+    },
+    {
+      "name": "csv_upside_down",
+      "z0": 0.07775662481382684,
+      "terminal": {
+        "time_s": 0.393,
+        "kind": "failure",
+        "native_failure": 2,
+        "tilt_deg": 158.69938340026167
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 171.95997233335575,
+          "knee_deg": [
+            103.35181190990119,
+            105.73293397724507
+          ],
+          "remaining_rad": 0.7319833040237427,
+          "tracking_rad": 0.003000020980834961,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.243,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 172.11744798167314,
+          "knee_deg": [
+            50.42359930533352,
+            49.250849528818684
+          ],
+          "remaining_rad": 0.002978226635605097,
+          "tracking_rad": 0.16451501846313477,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.393,
+          "phase": 10,
+          "failure": 2,
+          "tilt_deg": 158.69938340026167,
+          "knee_deg": [
+            44.62549402948747,
+            44.3666672415345
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.11339044570922852,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 179.83737127436277,
+      "max_tilt": 179.83737127436277,
+      "max_closure": 9.712633099439355e-05,
+      "gas_clamp_mm": 0.0,
+      "max_torque": 34.98698806762695,
+      "hinge_min": -0.02922201156616211,
+      "hinge_max": 1.3690469861030579
+    },
+    {
+      "name": "csv_latest_asymmetric",
+      "z0": 0.24736735534981558,
+      "terminal": {
+        "time_s": 0.226,
+        "kind": "failure",
+        "native_failure": 1,
+        "tilt_deg": 17.30414108683552
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 11.803866470032313,
+          "knee_deg": [
+            103.10275265975112,
+            104.61817963466619
+          ],
+          "remaining_rad": 0.7209205031394958,
+          "tracking_rad": 0.003000020980834961,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.226,
+          "phase": 10,
+          "failure": 1,
+          "tilt_deg": 17.30414108683552,
+          "knee_deg": [
+            51.10794758687283,
+            52.058055612645205
+          ],
+          "remaining_rad": 0.04591634124517441,
+          "tracking_rad": 0.1225084662437439,
+          "helper_valid": false,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 17.30414108683552,
+      "max_tilt": 24.626415380087124,
+      "max_closure": 4.389937556776655e-05,
+      "gas_clamp_mm": 0.0,
+      "max_torque": 38.59066390991211,
+      "hinge_min": 0.162453293800354,
+      "hinge_max": 1.3689015209674835
+    }
+  ]
+}

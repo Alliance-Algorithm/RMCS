@@ -127,7 +127,8 @@ RecoveryTuckState
     RecoveryTuckState state;
     if (!q.allFinite() || !g.allFinite() || std::abs(g.squaredNorm() - 1.0) > 1e-3)
         return state;
-    const Eigen::Vector3d forward = g.cross(Eigen::Vector3d::UnitY());
+    const Eigen::Vector3d down = config_.body_fixed ? Eigen::Vector3d{0.0, 0.0, -1.0} : g;
+    const Eigen::Vector3d forward = down.cross(Eigen::Vector3d::UnitY());
     if (forward.norm() < 0.5)
         return state;
     Eigen::Vector3d moment = base_moment_;
@@ -151,9 +152,16 @@ RecoveryTuckState
     for (int side = 0; side < 2; ++side) {
         const Eigen::Vector3d offset = state.wheels_b_m[side] - state.com_b_m;
         state.sagittal_error_m[side] = forward.normalized().dot(offset);
-        below &= g.dot(offset) > 0.04;
+        below &= down.dot(offset) > 0.0;
     }
     state.valid = true;
+    // Allow small stop compliance in measured FK, as in the hinge guard. The
+    // commanded geometry stays at 40.5 deg, never below the physical stop.
+    state.folded = (state.knee_deg.array() >= 39.0).all()
+                && (state.knee_deg.array() <= config_.knee_deg + 2.0).all();
+    state.knees_at_target =
+        state.folded
+        && (state.knee_deg.array() <= config_.knee_deg + config_.knee_tolerance_deg).all();
     state.ready = below && (state.knee_deg.array() >= 40.0).all()
                && (state.knee_deg.array() - config_.knee_deg).abs().maxCoeff()
                       <= config_.knee_tolerance_deg
@@ -170,6 +178,8 @@ RecoveryTuckState RecoveryTuckController::update(
         return state;
     }
     Eigen::Vector4d goal;
+    const Eigen::Vector3d alignment =
+        config_.body_fixed ? Eigen::Vector3d{0.0, 0.0, -1.0} : gravity;
     for (int side = 0; side < 2; ++side) {
         const auto& leg = legs_[side];
         double delta = 0.0;
@@ -185,7 +195,7 @@ RecoveryTuckState RecoveryTuckController::update(
         }
         const auto knot = interpolate_(side, delta);
         const Eigen::Vector3d v = knot.wheel - leg.pivot;
-        const Eigen::Vector3d down = gravity - leg.axis * leg.axis.dot(gravity);
+        const Eigen::Vector3d down = alignment - leg.axis * leg.axis.dot(alignment);
         const double angle = std::atan2(leg.axis.dot(v.cross(down)), v.dot(down));
         goal[2 * side] = leg.hip_reference + angle;
         goal[2 * side + 1] = goal[2 * side] + delta;
@@ -220,7 +230,10 @@ RecoveryTuckState RecoveryTuckController::update(
             goal.segment<2>(2 * side).array() += std::clamp(step[side], -0.3, 0.3);
     }
     const auto solved = measure(goal, gravity);
-    if (!solved.valid || !solved.ready) {
+    // Target feasibility is separate from measured capture readiness. A rolled
+    // body can put one wheel less than 40 mm below COM without invalidating IK.
+    if (!solved.valid
+        || solved.sagittal_error_m.cwiseAbs().maxCoeff() > config_.max_sagittal_error_m) {
         reset();
         state.valid = state.ready = false;
         return state;
@@ -232,6 +245,28 @@ RecoveryTuckState RecoveryTuckController::update(
         goal.segment<2>(2 * side).array() += turns * 2 * std::numbers::pi;
     }
     state.reference = goal;
+    state.fold_reference = goal;
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side;
+        const auto& leg = legs_[side];
+        const Eigen::Vector3d offset = state.wheels_b_m[side] - state.com_b_m;
+        const Eigen::Vector3d forward = alignment.cross(Eigen::Vector3d::UnitY()).normalized();
+        const double heading = std::atan2(forward.dot(offset), alignment.dot(offset));
+        // Already centered legs fold straight into the final pose. Selecting a
+        // directed orbit for a few degrees of fold geometry error adds 360 deg.
+        if (std::abs(heading) <= 15.0 * std::numbers::pi / 180.0)
+            continue;
+        const auto knot = interpolate_(side, goal[hip + 1] - goal[hip]);
+        const Eigen::Vector3d v = knot.wheel - leg.pivot;
+        const Eigen::Vector3d current = state.wheels_b_m[side] - leg.pivot;
+        const double angle = std::atan2(
+            leg.axis.dot(v.cross(current)),
+            v.dot(current) - leg.axis.dot(v) * leg.axis.dot(current));
+        double folded_hip = leg.hip_reference + angle;
+        folded_hip +=
+            2 * std::numbers::pi * std::nearbyint((q[hip] - folded_hip) / (2 * std::numbers::pi));
+        state.fold_reference.segment<2>(hip).array() += folded_hip - goal[hip];
+    }
     if (tucking) {
         integrate_(q, goal, Eigen::Vector4d::Zero(), dt);
     } else {

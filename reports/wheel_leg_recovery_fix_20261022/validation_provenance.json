@@ -1,0 +1,89 @@
+{
+  "git_head": "71055c617be776d83a3a01ca2d0ab965f9e14564",
+  "source_csv_sha256": "23aaf4e6eae10ec722ea6b1406860eb7c7ceb8762d18c9acd08139cf6bf9c565",
+  "library_sha256": "1ef8c49e1f92792304def857bd9bb1f002ffe7cb86032188bf6d55118d02ea28",
+  "compiled_source_hashes_match_build_receipt": true,
+  "current_native_source_hashes_match_run": true,
+  "current_replay_script_hash_matches_run": true,
+  "runtime_script_updated_since_build": {
+    "files": {
+      "reports/wheel_leg_recovery_fix_20261022/probe_freebody.py": {
+        "at_build": "273d32aaaae63c7c18d4b38c1dd97db1789e1c535ac676a66b0dcc66ca0bd89b",
+        "now": "765ab77503e4933fcb67d74d25905edddde2da211bed57885238541d96f50863"
+      }
+    },
+    "reason": "Added continuous physical-angle bookkeeping for PhysX revolute coordinate branch changes; no compiled source changed."
+  },
+  "pass_cases": [
+    "standing_50",
+    "folded_40_5",
+    "roll_18",
+    "standing_305",
+    "csv_first_upright"
+  ],
+  "unresolved": [
+    {
+      "case": "csv_upside_down",
+      "terminal": {
+        "time_s": 7.9990000000000006,
+        "kind": "failure",
+        "native_failure": 6,
+        "tilt_deg": 98.16549339574958
+      },
+      "range_failure": null
+    },
+    {
+      "case": "csv_latest_asymmetric",
+      "terminal": {
+        "time_s": 1.3880000000000001,
+        "kind": "feedback_range",
+        "native_failure": 0,
+        "tilt_deg": 8.39549244391442
+      },
+      "range_failure": {
+        "time_s": 1.3880000000000001,
+        "motor_angle_rad": [
+          10.96903959909548,
+          12.401524540578023,
+          11.698750527689251,
+          10.286420062372478
+        ],
+        "motor_limit_rad": [
+          12.4,
+          12.4,
+          12.4,
+          12.4
+        ],
+        "reason": "raw DM feedback position range"
+      }
+    }
+  ],
+  "source_receipt": "build_provenance.json",
+  "record_sha256": {
+    "isaac_acceptance/standing_50_samples.json": "f0ba510d0b80958e2c895b5028c4b643b4eb7d68de726453b7121a391ef00026",
+    "isaac_acceptance/folded_40_5_samples.json": "7ba1c0c5022322c3a573bf48cf44424964cae4038f15d7b4347d7bf73e7f4b5f",
+    "isaac_acceptance/roll_18_samples.json": "5b243eea9bffa60f90c869f92e4a958e70fdd3048f513665d5f0401369444d26",
+    "isaac_acceptance/standing_305_samples.json": "db7ced2900be8f9eeecba3064536795665b494c601520ab67b088328c02d6078",
+    "isaac_acceptance/csv_first_upright_samples.json": "e6c62965c24be47b98c0ab55406a3ba912ff1c5f49e257b0b521f0cfd8924123",
+    "isaac_acceptance/csv_upside_down_samples.json": "35e759e9f748f4e4e5d38e43e4d5358bd18ffaed60ee1d4a5df68322419df36d",
+    "isaac_acceptance/csv_latest_asymmetric_samples.json": "13d16506fc99be3257dcb340a41e184b88b940da5864a26908cc486503f06c65",
+    "isaac_acceptance/report.json": "94aeabee0eb70b3d52bab40895a55d827c8f74660574d14c8b7d4e98c4b93eb1",
+    "README.md": "c0f274cc4b007af73cf5fa703c315a90162f84f210ec1c52e26693d491dfad4f",
+    "plot_validation.py": "1a2b5a9c3e0e966ae261e2f1c3e04c14e9d390bad75cf33e29ee51462a5df166",
+    "build_probe.sh": "803679d5dcebfc78c6002f9d3c3cd8c146e312d8da8826edafa6ee5205a9854b",
+    "build_provenance.json": "5305be917dbfa659d05270e95ca802a3a0cda5db18cd5e408b91e9cc5b196e05",
+    "build_and_tests_acceptance.log": "0ea10e9c74b810ba44ac643cad81a2266aedf9fcc90fc82ee45599ae6d43a9f6",
+    "dm_defaults_reference.json": "97baebfc975422390f6e5c7b1ca4c10763f53d6588c376a9a430ceffbdc7ab17",
+    "dm_range_hardware_exits.json": "76e425e8950f627eb406a637b71bafe9fbbb2a0b1e3b5666e7d3232681d47de4",
+    "dm_range_forecast.json": "2ba8d56e972a1cc8b4040182456cb785d75fc2332e1fc2e9181e335e6ec40240",
+    "recovery_validation.png": "f3abbf4a62e3037ab12db011cfa0d4f3798096b9852b30ea8bc67a3a79b3b31c",
+    "probe_freebody.py": "765ab77503e4933fcb67d74d25905edddde2da211bed57885238541d96f50863"
+  },
+  "limitations": [
+    "No hardware motion, firmware query, firmware change, motor-zero command, or CAN validation.",
+    "Raw position range check is replicated; drive overflow behavior is deliberately not assumed.",
+    "Self collision is filtered; full-turn physical clearance remains unverified.",
+    "Ideal torque actuation and catalog spring prior; no hardware power envelope or communication delay."
+  ],
+  "note": "Only isaac_acceptance is final. Earlier six-case physics/actor success omitted the raw motor check and is not full-path acceptance."
+}

@@ -1,0 +1,670 @@
+{
+  "scope": "Unrestrained 6-DOF base and ground contacts, compiled C++ tuck/FSM/native support observer and dynamic simulated IMU. No ROS worker timing, CAN delays, hardware acceptance, or self collision clearance validation. See policy_scope for actual actor execution.",
+  "policy_sha256": "a00d13df1d4113fe949c2a6a15b508e5c491fd1a5e6881570bf025a8d3c29c29",
+  "motor_range_guard": {
+    "enabled": true,
+    "limit_rad": [
+      12.4,
+      12.4,
+      12.4,
+      12.4
+    ],
+    "scope": "Replicated deployed raw position check before paired winding; original CSV turns restored. No assumed drive overflow or saturation behavior."
+  },
+  "policy_scope": "Official ONNX, 35-D YAML order/scales, 50 Hz shadow inference, native action winding/PD/effective history, 1 kHz physics. No ROS worker timing or CAN.",
+  "fixture": "none",
+  "isaac_sim_version": "6.0.0.1",
+  "dt": 0.001,
+  "duration_s": 8.0,
+  "native_sources_sha256": {
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_controller.cpp": "0f0f5538c4edebe9e845c151502a85f1e0a4f67ba282107b91a7e01d65a4aa2c",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_observer.cpp": "08bbfe468466879b0469b601893fc9353065f3285cf61e4068185eb6cd2112ce",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_profile.cpp": "a6791d1b1763077573715fdb5bce774a16e741833510780f8317d1ee8192772a",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp": "0b1fedc03e03bdf0aa8df4e8a2cc7d3556914af1dc10a5b0960cf9ec53e7004b",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.cpp": "c4716ba621374ea2c208eae04e9bc3bf1ba0b73ea72018fba8312b493ed1a48f",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp": "da9ad615fb0e3c82f846fabad63d86cc1f9ed0f6db2bf9b4df9a42a2f2ee48a1",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/controller_recovery.cpp": "78501a3a7435c2fea646739657d832846add43b86307e1d8c3561b65c12794d2",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/observation.cpp": "36078f0b52d74eb371e6734dccf980a67cc6f6ae736b13b49d8781889c2b9898",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp": "62cca1249dde58ed46ff974ac4c645ecc959ca3a8e18f2c282850642fe01fb30",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp": "608d9e5ac6877ec21de312bb81eab2d31d4cf571e0fc2a823e78892fa1ec3b21",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp": "594254e24fc9dcfb74963df2440ea84cee049465607c03a4b2594c1fa360e6c8"
+  },
+  "source_csv_sha256": "23aaf4e6eae10ec722ea6b1406860eb7c7ceb8762d18c9acd08139cf6bf9c565",
+  "library_sha256": "1ef8c49e1f92792304def857bd9bb1f002ffe7cb86032188bf6d55118d02ea28",
+  "script_sha256": "273d32aaaae63c7c18d4b38c1dd97db1789e1c535ac676a66b0dcc66ca0bd89b",
+  "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+  "manifest_sha256": "d3af5b544b874c8629860a9cc0c1529d215b0e3644126b3b9da7ad87b3256690",
+  "results": [
+    {
+      "name": "standing_50",
+      "z0": 0.2598813043450965,
+      "terminal": {
+        "time_s": 0.097,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 0.7606425915469155
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 0.26141053695262667,
+          "knee_deg": [
+            50.00006512724609,
+            50.00006507914308
+          ],
+          "remaining_rad": 0.1476314663887024,
+          "tracking_rad": 0.003000006079673767,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.089,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 0.7918097781970326,
+          "knee_deg": [
+            42.33028607244725,
+            42.322336901102766
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.030454568564891815,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.097,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 0.7606425915469155,
+          "knee_deg": [
+            40.98510070493294,
+            40.97632186008272
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.011854074895381927,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 0.7918661121918072,
+      "max_tilt": 1.984500183094844,
+      "max_closure": 0.00012278174796212383,
+      "gas_clamp_mm": 0.7928339349306673,
+      "max_torque": 13.140755653381348,
+      "hinge_min": -0.14032790064811707,
+      "hinge_max": 0.19423585385084152,
+      "actor_failure": null,
+      "post_handover_max_tilt": 1.984500183094844,
+      "policy_calls": 400,
+      "range_failure": null,
+      "source_model_turn_offset_rad": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_tilt_deg": 0.3970554395868094,
+      "final_knee_deg": [
+        43.66754609316432,
+        44.32794150264381
+      ],
+      "final_wheel_support_n": [
+        64.34919738769531,
+        71.86344146728516
+      ],
+      "max_applied_leg_effort_nm": 31.87539291381836,
+      "max_applied_wheel_effort_nm": 4.5,
+      "terminal_knee_deg": [
+        40.98510070493294,
+        40.97632186008272
+      ],
+      "terminal_body_sagittal_error_mm": [
+        -0.9101456073604269,
+        -0.8298884936967371
+      ]
+    },
+    {
+      "name": "folded_40_5",
+      "z0": 0.22550234719730067,
+      "terminal": {
+        "time_s": 0.043000000000000003,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 0.2707197853748132
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 0.26143602778390196,
+          "knee_deg": [
+            40.500050910197324,
+            40.50005099260943
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 3.2782554626464844e-06,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.02,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 0.273120095514001,
+          "knee_deg": [
+            41.21467469569603,
+            41.203238275982635
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.010611139237880707,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.043000000000000003,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 0.2707197853748132,
+          "knee_deg": [
+            40.99734160044973,
+            40.990379031685485
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.009199030697345734,
+          "helper_valid": true,
+          "support": true
+        }
+      ],
+      "max_pre_tilt": 0.27510787180792645,
+      "max_tilt": 1.6136360154287812,
+      "max_closure": 5.04757132364153e-05,
+      "gas_clamp_mm": 0.4997418312556595,
+      "max_torque": 7.832343578338623,
+      "hinge_min": -0.1258504674769938,
+      "hinge_max": 0.24594074487686157,
+      "actor_failure": null,
+      "post_handover_max_tilt": 1.6136360154287812,
+      "policy_calls": 400,
+      "range_failure": null,
+      "source_model_turn_offset_rad": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_tilt_deg": 0.39215793021461726,
+      "final_knee_deg": [
+        43.665707171452,
+        44.30515764575909
+      ],
+      "final_wheel_support_n": [
+        64.51439666748047,
+        73.16259002685547
+      ],
+      "max_applied_leg_effort_nm": 15.075606346130371,
+      "max_applied_wheel_effort_nm": 3.6902995109558105,
+      "terminal_knee_deg": [
+        40.99734160044973,
+        40.990379031685485
+      ],
+      "terminal_body_sagittal_error_mm": [
+        -0.46168480450589977,
+        -0.49614356439094814
+      ]
+    },
+    {
+      "name": "roll_18",
+      "z0": 0.3179443107501033,
+      "terminal": {
+        "time_s": 0.274,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 0.47064268073805904
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 17.99999768308042,
+          "knee_deg": [
+            50.00006512724609,
+            50.00006507914308
+          ],
+          "remaining_rad": 0.1476314663887024,
+          "tracking_rad": 0.003000006079673767,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.202,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 0.770233154928862,
+          "knee_deg": [
+            42.31900532575605,
+            41.93919706827224
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.0284663625061512,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.274,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 0.47064268073805904,
+          "knee_deg": [
+            40.28419548841169,
+            40.99657003083333
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.008255831897258759,
+          "helper_valid": true,
+          "support": true
+        }
+      ],
+      "max_pre_tilt": 18.000004311754317,
+      "max_tilt": 18.000004311754317,
+      "max_closure": 4.8854093299219665e-05,
+      "gas_clamp_mm": 0.8072084332085699,
+      "max_torque": 16.59784507751465,
+      "hinge_min": -0.14218244515359402,
+      "hinge_max": 0.22994880378246307,
+      "actor_failure": null,
+      "post_handover_max_tilt": 1.4459328432113274,
+      "policy_calls": 400,
+      "range_failure": null,
+      "source_model_turn_offset_rad": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_tilt_deg": 0.5707005408557357,
+      "final_knee_deg": [
+        43.60029637076149,
+        44.21678492301776
+      ],
+      "final_wheel_support_n": [
+        67.38553619384766,
+        73.33453369140625
+      ],
+      "max_applied_leg_effort_nm": 16.29354476928711,
+      "max_applied_wheel_effort_nm": 2.8721086978912354,
+      "terminal_knee_deg": [
+        40.28419548841169,
+        40.99657003083333
+      ],
+      "terminal_body_sagittal_error_mm": [
+        -0.28453705636355753,
+        -0.3419255421971794
+      ]
+    },
+    {
+      "name": "standing_305",
+      "z0": 0.3080000000000003,
+      "terminal": {
+        "time_s": 0.14300000000000002,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 1.9142829590531305
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 0.2613794810204721,
+          "knee_deg": [
+            63.866491690291014,
+            63.866491802527605
+          ],
+          "remaining_rad": 0.334859162569046,
+          "tracking_rad": 0.0029999911785125732,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.138,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 1.937762443802657,
+          "knee_deg": [
+            42.1758995329709,
+            42.21425555034718
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.030350789427757263,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.14300000000000002,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 1.9142829590531305,
+          "knee_deg": [
+            40.726202636329695,
+            40.72513461970596
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.009581468999385834,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 1.9403136418578617,
+      "max_tilt": 2.2675578969015255,
+      "max_closure": 0.00010122831461973153,
+      "gas_clamp_mm": 0.8021660199589581,
+      "max_torque": 15.47642707824707,
+      "hinge_min": -0.1411921540275216,
+      "hinge_max": 0.48852770030498505,
+      "actor_failure": null,
+      "post_handover_max_tilt": 2.2675578969015255,
+      "policy_calls": 400,
+      "range_failure": null,
+      "source_model_turn_offset_rad": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_tilt_deg": 0.3701955157536303,
+      "final_knee_deg": [
+        43.66263700142008,
+        44.318947424167376
+      ],
+      "final_wheel_support_n": [
+        64.78963470458984,
+        73.46173858642578
+      ],
+      "max_applied_leg_effort_nm": 29.79032325744629,
+      "max_applied_wheel_effort_nm": 4.5,
+      "terminal_knee_deg": [
+        40.726202636329695,
+        40.72513461970596
+      ],
+      "terminal_body_sagittal_error_mm": [
+        -0.8274162804907497,
+        -1.0416220278421997
+      ]
+    },
+    {
+      "name": "csv_first_upright",
+      "z0": 0.2109086386877381,
+      "terminal": {
+        "time_s": 2.923,
+        "kind": "handover",
+        "native_failure": 0,
+        "tilt_deg": 16.861407155653836
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 5.811854577811606,
+          "knee_deg": [
+            103.21770147188299,
+            105.59829751931068
+          ],
+          "remaining_rad": 0.7306604981422424,
+          "tracking_rad": 0.003000020980834961,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 1.322,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 30.34963318651237,
+          "knee_deg": [
+            42.45983501716341,
+            42.497619356170105
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.03623533248901367,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 2.923,
+          "phase": 9,
+          "failure": 0,
+          "tilt_deg": 16.861407155653836,
+          "knee_deg": [
+            39.96889890192752,
+            39.97276419402545
+          ],
+          "remaining_rad": 0.004108211025595665,
+          "tracking_rad": 0.034389495849609375,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 30.569238641472534,
+      "max_tilt": 30.569238641472534,
+      "max_closure": 6.435640490871183e-05,
+      "gas_clamp_mm": 0.795471673292622,
+      "max_torque": 38.581295013427734,
+      "hinge_min": -0.1422586441040039,
+      "hinge_max": 1.3690750002861023,
+      "actor_failure": null,
+      "post_handover_max_tilt": 17.343279818627884,
+      "policy_calls": 400,
+      "range_failure": null,
+      "source_model_turn_offset_rad": [
+        6.283185307179586,
+        6.283185307179586,
+        -6.283185307179586,
+        -6.283185307179586
+      ],
+      "final_tilt_deg": 0.18416850861319908,
+      "final_knee_deg": [
+        43.778108286250024,
+        44.34974736181675
+      ],
+      "final_wheel_support_n": [
+        65.53179931640625,
+        67.56961059570312
+      ],
+      "max_applied_leg_effort_nm": 37.029273986816406,
+      "max_applied_wheel_effort_nm": 4.5,
+      "terminal_knee_deg": [
+        39.96889890192752,
+        39.97276419402545
+      ],
+      "terminal_body_sagittal_error_mm": [
+        -4.305455617397508,
+        -4.349944930719576
+      ]
+    },
+    {
+      "name": "csv_upside_down",
+      "z0": 0.07775662481382684,
+      "terminal": {
+        "time_s": 7.9990000000000006,
+        "kind": "failure",
+        "native_failure": 6,
+        "tilt_deg": 98.16549339574958
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 171.95997233335575,
+          "knee_deg": [
+            103.35181190990119,
+            105.73293397724507
+          ],
+          "remaining_rad": 0.7319952249526978,
+          "tracking_rad": 0.003000020980834961,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.787,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 168.69113959822076,
+          "knee_deg": [
+            42.499595271480246,
+            42.339933248919635
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.03159987926483154,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 7.9990000000000006,
+          "phase": 10,
+          "failure": 6,
+          "tilt_deg": 98.16549339574958,
+          "knee_deg": [
+            40.391012827951585,
+            40.38960804229022
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.002689838409423828,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 179.83520555750752,
+      "max_tilt": 179.83520555750752,
+      "max_closure": 0.0001253908861481031,
+      "gas_clamp_mm": 0.795616959614262,
+      "max_torque": 40.0,
+      "hinge_min": -0.1427168846130371,
+      "hinge_max": 1.3690462708473206,
+      "actor_failure": null,
+      "post_handover_max_tilt": 0.0,
+      "policy_calls": 400,
+      "range_failure": null,
+      "source_model_turn_offset_rad": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_tilt_deg": 98.16549339574958,
+      "final_knee_deg": [
+        40.42766389633705,
+        40.42575357780356
+      ],
+      "final_wheel_support_n": [
+        0.0,
+        0.0
+      ],
+      "max_applied_leg_effort_nm": 40.0,
+      "max_applied_wheel_effort_nm": 2.2406654357910156,
+      "terminal_knee_deg": [
+        40.391012827951585,
+        40.38960804229022
+      ],
+      "terminal_body_sagittal_error_mm": [
+        -0.08290089620745927,
+        -0.1181084675753348
+      ]
+    },
+    {
+      "name": "csv_latest_asymmetric",
+      "z0": 0.24736735534981558,
+      "terminal": {
+        "time_s": 1.3880000000000001,
+        "kind": "feedback_range",
+        "native_failure": 0,
+        "tilt_deg": 8.39549244391442
+      },
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 11.803866470032313,
+          "knee_deg": [
+            103.10275265975112,
+            104.61817963466619
+          ],
+          "remaining_rad": 0.7209320664405823,
+          "tracking_rad": 0.0029999911785125732,
+          "helper_valid": true,
+          "support": false
+        },
+        {
+          "time_s": 0.806,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 13.550110393216656,
+          "knee_deg": [
+            42.30653050276494,
+            42.49859523687683
+          ],
+          "remaining_rad": 0.0,
+          "tracking_rad": 0.03350996971130371,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 23.195927159011845,
+      "max_tilt": 23.195927159011845,
+      "max_closure": 0.0001334667701388269,
+      "gas_clamp_mm": 0.7938241636581272,
+      "max_torque": 38.084720611572266,
+      "hinge_min": -0.1427689790725708,
+      "hinge_max": 1.368904024362564,
+      "actor_failure": null,
+      "post_handover_max_tilt": 0.0,
+      "policy_calls": 70,
+      "range_failure": {
+        "time_s": 1.3880000000000001,
+        "motor_angle_rad": [
+          10.96903959909548,
+          12.401524540578023,
+          11.698750527689251,
+          10.286420062372478
+        ],
+        "motor_limit_rad": [
+          12.4,
+          12.4,
+          12.4,
+          12.4
+        ],
+        "reason": "raw DM feedback position range"
+      },
+      "source_model_turn_offset_rad": [
+        -6.283185307179586,
+        -6.283185307179586,
+        -12.566370614359172,
+        -12.566370614359172
+      ],
+      "final_tilt_deg": 0.26092359676312643,
+      "final_knee_deg": [
+        106.99999930002147,
+        107.00003345096732
+      ],
+      "final_wheel_support_n": [
+        0.0,
+        8.077483177185059
+      ],
+      "max_applied_leg_effort_nm": 36.545040130615234,
+      "max_applied_wheel_effort_nm": 1.465383529663086,
+      "terminal_knee_deg": [
+        41.300449908706014,
+        41.99931639348487
+      ],
+      "terminal_body_sagittal_error_mm": [
+        42.01126616339569,
+        -119.75429086861223
+      ]
+    }
+  ]
+}

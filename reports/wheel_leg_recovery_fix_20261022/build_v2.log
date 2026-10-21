@@ -1,0 +1,7 @@
+Starting >>> rmcs_bringup
+Starting >>> rmcs_core
+Finished <<< rmcs_bringup [0.05s]
+Finished <<< rmcs_core [11.7s]
+
+Summary: 2 packages finished [11.8s]
+> build finished in 12.005 s

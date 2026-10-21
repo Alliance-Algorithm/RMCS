@@ -1,0 +1,39 @@
+{
+  "source_csv": "/home/noir/wheel_leg_rl_2026-10-21_17-56-31.csv",
+  "source_csv_sha256": "23aaf4e6eae10ec722ea6b1406860eb7c7ceb8762d18c9acd08139cf6bf9c565",
+  "source_sha256": {
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml": "918b137a4042db278ffe767637c7da3933f93a792ba505ce1845d679771d7e6e",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp": "3a8a0e25090018ed7093ce7d2a3dab36d21a254a89b5da7f58eb0c4b19d9546b",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.hpp": "b76727615780b1a2bbf7d8e749d61febf08b63a713a84a982a07debb1baa8d2e",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp": "cd702c855e78c53d300fc4a16568b24c86d424dc25f3656017a5300b4a0522be",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/leg_target_winding.hpp": "5ef3b983d83c85f1f6fea2c22f820a8f1bde4ca007aff35b717fbc136dffa320",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp": "980dd093fd11ec48ca8032d64c350c07d6a25581e418597a4ff1e803b0b449af",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp": "e1b7ed0634b12a0cacf34ed40eb6e698772475a82c0edd1009e048a2d6a8d4da",
+    "rmcs_ws/src/rmcs_core/tools/wheel_leg_tuck_probe.cpp": "aaa944cd6e1c26393770f560a7acbb0a06a3033796f58b40582f262752c560d7",
+    "rmcs_ws/src/rmcs_core/tools/probe_wheel_leg_tuck.py": "32d17bc2a8bf26fe141a7d0a2a58f5aeec05eaf72c8df6a11ec3ab4f6a5c0555",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/closed_chain_support_observer.cpp": "c4716ba621374ea2c208eae04e9bc3bf1ba0b73ea72018fba8312b493ed1a48f",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/controller_recovery.cpp": "199914c46139a4fd064829b638f4f049e03279873e8133c967d181700b2b225d",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp": "0b1fedc03e03bdf0aa8df4e8a2cc7d3556914af1dc10a5b0960cf9ec53e7004b",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp": "457d79f958186e9197b7558c3d4bbde69700663e4c839f61a749cad5301ef3ae"
+  },
+  "prior_source_matches": {
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml": true,
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.cpp": true,
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/joint_reference_recovery_controller.hpp": true,
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp": true,
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/leg_target_winding.hpp": true,
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp": true,
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_recovery_tuck.cpp": true,
+    "rmcs_ws/src/rmcs_core/tools/wheel_leg_tuck_probe.cpp": true,
+    "rmcs_ws/src/rmcs_core/tools/probe_wheel_leg_tuck.py": true
+  },
+  "changes_this_turn": "Only report-local analysis, adapters, and an explicitly isolated single-condition ablation. No production source/YAML/model edits.",
+  "scope": "Native trajectory/helpers/support observer, 1 kHz, dynamic IMU, six-DOF base; actor disabled at first ownership event.",
+  "limitations": [
+    "zero initial velocities",
+    "CAD mass/COM and catalogue gas spring prior",
+    "asset self collisions globally filtered",
+    "ideal bounded torque without measured DM delay/power envelope",
+    "no ROS/CAN transport or physical acceptance"
+  ]
+}

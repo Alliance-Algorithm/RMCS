@@ -512,7 +512,9 @@ wheel_leg_controller:
     recovery_blend_seconds: 0.0
     recovery_release_motion_on_takeover: true
     recovery_dynamic_takeover: true
-    # Fold, then rotate on one fixed branch under COM; no extension before RL.
+    # Fold using closed-chain wheel heading, then rotate under body-frame COM.
+    # Already centered legs fold directly to the final pose, without an orbit.
+    # No extension before RL. IMU tilt does not move this body-fixed leg target.
     # Opposite to the failing CSV: model LH/LA decrease, RH/RA increase.
     recovery_tuck_rotation_direction: -1.0
     # At the final reference, allow 0.20 rad actual tracking error and 40 deg tilt.
@@ -521,7 +523,9 @@ wheel_leg_controller:
     recovery_capture_max_tilt_rad: 0.6981317007977318
     recovery_capture_max_leg_error_rad: 0.20
     # Closed-chain target remains 0.5 degree above the 40-degree stop.
-    # Strict 40..41 deg / 5 mm readiness is recorded, not required for takeover.
+    # Strict 40..41 deg / 5 mm readiness is diagnostic. Both measured knees
+    # must be folded (<=42.5 deg) before rotation, and <=41 deg before RL.
+    # Allow small measured stop compliance; commanded knee remains 40.5 deg.
     recovery_tuck_enabled: true
     recovery_tuck_geometry_path: "config/wheel_leg/tuck_geometry_107_v1.json"
     recovery_tuck_knee_deg: 40.5

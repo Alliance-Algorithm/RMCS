@@ -1,0 +1,221 @@
+Starting >>> rmcs_core
+UpdateCTestConfiguration  from :/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+   Site: ZGZ
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261021-1903 - Experimental
+UpdateCTestConfiguration  from :/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Test project /workspaces/RMCS/rmcs_ws/build/rmcs_core
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: wheel_leg_recovery_tuck
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml" "--package-name" "rmcs_core" "--output-file" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/ament_cmake_gtest/wheel_leg_recovery_tuck.txt" "--command" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/wheel_leg_recovery_tuck" "--gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml"
+1: Working Directory: /workspaces/RMCS/rmcs_ws/build/rmcs_core
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/workspaces/RMCS/rmcs_ws/build/rmcs_core':
+1:  - /workspaces/RMCS/rmcs_ws/build/rmcs_core/wheel_leg_recovery_tuck --gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml
+1: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 18 tests from 1 test suite.
+1: [----------] Global test environment set-up.
+1: [----------] 18 tests from WheelLegRecoveryTuck
+1: [ RUN      ] WheelLegRecoveryTuck.FrontBackAsymmetryAndCommonTurnsReachSameMeasuredGeometry
+1: [       OK ] WheelLegRecoveryTuck.FrontBackAsymmetryAndCommonTurnsReachSameMeasuredGeometry (3 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.MeasuredKneeAndComBlockEarlyOrUpsideDownTransfer
+1: [       OK ] WheelLegRecoveryTuck.MeasuredKneeAndComBlockEarlyOrUpsideDownTransfer (2 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.LoadIntegralIsBoundedAndClearedOnResetAndInvalidFeedback
+1: [       OK ] WheelLegRecoveryTuck.LoadIntegralIsBoundedAndClearedOnResetAndInvalidFeedback (12 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.LoggedRollDoesNotTurnAFeasibleTargetIntoInvalidFeedback
+1: [       OK ] WheelLegRecoveryTuck.LoggedRollDoesNotTurnAFeasibleTargetIntoInvalidFeedback (1 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.BodyFixedTargetDoesNotChaseImuOrRejectSideFalls
+1: [       OK ] WheelLegRecoveryTuck.BodyFixedTargetDoesNotChaseImuOrRejectSideFalls (1 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.CenteredLegsFoldWithoutARevolutionAndUseWheelsDuringFolding
+1: [       OK ] WheelLegRecoveryTuck.CenteredLegsFoldWithoutARevolutionAndUseWheelsDuringFolding (5 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.CompletedReferenceCannotRotateAnUnfoldedMeasuredLeg
+1: [       OK ] WheelLegRecoveryTuck.CompletedReferenceCannotRotateAnUnfoldedMeasuredLeg (5 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.LoggedWholeTurnHingeIsRestoredWithoutClampingRealViolations
+1: [       OK ] WheelLegRecoveryTuck.LoggedWholeTurnHingeIsRestoredWithoutClampingRealViolations (0 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.LoadCompensationUsesExecutedReferenceAndPerAxisAntiwindup
+1: [       OK ] WheelLegRecoveryTuck.LoadCompensationUsesExecutedReferenceAndPerAxisAntiwindup (3 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.TrajectoryHandsOverWithoutSupportHeightVelocityOrStrictTuckGates
+1: [       OK ] WheelLegRecoveryTuck.TrajectoryHandsOverWithoutSupportHeightVelocityOrStrictTuckGates (15 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.FixedReverseBranchFoldsThenRotatesWithoutExtensionAndResets
+1: [       OK ] WheelLegRecoveryTuck.FixedReverseBranchFoldsThenRotatesWithoutExtensionAndResets (22 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.ReferenceDurationsScaleByThreeAndTiltingNeverCommandsExtension
+1: [       OK ] WheelLegRecoveryTuck.ReferenceDurationsScaleByThreeAndTiltingNeverCommandsExtension (21 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.TrajectoryDoesNotHandOverWhenActualLegsStayFarAway
+1: [       OK ] WheelLegRecoveryTuck.TrajectoryDoesNotHandOverWhenActualLegsStayFarAway (6 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.RecordedSchedulingGapPassesButStaleOrReversedFeedbackDoesNot
+1: [       OK ] WheelLegRecoveryTuck.RecordedSchedulingGapPassesButStaleOrReversedFeedbackDoesNot (3 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.RejectsWrongModelAndUnsafeBounds
+1: [       OK ] WheelLegRecoveryTuck.RejectsWrongModelAndUnsafeBounds (1 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.FsmRequiresMeasuredTuckEvenWhenLegacyCaptureIsReady
+1: [       OK ] WheelLegRecoveryTuck.FsmRequiresMeasuredTuckEvenWhenLegacyCaptureIsReady (5 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.NonfiniteTuckReferenceFailsBeforeActuation
+1: [       OK ] WheelLegRecoveryTuck.NonfiniteTuckReferenceFailsBeforeActuation (3 ms)
+1: [ RUN      ] WheelLegRecoveryTuck.LoadCompensationMatchesTorqueAndExecutedActionHistory
+1: [       OK ] WheelLegRecoveryTuck.LoadCompensationMatchesTorqueAndExecutedActionHistory (5 ms)
+1: [----------] 18 tests from WheelLegRecoveryTuck (119 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 18 tests from 1 test suite ran. (119 ms total)
+1: [  PASSED  ] 18 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml'
+1: -- run_test.py: verify result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_recovery_tuck.gtest.xml'
+1/3 Test #1: wheel_leg_recovery_tuck ................   Passed    0.18 sec
+test 2
+    Start 2: wheel_leg_policy_integration
+
+2: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_policy_integration.gtest.xml" "--package-name" "rmcs_core" "--output-file" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/ament_cmake_gtest/wheel_leg_policy_integration.txt" "--command" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/wheel_leg_policy_integration" "--gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_policy_integration.gtest.xml"
+2: Working Directory: /workspaces/RMCS/rmcs_ws/build/rmcs_core
+2: Test timeout computed to be: 60
+2: -- run_test.py: invoking following command in '/workspaces/RMCS/rmcs_ws/build/rmcs_core':
+2:  - /workspaces/RMCS/rmcs_ws/build/rmcs_core/wheel_leg_policy_integration --gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_policy_integration.gtest.xml
+2: [==========] Running 1 test from 1 test suite.
+2: [----------] Global test environment set-up.
+2: [----------] 1 test from WheelLegPolicyIntegration
+2: [ RUN      ] WheelLegPolicyIntegration.AcyclicWorkerPipelineResetRearmAndSensorExpiry
+2: [INFO] [1792609408.878463874] [wheel_leg_controller]: Recovery tuck: measured knee 40.50 +/- 0.50 deg, COM alignment 5.0 mm, integral 100.0 capped at 20.0 Nm
+2: [INFO] [1792609408.878550106] [wheel_leg_controller]: Trajectory takeover: fold then fixed-direction rotation under COM (root direction -1, both stages 3.00 rad/s), then direct RL; remaining <0.005 rad, tracking <0.20 rad, tilt <40.0 deg; no support/height/static/velocity dwell; maximum control gap 40 ms
+2: [INFO] [1792609408.894986356] [rl_bridge]: observation layout (obs_size=35):
+2: [INFO] [1792609408.895010748] [rl_bridge]:   [0:1) command/forward  scale=1 clip=-100:100 <- /wheel_leg/rl/input/command (Eigen::Vector3d)
+2: [INFO] [1792609408.895014543] [rl_bridge]:   [1:2) command/lateral  scale=1 clip=-100:100 <- /wheel_leg/rl/input/command (Eigen::Vector3d)
+2: [INFO] [1792609408.895017043] [rl_bridge]:   [2:3) command/yaw  scale=1 clip=-100:100 <- /wheel_leg/rl/input/command (Eigen::Vector3d)
+2: [INFO] [1792609408.895019768] [rl_bridge]:   [3:4) height  scale=5 clip=-100:100 <- /wheel_leg/rl/input/height (double)
+2: [INFO] [1792609408.895022460] [rl_bridge]:   [4:7) angular_velocity  scale=0.5 clip=-100:100 <- /wheel_leg/rl/input/angular_velocity (Eigen::Vector3d)
+2: [INFO] [1792609408.895025217] [rl_bridge]:   [7:10) projected_gravity  scale=1 clip=-100:100 <- /wheel_leg/rl/input/projected_gravity (Eigen::Vector3d)
+2: [INFO] [1792609408.895027563] [rl_bridge]:   [10:14) joint_position  scale=1 clip=-100:100
+2: [INFO] [1792609408.895029840] [rl_bridge]:   [14:16) joint_position_wheels  scale=1 clip=-100:100
+2: [INFO] [1792609408.895032309] [rl_bridge]:   [16:22) joint_velocity  scale=0.1 clip=-100:100
+2: [INFO] [1792609408.895034519] [rl_bridge]:   [22:23) previous_action/0  scale=1 clip=-100:100 <- /wheel_leg/rl/effective_action/left_hip_joint (double)
+2: [INFO] [1792609408.895036874] [rl_bridge]:   [23:24) previous_action/1  scale=1 clip=-100:100 <- /wheel_leg/rl/effective_action/left_knee_joint (double)
+2: [INFO] [1792609408.895039172] [rl_bridge]:   [24:25) previous_action/2  scale=1 clip=-100:100 <- /wheel_leg/rl/effective_action/right_hip_joint (double)
+2: [INFO] [1792609408.895041464] [rl_bridge]:   [25:26) previous_action/3  scale=1 clip=-100:100 <- /wheel_leg/rl/effective_action/right_knee_joint (double)
+2: [INFO] [1792609408.895043804] [rl_bridge]:   [26:27) previous_action/4  scale=1 clip=-100:100 <- /wheel_leg/rl/effective_action/left_wheel (double)
+2: [INFO] [1792609408.895046158] [rl_bridge]:   [27:28) previous_action/5  scale=1 clip=-100:100 <- /wheel_leg/rl/effective_action/right_wheel (double)
+2: [INFO] [1792609408.895048545] [rl_bridge]:   [28:35) context  scale=1 clip=-100:100
+2: [INFO] [1792609408.895050183] [rl_bridge]: action layout (action_size=6):
+2: [INFO] [1792609408.895053705] [rl_bridge]:   #0 /wheel_leg/rl/target/left_hip_joint -> /wheel_leg/rl/target/left_hip_joint scale=0.25
+2: [INFO] [1792609408.895055893] [rl_bridge]:   #1 /wheel_leg/rl/target/left_knee_joint -> /wheel_leg/rl/target/left_knee_joint scale=0.25
+2: [INFO] [1792609408.895057895] [rl_bridge]:   #2 /wheel_leg/rl/target/right_hip_joint -> /wheel_leg/rl/target/right_hip_joint scale=0.25
+2: [INFO] [1792609408.895059938] [rl_bridge]:   #3 /wheel_leg/rl/target/right_knee_joint -> /wheel_leg/rl/target/right_knee_joint scale=0.25
+2: [INFO] [1792609408.895062087] [rl_bridge]:   #4 /wheel_leg/rl/target/left_wheel -> /wheel_leg/rl/target/left_wheel scale=10
+2: [INFO] [1792609408.895063943] [rl_bridge]:   #5 /wheel_leg/rl/target/right_wheel -> /wheel_leg/rl/target/right_wheel scale=10
+2: [INFO] [1792609408.895065573] [rl_bridge]: contract: obs_size=35 action_size=6 policy_rate=50.000 Hz
+2: [INFO] [1792609408.895068058] [rl_bridge]: in-process policy worker: model=/workspaces/RMCS/rmcs_ws/install/share/rmcs_rl/models/wheel_leg/recovery_candidate.onnx, obs=35, action=6
+2: [INFO] [1792609408.895084105] [rmcs_executor]: Calculating component dependencies
+2: [INFO] [1792609408.895088326] [rmcs_executor]: - predefined_msg_provider
+2: [INFO] [1792609408.895090383] [rmcs_executor]: - snapshots
+2: [INFO] [1792609408.895092445] [rmcs_executor]: -     rl_bridge_actions
+2: [INFO] [1792609408.895094198] [rmcs_executor]: -         wheel_leg_controller
+2: [INFO] [1792609408.895107055] [rmcs_executor]: -             rl_bridge
+2: [INFO] [1792609408.895110941] [rmcs_executor]: -         observe
+2: [INFO] [1792609408.895140643] [wheel_leg_controller]: Joint PD backend: host torque, Kp 160.0, Kd 2.5
+2: [INFO] [1792609408.895145210] [wheel_leg_controller]: Heading hold enabled: P 5.00 1/s, correction limit 4.00 rad/s at policy rate
+2: [INFO] [1792609408.926258542] [rl_bridge]: valid=1 (obs_seq=1 action_age=0.0010 s)
+2: [INFO] [1792609408.926344011] [wheel_leg_controller]: Recovery SELECT -> FOLD: remaining=0.410 tracking=0.003 rad, knees=67.86/67.86 deg, wheel-COM=6.0/6.0 mm, hold=[0.0,0.0,0.0,0.0] Nm, target_valid=1 folded=0 native_failure=0
+2: [WARN] [1792609409.026258649] [rl_bridge]: valid=0: no inference result available
+2: [INFO] [1792609409.057259054] [rl_bridge]: valid=1 (obs_seq=6 action_age=0.0010 s)
+2: [INFO] [1792609409.057313299] [wheel_leg_controller]: Recovery SELECT -> FOLD: remaining=0.410 tracking=0.003 rad, knees=67.86/67.86 deg, wheel-COM=6.0/6.0 mm, hold=[0.0,0.0,0.0,0.0] Nm, target_valid=1 folded=0 native_failure=0
+2: [ERROR] [1792609409.186263746] [wheel_leg_controller]: RL stopped at /workspaces/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp:426: state=2 failure=1 native_failure=0 feedback_fresh=1 sensor_valid=0 sensor_issue=6 mask=0xff age_ms[motor,imu,accel]=[0.002,30.997,30.997] last_hinge=[0.5574,0.5574] dq_max[leg,wheel]=[0.000,0.000] gyro=0.000 height_command=0.230 command_vx=0.000 obs_vx=0.000 wheel_ref=[-5.974,1.268] wheel_dq=[0.000,0.000] leg_torque_fb=[0.000,0.000,0.000,0.000]
+2: [WARN] [1792609409.187266579] [rl_bridge]: valid=0: disabled by enable interface
+2: [INFO] [1792609409.267263010] [rl_bridge]: valid=1 (obs_seq=13 action_age=0.0010 s)
+2: [INFO] [1792609409.267325666] [wheel_leg_controller]: Recovery SELECT -> FOLD: remaining=0.410 tracking=0.003 rad, knees=67.86/67.86 deg, wheel-COM=6.0/6.0 mm, hold=[0.0,0.0,0.0,0.0] Nm, target_valid=1 folded=0 native_failure=0
+2: [WARN] [1792609409.366262599] [rl_bridge]: valid=0: no inference result available
+2: [INFO] [1792609409.397266298] [rl_bridge]: valid=1 (obs_seq=18 action_age=0.0010 s)
+2: [INFO] [1792609409.397345378] [wheel_leg_controller]: Recovery SELECT -> FOLD: remaining=0.726 tracking=0.003 rad, knees=102.83/105.17 deg, wheel-COM=-116.4/-126.5 mm, hold=[0.0,0.0,0.0,0.0] Nm, target_valid=1 folded=0 native_failure=0
+2: [INFO] [1792609409.748263912] [wheel_leg_controller]: Recovery FOLD -> PREPARE: remaining=0.000 tracking=0.027 rad, knees=40.78/42.39 deg, wheel-COM=-43.8/-49.7 mm, hold=[3.9,-3.9,-4.4,4.4] Nm, target_valid=1 folded=1 native_failure=0
+2: [INFO] [1792609412.396280300] [wheel_leg_controller]: Recovery PREPARE -> RL: remaining=0.000 tracking=0.000 rad, knees=40.50/40.50 deg, wheel-COM=-0.0/-0.0 mm, hold=[3.3,-4.5,-3.7,5.7] Nm, target_valid=1 folded=1 native_failure=0
+2: [INFO] [1792609412.396339869] [wheel_leg_controller]: Measured tuck at handover: knees 40.50/40.50 deg, wheel-COM sagittal error -0.00/-0.00 mm
+2: [INFO] [1792609412.396350887] [wheel_leg_controller]: Self-righting handover: policy owns all six axes, motion released
+2: Policy 50 Hz, 168 returned actions, inference us p50/p95/max 58.332/80.535/208.225, max accepted age ms 1.08391
+2: [       OK ] WheelLegPolicyIntegration.AcyclicWorkerPipelineResetRearmAndSensorExpiry (3549 ms)
+2: [----------] 1 test from WheelLegPolicyIntegration (3549 ms total)
+2: 
+2: [----------] Global test environment tear-down
+2: [==========] 1 test from 1 test suite ran. (3549 ms total)
+2: [  PASSED  ] 1 test.
+2: -- run_test.py: return code 0
+2: -- run_test.py: inject classname prefix into gtest result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_policy_integration.gtest.xml'
+2: -- run_test.py: verify result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_policy_integration.gtest.xml'
+2/3 Test #2: wheel_leg_policy_integration ...........   Passed    3.85 sec
+test 3
+    Start 3: deformable_policy_bridge_integration
+
+3: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/deformable_policy_bridge_integration.gtest.xml" "--package-name" "rmcs_core" "--output-file" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/ament_cmake_gtest/deformable_policy_bridge_integration.txt" "--command" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/deformable_policy_bridge_integration" "--gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/deformable_policy_bridge_integration.gtest.xml"
+3: Working Directory: /workspaces/RMCS/rmcs_ws/build/rmcs_core
+3: Test timeout computed to be: 60
+3: -- run_test.py: invoking following command in '/workspaces/RMCS/rmcs_ws/build/rmcs_core':
+3:  - /workspaces/RMCS/rmcs_ws/build/rmcs_core/deformable_policy_bridge_integration --gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/deformable_policy_bridge_integration.gtest.xml
+3: [==========] Running 1 test from 1 test suite.
+3: [----------] Global test environment set-up.
+3: [----------] 1 test from DeformablePolicyBridgeIntegration
+3: [ RUN      ] DeformablePolicyBridgeIntegration.RealActorDelayedHistoryFlatHoldResetAndInvalidInput
+3: [INFO] [1792609412.855272263] [rl_bridge]: observation layout (obs_size=256):
+3: [INFO] [1792609412.855332192] [rl_bridge]:   [0:1) urdf_q_cmd  scale=1 clip=-10:10 <- /chassis/deformable/rl_q_cmd (double)
+3: [INFO] [1792609412.855336623] [rl_bridge]:   [1:2) drive_command_b_x  scale=1 clip=-10:10 <- /chassis/control_velocity (BaseLink::DirectionVector)
+3: [INFO] [1792609412.855339479] [rl_bridge]:   [2:3) drive_command_b_y  scale=1 clip=-10:10 <- /chassis/control_velocity (BaseLink::DirectionVector)
+3: [INFO] [1792609412.855342450] [rl_bridge]:   [3:4) drive_command_b_yaw  scale=0.25 clip=-10:10 <- /chassis/control_velocity (BaseLink::DirectionVector)
+3: [INFO] [1792609412.855346462] [rl_bridge]:   [4:7) gyro_b  scale=0.5 clip=-10:10 <- /chassis/rl/gyro_b (Eigen::Vector3d)
+3: [INFO] [1792609412.855349808] [rl_bridge]:   [7:10) projected_gravity_b  scale=1 clip=-10:10 <- /chassis/rl/compensated_gravity_b (Eigen::Vector3d)
+3: [INFO] [1792609412.855352271] [rl_bridge]:   [10:14) leg_urdf_q_rf_lf_lb_rb  scale=1 clip=-10:10
+3: [INFO] [1792609412.855354672] [rl_bridge]:   [14:18) leg_urdf_qd_rf_lf_lb_rb  scale=0.1 clip=-10:10
+3: [INFO] [1792609412.855357187] [rl_bridge]:   [18:19) feedback_current_raw_rf  scale=0.000488281 clip=-10:10 <- /chassis/right_front_joint/feedback_current_raw (double)
+3: [INFO] [1792609412.855359707] [rl_bridge]:   [19:20) feedback_current_raw_lf  scale=0.000488281 clip=-10:10 <- /chassis/left_front_joint/feedback_current_raw (double)
+3: [INFO] [1792609412.855362098] [rl_bridge]:   [20:21) feedback_current_raw_lb  scale=0.000488281 clip=-10:10 <- /chassis/left_back_joint/feedback_current_raw (double)
+3: [INFO] [1792609412.855365031] [rl_bridge]:   [21:22) feedback_current_raw_rb  scale=0.000488281 clip=-10:10 <- /chassis/right_back_joint/feedback_current_raw (double)
+3: [INFO] [1792609412.855367373] [rl_bridge]:   [22:26) last_action:0+1+2+3  scale=1 clip=-1:1
+3: [INFO] [1792609412.855369722] [rl_bridge]:   [26:27) wheel_encoder_rf  scale=0.05 clip=-10:10 <- /chassis/right_front_wheel/rl_velocity (double)
+3: [INFO] [1792609412.855372114] [rl_bridge]:   [27:28) wheel_encoder_lf  scale=0.05 clip=-10:10 <- /chassis/left_front_wheel/rl_velocity (double)
+3: [INFO] [1792609412.855374485] [rl_bridge]:   [28:29) wheel_encoder_lb  scale=0.05 clip=-10:10 <- /chassis/left_back_wheel/rl_velocity (double)
+3: [INFO] [1792609412.855376877] [rl_bridge]:   [29:30) wheel_encoder_rb  scale=0.05 clip=-10:10 <- /chassis/right_back_wheel/rl_velocity (double)
+3: [INFO] [1792609412.855379114] [rl_bridge]:   [30:31) encoder_twist_b_x  scale=1 clip=-10:10 <- /chassis/rl/encoder_twist_b (Eigen::Vector3d)
+3: [INFO] [1792609412.855381282] [rl_bridge]:   [31:32) encoder_twist_b_y  scale=1 clip=-10:10 <- /chassis/rl/encoder_twist_b (Eigen::Vector3d)
+3: [INFO] [1792609412.855383043] [rl_bridge]: action layout (action_size=4):
+3: [INFO] [1792609412.855385227] [rl_bridge]:   #0 /chassis/rl/action/joint_leg_1 -> /chassis/rl/action/joint_leg_1
+3: [INFO] [1792609412.855387032] [rl_bridge]:   #1 /chassis/rl/action/joint_leg_2 -> /chassis/rl/action/joint_leg_2
+3: [INFO] [1792609412.855389908] [rl_bridge]:   #2 /chassis/rl/action/joint_leg_3 -> /chassis/rl/action/joint_leg_3
+3: [INFO] [1792609412.855391532] [rl_bridge]:   #3 /chassis/rl/action/joint_leg_4 -> /chassis/rl/action/joint_leg_4
+3: [INFO] [1792609412.855393157] [rl_bridge]: contract: obs_size=256 action_size=4 policy_rate=200.000 Hz
+3: [INFO] [1792609412.855395943] [rl_bridge]: in-process policy worker: model=/workspaces/RMCS/rmcs_ws/install/share/rmcs_rl/models/deformable/deformable_v3_transformer.onnx, obs=256, action=4
+3: [INFO] [1792609412.855404891] [rmcs_executor]: Calculating component dependencies
+3: [INFO] [1792609412.855408661] [rmcs_executor]: - predefined_msg_provider
+3: [INFO] [1792609412.855410907] [rmcs_executor]: - snapshots
+3: [INFO] [1792609412.855412987] [rmcs_executor]: -     rl_bridge
+3: [INFO] [1792609412.855414678] [rmcs_executor]: -     rl_bridge_actions
+3: [INFO] [1792609412.855416319] [rmcs_executor]: -         observe
+3: [INFO] [1792609412.886536721] [rl_bridge]: valid=1 (obs_seq=1 action_age=0.0010 s)
+3: [WARN] [1792609412.986547658] [rl_bridge]: valid=0: no inference result available
+3: [INFO] [1792609412.988515229] [rl_bridge]: valid=1 (obs_seq=22 action_age=0.0010 s)
+3: [WARN] [1792609413.086533993] [rl_bridge]: valid=0: disabled by enable interface
+3: [INFO] [1792609413.117537867] [rl_bridge]: valid=1 (obs_seq=42 action_age=0.0010 s)
+3: [WARN] [1792609413.217546906] [rl_bridge]: observation sources not ready or non-finite; no obs published (1 frames skipped)
+3: [WARN] [1792609413.217594383] [rl_bridge]: valid=0: no inference result available
+3: [       OK ] DeformablePolicyBridgeIntegration.RealActorDelayedHistoryFlatHoldResetAndInvalidInput (466 ms)
+3: [----------] 1 test from DeformablePolicyBridgeIntegration (466 ms total)
+3: 
+3: [----------] Global test environment tear-down
+3: [==========] 1 test from 1 test suite ran. (466 ms total)
+3: [  PASSED  ] 1 test.
+3: -- run_test.py: return code 0
+3: -- run_test.py: inject classname prefix into gtest result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/deformable_policy_bridge_integration.gtest.xml'
+3: -- run_test.py: verify result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/deformable_policy_bridge_integration.gtest.xml'
+3/3 Test #3: deformable_policy_bridge_integration ...   Passed    0.70 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Label Time Summary:
+gtest    =   4.73 sec*proc (3 tests)
+
+Total Test time (real) =   4.73 sec
+Finished <<< rmcs_core [4.80s]
+
+Summary: 1 package finished [4.92s]

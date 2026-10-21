@@ -1,0 +1,56 @@
+{
+  "scope": "Unrestrained 6-DOF base and ground contacts; production C++ tuck/FSM/native support observer with dynamic simulated IMU. Stops motor outputs at first script failure or RL ownership event. No actor, ROS transport, CAN delays, hardware acceptance, or self collision clearance validation.",
+  "fixture": "none",
+  "isaac_sim_version": "6.0.0.1",
+  "dt": 0.001,
+  "duration_s": 1.0,
+  "source_csv_sha256": "23aaf4e6eae10ec722ea6b1406860eb7c7ceb8762d18c9acd08139cf6bf9c565",
+  "library_sha256": "6a1f83e16dc2af2a4d24eaa5e923ed3e5b110b186e686b0a716cb7268feb5555",
+  "script_sha256": "2a7f3c61d7dad66d73cc5169304e098f1446ce52de2b776d80725c41cc30b483",
+  "model_spec_sha256": "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997",
+  "manifest_sha256": "d3af5b544b874c8629860a9cc0c1529d215b0e3644126b3b9da7ad87b3256690",
+  "results": [
+    {
+      "name": "standing_50",
+      "z0": 0.2598813043450965,
+      "terminal": null,
+      "phases": [
+        {
+          "time_s": 0.0,
+          "phase": 1,
+          "failure": 0,
+          "tilt_deg": 0.26141053695262667,
+          "knee_deg": [
+            50.00006512724609,
+            50.00006507914308
+          ],
+          "remaining_rad": 0.12702013552188873,
+          "tracking_rad": 0.003000006079673767,
+          "helper_valid": true,
+          "support": true
+        },
+        {
+          "time_s": 0.041,
+          "phase": 7,
+          "failure": 0,
+          "tilt_deg": 0.2798908832817553,
+          "knee_deg": [
+            48.88440288779531,
+            48.8728508570697
+          ],
+          "remaining_rad": 0.004020166117697954,
+          "tracking_rad": 0.11292226612567902,
+          "helper_valid": true,
+          "support": false
+        }
+      ],
+      "max_pre_tilt": 33.59634815738561,
+      "max_tilt": 33.59634815738561,
+      "max_closure": 6.577530224672053e-05,
+      "gas_clamp_mm": 0.8027727766163201,
+      "max_torque": 15.053260803222656,
+      "hinge_min": -0.14199423789978027,
+      "hinge_max": 0.15555431693792343
+    }
+  ]
+}

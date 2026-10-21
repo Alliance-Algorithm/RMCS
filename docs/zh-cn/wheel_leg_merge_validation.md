@@ -18,10 +18,10 @@ the controller requires the bridge frequency to divide feedback PD frequency.
 Action timeout is 15 ms in the bridge and controller. PD/recovery stay at 1 kHz.
 Recovery JSON calibration now installs from `rmcs_core/config/wheel_leg`.
 
-From a ROS Jazzy environment in `rmcs_ws`, with the reference branch fetched:
+From the dev container (with `build-rmcs` on `PATH`), with the reference branch fetched:
 
 ```sh
-colcon build --merge-install --symlink-install --packages-select rmcs_rl rmcs_core rmcs_bringup --cmake-args -DBUILD_TESTING=ON
+build-rmcs --packages-select rmcs_rl rmcs_core rmcs_bringup
 colcon test --merge-install --packages-select rmcs_rl rmcs_core
 colcon test-result --test-result-base build --verbose
 python3 src/rmcs_core/tools/verify_wheel_leg_reference.py --reference origin/dev/wheel_leg_rl --policy-receipt src/rmcs_rl/models/wheel_leg/flat_directional200_1346_preview_20261020.deployment.json

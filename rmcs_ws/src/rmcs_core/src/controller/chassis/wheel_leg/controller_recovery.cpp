@@ -95,6 +95,7 @@ bool WheelLegController::recovery_capture_ready_() const {
         // The FSM checks completion and actual tracking of the tuck trajectory.
         // Support probes, conditional height and settling are diagnostic only.
         return feedback_valid_ && recovery_sensor_status_.valid && recovery_tuck_state_.valid
+            && recovery_tuck_state_.knees_at_target
             && -gravity.z() >= std::cos(recovery_capture_max_tilt_rad_);
     }
     if (recovery_tuck_ && (!recovery_tuck_state_.valid || !recovery_tuck_state_.ready))
@@ -277,9 +278,11 @@ bool WheelLegController::advance_joint_reference_recovery_() {
             joint_reference_feedback_.q.head<4>(), joint_reference_feedback_.gravity, recovery_dt_,
             previous.tucking, previous.targets.head<4>(), joint_reference_feedback_.dq.head<4>());
         joint_reference_feedback_.tuck_reference = recovery_tuck_state_.reference;
+        joint_reference_feedback_.tuck_fold_reference = recovery_tuck_state_.fold_reference;
         joint_reference_feedback_.tuck_hold_torque = recovery_tuck_state_.hold_torque;
         joint_reference_feedback_.tuck_valid = recovery_tuck_state_.valid;
         joint_reference_feedback_.tuck_ready = recovery_tuck_state_.ready;
+        joint_reference_feedback_.tuck_folded = recovery_tuck_state_.folded;
     }
     joint_reference_feedback_.rl_capture_ready = recovery_capture_ready_();
     const auto previous_phase = joint_reference_recovery_->command().phase;
@@ -289,14 +292,16 @@ bool WheelLegController::advance_joint_reference_recovery_() {
         RCLCPP_INFO(
             get_logger(),
             "Recovery %s -> %s: remaining=%.3f tracking=%.3f rad, "
-            "knees=%.2f/%.2f deg, wheel-COM=%.1f/%.1f mm, hold=[%.1f,%.1f,%.1f,%.1f] Nm",
+            "knees=%.2f/%.2f deg, wheel-COM=%.1f/%.1f mm, hold=[%.1f,%.1f,%.1f,%.1f] Nm, "
+            "target_valid=%d folded=%d native_failure=%d",
             recovery_phase_name(previous_phase).data(), recovery_phase_name(command.phase).data(),
             command.trajectory_remaining_rad, command.tracking_error_rad,
             recovery_tuck_state_.knee_deg[0], recovery_tuck_state_.knee_deg[1],
             recovery_tuck_state_.sagittal_error_m[0] * 1000.0,
             recovery_tuck_state_.sagittal_error_m[1] * 1000.0, recovery_tuck_state_.hold_torque[0],
             recovery_tuck_state_.hold_torque[1], recovery_tuck_state_.hold_torque[2],
-            recovery_tuck_state_.hold_torque[3]);
+            recovery_tuck_state_.hold_torque[3], recovery_tuck_state_.valid,
+            recovery_tuck_state_.folded, command.failure_code);
     }
     if (command.pure_rl && recovery_tuck_) {
         recovery_tuck_->reset();

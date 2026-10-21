@@ -455,6 +455,7 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
             recovery_config.tuck_speed_rad_s =
                 recovery_parameter("recovery_tuck_speed_rad_s", recovery_config.tuck_speed_rad_s);
             RecoveryTuckConfig tuck;
+            tuck.body_fixed = recovery_config.trajectory_takeover;
             tuck.knee_deg = recovery_parameter("recovery_tuck_knee_deg", tuck.knee_deg);
             tuck.knee_tolerance_deg =
                 recovery_parameter("recovery_tuck_knee_tolerance_deg", tuck.knee_tolerance_deg);
@@ -471,10 +472,10 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
                 native.model_spec_sha256, tuck);
             RCLCPP_INFO(
                 get_logger(),
-                "Recovery tuck: measured knee %.2f +/- %.2f deg, "
-                "COM alignment %.1f mm, integral %.1f capped at %.1f Nm",
+                "Recovery tuck: target knee %.2f +/- %.2f deg, "
+                "COM alignment %.1f mm, integral %.1f capped at %.1f Nm, frame=%s",
                 tuck.knee_deg, tuck.knee_tolerance_deg, tuck.max_sagittal_error_m * 1000.0,
-                tuck.integral_gain, tuck.integral_limit_nm);
+                tuck.integral_gain, tuck.integral_limit_nm, tuck.body_fixed ? "body" : "gravity");
         }
         recovery_config.release_motion_on_takeover =
             recovery_parameter("recovery_release_motion_on_takeover", false);
