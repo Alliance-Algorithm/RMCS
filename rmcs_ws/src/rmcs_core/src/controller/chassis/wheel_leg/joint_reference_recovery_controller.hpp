@@ -103,9 +103,11 @@ struct JointReferenceRecoveryFeedback {
     // Caller validates the mechanism's upright pose/velocity envelope and sensing.
     bool rl_capture_ready = false;
     Eigen::Vector4d tuck_reference = Eigen::Vector4d::Zero();
+    Eigen::Vector4d tuck_fold_reference = Eigen::Vector4d::Zero();
     Eigen::Vector4d tuck_hold_torque = Eigen::Vector4d::Zero();
     bool tuck_valid = false;
     bool tuck_ready = false;
+    bool tuck_folded = false;
     Eigen::Vector2d wheel_probe_torque = Eigen::Vector2d::Zero();
 };
 

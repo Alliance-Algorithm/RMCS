@@ -11,8 +11,22 @@ fi
 
 cd "${RMCS_PATH}"/rmcs_ws || exit 1
 
+# Keep the whole build tree on a single CMake. CMake stamps its own version
+# into every CMakeFiles/<target>.dir/flags.make, and the Makefile generator
+# makes every object depend on that file. Switching between /opt/cmake (4.x)
+# and the system CMake (/usr/bin/cmake, 3.x) rewrites flags.make and recompiles
+# every translation unit of the affected packages.
 [[ -x /opt/cmake/bin/cmake ]] &&
     export PATH="/opt/cmake/bin:$PATH"
+
+# colcon appends `-j<nproc> -l<nproc>` to `cmake --build` unless MAKEFLAGS
+# already contains -j/-l. The make load limit watches the *host* load average
+# (containers share /proc/loadavg) and collapses the build to one or two jobs
+# whenever the machine is busy, so pin the job count instead.
+: "${RMCS_BUILD_JOBS:=$(nproc)}"
+if [[ ! "${MAKEFLAGS:-}" =~ (^|[[:space:]])(-j|-l|--jobs|--load-average) ]]; then
+    export MAKEFLAGS="${MAKEFLAGS:+${MAKEFLAGS} }-j${RMCS_BUILD_JOBS}"
+fi
 
 cmake_toolchain_args=()
 event_handlers_args=()
@@ -52,9 +66,39 @@ colcon_args=(
     --symlink-install --merge-install
     "${event_handlers_args[@]}"
 )
-cmake_args=(
-    "${cmake_toolchain_args[@]}"
-)
+cmake_args_opt=()
+if ((${#cmake_toolchain_args[@]} > 0)); then
+    cmake_args_opt=(
+        --cmake-args "${cmake_toolchain_args[@]}"
+    )
+fi
 
-CLICOLOR_FORCE=1 NINJA_STATUS="" \
-    colcon build "${colcon_args[@]}" "$@" --cmake-args "${cmake_args[@]}"
+# Warn before CMake silently invalidates the whole build tree (see above).
+current_cmake="$(command -v cmake)"
+current_cmake_version="$(cmake --version | head -n1 | awk '{ print $3 }')"
+stale_packages=()
+for cache in "${RMCS_PATH}"/rmcs_ws/build/*/CMakeCache.txt; do
+    [[ -f "${cache}" ]] || continue
+    tree_version="$(
+        sed -n \
+            -e 's/^CMAKE_CACHE_MAJOR_VERSION:INTERNAL=//p' \
+            -e 's/^CMAKE_CACHE_MINOR_VERSION:INTERNAL=//p' \
+            -e 's/^CMAKE_CACHE_PATCH_VERSION:INTERNAL=//p' \
+            "${cache}" | paste -sd. -
+    )"
+    [[ -n "${tree_version}" ]] || continue
+    [[ "${tree_version}" == "${current_cmake_version}" ]] && continue
+    stale_packages+=("$(basename "$(dirname "${cache}")") (${tree_version})")
+done
+
+if ((${#stale_packages[@]} > 0)); then
+    echo "> WARNING: build tree was created by a different CMake version."
+    echo ">   running:  ${current_cmake_version} (${current_cmake})"
+    printf '>   affected: %s\n' "${stale_packages[*]}"
+    echo ">   CMake will rewrite flags.make and recompile those packages from scratch."
+    echo ">   cause: a build ran outside build-rmcs (bare colcon/cmake uses /usr/bin/cmake)."
+fi
+
+TIMEFORMAT='> build finished in %3R s'
+time CLICOLOR_FORCE=1 NINJA_STATUS="" \
+    colcon build "${colcon_args[@]}" "$@" "${cmake_args_opt[@]}"

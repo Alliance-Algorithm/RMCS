@@ -15,10 +15,12 @@ struct RecoveryTuckConfig {
     double max_sagittal_error_m = 0.005;
     double integral_gain = 100.0;
     double integral_limit_nm = 20.0;
+    bool body_fixed = false;
 };
 
 struct RecoveryTuckState {
     Eigen::Vector4d reference = Eigen::Vector4d::Zero();
+    Eigen::Vector4d fold_reference = Eigen::Vector4d::Zero();
     Eigen::Vector4d hold_torque = Eigen::Vector4d::Zero();
     Eigen::Vector2d knee_deg = Eigen::Vector2d::Zero();
     Eigen::Vector2d sagittal_error_m = Eigen::Vector2d::Zero();
@@ -26,10 +28,13 @@ struct RecoveryTuckState {
     std::array<Eigen::Vector3d, 2> wheels_b_m{Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero()};
     bool valid = false;
     bool ready = false;
+    bool folded = false;
+    bool knees_at_target = false;
 };
 
 // Closed-chain geometry and bounded load rejection for the final recovery tuck.
-// Both wheels align fore/aft with the whole robot COM along measured gravity.
+// Both wheels align fore/aft with the whole robot COM. Trajectory recovery uses
+// body down; legacy recovery retains alignment along measured gravity.
 // Their lateral separation remains the wheel support span.
 class RecoveryTuckController {
 public:

@@ -12,6 +12,14 @@ df = pd.read_csv(SOURCE)
 prefix = '/wheel_leg/rl/'
 phase = df[prefix + 'recovery/native_phase'].to_numpy()
 changes = np.flatnonzero(np.r_[True, np.diff(phase) != 0])
+def clean(value):
+    if isinstance(value,dict):
+        return {k:clean(v) for k,v in value.items()}
+    if isinstance(value,list):
+        return [clean(v) for v in value]
+    if isinstance(value,float) and not np.isfinite(value):
+        return None
+    return value
 columns = ['index'] + [c for c in df.columns if any(s in c for s in (
     '/recovery/', '/rl/state', '/enable_request', '/rl/valid', '/rl/healthy',
     '/rl/input/projected_gravity/', '/rl/input/angular_velocity/',
@@ -20,14 +28,16 @@ events = []
 for i in changes:
     row = df.iloc[i]
     event = {'row': int(i), **{c: float(row[c]) for c in columns}}
-    g = np.array([row[prefix + 'input/projected_gravity/' + a] for a in 'xyz'])
-    event['roll_deg'] = float(np.degrees(np.arctan2(-g[1], -g[2])))
-    event['pitch_deg'] = float(np.degrees(np.arcsin(np.clip(g[0], -1, 1))))
-    event['tilt_deg'] = float(np.degrees(np.arccos(np.clip(-g[2], -1, 1))))
+    g = np.array([row['/wheel_leg/imu/sensor_gravity/' + a] for a in 'xyz'])
+    event['roll_deg'] = float(np.degrees(np.arctan2(-g[1], -g[2]))) if np.linalg.norm(g)>.5 else float('nan')
+    event['pitch_deg'] = float(np.degrees(np.arcsin(np.clip(g[0], -1, 1)))) if np.linalg.norm(g)>.5 else float('nan')
+    event['tilt_deg'] = float(np.degrees(np.arccos(np.clip(-g[2], -1, 1)))) if np.linalg.norm(g)>.5 else float('nan')
     events.append(event)
 summary = {'source': str(SOURCE), 'sha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
-           'rows': len(df), 'columns': len(df.columns), 'phase_events': events}
-(ROOT / 'hardware_events.json').write_text(json.dumps(summary, indent=2))
+           'rows': len(df), 'columns': len(df.columns), 'phase_events': events,
+           'state_counts':df[prefix+'state'].value_counts().to_dict(),
+           'native_phase_counts':df[prefix+'recovery/native_phase'].value_counts().to_dict()}
+(ROOT / 'hardware_events.json').write_text(json.dumps(clean(summary), indent=2,allow_nan=False))
 for e in events:
     print(json.dumps({
         'row':e['row'], 'index':e['index'],
