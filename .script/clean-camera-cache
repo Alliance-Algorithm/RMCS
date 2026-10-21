@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Remove Hikrobot SDK cache and logs. Stop camera programs before running.
+set -euo pipefail
+
+project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Single quotes preserve the literal SDK placeholder directory name.
+for name in '$(ALLUSERSPROFILE)' 'MvSdkLog'; do
+    target="${project_root}/${name}"
+    if [[ -e "$target" || -L "$target" ]]; then
+        rm -rf -- "$target"
+        printf 'Removed: %s\n' "$target"
+    fi
+done

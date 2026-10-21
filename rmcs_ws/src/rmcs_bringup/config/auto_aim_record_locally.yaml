@@ -1,0 +1,45 @@
+# 本机直连海康相机录像；无需机器人、IMU 或硬件同步。
+# 启动不会自动录制；在同一运行环境的另一终端执行：
+# 开始：echo 1 > /tmp/autoaim/recorder/start
+# 停止：echo 1 > /tmp/autoaim/recorder/stop
+# 输出为 record.raw + record.csv；运行 start-streamer 后访问 http://127.0.0.1:18080/autoaim。
+
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimStreamerComponent -> auto_aim_streamer
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 2000.0
+    gain: 10.0
+    framerate: 120.0
+    use_hardware_sync: false
+    exposure_signal_topic: ""
+    imu_snapshot_topic: ""
+    frame_topic: "/gimbal/auto_aim/camera_frame"
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/workspaces/RMCS/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    # 0 表示不限制单次录制时长。
+    max_duration_seconds: 0
+    # 已有录制文件达到此大小后，拒绝开始新的录制，不会自动删除文件。
+    max_videos_size_gb: 20.0
+    # 只接相机时使用手动开始/停止。
+    auto_record: false
+
+auto_aim_streamer:
+  ros__parameters:
+    frame_topic: "/gimbal/auto_aim/camera_frame"
+    # 预览按 60 FPS 推流，录像仍保留相机采集帧。
+    framerate: 60
+    monitor_host: "127.0.0.1"
+    monitor_port: "5000"
+    stream_type: "RTP_H264"

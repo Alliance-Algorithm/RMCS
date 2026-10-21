@@ -66,6 +66,8 @@ id_rsa.pub
 
 # Recording files
 record/
+/records/
+/raw_image/
 
 # Docker Compose override (personal config)
 docker-compose.override.yml
