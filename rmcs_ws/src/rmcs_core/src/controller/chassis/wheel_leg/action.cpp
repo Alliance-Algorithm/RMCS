@@ -147,6 +147,10 @@ void WheelLegController::compute_motor_torques_() {
         }
         leg_reference =
             command.pure_rl ? policy_targets_.head<4>().eval() : command.targets.head<4>().eval();
+        // The MIT backend transmits only a position PD target. Express the
+        // same bounded load compensation as an equivalent reference offset.
+        if (use_motor_position_pd_ && command.tucking)
+            leg_reference += joint_reference_feedback_.tuck_hold_torque / policy_profile_.leg_kp;
         if (command.blending)
             leg_reference = continuous_q.head<4>()
                           + (effort.head<4>() + policy_profile_.leg_kd * dq_.head<4>())
