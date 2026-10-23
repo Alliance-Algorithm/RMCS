@@ -10,6 +10,7 @@
 #include <source_location>
 #include <span>
 #include <string>
+#include <vector>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
@@ -22,6 +23,7 @@
 #include "feedback_sensor_guard.hpp"
 #include "leg_target_winding.hpp"
 #include "policy.hpp"
+#include "unified_observation.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -76,6 +78,7 @@ private:
     void update_command_reference_();
     void reset_heading_hold_();
     bool assemble_observation_();
+    bool publish_unified_observation_();
     void publish_model_feedback_();
     std::expected<void, std::string> process_action_(std::span<const double> raw);
     void compute_motor_torques_();
@@ -133,6 +136,14 @@ private:
     InputInterface<std::uint64_t> policy_submitted_ns_input_;
     InputInterface<std::string> policy_model_spec_input_;
     OutputInterface<bool> policy_enable_output_;
+    OutputInterface<std::vector<double>> policy_frame_output_;
+    OutputInterface<std::size_t> policy_frame_sequence_output_;
+    InputInterface<std::string> policy_observation_contract_input_;
+    InputInterface<std::string> policy_frame_path_input_, policy_frame_sequence_path_input_;
+    UnifiedObservation unified_observation_;
+    std::size_t next_policy_frame_sequence_ = 0;
+    std::array<double, 6> applied_policy_action_{};
+    bool unified_full_rl_ = false;
 
     Vector6 action_scales_ = Vector6::Ones();
     std::array<double, 6> action_clip_min_{}, action_clip_max_{};
@@ -168,8 +179,6 @@ private:
     bool motor_control_started_ = false;
     bool motor_feedback_initialized_ = false;
     bool use_motor_position_pd_ = false;
-    Eigen::Matrix3d imu_to_base_ = Eigen::Matrix3d::Identity();
-    Eigen::Quaterniond base_to_imu_orientation_ = Eigen::Quaterniond::Identity();
 
     Vector6 q_ = Vector6::Zero();
     Vector6 dq_ = Vector6::Zero();

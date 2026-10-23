@@ -49,8 +49,24 @@ install(TARGETS wheel_leg_recording_preview DESTINATION lib/${PROJECT_NAME})
 if(BUILD_TESTING)
     find_package(ament_cmake_gtest REQUIRED)
     find_package(rmcs_rl REQUIRED)
+    ament_add_gtest(wheel_leg_imu test/wheel_leg_imu.cpp)
+    target_include_directories(wheel_leg_imu PRIVATE src)
+    target_compile_definitions(wheel_leg_imu PRIVATE
+        RMCS_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-rl.yaml"
+        RMCS_UNIFIED_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml")
+    target_link_libraries(wheel_leg_imu ${PROJECT_NAME})
     ament_add_gtest(wheel_leg_feedback test/wheel_leg_feedback.cpp)
     target_include_directories(wheel_leg_feedback PRIVATE src)
+    ament_add_gtest(wheel_leg_unified_observation test/wheel_leg_unified_observation.cpp)
+    target_include_directories(wheel_leg_unified_observation PRIVATE src)
+    add_executable(wheel_leg_observation_parity tools/wheel_leg_observation_parity.cpp)
+    target_include_directories(wheel_leg_observation_parity PRIVATE src)
+    ament_add_gtest(wheel_leg_unified_policy_integration test/wheel_leg_unified_policy_integration.cpp)
+    target_include_directories(wheel_leg_unified_policy_integration PRIVATE
+        src ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)
+    target_compile_definitions(wheel_leg_unified_policy_integration PRIVATE
+        RMCS_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml")
+    target_link_libraries(wheel_leg_unified_policy_integration ${PROJECT_NAME})
     ament_add_gtest(wheel_leg_policy_integration test/wheel_leg_policy_integration.cpp)
     target_include_directories(wheel_leg_policy_integration PRIVATE
         src ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)

@@ -95,6 +95,10 @@ launch-rmcs
 
 在本机上运行代码。在首次运行代码前，需要调用 `set-robot` 脚本设置机器人类型。
 
+轮腿新自起模型使用 `wheel-leg-infantry-unified-rl` 配置（200 Hz 策略、
+1000 Hz host PD）；原 `wheel-leg-infantry-rl` 配置保留旧模型。
+模型、观测与离线验证说明见 [RL 部署整合](docs/zh-cn/rl_deployment_refactor.md)。
+
 #### 确认设备接入
 
 可以使用 `lsusb` 确定 [下位机](https://github.com/Alliance-Algorithm/rmcs_slave) 是否已接入，若已接入，则 `lsusb` 输出类似：

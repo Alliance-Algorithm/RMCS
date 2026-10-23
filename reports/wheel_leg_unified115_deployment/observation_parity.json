@@ -1,0 +1,14 @@
+{
+  "schema": "rmcs-unified115-current-port-parity-v1",
+  "frames": 35158,
+  "valid_frames": 35137,
+  "invalid_rejection_exact": true,
+  "full35_maximum_error": 4.76837158203125e-07,
+  "position_slots_maximum_error": 4.76837158203125e-07,
+  "passive_history_maximum_error": 1.9073486328125e-06,
+  "fixture_sha256": "5dbc8ceebdd3db4d98c128d07d185ee2f746b230d80c81b078ea7ae9b436702f",
+  "expected_fixture_sha256": "cd7c5235f32d8baf34f8d42f81c001d702c824c0ab5a2b74bb1094d90fd36bcb",
+  "actual_sha256": "cd22e0a0414166811781aa950ea0b34f129d6bac245719d3291e4ab1e0387718",
+  "hardware_tested": false,
+  "behavior_qualified": false
+}

@@ -1,0 +1,139 @@
+Starting >>> rmcs_core
+SetCTestConfiguration:BuildDirectory:/workspaces/RMCS/rmcs_ws/build/rmcs_core
+UpdateCTestConfiguration  from :/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/workspaces/RMCS/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/workspaces/RMCS/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/workspaces/RMCS/rmcs_ws/src/rmcs_core"
+SetCMakeVariable:CTEST_TEST_TIMEOUT:10000000
+UpdateCTestConfiguration  from :/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/workspaces/RMCS/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/workspaces/RMCS/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/workspaces/RMCS/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/workspaces/RMCS/rmcs_ws/src/rmcs_core"
+SetCTestConfiguration:BuildDirectory:/workspaces/RMCS/rmcs_ws/build/rmcs_core
+SetCTestConfiguration:SourceDirectory:/workspaces/RMCS/rmcs_ws/src/rmcs_core
+Test project /workspaces/RMCS/rmcs_ws/build/rmcs_core
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 3
+    Start 3: wheel_leg_unified_policy_integration
+
+3: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_unified_policy_integration.gtest.xml" "--package-name" "rmcs_core" "--output-file" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/ament_cmake_gtest/wheel_leg_unified_policy_integration.txt" "--command" "/workspaces/RMCS/rmcs_ws/build/rmcs_core/wheel_leg_unified_policy_integration" "--gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_unified_policy_integration.gtest.xml"
+3: Working Directory: /workspaces/RMCS/rmcs_ws/build/rmcs_core
+3: Test timeout computed to be: 60
+3: -- run_test.py: invoking following command in '/workspaces/RMCS/rmcs_ws/build/rmcs_core':
+3:  - /workspaces/RMCS/rmcs_ws/build/rmcs_core/wheel_leg_unified_policy_integration --gtest_output=xml:/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_unified_policy_integration.gtest.xml
+3: [==========] Running 2 tests from 1 test suite.
+3: [----------] Global test environment set-up.
+3: [----------] 2 tests from UnifiedPolicyIntegration
+3: [ RUN      ] UnifiedPolicyIntegration.RejectsLegacyPreprocessingHeadingHoldAndSlowPd
+3: [INFO] [1792772700.166354993] [rl_bridge]: observation layout (obs_size=35):
+3: [INFO] [1792772700.166413717] [rl_bridge]:   [0:35) frame  scale=1 <- /wheel_leg/rl/input/frame (std::vector<double>)
+3: [INFO] [1792772700.166417383] [rl_bridge]: action layout (action_size=6):
+3: [INFO] [1792772700.166420989] [rl_bridge]:   #0 /wheel_leg/rl/target/left_hip_joint -> /wheel_leg/rl/target/left_hip_joint scale=0.25
+3: [INFO] [1792772700.166423757] [rl_bridge]:   #1 /wheel_leg/rl/target/left_knee_joint -> /wheel_leg/rl/target/left_knee_joint scale=0.25
+3: [INFO] [1792772700.166425902] [rl_bridge]:   #2 /wheel_leg/rl/target/right_hip_joint -> /wheel_leg/rl/target/right_hip_joint scale=0.25
+3: [INFO] [1792772700.166428045] [rl_bridge]:   #3 /wheel_leg/rl/target/right_knee_joint -> /wheel_leg/rl/target/right_knee_joint scale=0.25
+3: [INFO] [1792772700.166430618] [rl_bridge]:   #4 /wheel_leg/rl/target/left_wheel -> /wheel_leg/rl/target/left_wheel scale=10
+3: [INFO] [1792772700.166432713] [rl_bridge]:   #5 /wheel_leg/rl/target/right_wheel -> /wheel_leg/rl/target/right_wheel scale=10
+3: [INFO] [1792772700.166435474] [rl_bridge]: contract: obs_size=35 action_size=6 policy_rate=200.000 Hz
+3: [INFO] [1792772700.166438956] [rl_bridge]: in-process policy worker: model=/workspaces/RMCS/rmcs_ws/install/share/rmcs_rl/models/wheel_leg/self_wake_V1.0.onnx, obs=35, action=6
+3: [INFO] [1792772700.166451771] [rmcs_executor]: Calculating component dependencies
+3: [INFO] [1792772700.166455589] [rmcs_executor]: - predefined_msg_provider
+3: [INFO] [1792772700.166457617] [rmcs_executor]: - snapshots
+3: [INFO] [1792772700.166459720] [rmcs_executor]: -     rl_bridge_actions
+3: [INFO] [1792772700.166461402] [rmcs_executor]: -         wheel_leg_controller
+3: [INFO] [1792772700.166463162] [rmcs_executor]: -             rl_bridge
+3: [INFO] [1792772700.219559152] [rl_bridge]: observation layout (obs_size=35):
+3: [INFO] [1792772700.219579653] [rl_bridge]:   [0:35) frame  scale=1 <- /wheel_leg/rl/input/frame (std::vector<double>)
+3: [INFO] [1792772700.219582970] [rl_bridge]: action layout (action_size=6):
+3: [INFO] [1792772700.219586180] [rl_bridge]:   #0 /wheel_leg/rl/target/left_hip_joint -> /wheel_leg/rl/target/left_hip_joint scale=0.25
+3: [INFO] [1792772700.219588778] [rl_bridge]:   #1 /wheel_leg/rl/target/left_knee_joint -> /wheel_leg/rl/target/left_knee_joint scale=0.25
+3: [INFO] [1792772700.219590886] [rl_bridge]:   #2 /wheel_leg/rl/target/right_hip_joint -> /wheel_leg/rl/target/right_hip_joint scale=0.25
+3: [INFO] [1792772700.219592943] [rl_bridge]:   #3 /wheel_leg/rl/target/right_knee_joint -> /wheel_leg/rl/target/right_knee_joint scale=0.25
+3: [INFO] [1792772700.219595480] [rl_bridge]:   #4 /wheel_leg/rl/target/left_wheel -> /wheel_leg/rl/target/left_wheel scale=10
+3: [INFO] [1792772700.219597414] [rl_bridge]:   #5 /wheel_leg/rl/target/right_wheel -> /wheel_leg/rl/target/right_wheel scale=10
+3: [INFO] [1792772700.219599166] [rl_bridge]: contract: obs_size=35 action_size=6 policy_rate=200.000 Hz
+3: [INFO] [1792772700.219602243] [rl_bridge]: in-process policy worker: model=/workspaces/RMCS/rmcs_ws/install/share/rmcs_rl/models/wheel_leg/self_wake_V1.0.onnx, obs=35, action=6
+3: [INFO] [1792772700.219613932] [rmcs_executor]: Calculating component dependencies
+3: [INFO] [1792772700.219617520] [rmcs_executor]: - predefined_msg_provider
+3: [INFO] [1792772700.219619836] [rmcs_executor]: - snapshots
+3: [INFO] [1792772700.219621804] [rmcs_executor]: -     rl_bridge_actions
+3: [INFO] [1792772700.219623580] [rmcs_executor]: -         wheel_leg_controller
+3: [INFO] [1792772700.219625275] [rmcs_executor]: -             rl_bridge
+3: [INFO] [1792772700.271364760] [rl_bridge]: observation layout (obs_size=35):
+3: [INFO] [1792772700.271384252] [rl_bridge]:   [0:35) frame  scale=1 <- /wheel_leg/rl/input/frame (std::vector<double>)
+3: [INFO] [1792772700.271386808] [rl_bridge]: action layout (action_size=6):
+3: [INFO] [1792772700.271389992] [rl_bridge]:   #0 /wheel_leg/rl/target/left_hip_joint -> /wheel_leg/rl/target/left_hip_joint scale=0.25
+3: [INFO] [1792772700.271392583] [rl_bridge]:   #1 /wheel_leg/rl/target/left_knee_joint -> /wheel_leg/rl/target/left_knee_joint scale=0.25
+3: [INFO] [1792772700.271394718] [rl_bridge]:   #2 /wheel_leg/rl/target/right_hip_joint -> /wheel_leg/rl/target/right_hip_joint scale=0.25
+3: [INFO] [1792772700.271414667] [rl_bridge]:   #3 /wheel_leg/rl/target/right_knee_joint -> /wheel_leg/rl/target/right_knee_joint scale=0.25
+3: [INFO] [1792772700.271417559] [rl_bridge]:   #4 /wheel_leg/rl/target/left_wheel -> /wheel_leg/rl/target/left_wheel scale=10
+3: [INFO] [1792772700.271419550] [rl_bridge]:   #5 /wheel_leg/rl/target/right_wheel -> /wheel_leg/rl/target/right_wheel scale=10
+3: [INFO] [1792772700.271421342] [rl_bridge]: contract: obs_size=35 action_size=6 policy_rate=200.000 Hz
+3: [INFO] [1792772700.271424536] [rl_bridge]: in-process policy worker: model=/workspaces/RMCS/rmcs_ws/install/share/rmcs_rl/models/wheel_leg/self_wake_V1.0.onnx, obs=35, action=6
+3: [INFO] [1792772700.271436954] [rmcs_executor]: Calculating component dependencies
+3: [INFO] [1792772700.271440537] [rmcs_executor]: - predefined_msg_provider
+3: [INFO] [1792772700.271442734] [rmcs_executor]: - snapshots
+3: [INFO] [1792772700.271444659] [rmcs_executor]: -     rl_bridge_actions
+3: [INFO] [1792772700.271446427] [rmcs_executor]: -         wheel_leg_controller
+3: [INFO] [1792772700.271448303] [rmcs_executor]: -             rl_bridge
+3: [       OK ] UnifiedPolicyIntegration.RejectsLegacyPreprocessingHeadingHoldAndSlowPd (173 ms)
+3: [ RUN      ] UnifiedPolicyIntegration.NeutralPrepareDirectInvertedAndSideEntryResetAndStaleFeedback
+3: [INFO] [1792772700.323749846] [rl_bridge]: observation layout (obs_size=35):
+3: [INFO] [1792772700.323770050] [rl_bridge]:   [0:35) frame  scale=1 <- /wheel_leg/rl/input/frame (std::vector<double>)
+3: [INFO] [1792772700.323772544] [rl_bridge]: action layout (action_size=6):
+3: [INFO] [1792772700.323775766] [rl_bridge]:   #0 /wheel_leg/rl/target/left_hip_joint -> /wheel_leg/rl/target/left_hip_joint scale=0.25
+3: [INFO] [1792772700.323778334] [rl_bridge]:   #1 /wheel_leg/rl/target/left_knee_joint -> /wheel_leg/rl/target/left_knee_joint scale=0.25
+3: [INFO] [1792772700.323780631] [rl_bridge]:   #2 /wheel_leg/rl/target/right_hip_joint -> /wheel_leg/rl/target/right_hip_joint scale=0.25
+3: [INFO] [1792772700.323782643] [rl_bridge]:   #3 /wheel_leg/rl/target/right_knee_joint -> /wheel_leg/rl/target/right_knee_joint scale=0.25
+3: [INFO] [1792772700.323785206] [rl_bridge]:   #4 /wheel_leg/rl/target/left_wheel -> /wheel_leg/rl/target/left_wheel scale=10
+3: [INFO] [1792772700.323787111] [rl_bridge]:   #5 /wheel_leg/rl/target/right_wheel -> /wheel_leg/rl/target/right_wheel scale=10
+3: [INFO] [1792772700.323788944] [rl_bridge]: contract: obs_size=35 action_size=6 policy_rate=200.000 Hz
+3: [INFO] [1792772700.323791756] [rl_bridge]: in-process policy worker: model=/workspaces/RMCS/rmcs_ws/install/share/rmcs_rl/models/wheel_leg/self_wake_V1.0.onnx, obs=35, action=6
+3: [INFO] [1792772700.323807723] [rmcs_executor]: Calculating component dependencies
+3: [INFO] [1792772700.323810982] [rmcs_executor]: - predefined_msg_provider
+3: [INFO] [1792772700.323813040] [rmcs_executor]: - snapshots
+3: [INFO] [1792772700.323814932] [rmcs_executor]: -     rl_bridge_actions
+3: [INFO] [1792772700.323816812] [rmcs_executor]: -         wheel_leg_controller
+3: [INFO] [1792772700.323818551] [rmcs_executor]: -             rl_bridge
+3: [INFO] [1792772700.323820251] [rmcs_executor]: -         observe
+3: [INFO] [1792772700.323843905] [wheel_leg_controller]: Joint PD backend: host torque, Kp 160.0, Kd 2.5
+3: [INFO] [1792772700.323850227] [wheel_leg_controller]: Heading hold disabled: P 5.00 1/s, correction limit 4.00 rad/s at policy rate
+3: [INFO] [1792772700.390977788] [rl_bridge]: valid=1 (obs_seq=1 action_age=0.0010 s)
+3: [WARN] [1792772700.594966279] [rl_bridge]: valid=0: no inference result available
+3: [INFO] [1792772700.600979437] [rl_bridge]: valid=1 (obs_seq=42 action_age=0.0010 s)
+3: [ERROR] [1792772700.744973865] [wheel_leg_controller]: RL stopped at /workspaces/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp:305: invalid command, calibration or feedback, state=3 feedback_fresh=1 feedback_valid=0 sensor_valid=0 sensor_issue=3 mask=0xff age_ms[motor,imu,accel]=[40.995,40.995,40.995] hinge=[0.5574,0.5574] dq_max[leg,wheel]=[0.000,0.000]
+3: [WARN] [1792772700.745969346] [rl_bridge]: valid=0: disabled by enable interface
+3: [INFO] [1792772700.806980784] [rl_bridge]: valid=1 (obs_seq=71 action_age=0.0010 s)
+3: Coherent full-RL frames=71, serialization max=0, applied-history max=0
+3: [       OK ] UnifiedPolicyIntegration.NeutralPrepareDirectInvertedAndSideEntryResetAndStaleFeedback (539 ms)
+3: [----------] 2 tests from UnifiedPolicyIntegration (712 ms total)
+3: 
+3: [----------] Global test environment tear-down
+3: [==========] 2 tests from 1 test suite ran. (712 ms total)
+3: [  PASSED  ] 2 tests.
+3: -- run_test.py: return code 0
+3: -- run_test.py: inject classname prefix into gtest result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_unified_policy_integration.gtest.xml'
+3: -- run_test.py: verify result file '/workspaces/RMCS/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheel_leg_unified_policy_integration.gtest.xml'
+1/1 Test #3: wheel_leg_unified_policy_integration ...   Passed    0.87 sec
+
+The following tests passed:
+	wheel_leg_unified_policy_integration
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+gtest    =   0.87 sec*proc (1 test)
+
+Total Test time (real) =   0.88 sec
+Finished <<< rmcs_core [0.90s]
+
+Summary: 1 package finished [1.00s]
