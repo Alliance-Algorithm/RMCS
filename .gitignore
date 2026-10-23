@@ -86,4 +86,5 @@ CLAUDE.md
 /.script/simulation/
 /.script/tests/
 /.script/identification/test_*.py
-/rmcs_ws/src/rmcs_core/test/
+/rmcs_ws/src/rmcs_core/test/*
+!/rmcs_ws/src/rmcs_core/test/wheel_leg_feedback.cpp
