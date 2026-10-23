@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <ranges>
 #include <sstream>
 #include <stdexcept>
@@ -33,6 +34,7 @@
 #include "hardware/device/remote_control.hpp"
 #include "hardware/device/wheel_leg_sensor_snapshot.hpp"
 #include "hardware/wheel_leg_control.hpp"
+#include "hardware/wheel_leg_imu.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -47,6 +49,7 @@ public:
         remote_control_ = std::make_unique<device::RemoteControl>(*this);
         board_ =
             std::make_unique<Board>(*this, *command_, get_parameter("board_serial").as_string());
+        imu_parameters_callback_ = freeze_wheel_leg_imu_parameters(*this);
 
         using Srv = std_srvs::srv::Trigger;
         status_service_ = create_service<Srv>(
@@ -119,8 +122,7 @@ private:
             , knee_motors_(
                   {status, command, "/wheel_leg/left_knee_joint"},
                   {status, command, "/wheel_leg/right_knee_joint"})
-            // Confirmed installed frame: BMI088 +X forward, +Y left, +Z up.
-            , bmi088_(device::Bmi088Ekf::Config{.body_to_sensor = Eigen::Matrix3d::Identity()}) {
+            , bmi088_(load_wheel_leg_imu_config(status)) {
 
             register_telemetry(status, command);
             configure_control(status, command);
@@ -145,6 +147,8 @@ private:
         void command_update() {
             reset_command_telemetry();
             const auto cycle = evaluate_drive_request();
+            if (cycle.entered_both_down)
+                reset_imu_motion_requested_.store(true, std::memory_order_release);
             {
                 auto builder = board_->start_transmit();
                 queue_wheel_commands(builder, cycle.wheel_torque_allowed);
@@ -906,16 +910,16 @@ private:
         }
 
         void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
+            reset_imu_motion_if_requested();
             const auto timestamp = imu_sample_clock_.accelerometer_time(data.timestamp_quarter_us);
             if (!timestamp
                 || !bmi088_.push_accelerometer_sample(data.x, data.y, data.z, *timestamp))
                 return;
-            if (const auto acceleration = bmi088_.acceleration_snapshot())
-                acceleration_feedback_.publish(
-                    *acceleration, static_cast<std::uint64_t>(now_ns()), data.timestamp_quarter_us);
+            publish_acceleration_snapshot();
         }
 
         void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
+            reset_imu_motion_if_requested();
             const auto timestamp = imu_sample_clock_.gyroscope_time(data.timestamp_quarter_us);
             if (!timestamp.has_value())
                 return;
@@ -923,6 +927,26 @@ private:
                     bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp))
                 imu_feedback_.publish(
                     *snapshot, static_cast<std::uint64_t>(now_ns()), data.timestamp_quarter_us);
+            // With an offset, the gyro callback completes the earlier accelerometer sample.
+            publish_acceleration_snapshot();
+        }
+
+        void reset_imu_motion_if_requested() {
+            if (reset_imu_motion_requested_.exchange(false, std::memory_order_acq_rel))
+                bmi088_.reset_motion_history();
+        }
+
+        void publish_acceleration_snapshot() {
+            const auto acceleration = bmi088_.acceleration_snapshot();
+            if (!acceleration
+                || (published_acceleration_time_
+                    && acceleration->timestamp <= *published_acceleration_time_))
+                return;
+            // Keep the accelerometer's board tick, even when a later gyro completes correction.
+            acceleration_feedback_.publish(
+                *acceleration, static_cast<std::uint64_t>(now_ns()),
+                static_cast<std::uint32_t>(acceleration->timestamp.time_since_epoch().count()));
+            published_acceleration_time_ = acceleration->timestamp;
         }
 
         WheelLeg& status_;
@@ -965,6 +989,8 @@ private:
         device::Dr16 dr16_;
         device::Bmi088Ekf bmi088_;
         device::WheelLegImuSampleClock imu_sample_clock_;
+        std::optional<device::Bmi088Ekf::TimePoint> published_acceleration_time_;
+        std::atomic<bool> reset_imu_motion_requested_{false};
         std::array<device::WheelLegSensorMailbox<device::CanPacket8>, 6> motor_feedback_;
         device::WheelLegSensorMailbox<device::Bmi088Ekf::Snapshot> imu_feedback_;
         device::WheelLegSensorMailbox<device::Bmi088Ekf::AccelerationSnapshot>
@@ -999,6 +1025,7 @@ private:
     std::unique_ptr<device::RemoteControl> remote_control_;
     std::shared_ptr<Command> command_;
     std::unique_ptr<Board> board_;
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr imu_parameters_callback_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr calibrate_subscription_;
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;
 };
