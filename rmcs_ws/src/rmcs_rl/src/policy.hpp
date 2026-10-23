@@ -55,6 +55,7 @@ struct PolicyProfile {
     double height_min, height_max;
     double forward_limit, negative_yaw_limit, positive_yaw_limit;
     bool recovery_supported;
+    double nominal_height = DeployedPolicyContract::kNominalHeight;
 };
 
 inline constexpr PolicyProfile kV6PolicyProfile{
@@ -154,6 +155,8 @@ public:
     OnnxPolicy& operator=(const OnnxPolicy&) = delete;
 
     std::expected<PolicyAction, std::string> run(const PolicyObservation& observation);
+    void reset_history() noexcept;
+    bool uses_history() const noexcept;
 
 private:
     struct Impl;

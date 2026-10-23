@@ -191,6 +191,18 @@ RlController::RlController()
         policy_profile_ = kV5PolicyProfile;
     else
         throw std::runtime_error("Unknown wheel-leg control profile: " + profile_name);
+    policy_profile_.nominal_height =
+        get_parameter_or("nominal_height", policy_profile_.nominal_height);
+    policy_profile_.height_min = get_parameter_or("policy_height_min", policy_profile_.height_min);
+    policy_profile_.height_max = get_parameter_or("policy_height_max", policy_profile_.height_max);
+    if (has_parameter("command_rate_limits")) {
+        const auto rates = parameter_array<3>(*this, "command_rate_limits");
+        command_rate_limits_ = Eigen::Map<const Eigen::Vector3d>{rates.data()};
+        if (!(command_rate_limits_.array() == 0.0).all()
+            && !(command_rate_limits_.array() > 0.0).all())
+            throw std::runtime_error("Command rates must be all positive or all zero");
+    }
+    height_reference_ = height_from_ = height_target_ = policy_profile_.nominal_height;
     leg_target_winding_ = parse_leg_target_winding(
         get_parameter_or<std::string>("leg_winding_version", "independent_nearest_v1"),
         policy_profile_.name);
@@ -254,6 +266,9 @@ RlController::RlController()
     recovery_frequency_ =
         get_parameter_or("recovery_frequency", DeployedPolicyContract::kControlFrequencyHz);
     const std::array parameters{
+        policy_profile_.nominal_height,
+        policy_profile_.height_min,
+        policy_profile_.height_max,
         policy_profile_.forward_limit,
         policy_profile_.negative_yaw_limit,
         policy_profile_.positive_yaw_limit,
@@ -286,7 +301,10 @@ RlController::RlController()
     };
     if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
         || policy_profile_.forward_limit <= 0 || policy_profile_.negative_yaw_limit <= 0
-        || policy_profile_.positive_yaw_limit <= 0
+        || policy_profile_.positive_yaw_limit <= 0 || policy_profile_.height_min <= 0
+        || policy_profile_.height_min > policy_profile_.height_max
+        || policy_profile_.nominal_height < policy_profile_.height_min
+        || policy_profile_.nominal_height > policy_profile_.height_max
         || inference_frequency_ != DeployedPolicyContract::kPolicyFrequencyHz
         || pd_frequency_ < DeployedPolicyContract::kControlFrequencyHz || pd_frequency_ > 1000.0
         || std::fmod(pd_frequency_, DeployedPolicyContract::kControlFrequencyHz) != 0.0
@@ -569,10 +587,10 @@ RlController::RlController()
         RCLCPP_INFO(
             get_logger(),
             "ONNX model %s, %s control, %s winding, %.0fHz policy / %.0fHz feedback PD / "
-            "%.0fHz recovery",
+            "%.0fHz recovery, %s input",
             path.string().c_str(), std::string{policy_profile_.name}.c_str(),
             leg_target_winding_name(leg_target_winding_).data(), inference_frequency_,
-            pd_frequency_, recovery_frequency_);
+            pd_frequency_, recovery_frequency_, policy_->uses_history() ? "H5" : "single-frame");
         policy_ready_ = true;
     }
     // Configuration is copied into fixed control-loop state at construction.

@@ -158,7 +158,7 @@ void RlController::update_command_reference_() {
         vx_reference_ *= scale;
         yaw_reference_ *= scale;
     }
-    if (std::abs(vx_reference_ * yaw_reference_) > 2.06)
+    if (!policy_->uses_history() && std::abs(vx_reference_ * yaw_reference_) > 2.06)
         vx_reference_ = std::copysign(2.06 / std::abs(yaw_reference_), vx_reference_);
 }
 
@@ -168,6 +168,7 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
         || *height_command_ > policy_profile_.height_max || !std::isfinite(*jump_apex_command_))
         return false;
     const bool hold_command = recovery_motion_hold_();
+    const Eigen::Vector3d previous_command{vx_reference_, yaw_reference_, height_reference_};
     if (!shadow_recovery && !hold_command)
         update_command_reference_();
     else {
@@ -177,7 +178,25 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
     }
     const bool height_command_active =
         !shadow_recovery && (policy_profile_.name != kV6PolicyProfile.name || !hold_command);
-    if (height_command_is_reference_) {
+    if ((command_rate_limits_.array() > 0.0).all()) {
+        if (height_command_active) {
+            // One fraction retains the convex wheel-speed envelope while
+            // bounding each forward/yaw/height rate at the policy cadence.
+            const Eigen::Vector3d requested{vx_reference_, yaw_reference_, *height_command_};
+            const Eigen::Vector3d delta = requested - previous_command;
+            const double fraction = std::min(
+                1.0, (command_rate_limits_ * DeployedPolicyContract::kPolicyPeriodSeconds)
+                         .cwiseQuotient(delta.cwiseAbs().cwiseMax(1e-20))
+                         .minCoeff());
+            const Eigen::Vector3d admitted = previous_command + fraction * delta;
+            vx_reference_ = admitted.x();
+            yaw_reference_ = admitted.y();
+            height_reference_ = admitted.z();
+            height_from_ = height_reference_;
+            height_target_ = *height_command_;
+            height_start_ = *timestamp_;
+        }
+    } else if (height_command_is_reference_) {
         if (height_command_active) {
             // The chassis integrates the height input. Follow that continuous
             // reference without restarting a full transition for every sample.
@@ -210,11 +229,10 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
     auto observation = std::span{observation_};
     auto command = observation.subspan<ObservationLayout::kCommand, 3>();
     command[0] = (shadow_recovery || hold_command) ? 0.0 : vx_reference_;
-    command[1] = 0.0; // Both frozen flat actors have no lateral command capability.
+    command[1] = 0.0; // The calibrated chassis has no lateral command capability.
     command[2] = (shadow_recovery || hold_command) ? 0.0 : yaw_reference_;
     observation[ObservationLayout::kHeight] =
-        ((shadow_recovery || hold_command) ? DeployedPolicyContract::kNominalHeight
-                                           : height_reference_)
+        ((shadow_recovery || hold_command) ? policy_profile_.nominal_height : height_reference_)
         * 5.0;
 
     auto angular_velocity = observation.subspan<ObservationLayout::kAngularVelocity, 3>();
@@ -226,8 +244,19 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
 
     auto joint_position = observation.subspan<ObservationLayout::kJointPosition, 6>();
     std::ranges::fill(joint_position, 0.0f); // wheel positions are deliberately zero
-    for (int i = 0; i < 4; ++i)
-        joint_position[i] = std::remainder(q_[i] - nominal_[i], 2 * std::numbers::pi);
+    if (policy_->uses_history()) {
+        constexpr double tau = 2 * std::numbers::pi;
+        for (int hip : {0, 2}) {
+            const double first = q_[hip] - nominal_[hip];
+            const double second = q_[hip + 1] - nominal_[hip + 1];
+            const double common = std::floor((first * 0.5 + second * 0.5) / tau + 0.5) * tau;
+            joint_position[hip] = first - common;
+            joint_position[hip + 1] = second - common;
+        }
+    } else {
+        for (int i = 0; i < 4; ++i)
+            joint_position[i] = std::remainder(q_[i] - nominal_[i], 2 * std::numbers::pi);
+    }
 
     auto joint_velocity = observation.subspan<ObservationLayout::kJointVelocity, 6>();
     for (int i = 0; i < 6; ++i)

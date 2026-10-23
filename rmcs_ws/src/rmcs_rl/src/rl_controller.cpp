@@ -124,6 +124,8 @@ void RlController::enter_(State next) {
     if (next == State::kIdle && recovery_.phase() == RecoveryPhase::kFailed)
         recovery_failure_latched_ = recovery_.failure();
     state_ = next;
+    if (policy_)
+        policy_->reset_history();
     reset_heading_hold_();
     prepare_stable_since_.reset();
     if (next != State::kRl) {
@@ -161,7 +163,7 @@ void RlController::enter_(State next) {
         policy_targets_valid_ = false;
         jump_was_requested_ = false;
         vx_reference_ = yaw_reference_ = 0.0;
-        height_reference_ = height_from_ = height_target_ = DeployedPolicyContract::kNominalHeight;
+        height_reference_ = height_from_ = height_target_ = policy_profile_.nominal_height;
         height_start_ = *timestamp_;
     } else if (next == State::kPrepare) {
         recovery_.reset();
@@ -185,7 +187,7 @@ void RlController::enter_(State next) {
             takeover_targets_ = targets_;
             takeover_targets_.tail<2>().setZero();
         }
-        if (!recovery_started_)
+        if (!recovery_started_ || (policy_ && policy_->uses_history()))
             last_policy_tick_ = std::numeric_limits<std::size_t>::max();
         else
             recovery_upright_seconds_ = 0.0;
@@ -460,6 +462,15 @@ void RlController::update() {
     // Recovery and PD share a tick when their configured frequencies match.
     if (recovery_due && recovery_started_ && policy_profile_.name == kV6PolicyProfile.name
         && !advance_joint_reference_recovery_()) {
+        latch_fault_();
+        update_state_output_();
+        return;
+    }
+    // A history actor must not inherit the script's shadow window. Prime its
+    // new ownership boundary before this tick's six-axis effort is computed.
+    if (state_ == State::kRl && policy_->uses_history()
+        && last_policy_tick_ == std::numeric_limits<std::size_t>::max()
+        && !evaluate_policy_(tick, false)) {
         latch_fault_();
         update_state_output_();
         return;

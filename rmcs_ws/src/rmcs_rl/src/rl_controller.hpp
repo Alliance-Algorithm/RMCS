@@ -238,6 +238,8 @@ private:
     bool jump_was_requested_ = false;
     double vx_reference_ = 0.0;
     double yaw_reference_ = 0.0;
+    // Zero disables the coupled forward/yaw/height command slew limiter.
+    Eigen::Vector3d command_rate_limits_ = Eigen::Vector3d::Zero();
     bool heading_hold_enabled_ = true;
     double heading_hold_gain_ = 5.0;
     double heading_hold_yaw_rate_max_ = 2.0 * std::numbers::pi;

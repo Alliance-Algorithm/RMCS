@@ -301,8 +301,22 @@ void RlController::compute_motor_torques_() {
             std::clamp(motor_tau_wheel, -*max_torque_inputs_[4 + i], *max_torque_inputs_[4 + i]);
     }
     if (native_recovery) {
-        const Vector6 history = joint_reference_recovery_->effective_action_history(
+        Vector6 history = joint_reference_recovery_->effective_action_history(
             Eigen::Map<const Eigen::Matrix<float, 6, 1>>{policy_action_.data()}.cast<double>());
+        if (policy_->uses_history() && !joint_reference_recovery_->command().pure_rl) {
+            // Script-owned references are not actor-clipped actions. Remove
+            // only a common leg winding and retain the last issued hold.
+            const auto& reference = joint_reference_recovery_->command().targets;
+            constexpr double tau = 2 * std::numbers::pi;
+            for (int hip : {0, 2}) {
+                const double first = reference[hip] - nominal_[hip];
+                const double second = reference[hip + 1] - nominal_[hip + 1];
+                const double common = std::floor((first * 0.5 + second * 0.5) / tau + 0.5) * tau;
+                history[hip] = (first - common) / DeployedPolicyContract::kLegActionScale;
+                history[hip + 1] = (second - common) / DeployedPolicyContract::kLegActionScale;
+            }
+            history.tail<2>() = reference.tail<2>() / DeployedPolicyContract::kWheelActionScale;
+        }
         for (int i = 0; i < 6; ++i)
             previous_action_[i] = static_cast<float>(history[i]);
     }
