@@ -8,7 +8,7 @@
     "service": "rmcs-develop",
     "workspaceFolder": "/workspaces/RMCS",
     "containerEnv": {
-        "PATH": "/opt/cmake/bin:${containerEnv:PATH}"
+        "PATH": "/opt/cmake/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/nvim/bin"
     },
     "initializeCommand": "bash .devcontainer/scripts/generate-local-override.sh && bash .devcontainer/scripts/probe-host-tools.sh",
     "postCreateCommand": "bash .devcontainer/scripts/setup-shell-history.sh && bash .devcontainer/scripts/bootstrap-tools.sh",
