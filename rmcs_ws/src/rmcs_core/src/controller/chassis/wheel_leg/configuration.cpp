@@ -2,16 +2,12 @@
 
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
 #include <limits>
 #include <numbers>
 #include <ranges>
 #include <stdexcept>
-#include <type_traits>
 #include <utility>
 #include <vector>
-
-#include <ament_index_cpp/get_package_share_directory.hpp>
 
 namespace rmcs_core::controller::chassis {
 
@@ -27,60 +23,6 @@ std::array<double, Size> parameter_array(rclcpp::Node& node, const char* name) {
     return values;
 }
 
-std::vector<double> finite_parameter_vector(rclcpp::Node& node, const std::string& name) {
-    const auto values = node.get_parameter(name).as_double_array();
-    if (values.empty() || !std::ranges::all_of(values, [](double v) { return std::isfinite(v); }))
-        throw std::runtime_error("Missing/nonfinite recovery calibration: " + name);
-    return values;
-}
-
-std::vector<Eigen::Vector3d>
-    calibrated_points(rclcpp::Node& node, const std::string& name, std::size_t count) {
-    const auto values = finite_parameter_vector(node, name);
-    if (values.size() != 3 * count)
-        throw std::runtime_error(name + " must contain exactly three values per point");
-    std::vector<Eigen::Vector3d> result;
-    result.reserve(count);
-    for (std::size_t i = 0; i < count; ++i)
-        result.emplace_back(values[3 * i], values[3 * i + 1], values[3 * i + 2]);
-    return result;
-}
-
-RecoveryMechanism calibrated_mechanism(rclcpp::Node& node) {
-    RecoveryMechanism mechanism;
-    mechanism.wheel_radius_m = node.get_parameter("wheel_radius").as_double();
-    mechanism.spring_stroke_m = node.get_parameter("recovery_spring_stroke_m").as_double();
-    const auto coefficients = parameter_array<4>(node, "recovery_spring_force_n");
-    std::ranges::copy(coefficients, mechanism.spring_force_n.begin());
-    for (int side = 0; side < 2; ++side) {
-        auto& table = mechanism.sides[side];
-        const std::string prefix = side == 0 ? "recovery_left_" : "recovery_right_";
-        table.delta_rad = finite_parameter_vector(node, prefix + "delta_rad");
-        table.inner_knee_deg = finite_parameter_vector(node, prefix + "inner_knee_deg");
-        table.slider_m = finite_parameter_vector(node, prefix + "slider_m");
-        table.wheel_at_hip_zero_m =
-            calibrated_points(node, prefix + "wheel_at_hip_zero_m", table.delta_rad.size());
-        table.knee_axis_at_hip_zero =
-            calibrated_points(node, prefix + "knee_axis_at_hip_zero", table.delta_rad.size());
-        table.wheel_axis_at_hip_zero =
-            calibrated_points(node, prefix + "wheel_axis_at_hip_zero", table.delta_rad.size());
-        table.slider_slope_m_per_rad =
-            finite_parameter_vector(node, prefix + "slider_slope_m_per_rad");
-        table.passive_knee_sign = node.get_parameter(prefix + "passive_knee_sign").as_double();
-        const auto hip_origin = parameter_array<3>(node, (prefix + "hip_origin_m").c_str());
-        const auto hip_axis = parameter_array<3>(node, (prefix + "hip_axis").c_str());
-        table.hip_origin_m = Eigen::Vector3d{hip_origin[0], hip_origin[1], hip_origin[2]};
-        table.hip_axis = Eigen::Vector3d{hip_axis[0], hip_axis[1], hip_axis[2]};
-        table.spring_compression_at_zero_m =
-            node.get_parameter(prefix + "spring_compression_at_zero_m").as_double();
-    }
-    const auto shell = finite_parameter_vector(node, "recovery_shell_points_body_m");
-    if (shell.size() < 12 || shell.size() % 3)
-        throw std::runtime_error("Calibrated shell geometry needs at least four xyz points");
-    mechanism.shell_points_body_m =
-        calibrated_points(node, "recovery_shell_points_body_m", shell.size() / 3);
-    return mechanism;
-}
 } // namespace
 
 WheelLegController::WheelLegController()
@@ -92,12 +34,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     if (!std::isfinite(inference_timeout_) || inference_timeout_ <= 0.0)
         throw std::runtime_error("Wheel-leg inference_timeout must be finite and positive");
 
-    // Existing deployment files keep working while runtime parameters use mechanism names.
-    const auto recovery_parameter = [this]<typename T>(const std::string& name, const T& fallback) {
-        if (has_parameter(name))
-            return get_parameter_or<T>(name, fallback);
-        return get_parameter_or<T>("v6_" + name, fallback);
-    };
     constexpr const char* base = "/wheel_leg/";
     for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
         const std::string prefix = std::string{base} + kMotorNames[i];
@@ -108,12 +44,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         register_output(prefix + "/control_torque", torque_outputs_[i], 0.0);
         register_input(prefix + "/feedback_sequence", motor_feedback_sequences_[i], false);
         register_input(prefix + "/feedback_steady_ns", motor_feedback_ns_[i], false);
-        if (i >= 4) {
-            register_input(
-                prefix + "/last_submitted_torque", wheel_submitted_torque_[i - 4], false);
-            register_input(prefix + "/last_submitted_kind", wheel_submitted_kind_[i - 4], false);
-            register_input(prefix + "/last_submitted_steady_ns", wheel_submitted_ns_[i - 4], false);
-        }
         if (i < 4) {
             register_input(prefix + "/fault_code", fault_inputs_[i]);
             register_output(
@@ -146,51 +76,13 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     register_input("/wheel_leg/imu/acceleration_sequence", acceleration_sequence_, false);
     register_output("/wheel_leg/rl/state", state_output_, std::to_underlying(State::kInit));
     register_output("/wheel_leg/enable_request", enable_request_, false);
-    register_output("/wheel_leg/rl/recovery/phase", recovery_phase_output_, 0);
-    register_output("/wheel_leg/rl/recovery/native_phase", recovery_native_phase_output_, -1);
-    register_output("/wheel_leg/rl/recovery/native_failure", recovery_native_failure_output_, 0);
-    register_output("/wheel_leg/rl/recovery/native_route", recovery_native_route_output_, -1);
-    register_output(
-        "/wheel_leg/rl/recovery/native_motion_released", recovery_native_motion_released_output_,
-        false);
-    register_output("/wheel_leg/rl/recovery/failure", recovery_failure_output_, 0);
-    register_output("/wheel_leg/rl/recovery/support_confirmed", recovery_support_output_, false);
-    register_output("/wheel_leg/rl/recovery/geometry_valid", recovery_geometry_output_, false);
-    register_output("/wheel_leg/rl/recovery/motion_hold", recovery_motion_hold_output_, false);
-    register_output("/wheel_leg/rl/recovery/sensors_valid", recovery_sensors_valid_output_, false);
-    register_output("/wheel_leg/rl/recovery/sensor_issue", recovery_sensor_issue_output_, 0);
-    register_output(
-        "/wheel_leg/rl/recovery/sensor_invalid_mask", recovery_sensor_mask_output_, 255);
-    register_output("/wheel_leg/rl/recovery/motor_age_ms", recovery_motor_age_output_, -1.0);
-    register_output("/wheel_leg/rl/recovery/imu_age_ms", recovery_imu_age_output_, -1.0);
-    register_output(
-        "/wheel_leg/rl/recovery/acceleration_age_ms", recovery_acceleration_age_output_, -1.0);
-    register_output("/wheel_leg/rl/recovery/contact_candidate", recovery_contact_output_, false);
-    register_output("/wheel_leg/rl/recovery/height_if_grounded", recovery_height_output_, 0.0);
-    register_output("/wheel_leg/rl/recovery/tuck/ready", recovery_tuck_ready_output_, false);
-    register_output("/wheel_leg/rl/recovery/tuck/valid", recovery_tuck_valid_output_, false);
-    register_output("/wheel_leg/rl/recovery/tuck/active", recovery_tuck_active_output_, false);
-    register_output(
-        "/wheel_leg/rl/recovery/trajectory_remaining_rad", recovery_remaining_output_, 0.0);
-    register_output("/wheel_leg/rl/recovery/tracking_error_rad", recovery_tracking_output_, 0.0);
-    for (int i = 0; i < 4; ++i) {
-        const std::string prefix = std::string{"/wheel_leg/rl/recovery/"} + kMotorNames[i] + "/";
-        register_output(prefix + "reference", recovery_reference_outputs_[i], 0.0);
-        register_output(prefix + "tuck_target", recovery_tuck_target_outputs_[i], 0.0);
-        register_output(prefix + "hold_torque", recovery_hold_outputs_[i], 0.0);
-    }
-    for (int side = 0; side < 2; ++side) {
-        const std::string prefix =
-            std::string{"/wheel_leg/rl/recovery/tuck/"} + (side == 0 ? "left/" : "right/");
-        register_output(
-            prefix + "knee_deg", recovery_tuck_knee_outputs_[side],
-            std::numeric_limits<double>::quiet_NaN());
-        register_output(
-            prefix + "sagittal_error_m", recovery_tuck_sagittal_outputs_[side],
-            std::numeric_limits<double>::quiet_NaN());
-    }
-    register_output("/wheel_leg/rl/recovery/blend", recovery_blend_output_, 0.0);
-    register_output("/wheel_leg/rl/v6_takeover/blend_fraction", takeover_blend_output_, 0.0);
+    register_output("/wheel_leg/rl/fault_latched", fault_output_, false);
+    register_output("/wheel_leg/rl/feedback/sensors_valid", sensors_valid_output_, false);
+    register_output("/wheel_leg/rl/feedback/sensor_issue", sensor_issue_output_, 0);
+    register_output("/wheel_leg/rl/feedback/sensor_invalid_mask", sensor_mask_output_, 255);
+    register_output("/wheel_leg/rl/feedback/motor_age_ms", motor_age_output_, -1.0);
+    register_output("/wheel_leg/rl/feedback/imu_age_ms", imu_age_output_, -1.0);
+    register_output("/wheel_leg/rl/feedback/acceleration_age_ms", acceleration_age_output_, -1.0);
     register_output("/wheel_leg/rl/performance/pd_us", pd_time_us_, 0.0);
     register_output("/wheel_leg/rl/heading/active", heading_hold_active_output_, false);
     register_output("/wheel_leg/rl/heading/yaw", heading_yaw_output_, 0.0);
@@ -209,11 +101,9 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         "/wheel_leg/rl/input/projected_gravity", policy_gravity_output_,
         Eigen::Vector3d::Zero().eval());
     register_output("/wheel_leg/rl/input/enable", policy_enable_output_, false);
-    register_output("/wheel_leg/rl/input/context", policy_context_output_, std::size_t{0});
     register_input("/wheel_leg/rl/valid", policy_valid_input_);
     register_input("/wheel_leg/rl/healthy", policy_healthy_input_);
     register_input("/wheel_leg/rl/action_seq", policy_sequence_input_);
-    register_input("/wheel_leg/rl/action_context", policy_context_input_);
     register_input("/wheel_leg/rl/action_steady_ns", policy_submitted_ns_input_);
     register_input("/wheel_leg/rl/policy_rate", policy_rate_input_);
     register_input("/wheel_leg/rl/model_spec_sha256", policy_model_spec_input_);
@@ -237,8 +127,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     soft_limits_ready_ = get_parameter_or("soft_limits_ready", false);
     imu_alignment_ready_ = get_parameter_or("imu_alignment_ready", false);
     auto_enter_rl_ = get_parameter_or("auto_enter_rl", false);
-    recovery_enabled_ = get_parameter_or("recovery_enabled", false);
-    recovery_profile_ready_ = get_parameter_or("recovery_profile_ready", false);
     const auto profile_name = get_parameter_or<std::string>(
         "control_profile", std::string{DeployedPolicyContract::kName});
     if (profile_name == kV6PolicyProfile.name)
@@ -249,10 +137,8 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         throw std::runtime_error("Unknown wheel-leg control profile: " + profile_name);
 
     policy_profile_.forward_limit = get_parameter_or("vx_max", policy_profile_.forward_limit);
-    vx_max_ = policy_profile_.forward_limit;
     policy_profile_.positive_yaw_limit =
         get_parameter_or("yaw_rate_max", policy_profile_.positive_yaw_limit);
-    yaw_rate_max_ = policy_profile_.positive_yaw_limit;
     // V6 uses symmetric yaw commands; retain the legacy reverse-spin envelope.
     policy_profile_.negative_yaw_limit =
         policy_profile_.name == kV6PolicyProfile.name
@@ -266,40 +152,25 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     heading_hold_yaw_rate_max_ =
         get_parameter_or("heading_hold_yaw_rate_max", 2.0 * std::numbers::pi);
 
-    strict_feedback_ = policy_profile_.name == kV6PolicyProfile.name || recovery_enabled_;
-    RecoverySensorGuardConfig sensor_config;
-    sensor_config.motor_age_seconds = get_parameter_or("recovery_motor_age_s", 0.02);
-    sensor_config.imu_age_seconds = get_parameter_or("recovery_imu_age_s", 0.02);
-    sensor_config.acceleration_age_seconds = get_parameter_or("recovery_acceleration_age_s", 0.03);
-    sensor_config.maximum_skew_seconds = get_parameter_or("recovery_sensor_skew_s", 0.01);
-    recovery_sensor_guard_ = RecoverySensorGuard{sensor_config};
+    strict_feedback_ = policy_profile_.name == kV6PolicyProfile.name;
+    FeedbackSensorGuardConfig sensor_config;
+    sensor_config.motor_age_seconds = get_parameter_or("feedback_motor_age_s", 0.02);
+    sensor_config.imu_age_seconds = get_parameter_or("feedback_imu_age_s", 0.02);
+    sensor_config.acceleration_age_seconds = get_parameter_or("feedback_acceleration_age_s", 0.03);
+    sensor_config.maximum_skew_seconds = get_parameter_or("feedback_sensor_skew_s", 0.01);
+    sensor_guard_ = FeedbackSensorGuard{sensor_config};
     if (strict_feedback_) {
-        dm_feedback_position_max_ = parameter_array<4>(
-            *this, recovery_enabled_ && policy_profile_.name == kV5PolicyProfile.name
-                       ? "recovery_dm_feedback_position_max"
-                       : "dm_feedback_position_max");
+        dm_feedback_position_max_ = parameter_array<4>(*this, "dm_feedback_position_max");
         if (!std::ranges::all_of(
                 dm_feedback_position_max_, [](double value) { return value > 1.0; }))
             throw std::runtime_error("DM MIT feedback position bounds require valid values");
     }
-    recovery_dm_rated_output_rpm_ = get_parameter_or("recovery_dm_rated_output_rpm", 100.0);
-    recovery_dm_rated_torque_nm_ = get_parameter_or("recovery_dm_rated_torque_nm", 20.0);
-    recovery_dm_peak_torque_nm_ = get_parameter_or("recovery_dm_peak_torque_nm", 40.0);
-    prepare_kp_ = get_parameter_or(
-        "prepare_kp", policy_profile_.name == kV6PolicyProfile.name ? 160.0 : 80.0);
-    prepare_kd_ =
-        get_parameter_or("prepare_kd", policy_profile_.name == kV6PolicyProfile.name ? 2.5 : 2.0);
-    prepare_max_velocity_ = get_parameter_or("prepare_max_velocity", 1.0);
-    prepare_reach_threshold_ = get_parameter_or("prepare_reach_threshold", 0.02);
-    prepare_max_tilt_rad_ = get_parameter_or("prepare_max_tilt_rad", 0.2);
-    prepare_max_angular_velocity_ = get_parameter_or("prepare_max_angular_velocity", 0.35);
-    prepare_max_joint_velocity_ = get_parameter_or("prepare_max_joint_velocity", 0.5);
-    prepare_stable_seconds_ = get_parameter_or("prepare_stable_seconds", 0.25);
-    capture_max_leg_error_rad_ = recovery_parameter("capture_max_leg_error_rad", 0.15);
-    capture_max_angular_velocity_ = recovery_parameter("capture_max_angular_velocity", 1.0);
-    capture_max_leg_velocity_ = recovery_parameter("capture_max_leg_velocity", 2.0);
-    capture_max_wheel_velocity_ = recovery_parameter("capture_max_wheel_velocity", 5.0);
-    takeover_blend_seconds_ = recovery_parameter("takeover_blend_seconds", 0.0);
+    const double maximum_interval = get_parameter_or("control_interval_max_s", 0.02);
+    if (!std::isfinite(maximum_interval) || maximum_interval <= 0.0 || maximum_interval > 0.05)
+        throw std::runtime_error("Control interval must be in (0, 50 ms]");
+    control_interval_.set_maximum_interval(
+        std::chrono::duration_cast<Clock::duration>(
+            std::chrono::duration<double>{maximum_interval}));
     hinge_margin_ = get_parameter_or("hinge_margin", 0.03);
     height_transition_seconds_ = get_parameter_or("height_transition_seconds", 6.0);
     height_command_is_reference_ = get_parameter_or("height_command_is_reference", false);
@@ -308,66 +179,28 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     wheel_track_ = get_parameter_or("wheel_track", 0.4373);
     inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;
     pd_frequency_ = get_parameter_or("pd_frequency", DeployedPolicyContract::kControlFrequencyHz);
-    recovery_frequency_ =
-        get_parameter_or("recovery_frequency", DeployedPolicyContract::kControlFrequencyHz);
     const std::array parameters{
         policy_profile_.forward_limit,
         policy_profile_.negative_yaw_limit,
         policy_profile_.positive_yaw_limit,
-        inference_frequency_,
         pd_frequency_,
-        recovery_frequency_,
-        prepare_kp_,
-        prepare_kd_,
-        prepare_max_velocity_,
-        prepare_reach_threshold_,
-        prepare_max_tilt_rad_,
-        prepare_max_angular_velocity_,
-        prepare_max_joint_velocity_,
-        prepare_stable_seconds_,
-        capture_max_leg_error_rad_,
-        capture_max_angular_velocity_,
-        capture_max_leg_velocity_,
-        capture_max_wheel_velocity_,
-        takeover_blend_seconds_,
         hinge_margin_,
         height_transition_seconds_,
         height_reference_rate_max_,
         wheel_radius_,
         wheel_track_,
-        recovery_dm_rated_output_rpm_,
-        recovery_dm_rated_torque_nm_,
-        recovery_dm_peak_torque_nm_,
+        heading_hold_gain_,
+        heading_hold_yaw_rate_max_,
     };
     if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
         || policy_profile_.forward_limit <= 0 || policy_profile_.negative_yaw_limit <= 0
         || policy_profile_.positive_yaw_limit <= 0
         || pd_frequency_ < DeployedPolicyContract::kControlFrequencyHz || pd_frequency_ > 1000.0
         || std::fmod(pd_frequency_, DeployedPolicyContract::kControlFrequencyHz) != 0.0
-        || (recovery_frequency_ != 200.0 && recovery_frequency_ != 1000.0)
-        || std::fmod(pd_frequency_, recovery_frequency_) != 0.0 || prepare_kp_ <= 0
-        || prepare_kd_ < 0 || prepare_max_velocity_ <= 0 || prepare_reach_threshold_ <= 0
-        || prepare_max_tilt_rad_ <= 0 || prepare_max_tilt_rad_ >= std::numbers::pi / 2
-        || prepare_max_angular_velocity_ <= 0 || prepare_max_joint_velocity_ <= 0
-        || prepare_stable_seconds_ <= 0 || hinge_margin_ < 0 || height_transition_seconds_ <= 0
-        || height_reference_rate_max_ <= 0 || wheel_radius_ <= 0 || wheel_track_ <= 0
-        || recovery_dm_rated_output_rpm_ <= 0 || recovery_dm_rated_torque_nm_ <= 0
-        || recovery_dm_rated_torque_nm_ > recovery_dm_peak_torque_nm_
-        || recovery_dm_peak_torque_nm_ > 40.0)
-        throw std::runtime_error(
-            "Invalid motion limits, policy/PD/recovery frequency, PREPARE thresholds, or robot "
-            "geometry");
-    // These are bounded upright takeover envelopes, not recovery parameters.
-    // Startup overrides may tighten them, but cannot turn flat capture into a
-    // folded-pose or high-speed recovery entry.
-    if (capture_max_leg_error_rad_ <= 0.0 || capture_max_leg_error_rad_ > 0.25
-        || capture_max_angular_velocity_ <= 0.0 || capture_max_angular_velocity_ > 2.0
-        || capture_max_leg_velocity_ <= 0.0 || capture_max_leg_velocity_ > 5.0
-        || capture_max_wheel_velocity_ <= 0.0 || capture_max_wheel_velocity_ > 10.0
-        || (policy_profile_.name == kV6PolicyProfile.name && prepare_max_tilt_rad_ > 0.35))
-        throw std::runtime_error("V6 capture thresholds exceed the bounded upright entry domain");
-    if (takeover_blend_seconds_ < 0.0 || takeover_blend_seconds_ > 0.3)
-        throw std::runtime_error("V6 torque takeover blend must be between 0 and 0.3 seconds");
+        || hinge_margin_ < 0 || height_transition_seconds_ <= 0 || height_reference_rate_max_ <= 0
+        || wheel_radius_ <= 0 || wheel_track_ <= 0 || heading_hold_gain_ < 0
+        || heading_hold_yaw_rate_max_ <= 0)
+        throw std::runtime_error("Invalid motion limits, PD frequency or robot geometry");
 
     const auto matrix = parameter_array<16>(*this, "leg_motor_to_model");
     const auto offsets = parameter_array<4>(*this, "leg_model_offsets");
@@ -418,252 +251,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
                    > 1e-3))
         throw std::runtime_error("imu_to_base must be a calibrated rotation matrix");
     base_to_imu_orientation_ = Eigen::Quaterniond{imu_to_base_.transpose()};
-
-    if (policy_profile_.name == kV6PolicyProfile.name) {
-        const auto resolve = [](const std::string& name) {
-            auto path = std::filesystem::path{name};
-            if (!path.is_absolute())
-                path =
-                    std::filesystem::path{ament_index_cpp::get_package_share_directory("rmcs_core")}
-                    / path;
-            return path;
-        };
-        const auto native = RecoveryProfile::load(
-            resolve(recovery_parameter(
-                "recovery_profile_path",
-                std::string{"config/wheel_leg/v6_recovery_profiles_v1.json"})),
-            resolve(recovery_parameter(
-                "height_lookup_path", std::string{"config/wheel_leg/v6_height_lookup_v1.json"})));
-        validate_leg_target_recovery_profile(
-            leg_target_winding_, recovery_enabled_, native.model_spec_sha256);
-        auto recovery_config = native.controller;
-        recovery_config.dt = 1.0 / recovery_frequency_;
-        recovery_config.blend_seconds =
-            recovery_parameter("recovery_blend_seconds", recovery_config.blend_seconds);
-        recovery_config.dynamic_takeover = recovery_parameter("recovery_dynamic_takeover", false);
-        recovery_config.tuck_before_takeover = recovery_parameter("recovery_tuck_enabled", false);
-        recovery_trajectory_takeover_ = recovery_config.trajectory_takeover =
-            recovery_parameter("recovery_trajectory_takeover", false);
-        if (recovery_trajectory_takeover_) {
-            recovery_config.tuck_rotation_direction = recovery_parameter(
-                "recovery_tuck_rotation_direction", recovery_config.tuck_rotation_direction);
-            recovery_interval_.set_maximum_interval(std::chrono::milliseconds{40});
-            recovery_actuation_interval_.set_maximum_interval(std::chrono::milliseconds{40});
-        }
-        recovery_capture_hinge_max_ = hinge_max_;
-        if (recovery_config.tuck_before_takeover) {
-            recovery_config.tuck_speed_rad_s =
-                recovery_parameter("recovery_tuck_speed_rad_s", recovery_config.tuck_speed_rad_s);
-            RecoveryTuckConfig tuck;
-            tuck.body_fixed = recovery_config.trajectory_takeover;
-            tuck.knee_deg = recovery_parameter("recovery_tuck_knee_deg", tuck.knee_deg);
-            tuck.knee_tolerance_deg =
-                recovery_parameter("recovery_tuck_knee_tolerance_deg", tuck.knee_tolerance_deg);
-            tuck.max_sagittal_error_m =
-                recovery_parameter("recovery_tuck_max_sagittal_error_m", tuck.max_sagittal_error_m);
-            tuck.integral_gain =
-                recovery_parameter("recovery_tuck_integral_gain", tuck.integral_gain);
-            tuck.integral_limit_nm =
-                recovery_parameter("recovery_tuck_integral_limit_nm", tuck.integral_limit_nm);
-            recovery_tuck_.emplace(
-                resolve(recovery_parameter(
-                    "recovery_tuck_geometry_path",
-                    std::string{"config/wheel_leg/tuck_geometry_107_v1.json"})),
-                native.model_spec_sha256, tuck);
-            RCLCPP_INFO(
-                get_logger(),
-                "Recovery tuck: target knee %.2f +/- %.2f deg, "
-                "COM alignment %.1f mm, integral %.1f capped at %.1f Nm, frame=%s",
-                tuck.knee_deg, tuck.knee_tolerance_deg, tuck.max_sagittal_error_m * 1000.0,
-                tuck.integral_gain, tuck.integral_limit_nm, tuck.body_fixed ? "body" : "gravity");
-        }
-        recovery_config.release_motion_on_takeover =
-            recovery_parameter("recovery_release_motion_on_takeover", false);
-        recovery_config.dynamic_capture_height_min = recovery_parameter(
-            "recovery_capture_height_min", recovery_config.dynamic_capture_height_min);
-        recovery_config.dynamic_capture_height_max = recovery_parameter(
-            "recovery_capture_height_max", recovery_config.dynamic_capture_height_max);
-        if (!recovery_config.tuck_before_takeover) {
-            const auto capture_positions = recovery_parameter(
-                "recovery_capture_joint_positions",
-                std::vector<double>{
-                    recovery_config.nominal.data(), recovery_config.nominal.data() + 4});
-            if (capture_positions.size() != 4
-                || !std::ranges::all_of(
-                    capture_positions, [](double v) { return std::isfinite(v); }))
-                throw std::runtime_error("Recovery capture requires four finite joint positions");
-            recovery_capture_reference_ =
-                Eigen::Map<const Eigen::Vector4d>{capture_positions.data()};
-            const auto capture_hinge_max = recovery_parameter(
-                "recovery_capture_hinge_max",
-                std::vector<double>{hinge_max_.begin(), hinge_max_.end()});
-            if (capture_hinge_max.size() != 2)
-                throw std::runtime_error("Recovery capture requires two calibrated hinge limits");
-            for (int side = 0; side < 2; ++side) {
-                const double maximum = capture_hinge_max[side];
-                const int hip = 2 * side;
-                const double reference_hinge =
-                    hinge_coeff_[hip] * recovery_capture_reference_[hip]
-                    + hinge_coeff_[hip + 1] * recovery_capture_reference_[hip + 1]
-                    + hinge_bias_[side];
-                if (!std::isfinite(maximum) || maximum <= hinge_min_[side]
-                    || maximum > hinge_max_[side] || reference_hinge < hinge_min_[side]
-                    || reference_hinge > maximum)
-                    throw std::runtime_error(
-                        "Recovery capture reference exceeds calibrated hinge limits");
-                recovery_capture_hinge_max_[side] = maximum;
-            }
-            // Keep the extended support pose; the low reference only defines actor entry.
-            if (recovery_config.dynamic_takeover)
-                recovery_config.nominal = recovery_capture_reference_;
-        }
-        recovery_capture_max_tilt_rad_ =
-            recovery_parameter("recovery_capture_max_tilt_rad", prepare_max_tilt_rad_);
-        recovery_capture_max_angular_velocity_ = recovery_parameter(
-            "recovery_capture_max_angular_velocity", capture_max_angular_velocity_);
-        recovery_capture_max_leg_error_rad_ =
-            recovery_parameter("recovery_capture_max_leg_error_rad", capture_max_leg_error_rad_);
-        recovery_capture_max_wheel_velocity_ =
-            recovery_parameter("recovery_capture_max_wheel_velocity", capture_max_wheel_velocity_);
-        if (!std::isfinite(recovery_capture_max_tilt_rad_) || recovery_capture_max_tilt_rad_ <= 0.0
-            || recovery_capture_max_tilt_rad_ > 40.0 * std::numbers::pi / 180.0)
-            throw std::runtime_error("V6 recovery capture tilt must be within 40 degrees");
-        if (!std::isfinite(recovery_capture_max_angular_velocity_)
-            || recovery_capture_max_angular_velocity_ < capture_max_angular_velocity_
-            || recovery_capture_max_angular_velocity_ > 2.0)
-            throw std::runtime_error(
-                "V6 upright recovery capture angular velocity must be within 2 rad/s");
-        if (!std::isfinite(recovery_capture_max_leg_error_rad_)
-            || recovery_capture_max_leg_error_rad_ <= 0.0
-            || recovery_capture_max_leg_error_rad_ > 0.50)
-            throw std::runtime_error("Recovery capture leg error must be within 0.50 rad");
-        recovery_config.trajectory_max_tracking_error_rad = recovery_capture_max_leg_error_rad_;
-        if (!std::isfinite(recovery_capture_max_wheel_velocity_)
-            || recovery_capture_max_wheel_velocity_ <= 0.0
-            || recovery_capture_max_wheel_velocity_ > 20.0)
-            throw std::runtime_error("Recovery capture wheel speed must be within 20 rad/s");
-        recovery_config.prepare_speed_rad_s = recovery_parameter(
-            "recovery_fold_plant_speed_rad_s", recovery_config.prepare_speed_rad_s);
-        if (!std::isfinite(recovery_config.prepare_speed_rad_s)
-            || recovery_config.prepare_speed_rad_s <= 0.0
-            || recovery_config.prepare_speed_rad_s > 6.0)
-            throw std::runtime_error("Recovery FOLD/PLANT speed must be within 6 rad/s");
-        recovery_config.insert_speed_rad_s =
-            recovery_parameter("recovery_insert_speed_rad_s", recovery_config.insert_speed_rad_s);
-        if (!std::isfinite(recovery_config.insert_speed_rad_s)
-            || recovery_config.insert_speed_rad_s <= 0.0
-            || recovery_config.insert_speed_rad_s > 10.0)
-            throw std::runtime_error("Recovery low-knee insertion speed must be within 10 rad/s");
-        recovery_config.orbit_speed_rad_s =
-            recovery_parameter("recovery_orbit_speed_rad_s", recovery_config.orbit_speed_rad_s);
-        if (!std::isfinite(recovery_config.orbit_speed_rad_s)
-            || recovery_config.orbit_speed_rad_s <= 0.0 || recovery_config.orbit_speed_rad_s > 6.0)
-            throw std::runtime_error("Recovery ORBIT speed must be within 6 rad/s");
-        joint_reference_recovery_.emplace(recovery_config);
-        if (recovery_trajectory_takeover_) {
-            RCLCPP_INFO(
-                get_logger(),
-                "Trajectory takeover: fold then fixed-direction rotation under COM "
-                "(root direction %+.0f, both stages %.2f rad/s), "
-                "then direct RL; remaining <0.005 rad, tracking <%.2f rad, tilt <%.1f deg; "
-                "no support/height/static/velocity dwell; maximum control gap 40 ms",
-                recovery_config.tuck_rotation_direction, recovery_config.tuck_speed_rad_s,
-                recovery_capture_max_leg_error_rad_,
-                recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi);
-        } else {
-            RCLCPP_INFO(
-                get_logger(),
-                "Self-righting takeover: %s, bounded upright capture=%d, "
-                "FOLD/PLANT %.2f, low insertion %.2f, ORBIT %.2f rad/s, "
-                "capture %.1f deg at %.2f..%.2f m, "
-                "hinge maxima %.3f/%.3f rad, "
-                "leg error %.2f rad, wheel speed %.1f rad/s, upright gyro %.2f rad/s, motion %s",
-                recovery_config.blend_seconds == 0.0 ? "direct" : "200 ms blend",
-                recovery_config.dynamic_takeover, recovery_config.prepare_speed_rad_s,
-                recovery_config.insert_speed_rad_s, recovery_config.orbit_speed_rad_s,
-                recovery_capture_max_tilt_rad_ * 180.0 / std::numbers::pi,
-                recovery_config.dynamic_capture_height_min,
-                recovery_config.dynamic_capture_height_max, recovery_capture_hinge_max_[0],
-                recovery_capture_hinge_max_[1], recovery_capture_max_leg_error_rad_,
-                recovery_capture_max_wheel_velocity_, recovery_capture_max_angular_velocity_,
-                recovery_config.release_motion_on_takeover ? "released at takeover"
-                                                           : "held until stable");
-        }
-        support_observer_.emplace(
-            native.geometry, recovery_config.dt, recovery_trajectory_takeover_ ? 0.04 : 0.02);
-        prepare_target_ = native.controller.nominal;
-        joint_reference_profile_ready_ = true;
-        if (prepare_kp_ != policy_profile_.leg_kp || prepare_kd_ != policy_profile_.leg_kd)
-            throw std::runtime_error("V6 PREPARE gains must match native training: 160 / 2.5");
-    }
-    if (recovery_enabled_ && recovery_profile_ready_
-        && policy_profile_.name == kV5PolicyProfile.name) {
-        recovery_peak_budget_.configure(
-            recovery_dm_rated_torque_nm_,
-            get_parameter("recovery_above_rated_budget_s").as_double());
-        for (int row = 0; row < 4; ++row) {
-            for (int col = 0; col < 4; ++col) {
-                const double value = leg_jacobian_(row, col);
-                if (row == col ? std::abs(std::abs(value) - 1.0) > 0.01 : std::abs(value) > 0.01)
-                    throw std::runtime_error(
-                        "Recovery requires verified independent 1:1 chain coordinates");
-            }
-        }
-        if ((wheel_scale_.cwiseAbs().array() - 1.0).abs().maxCoeff() > 0.01)
-            throw std::runtime_error(
-                "Wheel output coordinates already include DjiMotor's configured reduction ratio");
-        RecoveryConfig profile;
-        profile.orbit_speed = get_parameter("recovery_orbit_speed").as_double();
-        profile.side_speed = get_parameter("recovery_side_speed").as_double();
-        profile.rollover_speed = get_parameter("recovery_rollover_speed").as_double();
-        profile.capture_speed = get_parameter("recovery_capture_speed").as_double();
-        const auto reference = [this](const char* key) {
-            const auto values = parameter_array<4>(*this, key);
-            return Eigen::Vector4d{values[0], values[1], values[2], values[3]};
-        };
-        profile.fold = reference("recovery_fold_p4");
-        profile.thrust = reference("recovery_thrust_p4");
-        profile.side_extended = reference("recovery_side_extended_p4");
-        for (int i = 0; i < 4; ++i)
-            profile.plant[i] = nominal_[i];
-        profile.stand = reference("recovery_stand_p4");
-        profile.upright = reference("recovery_upright_p4");
-        profile.support_extended = reference("recovery_support_extended_p4");
-        profile.upright_support_extended = reference("recovery_upright_support_extended_p4");
-        profile.capture_extended = reference("recovery_capture_extended_p4");
-        const auto mechanism = calibrated_mechanism(*this);
-        for (int side = 0; side < 2; ++side) {
-            profile.root_axis_y.segment<2>(2 * side).setConstant(
-                mechanism.sides[side].hip_axis.y());
-            profile.wheel_axis_y[side] = mechanism.sides[side].wheel_axis_at_hip_zero.front().y();
-        }
-        recovery_ = RecoveryController{profile};
-        RecoveryObserverConfig observer_config;
-        observer_config.probe_torque_nm = get_parameter_or("recovery_probe_torque_nm", 0.18);
-        observer_config.minimum_submitted_torque_nm =
-            get_parameter_or("recovery_probe_min_submitted_nm", 0.14);
-        observer_config.minimum_feedback_torque_nm =
-            get_parameter_or("recovery_probe_min_feedback_nm", 0.025);
-        observer_config.feedback_torque_ratio =
-            get_parameter_or("recovery_probe_feedback_ratio", 0.25);
-        observer_config.pulse_seconds = get_parameter_or("recovery_probe_pulse_s", 0.015);
-        observer_config.response_seconds = get_parameter_or("recovery_probe_response_s", 0.005);
-        observer_config.quiet_seconds = get_parameter_or("recovery_probe_quiet_s", 0.05);
-        observer_config.support_seconds = get_parameter_or("recovery_support_dwell_s", 0.1);
-        observer_config.evidence_ttl_seconds =
-            get_parameter_or("recovery_probe_evidence_ttl_s", 0.6);
-        observer_config.maximum_sample_age_seconds = sensor_config.motor_age_seconds;
-        observer_config.maximum_imu_sample_age_seconds = sensor_config.imu_age_seconds;
-        observer_config.maximum_submission_age_seconds =
-            get_parameter_or("recovery_probe_submission_age_s", 0.02);
-        observer_config.maximum_feedback_interval_seconds =
-            get_parameter_or("recovery_probe_feedback_interval_s", 0.02);
-        observer_config.maximum_wheel_acceleration_rad_s2 =
-            get_parameter_or("recovery_probe_max_wheel_accel", 100.0);
-        observer_config.maximum_gyro_acceleration_rad_s2 =
-            get_parameter_or("recovery_probe_max_gyro_accel", 90.0);
-        recovery_observer_.emplace(mechanism, observer_config);
-    }
 
     // Configuration is copied into fixed control-loop state at construction.
     // Reject edits that would otherwise change ROS metadata without changing it.

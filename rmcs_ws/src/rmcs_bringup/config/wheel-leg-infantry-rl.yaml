@@ -1,6 +1,6 @@
 # Wheel-leg infantry RL deployment, V7 paired-107 (official vehicle profile).
-# Fresh double DOWN arms; double MIDDLE starts the native self-righting script,
-# then the folded-under-COM trajectory hands all six axes directly to the actor.
+# Fresh double DOWN arms; double MIDDLE starts the policy after drive readiness.
+# The policy owns all six axes; self-righting has no separate scripted controller.
 # Wiring, zeros and the 107..108-degree leg stop follow the confirmed dev/rmcs_rl set.
 rmcs_executor:
   ros__parameters:
@@ -53,7 +53,6 @@ rl_bridge:
     rl_base: "/wheel_leg/rl"
     enable_interface: "/wheel_leg/rl/input/enable"
     reset_interface: "/chassis/reset_count"
-    context_interface: "/wheel_leg/rl/input/context"
     enable_default: false
     invalid_value: "nan"
     max_action_age: 0.06
@@ -99,7 +98,7 @@ rl_bridge:
       - index=3 output=/wheel_leg/rl/target/right_knee_joint scale=0.25 clip=-0.75:0.75
       - index=4 output=/wheel_leg/rl/target/left_wheel scale=10.0 clip=-90:90
       - index=5 output=/wheel_leg/rl/target/right_wheel scale=10.0 clip=-90:90
-    # V7 paired-107 recovery actor (50 Hz policy); keeps the paired 107-degree contract.
+    # Existing V7 paired-107 actor (50 Hz); replace together with its policy contract.
     rl_model_path: "models/wheel_leg/recovery_candidate.onnx"
     model_type: "wheel_leg_v7"
     leg_winding_version: "paired_branch107_v1"
@@ -108,7 +107,7 @@ rl_bridge:
 
 wheel_leg_controller:
   ros__parameters:
-    # Mechanical state, recovery, paired winding and feedback PD belong to RMCS.
+    # Calibration, paired winding, feedback PD and actuator limits belong to RMCS.
     control_profile: v6
     leg_winding_version: "paired_branch107_v1"
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
@@ -118,57 +117,15 @@ wheel_leg_controller:
     heading_hold_yaw_rate_max: 4.0
     vx_max: 3.0
     yaw_rate_max: 4.0
-    # Feedback PD and recovery run every 1 ms; policy targets update every 20 ms.
+    # Feedback PD runs every 1 ms; policy targets update every 20 ms.
     pd_frequency: 1000.0
-    recovery_frequency: 1000.0
     dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
-    recovery_profile_path: "config/wheel_leg/v7_recovery_profiles_107_v2.json"
-    height_lookup_path: "config/wheel_leg/v7_height_lookup_107.json"
-    recovery_enabled: true
-    recovery_profile_ready: true
-    # At the measured capture condition, switch all six axes to actor effort
-    # in that same recovery tick, accepting motion commands immediately.
-    recovery_blend_seconds: 0.0
-    recovery_release_motion_on_takeover: true
-    recovery_dynamic_takeover: true
-    # Fold using closed-chain wheel heading, then rotate under body-frame COM.
-    # Already centered legs fold directly to the final pose, without an orbit.
-    # No extension before RL. IMU tilt does not move this body-fixed leg target.
-    # Opposite to the failing CSV: model LH/LA decrease, RH/RA increase.
-    recovery_tuck_rotation_direction: -1.0
-    # At the final reference, allow 0.20 rad actual tracking error and 40 deg tilt.
-    # No contact probe, height, gyro/wheel-speed or stationary dwell gates.
-    recovery_trajectory_takeover: true
-    recovery_capture_max_tilt_rad: 0.6981317007977318
-    recovery_capture_max_leg_error_rad: 0.20
-    # Closed-chain target remains 0.5 degree above the 40-degree stop.
-    # Strict 40..41 deg / 5 mm readiness is diagnostic. Both measured knees
-    # must be folded (<=42.5 deg) before rotation, and <=41 deg before RL.
-    # Allow small measured stop compliance; commanded knee remains 40.5 deg.
-    recovery_tuck_enabled: true
-    recovery_tuck_geometry_path: "config/wheel_leg/tuck_geometry_107_v1.json"
-    recovery_tuck_knee_deg: 40.5
-    recovery_tuck_knee_tolerance_deg: 0.5
-    recovery_tuck_max_sagittal_error_m: 0.005
-    recovery_tuck_integral_gain: 100.0
-    recovery_tuck_integral_limit_nm: 20.0
-    # Both stages run 3x the previous 1 rad/s reference speed.
-    recovery_tuck_speed_rad_s: 3.0
-    # Ordinary fold/plant and orbit rates; grounded insertion has its own bound.
-    recovery_fold_plant_speed_rad_s: 6.0
-    # Tuck near the lower knee domain before the free-space insertion stroke.
-    recovery_insert_speed_rad_s: 10.0
-    recovery_orbit_speed_rad_s: 6.0
-    # Allow the recorded 22..24 ms scheduling/CAN gaps; reject stale data >40 ms.
-    # Trajectory mode also allows control intervals up to 40 ms.
-    recovery_motor_age_s: 0.04
-    recovery_imu_age_s: 0.04
-    recovery_acceleration_age_s: 0.04
-    recovery_sensor_skew_s: 0.03
-    # V7 uses the frozen native 0.18 Nm, 3 x 5 ms bidirectional wheel probe
-    # and its encoder/gyro response thresholds. It is a conditional support
-    # estimate; queued CAN torque and motor-current truth are not substituted
-    # for measured contact. Validate support and takeover in this ground test.
+    # Preserve the feedback and scheduling bounds independently of policy behavior.
+    feedback_motor_age_s: 0.04
+    feedback_imu_age_s: 0.04
+    feedback_acceleration_age_s: 0.04
+    feedback_sensor_skew_s: 0.03
+    control_interval_max_s: 0.04
     height_transition_seconds: 6.0
     # The chassis supplies a continuous height reference; do not restart a step curve.
     height_command_is_reference: true
@@ -183,7 +140,7 @@ wheel_leg_controller:
     # Leg P order: left_hip, left_knee-drive, right_hip, right_knee-drive.
     # q_model = leg_motor_to_model(4x4 row-major) * q_api + leg_model_offsets;
     # tau_motor = leg_motor_to_model^T * tau_model.
-    # Dev supervised recovery profile; use only with the matching assembly calibration.
+    # Use only with the matching assembly calibration.
     calibration_ready: true
     # Calibration: .script/identification/calibration/v6_pair_from_dev_rmcs_rl.json.
     # Driver API already applies reversed with bias=0. V7 axes invert the V5
@@ -197,7 +154,7 @@ wheel_leg_controller:
     wheel_model_scale: [1.0, 1.0]
 
     # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
-    # Dev supervised recovery profile enables the measured physical hinge limits.
+    # Enforce the measured physical hinge limits.
     soft_limits_ready: true
     hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
     hinge_bias: [0.0, 0.0]
@@ -220,26 +177,6 @@ wheel_leg_controller:
     imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
     auto_enter_rl: false
-    prepare_kp: 160.0
-    prepare_kd: 2.5
-    prepare_max_velocity: 1.0
-    prepare_reach_threshold: 0.02
-    prepare_max_tilt_rad: 0.2
-    prepare_max_angular_velocity: 0.35
-    prepare_max_joint_velocity: 0.5
-    prepare_stable_seconds: 0.25
-    # V7 takes over near the actor's upright nominal reset without requiring
-    # static balance under PREPARE PD. Allow bounded gas-spring load deflection;
-    # gyro/axis speed, strict sample freshness and measured hinge limits still
-    # gate entry. These engineering capture bounds do not qualify hardware.
-    # Ordinary entry uses prepare_max_tilt_rad; recovery has its own tilt bound.
-    capture_max_leg_error_rad: 0.25
-    capture_max_angular_velocity: 1.0
-    capture_max_leg_velocity: 4.0
-    capture_max_wheel_velocity: 10.0
-    # RL inference starts at capture regardless of this effort-only window.
-    # 0 selects direct takeover; optional six-axis smoothstep is bounded to 0.3 s.
-    takeover_blend_seconds: 0.0
 
 wheel_leg_chassis_controller:
   ros__parameters:
@@ -401,54 +338,21 @@ value_collector:
       - /wheel_leg/left_knee_joint/control_angle
       - /wheel_leg/right_hip_joint/control_angle
       - /wheel_leg/right_knee_joint/control_angle
-      # ===== RL / 自起状态 =====
+      # ===== RL / 反馈状态 =====
       - /wheel_leg/rl/state
+      - /wheel_leg/rl/fault_latched
       - /wheel_leg/rl/valid
       - /wheel_leg/rl/healthy
       - /wheel_leg/rl/action_age
       - /wheel_leg/rl/policy_rate
       - /wheel_leg/rl/performance/inference_us
       - /wheel_leg/rl/performance/pd_us
-      - /wheel_leg/rl/v6_takeover/blend_fraction
-      - /wheel_leg/rl/recovery/phase
-      - /wheel_leg/rl/recovery/native_phase
-      - /wheel_leg/rl/recovery/native_failure
-      - /wheel_leg/rl/recovery/native_route
-      - /wheel_leg/rl/recovery/failure
-      - /wheel_leg/rl/recovery/sensor_issue
-      - /wheel_leg/rl/recovery/sensor_invalid_mask
-      - /wheel_leg/rl/recovery/support_confirmed
-      - /wheel_leg/rl/recovery/geometry_valid
-      - /wheel_leg/rl/recovery/motion_hold
-      - /wheel_leg/rl/recovery/sensors_valid
-      - /wheel_leg/rl/recovery/contact_candidate
-      - /wheel_leg/rl/recovery/native_motion_released
-      - /wheel_leg/rl/recovery/height_if_grounded
-      - /wheel_leg/rl/recovery/trajectory_remaining_rad
-      - /wheel_leg/rl/recovery/tracking_error_rad
-      - /wheel_leg/rl/recovery/tuck/valid
-      - /wheel_leg/rl/recovery/tuck/active
-      - /wheel_leg/rl/recovery/tuck/ready
-      - /wheel_leg/rl/recovery/tuck/left/knee_deg
-      - /wheel_leg/rl/recovery/tuck/right/knee_deg
-      - /wheel_leg/rl/recovery/tuck/left/sagittal_error_m
-      - /wheel_leg/rl/recovery/tuck/right/sagittal_error_m
-      - /wheel_leg/rl/recovery/left_hip_joint/reference
-      - /wheel_leg/rl/recovery/left_hip_joint/tuck_target
-      - /wheel_leg/rl/recovery/left_hip_joint/hold_torque
-      - /wheel_leg/rl/recovery/left_knee_joint/reference
-      - /wheel_leg/rl/recovery/left_knee_joint/tuck_target
-      - /wheel_leg/rl/recovery/left_knee_joint/hold_torque
-      - /wheel_leg/rl/recovery/right_hip_joint/reference
-      - /wheel_leg/rl/recovery/right_hip_joint/tuck_target
-      - /wheel_leg/rl/recovery/right_hip_joint/hold_torque
-      - /wheel_leg/rl/recovery/right_knee_joint/reference
-      - /wheel_leg/rl/recovery/right_knee_joint/tuck_target
-      - /wheel_leg/rl/recovery/right_knee_joint/hold_torque
-      - /wheel_leg/rl/recovery/blend
-      - /wheel_leg/rl/recovery/motor_age_ms
-      - /wheel_leg/rl/recovery/imu_age_ms
-      - /wheel_leg/rl/recovery/acceleration_age_ms
+      - /wheel_leg/rl/feedback/sensor_issue
+      - /wheel_leg/rl/feedback/sensor_invalid_mask
+      - /wheel_leg/rl/feedback/sensors_valid
+      - /wheel_leg/rl/feedback/motor_age_ms
+      - /wheel_leg/rl/feedback/imu_age_ms
+      - /wheel_leg/rl/feedback/acceleration_age_ms
       - /wheel_leg/enable_request
       - /wheel_leg/feedback_fresh
       - /wheel_leg/dm_feedback_fresh
@@ -458,7 +362,6 @@ value_collector:
       - /wheel_leg/joint_position_kp
       - /wheel_leg/joint_position_kd
       - /wheel_leg/rl/input/enable
-      - /wheel_leg/rl/input/context
       # ===== CAN 收发诊断（逐轴）=====
       - /wheel_leg/left_hip_joint/tau_frame_api
       - /wheel_leg/left_hip_joint/tx_kind
@@ -554,46 +457,13 @@ value_broadcaster:
       - /wheel_leg/left_wheel/torque
 
       - /wheel_leg/rl/state
-      - /wheel_leg/rl/recovery/phase
-      - /wheel_leg/rl/recovery/failure
-      - /wheel_leg/rl/recovery/native_phase
-      - /wheel_leg/rl/recovery/native_route
-      - /wheel_leg/rl/recovery/native_failure
-      - /wheel_leg/rl/recovery/native_motion_released
-      - /wheel_leg/rl/recovery/sensors_valid
-      - /wheel_leg/rl/recovery/sensor_issue
-      - /wheel_leg/rl/recovery/sensor_invalid_mask
-      - /wheel_leg/rl/recovery/motor_age_ms
-      - /wheel_leg/rl/recovery/imu_age_ms
-      - /wheel_leg/rl/recovery/acceleration_age_ms
-      - /wheel_leg/rl/recovery/contact_candidate
-      - /wheel_leg/rl/recovery/support_confirmed
-      - /wheel_leg/rl/recovery/geometry_valid
-      - /wheel_leg/rl/recovery/height_if_grounded
-      - /wheel_leg/rl/recovery/trajectory_remaining_rad
-      - /wheel_leg/rl/recovery/tracking_error_rad
-      - /wheel_leg/rl/recovery/tuck/valid
-      - /wheel_leg/rl/recovery/tuck/active
-      - /wheel_leg/rl/recovery/tuck/ready
-      - /wheel_leg/rl/recovery/tuck/left/knee_deg
-      - /wheel_leg/rl/recovery/tuck/right/knee_deg
-      - /wheel_leg/rl/recovery/tuck/left/sagittal_error_m
-      - /wheel_leg/rl/recovery/tuck/right/sagittal_error_m
-      - /wheel_leg/rl/recovery/left_hip_joint/reference
-      - /wheel_leg/rl/recovery/left_hip_joint/tuck_target
-      - /wheel_leg/rl/recovery/left_hip_joint/hold_torque
-      - /wheel_leg/rl/recovery/left_knee_joint/reference
-      - /wheel_leg/rl/recovery/left_knee_joint/tuck_target
-      - /wheel_leg/rl/recovery/left_knee_joint/hold_torque
-      - /wheel_leg/rl/recovery/right_hip_joint/reference
-      - /wheel_leg/rl/recovery/right_hip_joint/tuck_target
-      - /wheel_leg/rl/recovery/right_hip_joint/hold_torque
-      - /wheel_leg/rl/recovery/right_knee_joint/reference
-      - /wheel_leg/rl/recovery/right_knee_joint/tuck_target
-      - /wheel_leg/rl/recovery/right_knee_joint/hold_torque
-      - /wheel_leg/rl/recovery/motion_hold
-      - /wheel_leg/rl/recovery/blend
-      - /wheel_leg/rl/v6_takeover/blend_fraction
+      - /wheel_leg/rl/fault_latched
+      - /wheel_leg/rl/feedback/sensors_valid
+      - /wheel_leg/rl/feedback/sensor_issue
+      - /wheel_leg/rl/feedback/sensor_invalid_mask
+      - /wheel_leg/rl/feedback/motor_age_ms
+      - /wheel_leg/rl/feedback/imu_age_ms
+      - /wheel_leg/rl/feedback/acceleration_age_ms
       - /wheel_leg/rl/performance/inference_us
       - /wheel_leg/rl/performance/pd_us
       - /wheel_leg/rl/observation/command/forward

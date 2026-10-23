@@ -8,8 +8,7 @@
 
 namespace rmcs_core::controller::chassis {
 
-std::expected<void, std::string>
-    WheelLegController::process_action_(std::span<const double> raw, bool shadow_recovery) {
+std::expected<void, std::string> WheelLegController::process_action_(std::span<const double> raw) {
     if (raw.size() != kMotorNames.size())
         return std::unexpected{std::string{"ONNX action size does not match YAML"}};
     Vector6 decoded;
@@ -29,22 +28,15 @@ std::expected<void, std::string>
     }
     Vector6 targets = policy_targets_;
     const bool v6 = policy_profile_.name == kV6PolicyProfile.name;
-    const Vector6 control_q = v6 && recovery_started_ && joint_reference_recovery_
-                                ? joint_reference_recovery_->project_feedback(q_)
-                                : q_;
     std::array<double, 4> desired{}, current{};
     for (int i = 0; i < 4; ++i) {
         desired[i] = nominal_[i] + decoded[i];
-        current[i] = control_q[i];
+        current[i] = q_[i];
     }
     const auto leg_targets = wind_leg_targets(desired, current, leg_target_winding_);
     for (int i = 0; i < 4; ++i)
         targets[i] = leg_targets[i];
-    if (!v6 && recovery_started_ && recovery_observer_) {
-        Eigen::Vector4d legs = targets.head<4>();
-        recovery_observer_->constrain_policy_goal(legs, 2.0);
-        targets.head<4>() = legs;
-    } else if (!v6) {
+    if (!v6) {
         for (int side = 0; side < 2; ++side) {
             const int hip = 2 * side, knee = hip + 1;
             // The ordinary RL path retains its calibrated hinge mapping.
@@ -62,33 +54,13 @@ std::expected<void, std::string>
     if (!targets.allFinite())
         return std::unexpected{
             std::string{"Policy action or soft-limit mapping generated a non-finite target"}};
-    std::ranges::copy(clipped, policy_action_.begin());
-    if (!shadow_recovery && !(v6 && recovery_started_))
-        std::ranges::copy(clipped, previous_action_.begin());
+    std::ranges::copy(clipped, previous_action_.begin());
     policy_targets_ = targets;
     policy_targets_valid_ = true;
     return {};
 }
 
 void WheelLegController::apply_soft_limits_(Eigen::Vector4d& tau) const {
-    if (recovery_started_ && recovery_observer_) {
-        for (int side = 0; side < 2; ++side) {
-            const int hip = 2 * side, knee = hip + 1;
-            const double inner = last_recovery_feedback_.inner_knee_deg[side];
-            const double slope = last_recovery_feedback_.inner_knee_slope_deg_per_rad[side];
-            const double a = -slope, b = slope;
-            const double outward = a * tau[hip] + b * tau[knee];
-            const auto limits = recovery_observer_->inner_knee_limits_deg(side);
-            const double margin = std::min(2.0, (limits[1] - limits[0]) / 2.0);
-            if ((inner >= limits[1] - margin && outward > 0)
-                || (inner <= limits[0] + margin && outward < 0)) {
-                const double multiplier = outward / (a * a + b * b);
-                tau[hip] -= a * multiplier;
-                tau[knee] -= b * multiplier;
-            }
-        }
-        return;
-    }
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side, knee = hip + 1;
         const double a = hinge_coeff_[hip], b = hinge_coeff_[knee];
@@ -106,182 +78,50 @@ void WheelLegController::apply_soft_limits_(Eigen::Vector4d& tau) const {
 }
 
 void WheelLegController::compute_motor_torques_() {
-    if (state_ == State::kPrepare && recovery_enabled_ && *state_command_ == 3
-        && !recovery_started_) {
-        clear_outputs_();
+    if (state_ != State::kRl || !policy_targets_valid_ || !policy_action_fresh_()) {
+        latch_fault_("no fresh policy target at actuation");
         return;
     }
-    const bool native = policy_profile_.name == kV6PolicyProfile.name;
-    const bool native_recovery = native && recovery_started_ && joint_reference_recovery_;
-    const bool scripted = state_ == State::kPrepare && recovery_started_ && !native_recovery;
-    const bool blending = scripted && recovery_command_.phase == RecoveryPhase::kBlend;
-    const bool upright_takeover =
-        state_ == State::kRl && !recovery_started_ && policy_profile_.name == kV6PolicyProfile.name;
-    Eigen::Vector4d tau = Eigen::Vector4d::Zero();
-    Eigen::Vector2d wheel_tau = Eigen::Vector2d::Zero();
-    Eigen::Vector4d leg_reference = targets_.head<4>();
-    Eigen::Vector4d reference_feedback = q_.head<4>();
-    if (native_recovery) {
-        const auto& command = joint_reference_recovery_->command();
-        if (!policy_targets_valid_) {
-            latch_fault_();
-            return;
-        }
-        const Vector6 continuous_q = joint_reference_recovery_->project_feedback(q_);
-        Vector6 actor;
-        actor.head<4>() =
-            (policy_profile_.leg_kp * (policy_targets_.head<4>() - continuous_q.head<4>())
-             - policy_profile_.leg_kd * dq_.head<4>())
-                .cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
-                .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
-        actor.tail<2>() = (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
-                              .cwiseMax(-policy_profile_.wheel_torque_limit)
-                              .cwiseMin(policy_profile_.wheel_torque_limit);
-        const Vector6 effort =
-            joint_reference_recovery_->torques(joint_reference_recovery_feedback_(), actor);
-        tau = effort.head<4>();
-        wheel_tau = effort.tail<2>();
-        if (use_motor_position_pd_ && (!command.release_finished || command.failed)) {
-            clear_outputs_();
-            return;
-        }
-        leg_reference =
-            command.pure_rl ? policy_targets_.head<4>().eval() : command.targets.head<4>().eval();
-        // The MIT backend transmits only a position PD target. Express the
-        // same bounded load compensation as an equivalent reference offset.
-        if (use_motor_position_pd_ && command.tucking)
-            leg_reference += joint_reference_feedback_.tuck_hold_torque / policy_profile_.leg_kp;
-        if (command.blending)
-            leg_reference = continuous_q.head<4>()
-                          + (effort.head<4>() + policy_profile_.leg_kd * dq_.head<4>())
-                                / policy_profile_.leg_kp;
-        reference_feedback = continuous_q.head<4>();
-    } else if (scripted) {
-        tau = recovery_command_.torque.head<4>();
-        wheel_tau = recovery_command_.torque.tail<2>();
-    } else if (state_ == State::kPrepare) {
-        const double kp = native ? policy_profile_.leg_kp : prepare_kp_;
-        const double kd = native ? policy_profile_.leg_kd : prepare_kd_;
-        for (int i = 0; i < 4; ++i)
-            tau[i] = std::clamp(kp * (targets_[i] - q_[i]) - kd * dq_[i], -40.0, 40.0);
-        wheel_tau = -(native ? policy_profile_.wheel_kp : 0.2) * dq_.tail<2>();
-        if (native)
-            wheel_tau = wheel_tau.cwiseMax(-policy_profile_.wheel_torque_limit)
-                            .cwiseMin(policy_profile_.wheel_torque_limit);
+    if (strict_feedback_ && !read_model_state_()) {
+        latch_fault_("invalid feedback at actuation");
+        return;
     }
-    if (!native_recovery && (blending || state_ == State::kRl)) {
-        if (!policy_targets_valid_) {
-            latch_fault_();
-            return;
-        }
-        Eigen::Vector4d policy_tau;
-        for (int i = 0; i < 4; ++i) {
-            policy_tau[i] = policy_profile_.leg_kp * (policy_targets_[i] - q_[i])
-                          - policy_profile_.leg_kd * dq_[i];
-            if (!upright_takeover)
-                policy_tau[i] = std::clamp(
-                    policy_tau[i], -DeployedPolicyContract::kLegTorqueLimit,
-                    DeployedPolicyContract::kLegTorqueLimit);
-        }
-        Eigen::Vector2d policy_wheel =
-            policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>());
-        // V6 clips each native PD output. The historical V5 recovery blend
-        // clips only its final API output; retain that regression contract.
-        if (policy_profile_.name == kV6PolicyProfile.name && !upright_takeover)
-            policy_wheel = policy_wheel.cwiseMax(-policy_profile_.wheel_torque_limit)
-                               .cwiseMin(policy_profile_.wheel_torque_limit);
-        if (upright_takeover) {
-            // The actor runs from the first RL tick even when alpha is zero;
-            // only physical effort is blended. Both PDs use current feedback,
-            // and the six-axis mix precedes native clipping and API mapping.
-            const double elapsed = std::chrono::duration<double>(*timestamp_ - rl_start_).count();
-            const double t = takeover_blend_seconds_ > 0.0
-                               ? std::clamp(elapsed / takeover_blend_seconds_, 0.0, 1.0)
-                               : 1.0;
-            const double alpha = t * t * (3.0 - 2.0 * t);
-            const Eigen::Vector4d prepare_tau =
-                policy_profile_.leg_kp * (takeover_targets_.head<4>() - q_.head<4>())
-                - policy_profile_.leg_kd * dq_.head<4>();
-            const Eigen::Vector2d prepare_wheel = -policy_profile_.wheel_kp * dq_.tail<2>();
-            tau = ((1.0 - alpha) * prepare_tau + alpha * policy_tau)
-                      .cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
-                      .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
-            wheel_tau = ((1.0 - alpha) * prepare_wheel + alpha * policy_wheel)
-                            .cwiseMax(-policy_profile_.wheel_torque_limit)
-                            .cwiseMin(policy_profile_.wheel_torque_limit);
-            takeover_blend_fraction_ = alpha;
-        } else if (blending) {
-            tau = (1.0 - recovery_command_.blend) * tau + recovery_command_.blend * policy_tau;
-            wheel_tau = (1.0 - recovery_command_.blend) * wheel_tau
-                      + recovery_command_.blend * policy_wheel;
-        } else {
-            tau = policy_tau;
-            wheel_tau = policy_wheel;
-        }
-        leg_reference = policy_targets_.head<4>();
-    }
-    // Enforce the relative hinge limit during PREPARE as well as during RL.
-    // Stop on a measured violation beyond the guard band; physical stops are
-    // not replaced by this software clamp.
-    if (!native && recovery_started_ && recovery_observer_) {
-        if (!last_recovery_feedback_.geometry_valid) {
-            latch_fault_(RecoveryFailure::kInvalidFeedback);
-            return;
-        }
-    } else {
-        for (int side = 0; side < 2; ++side) {
-            const int hip = 2 * side;
-            const double relative = hinge_coeff_[hip] * q_[hip]
-                                  + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
-            if (!std::isfinite(relative) || relative < hinge_min_[side] - hinge_margin_
-                || relative > hinge_max_[side] + hinge_margin_) {
-                RCLCPP_ERROR(
-                    get_logger(), "Measured %s hinge %.4f rad outside [%.4f, %.4f] rad",
-                    side == 0 ? "left" : "right", relative, hinge_min_[side] - hinge_margin_,
-                    hinge_max_[side] + hinge_margin_);
-                latch_fault_(RecoveryFailure::kInvalidFeedback);
-                return;
-            }
-        }
-    }
-    // V6 native training decodes a nearest-winding policy target and clips PD
-    // effort. The historical V5 target/effort projections are not part of it.
-    // Actual measured hardware hinge bounds above remain a separate guard.
-    if (!native)
-        apply_soft_limits_(tau);
-    if (strict_feedback_) {
-        // Recheck actual sample age before submitting motor effort.
-        if (!read_model_state_()) {
-            latch_fault_(RecoveryFailure::kInvalidFeedback);
-            return;
-        }
-    }
-    // Conditional 24 V output-shaft bound, after the model-side blend.
-    // A measured dynamometer curve must replace these provisional endpoints.
-    if (recovery_enabled_) {
-        // Inference may stall after update() sampled the recovery interval.
-        // Reject that same output and measure peak exposure at actuation time.
-        const auto now = Clock::now();
-        const auto elapsed = recovery_actuation_interval_.sample(
+    const auto now = Clock::now();
+    if (!control_interval_.sample(
             now, std::chrono::duration_cast<Clock::duration>(
-                     std::chrono::duration<double>{1.0 / pd_frequency_}));
-        if (!recovery_interval_.fresh(now) || !elapsed) {
-            latch_fault_(RecoveryFailure::kInvalidFeedback);
+                     std::chrono::duration<double>{1.0 / pd_frequency_}))) {
+        latch_fault_("control interval exceeded");
+        return;
+    }
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side;
+        const double relative =
+            hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
+        if (!std::isfinite(relative) || relative < hinge_min_[side] - hinge_margin_
+            || relative > hinge_max_[side] + hinge_margin_) {
+            RCLCPP_ERROR(
+                get_logger(), "Measured %s hinge %.4f rad outside [%.4f, %.4f] rad",
+                side == 0 ? "left" : "right", relative, hinge_min_[side] - hinge_margin_,
+                hinge_max_[side] + hinge_margin_);
+            latch_fault_("measured hinge outside calibrated limits");
             return;
         }
-        if (!native) {
-            for (int i = 0; i < 4; ++i) {
-                const double bound = conditional_dm_output_bound(
-                    dq_[i], recovery_dm_rated_output_rpm_, recovery_dm_rated_torque_nm_,
-                    recovery_dm_peak_torque_nm_);
-                tau[i] = std::clamp(tau[i], -bound, bound);
-            }
-            recovery_peak_budget_.limit(tau, *elapsed);
-        }
     }
+    Eigen::Vector4d tau = (policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
+                           - policy_profile_.leg_kd * dq_.head<4>())
+                              .cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
+                              .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
+    const Eigen::Vector2d wheel_tau =
+        (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
+            .cwiseMax(-policy_profile_.wheel_torque_limit)
+            .cwiseMin(policy_profile_.wheel_torque_limit);
+    // Native winding clips position targets and PD effort. Keep the historical
+    // effort projection only for the explicit legacy control profile.
+    if (policy_profile_.name != kV6PolicyProfile.name)
+        apply_soft_limits_(tau);
     const Eigen::Vector4d motor_tau = leg_jacobian_.transpose() * tau;
-    if (!motor_tau.allFinite()) {
-        latch_fault_();
+    if (!motor_tau.allFinite() || !wheel_tau.allFinite()) {
+        latch_fault_("non-finite actuator effort");
         return;
     }
     for (int i = 0; i < 4; ++i)
@@ -289,43 +129,30 @@ void WheelLegController::compute_motor_torques_() {
             std::clamp(motor_tau[i], -*max_torque_inputs_[i], *max_torque_inputs_[i]);
 
     if (use_motor_position_pd_) {
-        // Preserve the pair's continuous turn, then express its error in the
-        // encoder API frame. Driver reversal/bias is applied only by DmMotor.
+        // Preserve the pair's continuous turn in the encoder API frame.
+        // Driver reversal/bias is applied only by DmMotor.
         const Eigen::Vector4d delta =
-            leg_jacobian_.transpose() * (leg_reference - reference_feedback);
+            leg_jacobian_.transpose() * (policy_targets_.head<4>() - q_.head<4>());
         for (int i = 0; i < 4; ++i) {
             const double target = *angle_inputs_[i] + delta[i];
             if (!std::isfinite(target)) {
-                latch_fault_();
+                latch_fault_("non-finite motor position target");
                 return;
             }
             *angle_outputs_[i] = target;
         }
         *joint_command_ns_ = static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch())
-                .count());
+            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
     }
-
     for (int i = 0; i < 2; ++i) {
-        // DjiMotor's configured ratio converts motor current to wheel-output
-        // torque. The model wheel target is already a wheel-output speed.
+        // DjiMotor converts motor current to wheel-output torque using its own ratio.
         const double motor_tau_wheel = wheel_scale_[i] * wheel_tau[i];
         if (!std::isfinite(motor_tau_wheel)) {
-            latch_fault_();
+            latch_fault_("non-finite wheel effort");
             return;
         }
-        // DjiMotor provides the installed M3508's own current/ratio torque limit.
         *torque_outputs_[4 + i] =
             std::clamp(motor_tau_wheel, -*max_torque_inputs_[4 + i], *max_torque_inputs_[4 + i]);
-    }
-    if (native_recovery) {
-        Vector6 actor;
-        for (int i = 0; i < 6; ++i)
-            actor[i] = policy_action_[i];
-        const Vector6 history = joint_reference_recovery_->effective_action_history(
-            actor, Eigen::Map<const Vector6>{nominal_.data()}, action_scales_);
-        for (int i = 0; i < 6; ++i)
-            previous_action_[i] = history[i];
     }
 }
 
