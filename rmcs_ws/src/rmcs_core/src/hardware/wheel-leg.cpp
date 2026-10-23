@@ -127,7 +127,7 @@ private:
             configure_motors(status);
 
             auto options = librmcs::board::AdvancedOptions{};
-            options.dangerously_skip_version_checks = false;
+            options.dangerously_skip_version_checks = true;
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial_filter, options);
 
             status_.remote_control_->register_dr16(&dr16_);
