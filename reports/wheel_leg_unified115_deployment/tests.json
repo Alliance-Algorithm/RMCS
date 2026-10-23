@@ -1,0 +1,74 @@
+{
+  "schema": "rmcs-unified115-offline-tests-v1",
+  "individual_gtests": 25,
+  "failed": 0,
+  "skipped": 0,
+  "results": [
+    {
+      "package": "rmcs_core",
+      "name": "deformable_policy_bridge_integration.gtest.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "bc5b45eb893bb302f87128bbf91b92cc7b369331f528dbf72d022904e1420ab6"
+    },
+    {
+      "package": "rmcs_core",
+      "name": "wheel_leg_feedback.gtest.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "97de81241ac2d60f204eb63aa5f564fbd0eaf11b5d68a3ff4ebba379b3a1aed1"
+    },
+    {
+      "package": "rmcs_core",
+      "name": "wheel_leg_policy_integration.gtest.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d0c0e84cef486de975bade8e3bcd490277f008bdeadde5f2a3f0c84609014b0c"
+    },
+    {
+      "package": "rmcs_core",
+      "name": "wheel_leg_unified_observation.gtest.xml",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "6e60ec33e25fee0cf08b50e6c876cefcff427fb567270aec8f4aafa500854665"
+    },
+    {
+      "package": "rmcs_core",
+      "name": "wheel_leg_unified_policy_integration.gtest.xml",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "43633a93f34a36f456af3f3aa90de1e8ba6e0031528b0b6728b71eb6dd10abf8"
+    },
+    {
+      "package": "rmcs_rl",
+      "name": "observation_frame.gtest.xml",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "ed1e4fd3f2430310fc68b86da1e5e0955041e0f9b71a5f390630dfb5f1d45641"
+    },
+    {
+      "package": "rmcs_rl",
+      "name": "policy_model_contract.gtest.xml",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "61049afb444f2af67ae8722334ead417a0ab2dd9fab9224e8b6feb7c1c126681"
+    }
+  ],
+  "scope": "Production ONNX/controller/bridge/executor with memory-only sensors; no transport or simulated dynamics",
+  "hardware_tested": false,
+  "behavior_qualified": false
+}

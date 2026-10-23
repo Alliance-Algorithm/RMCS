@@ -90,7 +90,8 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     register_output("/wheel_leg/rl/heading/error", heading_error_output_, 0.0);
     register_output("/wheel_leg/rl/heading/raw_yaw_rate", heading_raw_rate_output_, 0.0);
     register_output("/wheel_leg/rl/heading/limited_yaw_rate", heading_limited_rate_output_, 0.0);
-    // Publish calibrated, unscaled inputs. YAML owns feature order, normalization and clipping.
+    // Legacy profiles route physical inputs through YAML. Unified policies consume
+    // the coherent, preprocessed frame produced by this controller.
     register_output(
         "/wheel_leg/rl/input/command", policy_command_output_, Eigen::Vector3d::Zero().eval());
     register_output("/wheel_leg/rl/input/height", policy_height_output_, 0.0);
@@ -101,6 +102,16 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         "/wheel_leg/rl/input/projected_gravity", policy_gravity_output_,
         Eigen::Vector3d::Zero().eval());
     register_output("/wheel_leg/rl/input/enable", policy_enable_output_, false);
+    register_output(
+        "/wheel_leg/rl/input/frame", policy_frame_output_, std::vector<double>(35, 0.0));
+    register_output(
+        "/wheel_leg/rl/input/frame_sequence", policy_frame_sequence_output_, std::size_t{0});
+    register_input(
+        "/wheel_leg/rl/observation_contract_sha256", policy_observation_contract_input_, false);
+    register_input("/wheel_leg/rl/observation_frame_interface", policy_frame_path_input_, false);
+    register_input(
+        "/wheel_leg/rl/observation_frame_sequence_interface", policy_frame_sequence_path_input_,
+        false);
     register_input("/wheel_leg/rl/valid", policy_valid_input_);
     register_input("/wheel_leg/rl/healthy", policy_healthy_input_);
     register_input("/wheel_leg/rl/action_seq", policy_sequence_input_);
@@ -127,6 +138,7 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     soft_limits_ready_ = get_parameter_or("soft_limits_ready", false);
     imu_alignment_ready_ = get_parameter_or("imu_alignment_ready", false);
     auto_enter_rl_ = get_parameter_or("auto_enter_rl", false);
+    unified_full_rl_ = get_parameter_or("unified_full_rl", false);
     const auto profile_name = get_parameter_or<std::string>(
         "control_profile", std::string{DeployedPolicyContract::kName});
     if (profile_name == kV6PolicyProfile.name)
@@ -210,7 +222,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     const auto hinge_min = parameter_array<2>(*this, "hinge_min");
     const auto hinge_max = parameter_array<2>(*this, "hinge_max");
     const auto nominal = parameter_array<6>(*this, "nominal_model_pos");
-    const auto imu_alignment = parameter_array<9>(*this, "imu_to_base");
     leg_jacobian_ = Eigen::Map<const Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>{matrix.data()};
     leg_offset_ = Eigen::Map<const Eigen::Vector4d>{offsets.data()};
     std::ranges::copy(hinge, hinge_coeff_.begin());
@@ -225,8 +236,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         if (std::abs(nominal_[i] - policy_profile_.nominal[i]) > 1e-9)
             throw std::runtime_error(
                 "Nominal position does not match the wheel-leg control profile");
-    imu_to_base_ =
-        Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>{imu_alignment.data()};
 
     if (calibration_ready_
         && (std::abs(leg_jacobian_.determinant()) < 1e-6 || std::abs(wheel_scale_[0]) < 1e-6
@@ -245,13 +254,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
                 throw std::runtime_error("Nominal leg posture is outside calibrated hinge limits");
         }
     }
-    if (imu_alignment_ready_
-        && (std::abs(imu_to_base_.determinant() - 1.0) > 1e-3
-            || (imu_to_base_.transpose() * imu_to_base_ - Eigen::Matrix3d::Identity()).norm()
-                   > 1e-3))
-        throw std::runtime_error("imu_to_base must be a calibrated rotation matrix");
-    base_to_imu_orientation_ = Eigen::Quaterniond{imu_to_base_.transpose()};
-
     // Configuration is copied into fixed control-loop state at construction.
     // Reject edits that would otherwise change ROS metadata without changing it.
     parameter_guard_ = add_on_set_parameters_callback([](const std::vector<rclcpp::Parameter>&) {

@@ -2,15 +2,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <span>
 
 namespace rmcs_core::controller::chassis {
 
 Eigen::Quaterniond WheelLegController::world_base_orientation_() const {
-    // Eigen composes body -> world with base -> body. The CAD export rotation
-    // already belongs to the frozen asset and must not be applied here.
-    return orientation_->normalized() * base_to_imu_orientation_;
+    // Hardware applies the configured sensor mounting before attitude fusion.
+    return orientation_->normalized();
 }
 
 bool WheelLegController::read_model_state_() {
@@ -198,10 +198,35 @@ bool WheelLegController::assemble_observation_() {
     return true;
 }
 
+bool WheelLegController::publish_unified_observation_() {
+    if (next_policy_frame_sequence_ == std::numeric_limits<std::size_t>::max())
+        return false;
+    std::array<double, 6> position{}, velocity{};
+    for (std::size_t i = 0; i < 6; ++i) {
+        position[i] = q_[i];
+        velocity[i] = dq_[i];
+    }
+    if (!policy_targets_valid_)
+        applied_policy_action_ = measured_policy_history(position);
+    const Eigen::Vector3d omega = *gyro_;
+    const Eigen::Vector3d gravity =
+        world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
+    const auto& command = *policy_command_output_;
+    const auto frame = unified_observation_.sample(
+        ++next_policy_frame_sequence_, position, velocity, {omega.x(), omega.y(), omega.z()},
+        {gravity.x(), gravity.y(), gravity.z()}, {command.x(), command.y(), command.z()},
+        *policy_height_output_, applied_policy_action_, state_ == State::kRl);
+    if (!frame)
+        return false;
+    std::ranges::copy(*frame, policy_frame_output_->begin());
+    *policy_frame_sequence_output_ = next_policy_frame_sequence_;
+    return true;
+}
+
 void WheelLegController::publish_model_feedback_() {
     // The bridge samples on its own policy clock. Keep its physical inputs
     // current on every executor tick, even between command-reference updates.
-    *policy_gyro_output_ = imu_to_base_ * *gyro_;
+    *policy_gyro_output_ = *gyro_;
     *policy_gravity_output_ = world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();
     for (int i = 0; i < 6; ++i) {
         *model_angle_outputs_[i] = q_[i];

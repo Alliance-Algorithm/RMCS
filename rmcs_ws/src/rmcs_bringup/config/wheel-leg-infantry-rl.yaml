@@ -24,6 +24,13 @@ wheel_leg_identification_recorder:
 wheel_leg:
   ros__parameters:
     board_serial: ""
+    # Mount relative to the training/URDF base_link: X forward, Y left, Z up.
+    # R_base_imu, row-major. CAD export rotation is already in the asset.
+    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    # base_link origin -> BMI088 accelerometer centre, in base_link axes, metres.
+    # Placeholder until measured; zero disables lever-arm compensation.
+    imu_position: [0.0, 0.0, 0.0]
+    imu_angular_acceleration_filter_tau_s: 0.01
     # Select "position_pd" and restart to use motor-side PD with the same calibration/model.
     joint_control_mode: "torque"
     joint_position_kp: 160.0
@@ -166,15 +173,8 @@ wheel_leg_controller:
     # Z-up. The URDF's +90 deg rotation is on imported CAD visual/collision
     # meshes (CAD front = -Y); it has ALREADY been applied before training.
     # Do not add that CAD rotation again to commands or policy actions.
-    # imu_to_base is only the independently measured sensor-to-base rotation:
-    # Frozen policy base_link is X-forward/Y-left/Z-up. Source CAD -Y forward
-    # was already rotated +90deg during URDF export; do not rotate again here.
-    # Installed BMI088: +X forward, +Z up, right-handed => +Y left. Thus the
-    # sensor and policy base_link axis orders agree; no extra 90-degree yaw.
-    # User-confirmed installation; same identity mount as dev/rmcs_rl @ 8149afda.
-    # gyro_base = R_base_imu * gyro_imu; q_world_base = q_world_imu * R_base_imu^T.
+    # Installation R/xyz are configured once in wheel_leg and applied before the EKF.
     imu_alignment_ready: true
-    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
     auto_enter_rl: false
 

@@ -57,6 +57,30 @@ void WheelLegController::before_updating() {
     // Executor::start sets /predefined/update_rate AFTER before_updating().
     last_reset_count_ = *reset_count_;
     use_motor_position_pd_ = motor_position_pd_.ready() && *motor_position_pd_;
+    if (unified_full_rl_) {
+        if (policy_profile_.name != kV6PolicyProfile.name || heading_hold_enabled_
+            || use_motor_position_pd_ || inference_frequency_ != 200.0 || pd_frequency_ != 1000.0
+            || leg_target_winding_ != LegTargetWinding::kPairedBranch107
+            || !policy_observation_contract_input_.ready()
+            || *policy_observation_contract_input_ != kStandingObservationContractSha256
+            || !policy_frame_path_input_.ready()
+            || *policy_frame_path_input_ != "/wheel_leg/rl/input/frame"
+            || !policy_frame_sequence_path_input_.ready()
+            || *policy_frame_sequence_path_input_ != "/wheel_leg/rl/input/frame_sequence")
+            throw std::runtime_error(
+                "Unified full RL requires its exact 200Hz observation/frame/host-torque contract");
+        for (std::size_t i = 0; i < 6; ++i) {
+            const double scale = i < 4 ? .25 : 10.0;
+            const double bound = i < 4 ? 4.0 : 90.0;
+            if (action_scales_[i] != scale || action_clip_min_[i] != -bound
+                || action_clip_max_[i] != bound)
+                throw std::runtime_error("Unified full RL requires raw leg16/wheel9 action bounds");
+        }
+    } else if (
+        policy_observation_contract_input_.ready()
+        && !policy_observation_contract_input_->empty()) {
+        throw std::runtime_error("This wheel-leg observation contract requires unified_full_rl");
+    }
     if (use_motor_position_pd_) {
         if (policy_profile_.name != kV6PolicyProfile.name || !motor_position_kp_.ready()
             || !motor_position_kd_.ready() || *motor_position_kp_ != policy_profile_.leg_kp
@@ -122,6 +146,14 @@ void WheelLegController::enter_(State next, bool force_reset) {
     if (state_ == next && !force_reset)
         return;
     state_ = next;
+    if (unified_full_rl_) {
+        unified_observation_.reset(next_policy_frame_sequence_);
+        if (next != State::kRl) {
+            *policy_frame_sequence_output_ = 0;
+            std::ranges::fill(*policy_frame_output_, 0.0);
+            applied_policy_action_.fill(0.0);
+        }
+    }
     reset_heading_hold_();
     if (next == State::kRl)
         return;
@@ -174,7 +206,8 @@ void WheelLegController::update_state_output_() {
     if (active && feedback_valid_)
         publish_model_feedback_();
     for (std::size_t i = 0; i < previous_action_.size(); ++i)
-        *effective_action_outputs_[i] = previous_action_[i];
+        *effective_action_outputs_[i] =
+            unified_full_rl_ ? applied_policy_action_[i] : previous_action_[i];
     *state_output_ = std::to_underlying(state_);
     *fault_output_ = fault_latched_;
 }
@@ -205,6 +238,8 @@ bool WheelLegController::evaluate_policy_(std::size_t tick) {
         || tick - schedule_.last_policy_tick >= schedule_.policy_divisor) {
         if (!assemble_observation_())
             return false;
+        if (unified_full_rl_ && !publish_unified_observation_())
+            return false;
         schedule_.last_policy_tick = tick;
     }
     *policy_enable_output_ = true;
@@ -224,6 +259,8 @@ void WheelLegController::update() {
     *policy_enable_output_ = false;
     if (!schedule_.ready) {
         const double rate = *update_rate_;
+        if (unified_full_rl_ && rate != 1000.0)
+            throw std::runtime_error("Unified full RL requires a 1000Hz executor");
         if (!almost_integer(rate / inference_frequency_) || !almost_integer(rate / pd_frequency_))
             throw std::runtime_error(
                 "RMCS update_rate must be an integer multiple of PD and policy frequencies");
@@ -305,6 +342,9 @@ void WheelLegController::update() {
         motor_control_started_ = true;
         compute_motor_torques_();
         if (state_ == State::kRl) {
+            // Only actions that reached PD may enter the next observation.
+            if (unified_full_rl_)
+                applied_policy_action_ = previous_action_;
             *pd_time_us_ =
                 std::chrono::duration<double, std::micro>{Clock::now() - pd_start}.count();
             schedule_.last_pd_tick = tick;
