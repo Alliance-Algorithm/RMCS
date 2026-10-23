@@ -191,7 +191,7 @@ private:
         *jump_apex_delta_ = *jump_request_ ? (keyboard_->shift ? 0.10 : 0.06) : 0.0;
     }
 
-    // Require double DOWN before arming; a single MIDDLE cannot start PREPARE.
+    // Require double DOWN before arming; a single MIDDLE cannot start the policy.
     void update_state_command_(rmcs_msgs::Switch left, rmcs_msgs::Switch right) {
         arm_sequence_.update(left, right, true);
         *chassis_control_state_ = arm_sequence_.armed() ? 3 : 1;

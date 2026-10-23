@@ -6,9 +6,8 @@
 
 namespace rmcs_core::controller::chassis {
 
-// A discontinuity stays invalid until the control session is reset. Use one
-// sample for recovery observation/sequence integration and another at actuation
-// for the time spent holding the previous torque.
+// A discontinuity stays invalid until the control session is reset.
+// Sample at actuation to bound the time holding the previous torque.
 class ControlInterval {
 public:
     using Clock = std::chrono::steady_clock;

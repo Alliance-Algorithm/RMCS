@@ -33,8 +33,7 @@ bool WheelLegController::read_model_state_() {
     }
     if (strict_feedback_ && (!acceleration_.ready() || !acceleration_->allFinite()))
         return feedback_valid_ = false;
-    const bool awaiting_initial_drives = !motor_control_started_ && !recovery_started_
-                                      && state_ != State::kRl
+    const bool awaiting_initial_drives = !motor_control_started_ && state_ != State::kRl
                                       && (!dm_control_ready_.ready() || !*dm_control_ready_);
     if (strict_feedback_) {
         const bool samples_valid = [&] {
@@ -42,7 +41,7 @@ bool WheelLegController::read_model_state_() {
             const auto now_ns =
                 std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch())
                     .count();
-            std::array<RecoverySampleStamp, 8> samples{};
+            std::array<FeedbackSampleStamp, 8> samples{};
             for (std::size_t i = 0; i < 6; ++i)
                 if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
                     samples[i] = {*motor_feedback_sequences_[i], *motor_feedback_ns_[i]};
@@ -50,9 +49,9 @@ bool WheelLegController::read_model_state_() {
                 samples[6] = {*imu_sequence_, *imu_ns_};
             if (acceleration_sequence_.ready() && acceleration_ns_.ready())
                 samples[7] = {*acceleration_sequence_, *acceleration_ns_};
-            recovery_sensor_status_ = recovery_sensor_guard_.update(
-                now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
-            if (!recovery_sensor_status_.valid)
+            sensor_status_ =
+                sensor_guard_.update(now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
+            if (!sensor_status_.valid)
                 return false;
             for (int i = 0; i < 4; ++i) {
                 const auto sequence = *motor_feedback_sequences_[i];
@@ -88,8 +87,8 @@ bool WheelLegController::read_model_state_() {
             // FC/neutral-MIT handshaking can refresh the paired buses at
             // different times. Preserve hardware freshness and zero torque;
             // the first ready snapshot must pass the complete sample guard.
-            recovery_sensor_guard_.reset();
-            recovery_sensor_status_ = {};
+            sensor_guard_.reset();
+            sensor_status_ = {};
             motor_feedback_initialized_ = false;
         }
     }
@@ -130,14 +129,9 @@ void WheelLegController::update_command_reference_() {
     const Eigen::Vector3d forward = world_base_orientation_() * Eigen::Vector3d::UnitX();
     const double yaw = std::atan2(forward.y(), forward.x());
     double desired_yaw = requested_yaw;
-    const bool blending = (recovery_started_ && joint_reference_recovery_
-                           && joint_reference_recovery_->command().blending)
-                       || (!recovery_started_ && policy_profile_.name == kV6PolicyProfile.name
-                           && takeover_blend_seconds_ > 0.0 && takeover_blend_fraction_ < 1.0);
     // The upstream input owns the deadzone and manual turn intent. Capture
     // once per straight segment, including direct forward/reverse changes.
-    if (heading_hold_enabled_ && !blending && !spinning && requested_vx != 0.0
-        && requested_yaw == 0.0) {
+    if (heading_hold_enabled_ && !spinning && requested_vx != 0.0 && requested_yaw == 0.0) {
         if (!heading_target_rad_)
             heading_target_rad_ = yaw;
         const double error =
@@ -173,35 +167,21 @@ void WheelLegController::update_command_reference_() {
         vx_reference_ = std::copysign(2.06 / std::abs(yaw_reference_), vx_reference_);
 }
 
-bool WheelLegController::assemble_observation_(bool shadow_recovery) {
+bool WheelLegController::assemble_observation_() {
     if (!feedback_valid_ || !std::isfinite(*height_command_)
         || !velocity_command_->vector.allFinite() || *height_command_ < policy_profile_.height_min
         || *height_command_ > policy_profile_.height_max || !std::isfinite(*jump_apex_command_))
         return false;
-    const bool hold_command = recovery_motion_hold_();
-    if (!shadow_recovery && !hold_command)
-        update_command_reference_();
-    else {
-        reset_heading_hold_();
-        if (hold_command)
-            vx_reference_ = yaw_reference_ = 0.0;
-    }
-    const bool height_command_active =
-        !shadow_recovery && (policy_profile_.name != kV6PolicyProfile.name || !hold_command);
+    update_command_reference_();
     if (height_command_is_reference_) {
-        if (height_command_active) {
-            // The chassis integrates the height input. Follow that continuous
-            // reference without restarting a full transition for every sample.
-            // Limit pending commands on release from recovery as well.
-            const double max_step = height_reference_rate_max_ / inference_frequency_;
-            height_reference_ +=
-                std::clamp(*height_command_ - height_reference_, -max_step, max_step);
-            height_from_ = height_reference_;
-            height_target_ = *height_command_;
-            height_start_ = *timestamp_;
-        }
+        // The chassis integrates the height input. Follow its continuous reference.
+        const double max_step = height_reference_rate_max_ / inference_frequency_;
+        height_reference_ += std::clamp(*height_command_ - height_reference_, -max_step, max_step);
+        height_from_ = height_reference_;
+        height_target_ = *height_command_;
+        height_start_ = *timestamp_;
     } else {
-        if (height_command_active && std::abs(*height_command_ - height_target_) > 1e-6) {
+        if (std::abs(*height_command_ - height_target_) > 1e-6) {
             height_from_ = height_reference_;
             height_target_ = *height_command_;
             height_start_ = *timestamp_;
@@ -213,12 +193,8 @@ bool WheelLegController::assemble_observation_(bool shadow_recovery) {
         height_reference_ =
             height_from_ + (height_target_ - height_from_) * (3 * u * u - 2 * u * u * u);
     }
-    *policy_command_output_ = Eigen::Vector3d{
-        (shadow_recovery || hold_command) ? 0.0 : vx_reference_, 0.0,
-        (shadow_recovery || hold_command) ? 0.0 : yaw_reference_};
-    *policy_height_output_ = (shadow_recovery || hold_command)
-                               ? DeployedPolicyContract::kNominalHeight
-                               : height_reference_;
+    *policy_command_output_ = Eigen::Vector3d{vx_reference_, 0.0, yaw_reference_};
+    *policy_height_output_ = height_reference_;
     return true;
 }
 

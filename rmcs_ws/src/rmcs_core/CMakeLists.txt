@@ -46,16 +46,11 @@ add_executable(wheel_leg_recording_preview tools/wheel_leg_recording_preview.cpp
 target_include_directories(wheel_leg_recording_preview PRIVATE ${PROJECT_SOURCE_DIR}/src)
 install(TARGETS wheel_leg_recording_preview DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
-
 if(BUILD_TESTING)
     find_package(ament_cmake_gtest REQUIRED)
     find_package(rmcs_rl REQUIRED)
-    ament_add_gtest(wheel_leg_recovery_tuck test/wheel_leg_recovery_tuck.cpp)
-    target_include_directories(wheel_leg_recovery_tuck PRIVATE src)
-    target_compile_definitions(wheel_leg_recovery_tuck PRIVATE
-        RMCS_TUCK_CONFIG="${PROJECT_SOURCE_DIR}/config/wheel_leg")
-    target_link_libraries(wheel_leg_recovery_tuck ${PROJECT_NAME})
+    ament_add_gtest(wheel_leg_feedback test/wheel_leg_feedback.cpp)
+    target_include_directories(wheel_leg_feedback PRIVATE src)
     ament_add_gtest(wheel_leg_policy_integration test/wheel_leg_policy_integration.cpp)
     target_include_directories(wheel_leg_policy_integration PRIVATE
         src ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)

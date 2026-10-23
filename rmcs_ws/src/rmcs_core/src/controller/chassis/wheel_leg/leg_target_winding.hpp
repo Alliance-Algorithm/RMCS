@@ -51,14 +51,8 @@ inline void validate_leg_target_model_spec(
             std::string{origin} + " model_spec_sha256 must match paired_branch107_v1");
 }
 
-inline void validate_leg_target_recovery_profile(
-    LegTargetWinding version, bool script_recovery_enabled, std::string_view model_spec_sha256) {
-    if (script_recovery_enabled)
-        validate_leg_target_model_spec(version, model_spec_sha256, "Script recovery profile");
-}
-
 // An encoder's whole-turn choice is not a mechanism hinge angle. Restore the
-// measured paired branch before observations, recovery, PD and hinge checks.
+// measured paired branch before observations, PD and hinge checks.
 // Unlike target winding, this never clamps a measured mechanical violation.
 inline std::array<double, 4> wind_leg_feedback(
     const std::array<double, 4>& measured, const std::array<double, 4>& previous,

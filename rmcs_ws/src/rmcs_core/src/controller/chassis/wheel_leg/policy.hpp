@@ -14,7 +14,7 @@ struct DeployedPolicyContract {
     static constexpr std::string_view kName = "v6";
     // Legacy default only; the paired bridge supplies the model's policy cadence.
     static constexpr double kPolicyFrequencyHz = 50.0;
-    // Minimum feedback cadence; deployed PD and recovery periods are configured separately.
+    // Minimum feedback cadence; the deployed PD period is configured separately.
     static constexpr double kControlFrequencyHz = 200.0;
     static constexpr double kPolicyPeriodSeconds = 1.0 / kPolicyFrequencyHz;
     static constexpr double kControlPeriodSeconds = 1.0 / kControlFrequencyHz;
@@ -30,8 +30,7 @@ struct DeployedPolicyContract {
         -0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0};
 };
 
-// Retained solely for the V5 recovery regression and explicit legacy profiles.
-// Its geometry and recovery evidence do not qualify the V6 candidate.
+// Retained for explicit legacy control profiles.
 struct LegacyPolicyContract : DeployedPolicyContract {
     static constexpr std::string_view kName = "v5";
     static constexpr double kLegKp = 60.0;
@@ -49,7 +48,6 @@ struct PolicyProfile {
     double leg_kp, leg_kd, wheel_kp, wheel_torque_limit;
     double height_min, height_max;
     double forward_limit, negative_yaw_limit, positive_yaw_limit;
-    bool recovery_supported;
 };
 
 inline constexpr PolicyProfile kV6PolicyProfile{
@@ -63,8 +61,7 @@ inline constexpr PolicyProfile kV6PolicyProfile{
     DeployedPolicyContract::kHeightMax,
     0.5,
     1.0,
-    1.0,
-    true};
+    1.0};
 
 inline constexpr PolicyProfile kV5PolicyProfile{
     LegacyPolicyContract::kName,
@@ -77,8 +74,7 @@ inline constexpr PolicyProfile kV5PolicyProfile{
     LegacyPolicyContract::kHeightMax,
     3.0,
     1.05,
-    12.566370614359172 + 1e-3,
-    true};
+    12.566370614359172 + 1e-3};
 
 // Six physical actuators; observation shape and actor channel order come from YAML.
 using PolicyAction = std::array<float, 6>;
