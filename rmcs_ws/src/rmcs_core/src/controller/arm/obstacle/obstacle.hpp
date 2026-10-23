@@ -1,5 +1,7 @@
 #pragma once
 
+#include "obstacle_types.hpp"
+
 #include "geometry_msgs/msg/pose.hpp"
 #include "moveit_msgs/msg/collision_object.hpp"
 #include "shape_msgs/msg/mesh.hpp"
@@ -16,18 +18,6 @@
 #include <string>
 
 namespace rmcs_core::controller::arm::obstacle {
-
-enum class CollisionObjectOperation {
-    IDLE,
-    ADD,
-    APPEND,
-    MOVE,
-    REMOVE,
-};
-
-struct Pose {
-    double x, y, z, roll, pitch, yaw;
-};
 
 class Obstacle {
 public:

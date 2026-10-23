@@ -1,10 +1,11 @@
 #pragma once
 
-#include "obstacle.hpp"
+#include "obstacle_types.hpp"
 #include <map>
 #include <memory>
 #include <numbers>
 #include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <string>
 
 namespace rmcs_core::controller::arm::obstacle {

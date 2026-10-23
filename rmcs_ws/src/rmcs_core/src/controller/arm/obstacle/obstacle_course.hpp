@@ -3,6 +3,7 @@
 #include "moveit_msgs/msg/link_padding.hpp"
 #include "obstacle.hpp"
 #include "obstacle_coordinates_map.hpp"
+#include "obstacle_parameter_map.hpp"
 #include <memory>
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
 #include <rclcpp/logger.hpp>
@@ -28,43 +29,13 @@ public:
             moveit_msgs::msg::LinkPadding().set__link_name("link_6").set__padding(0.02));
         planning_scene_.applyPlanningScene(ps);
 
-        Eigen::Vector3d mm2m_scale = {0.001, 0.001, 0.001};
-
-        add_collision(
-            "energy_unit_left_front", "energy_unit", mm2m_scale,
-            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
-            obstacle_coordinates_map.get_pose("energy_unit_left_front_store"));
-        add_collision(
-            "energy_unit_left_back", "energy_unit", mm2m_scale,
-            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
-            obstacle_coordinates_map.get_pose("energy_unit_left_back_store"));
-        add_collision(
-            "energy_unit_right_back", "energy_unit", mm2m_scale,
-            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
-            obstacle_coordinates_map.get_pose("energy_unit_right_back_store"));
-        add_collision(
-            "energy_unit_right_front", "energy_unit", mm2m_scale,
-            obstacle_coordinates_map.get_pose("energy_unit_compensation"),
-            obstacle_coordinates_map.get_pose("energy_unit_right_front_store"));
-        add_collision(
-            "gimbal", "gimbal", mm2m_scale,
-            obstacle_coordinates_map.get_pose("gimbal_compensation"),
-            obstacle_coordinates_map.get_pose("gimbal"));
-
-        add_collision(
-            "exchange", "exchange", mm2m_scale,
-            obstacle_coordinates_map.get_pose("exchange_compensation"), {-1, 0, 0, 0, 0, 0});
-        add_collision(
-            "pillar", "pillar", mm2m_scale,
-            obstacle_coordinates_map.get_pose("pillar_compensation"), {-1, 0, 0, 0, 0, 0});
-
-        set_operation("energy_unit_left_back", CollisionObjectOperation::IDLE);
-        set_operation("energy_unit_right_back", CollisionObjectOperation::IDLE);
-        set_operation("energy_unit_right_front", CollisionObjectOperation::IDLE);
-        set_operation("energy_unit_left_front", CollisionObjectOperation::IDLE);
-        set_operation("gimbal", CollisionObjectOperation::ADD);
-        set_operation("exchange", CollisionObjectOperation::ADD);
-        set_operation("pillar", CollisionObjectOperation::ADD);
+        const auto parameters = make_obstacle_parameter_map(obstacle_coordinates_map);
+        for (const auto& [id, config] : parameters) {
+            Eigen::Vector3d scale{config.scale[0], config.scale[1], config.scale[2]};
+            add_collision(id, config.mesh, scale, config.compensation, config.pose);
+        }
+        for (const auto& [id, config] : parameters)
+            set_operation(id, config.initial_operation);
     }
 
     void set_operation(const std::string& id, CollisionObjectOperation operation) {
