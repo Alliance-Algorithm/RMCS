@@ -1,0 +1,146 @@
+{
+  "schema": "rmcs-wheel-leg-soft-limits-v1",
+  "recorded_at_utc": "2026-10-24T04:10:06.459951+00:00",
+  "status": "offline_checks_passed",
+  "rmcs_root": "/home/noir/Documents/workspace/RMCS",
+  "rmcs_head": "46d24ed6ad56807a12bd14e3d8707169c0d433a5",
+  "rmcs_rl_head": "a1ef5f5872305f08d674283bad0b91aeb7256369",
+  "rmcs_rl_gitlink_change_preexisted": true,
+  "removed_shutdown_conditions": [
+    "measured hinge beyond configured boundaries",
+    "absolute DM encoder position envelope",
+    "angle delta inferred from a fixed motor velocity bound",
+    "measured torque beyond software command bound in motor position PD",
+    "sensor sequence reversal, inconsistency and cross-sensor skew",
+    "acceleration sample age and value as a policy enable condition",
+    "control interval envelope and separate position-PD 10ms command timer",
+    "one-second drive-readiness latch",
+    "finite motion commands outside per-axis policy bounds"
+  ],
+  "retained_runtime_behavior": [
+    "finite actions and per-axis commands clamp to configured bounds",
+    "40 Nm leg and 4.5 Nm wheel model torque bounds plus configured actuator bounds",
+    "hip/knee relative-angle soft limit removes only outward relative effort",
+    "inward recovery and common leg rotation remain available",
+    "a shared torque scale preserves the projected direction with unequal actuator caps",
+    "motor position PD uses projected host torque at soft limits or outside MIT position encoding",
+    "drive readiness waits at zero effort with enable retries instead of latching"
+  ],
+  "retained_stop_conditions": [
+    "operator stop and remote loss",
+    "CAN motor or IMU receive timeout, missing or future control timestamps",
+    "non-finite control values or zero/non-finite orientation",
+    "invalid or expired inference",
+    "invalid calibration or model contract",
+    "actual drive fault status handled by the existing clear-error/enable handshake"
+  ],
+  "verification": {
+    "build": {
+      "packages": [
+        "rmcs_core",
+        "rmcs_bringup"
+      ],
+      "passed": true,
+      "entrypoint": ".script/build-rmcs",
+      "log": "build_final.log"
+    },
+    "selected_gtest_suites": [
+      {
+        "name": "wheel_leg_feedback",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0,
+        "timestamp": "2026-10-24T12:05:25.339"
+      },
+      {
+        "name": "wheel_leg_imu",
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0,
+        "timestamp": "2026-10-24T12:05:25.150"
+      },
+      {
+        "name": "wheel_leg_unified_observation",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0,
+        "timestamp": "2026-10-24T12:05:25.386"
+      },
+      {
+        "name": "wheel_leg_policy_integration",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0,
+        "timestamp": "2026-10-24T12:05:26.714"
+      },
+      {
+        "name": "wheel_leg_unified_policy_integration",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0,
+        "timestamp": "2026-10-24T12:05:25.454"
+      }
+    ],
+    "selected_gtest_count": 24,
+    "colcon_test_result_count_including_ctest_wrappers": 30,
+    "motor_position_pd_additional_gtest_count": 1,
+    "motor_position_pd_passed": true,
+    "export_pytest_count": 12,
+    "export_pytest_passed": true,
+    "onnx_contract_status": "offline_contract_passed",
+    "onnx_inference_vectors": 256,
+    "onnx_maximum_raw_action_error": 1.9073486328125e-06,
+    "model_sha256": "48d4880f2b928512be54bea0e4b24f09fc3c47057c3c36dba87066ab34d7e443",
+    "contract_sources_match_at_archive": true,
+    "initial_test_configuration_refusal": "missing --merge-install; tests did not start; rerun passed",
+    "physical_simulation_run": false,
+    "can_or_robot_run": false,
+    "behavior_qualified": false
+  },
+  "source_sha256": {
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml": "261e757ba3349d826e9a0150667affe7ce572c3066e0521f23779538ce651848",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml": "c63fe069acc2e2066e08275da47e50ec58a5228c96df8ce9a440b2827768de5b",
+    "rmcs_ws/src/rmcs_core/CMakeLists.txt": "d2cfa72b2792ca0b14c4eeeba14ce469e8d47df60a97ae7df5d4963332d6e4c3",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp": "8f1dfafe26256dd0d74dd5b1d5b2fe321bd26d1bba0eee71cb9fff10636f4469",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp": "08722af6edc75475c410af11b1d8008bd8655022c04e82a0ff4daffb1a9b0817",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/feedback_sensor_guard.hpp": "a20af6c475ad31946ddd561b1dbec03d535918ed06a5f7d4c587ba3827955d4d",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/observation.cpp": "626fed4372448f71a65941a81ee71fea1d750224fee1d978c19048b98b47ca10",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp": "40be7d6fe3b1e384234e1ceeace1d5bb90c7d5fe6ece438d411104128437295f",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.hpp": "c1f3f68bc1637ba77350ec247d7fd361146b4fe57196217d96be721142025294",
+    "rmcs_ws/src/rmcs_core/src/hardware/device/dm_motor.hpp": "4acbbc47c500035b7d39d64b3830213a7638a576813a3a934a4580be6754416e",
+    "rmcs_ws/src/rmcs_core/src/hardware/wheel-leg.cpp": "5cb57f700cbc4e21bc6f5aeb548a65c57617bec43b0f23f2b3b7f64074aa88c2",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_feedback.cpp": "a525253f594590fa6ca2eb9075a4f7331f7dea6edc5d6e4a7224a5c7f7274a12",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_policy_integration.cpp": "f630a6a7d6af73d42452d1abd6cd5b55ba00d82eea5ba7a0f6f9c3cb4fcaaf8e",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_unified_policy_integration.cpp": "b4b6f23786cb3f8663302002351c9d62d0336a78a44c91d4882b31d5244bb5b2"
+  },
+  "deleted_sources": [
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/control_interval.hpp"
+  ],
+  "training_export_script": {
+    "path": "/home/noir/Documents/workspace/isaac_wheeled_rl_train/scripts/export_robust_getup.py",
+    "sha256": "23fec3427e307e29908a6671ff5be9b4900590d956a6566b7f334d13df76c03a",
+    "scope": "runtime requirement text; existing actor support edits preserved"
+  },
+  "artifact_sha256": {
+    "build_final.log": "de9299c62c041e6b7a80f96c2413965af85d4d526f155a865089929fb405c11d",
+    "build_initial.log": "6b757c15cfd6b7ed1d462869bdb51aff6466c179d1d07c8affc92097a4b77a1a",
+    "contract.json": "1f0d96466322625fc6f91b4e5b35c90d289c179a03eba8e70052a7e61704153c",
+    "contract.log": "1f0d96466322625fc6f91b4e5b35c90d289c179a03eba8e70052a7e61704153c",
+    "export_tests.log": "72516163bf025765baea35619e90d0b5418248f5eed1cf4faef2061134dfe0d6",
+    "motor_position_pd.gtest.xml": "af9e850b2258570ebbd91a0fc2c6929dfff103d4dc4b15f60f6ba97cc4eea28f",
+    "motor_position_pd_final.log": "409edc6f73e2e14f006f0afd2922909f6079295f9b524573a9a79544108ec425",
+    "tests_final.log": "4a95632efa2e147ca7588a4936208abab7e70e177233bcbc20915b3c4aa43e22",
+    "tests_first_pass.log": "9deba96bd6cbcc09a1e6bf21cd09717818a5b11b8b2328375ddfece109d483af",
+    "tests_initial_configuration_refusal.log": "4bf5194b4bedf0d5dc37fafa877f33bb9672b3f7cb26b43da03925e8ea8b92fd",
+    "wheel_leg_feedback.gtest.xml": "5899c977c3214f37fe11f3a9d6d5d7dc5b7fa33963d499259d54e626eeb97d26",
+    "wheel_leg_imu.gtest.xml": "dca7f71b4c87967d7b225fcd1cefa725936e49939fbdbf0d0499a333642a63c3",
+    "wheel_leg_policy_integration.gtest.xml": "caa75a7a399ff74d9903565e10da0a038632d5062bae374ccf3af91206996fee",
+    "wheel_leg_unified_observation.gtest.xml": "675aa40fc314aad13ce39ddd893eecd81045047450ba1c986f43473aa988a321",
+    "wheel_leg_unified_policy_integration.gtest.xml": "9ce0b3882cd324924889253be2c477763740758bc2a1c9c82d1f61bffa881b91"
+  }
+}

@@ -16,10 +16,7 @@ std::expected<void, std::string> WheelLegController::process_action_(std::span<c
     for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
         if (!std::isfinite(raw[i]))
             return std::unexpected{std::string{"ONNX returned a non-finite action"}};
-        const double target = raw[i];
-        if (target < action_clip_min_[i] || target > action_clip_max_[i])
-            return std::unexpected{
-                std::string{"Actor target exceeds the configured bridge bounds"}};
+        const double target = std::clamp(raw[i], action_clip_min_[i], action_clip_max_[i]);
         decoded[i] = target;
         clipped[i] = target / action_scales_[i];
         if (!std::isfinite(clipped[i]))
@@ -60,14 +57,17 @@ std::expected<void, std::string> WheelLegController::process_action_(std::span<c
     return {};
 }
 
-void WheelLegController::apply_soft_limits_(Eigen::Vector4d& tau) const {
+bool WheelLegController::apply_soft_limits_(Eigen::Vector4d& tau) const {
+    bool at_limit = false;
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side, knee = hip + 1;
         const double a = hinge_coeff_[hip], b = hinge_coeff_[knee];
         const double relative = a * q_[hip] + b * q_[knee] + hinge_bias_[side];
         const double outward = a * tau[hip] + b * tau[knee];
-        if ((relative >= hinge_max_[side] - hinge_margin_ && outward > 0)
-            || (relative <= hinge_min_[side] + hinge_margin_ && outward < 0)) {
+        const bool upper = relative >= hinge_max_[side] - hinge_margin_;
+        const bool lower = relative <= hinge_min_[side] + hinge_margin_;
+        at_limit |= upper || lower;
+        if ((upper && outward > 0) || (lower && outward < 0)) {
             // Project the commanded model effort onto the tangent of the soft
             // constraint. Both hip and knee drives contribute to the hinge.
             const double multiplier = outward / (a * a + b * b);
@@ -75,6 +75,7 @@ void WheelLegController::apply_soft_limits_(Eigen::Vector4d& tau) const {
             tau[knee] -= b * multiplier;
         }
     }
+    return at_limit;
 }
 
 void WheelLegController::compute_motor_torques_() {
@@ -82,31 +83,7 @@ void WheelLegController::compute_motor_torques_() {
         latch_fault_("no fresh policy target at actuation");
         return;
     }
-    if (strict_feedback_ && !read_model_state_()) {
-        latch_fault_("invalid feedback at actuation");
-        return;
-    }
     const auto now = Clock::now();
-    if (!control_interval_.sample(
-            now, std::chrono::duration_cast<Clock::duration>(
-                     std::chrono::duration<double>{1.0 / pd_frequency_}))) {
-        latch_fault_("control interval exceeded");
-        return;
-    }
-    for (int side = 0; side < 2; ++side) {
-        const int hip = 2 * side;
-        const double relative =
-            hinge_coeff_[hip] * q_[hip] + hinge_coeff_[hip + 1] * q_[hip + 1] + hinge_bias_[side];
-        if (!std::isfinite(relative) || relative < hinge_min_[side] - hinge_margin_
-            || relative > hinge_max_[side] + hinge_margin_) {
-            RCLCPP_ERROR(
-                get_logger(), "Measured %s hinge %.4f rad outside [%.4f, %.4f] rad",
-                side == 0 ? "left" : "right", relative, hinge_min_[side] - hinge_margin_,
-                hinge_max_[side] + hinge_margin_);
-            latch_fault_("measured hinge outside calibrated limits");
-            return;
-        }
-    }
     Eigen::Vector4d tau = (policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
                            - policy_profile_.leg_kd * dq_.head<4>())
                               .cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
@@ -115,18 +92,26 @@ void WheelLegController::compute_motor_torques_() {
         (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
             .cwiseMax(-policy_profile_.wheel_torque_limit)
             .cwiseMin(policy_profile_.wheel_torque_limit);
-    // Native winding clips position targets and PD effort. Keep the historical
-    // effort projection only for the explicit legacy control profile.
-    if (policy_profile_.name != kV6PolicyProfile.name)
-        apply_soft_limits_(tau);
+    // A crossed hinge boundary only removes outward effort. Preserve inward
+    // correction and common rotation without leaving the policy-controlled state.
+    *joint_torque_override_ = apply_soft_limits_(tau);
     const Eigen::Vector4d motor_tau = leg_jacobian_.transpose() * tau;
     if (!motor_tau.allFinite() || !wheel_tau.allFinite()) {
         latch_fault_("non-finite actuator effort");
         return;
     }
+    // Scale together when actuator caps differ: independent clipping after the
+    // hinge projection could recreate an outward relative effort.
+    double effort_scale = 1.0;
+    for (int i = 0; i < 4; ++i) {
+        const double limit = std::min(
+            *max_torque_inputs_[i], DeployedPolicyContract::kLegTorqueLimit);
+        if (std::abs(motor_tau[i]) > limit)
+            effort_scale = std::min(effort_scale, limit / std::abs(motor_tau[i]));
+    }
     for (int i = 0; i < 4; ++i)
-        *torque_outputs_[i] =
-            std::clamp(motor_tau[i], -*max_torque_inputs_[i], *max_torque_inputs_[i]);
+        *torque_outputs_[i] = effort_scale * motor_tau[i];
+    *joint_torque_override_ = *joint_torque_override_ || effort_scale < 1.0;
 
     if (use_motor_position_pd_) {
         // Preserve the pair's continuous turn in the encoder API frame.
