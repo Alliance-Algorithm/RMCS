@@ -17,21 +17,6 @@ bool almost_integer(double value) {
 
 WheelLegController::~WheelLegController() = default;
 
-bool accepts_motion_command(
-    bool jump, double height, rmcs_msgs::ChassisMode mode,
-    const rmcs_description::BaseLink::DirectionVector& command, const PolicyProfile& profile) {
-    if (!std::isfinite(height) || !command.vector.allFinite() || jump || height < profile.height_min
-        || height > profile.height_max || std::abs(command.vector.x()) > profile.forward_limit
-        || command.vector.z() < -profile.negative_yaw_limit
-        || command.vector.z() > profile.positive_yaw_limit
-        || (mode != rmcs_msgs::ChassisMode::AUTO && !rmcs_msgs::is_spining(mode)))
-        return false;
-    if (rmcs_msgs::is_spining(mode)
-        && (std::abs(command.vector.x()) > 1e-3 || std::abs(command.vector.y()) > 1e-3))
-        return false;
-    return std::abs(command.vector.y()) <= 1e-3;
-}
-
 void WheelLegController::before_updating() {
     inference_frequency_ = *policy_rate_input_;
     if (!std::isfinite(inference_frequency_) || inference_frequency_ <= 0.0
@@ -47,9 +32,9 @@ void WheelLegController::before_updating() {
             || action_clip_min_[i] >= action_clip_max_[i])
             throw std::runtime_error("Invalid wheel-leg bridge action contract");
     }
-    wheel_speed_limit_ = std::min(
+    const double wheel_speed_limit = std::min(
         {-action_clip_min_[4], action_clip_max_[4], -action_clip_min_[5], action_clip_max_[5]});
-    if (wheel_speed_limit_ <= 0.0)
+    if (wheel_speed_limit <= 0.0)
         throw std::runtime_error("Wheel action bounds must allow both drive directions");
     validate_leg_target_model_spec(
         leg_target_winding_, *policy_model_spec_input_, "Wheel-leg bridge model");
@@ -112,6 +97,7 @@ void WheelLegController::clear_outputs_() {
     for (auto& output : angle_outputs_)
         *output = std::numeric_limits<double>::quiet_NaN();
     *joint_command_ns_ = 0;
+    *joint_torque_override_ = false;
 }
 
 void WheelLegController::log_fault_(const char* reason, std::source_location location) const {
@@ -181,18 +167,12 @@ void WheelLegController::enter_(State next, bool force_reset) {
         *output = 0.0;
     schedule_.last_policy_tick = std::numeric_limits<std::size_t>::max();
     schedule_.last_pd_tick.reset();
-    control_interval_.reset();
-    motor_control_started_ = false;
-    motor_feedback_initialized_ = false;
     leg_feedback_initialized_ = false;
-    sensor_guard_.reset();
     sensor_status_ = {};
     vx_reference_ = yaw_reference_ = 0.0;
     height_reference_ = height_from_ = height_target_ = DeployedPolicyContract::kNominalHeight;
     height_start_ = *timestamp_;
     *enable_request_ = next == State::kPrepare;
-    if (next == State::kPrepare)
-        enable_wait_start_ = Clock::now();
 }
 
 void WheelLegController::update_state_output_() {
@@ -298,8 +278,6 @@ void WheelLegController::update() {
         return;
     }
     if ((requested != 2 && requested != 3 && !automatic)
-        || !accepts_motion_command(
-            *jump_command_, *height_command_, *chassis_mode_, *velocity_command_, policy_profile_)
         || !policy_ready_ || !calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_
         || !read_model_state_()) {
         latch_fault_("invalid command, calibration or feedback");
@@ -310,10 +288,10 @@ void WheelLegController::update() {
         enter_(State::kPrepare);
     *enable_request_ = true;
     if (!dm_control_ready_.ready() || !*dm_control_ready_) {
+        // Keep requesting the normal clear-error/enable handshake. A drive
+        // status transition does not require the operator to reset RL.
+        enter_(State::kPrepare);
         clear_outputs_();
-        if (state_ == State::kRl || motor_control_started_
-            || Clock::now() - enable_wait_start_ > std::chrono::seconds{1})
-            latch_fault_("drive readiness lost or timed out");
         update_state_output_();
         return;
     }
@@ -339,7 +317,6 @@ void WheelLegController::update() {
         !schedule_.last_pd_tick || tick - *schedule_.last_pd_tick >= schedule_.pd_divisor;
     if (pd_due) {
         const auto pd_start = Clock::now();
-        motor_control_started_ = true;
         compute_motor_torques_();
         if (state_ == State::kRl) {
             // Only actions that reached PD may enter the next observation.
