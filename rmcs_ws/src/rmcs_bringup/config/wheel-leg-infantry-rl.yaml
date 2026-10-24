@@ -126,19 +126,13 @@ wheel_leg_controller:
     yaw_rate_max: 4.0
     # Feedback PD runs every 1 ms; policy targets update every 20 ms.
     pd_frequency: 1000.0
-    dm_feedback_position_max: [12.5, 12.5, 12.5, 12.5]
-    # Preserve the feedback and scheduling bounds independently of policy behavior.
+    # Retain CAN/IMU receive timeouts; motion envelopes never disarm RL.
     feedback_motor_age_s: 0.04
     feedback_imu_age_s: 0.04
-    feedback_acceleration_age_s: 0.04
-    feedback_sensor_skew_s: 0.03
-    control_interval_max_s: 0.04
     height_transition_seconds: 6.0
     # The chassis supplies a continuous height reference; do not restart a step curve.
     height_command_is_reference: true
     height_reference_rate_max: 0.6666666666666666
-    wheel_radius: 0.06
-    wheel_track: 0.4373
 
     # The four DM drives were zeroed at a 105-degree mechanical pose; their
     # motor zero is neither the URDF assembly zero nor the policy nominal pose.
@@ -161,7 +155,7 @@ wheel_leg_controller:
     wheel_model_scale: [1.0, 1.0]
 
     # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
-    # Enforce the measured physical hinge limits.
+    # Relative hip/knee soft limits project outward effort without stopping RL.
     soft_limits_ready: true
     hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
     hinge_bias: [0.0, 0.0]

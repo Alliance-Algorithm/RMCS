@@ -72,13 +72,13 @@ public:
         }
 
         Type motor_type;
-        std::uint8_t id;                   // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
-        std::uint16_t feedback_id = 0;     // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
+        std::uint8_t id;               // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
+        std::uint16_t feedback_id = 0; // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
         bool reversed = false;
-        double angle_bias = 0.0;           // rad
-        double position_max = 12.5;        // P_MAX [rad]，须与电机寄存器一致
-        double velocity_max = 45.0;        // V_MAX [rad/s]，须与电机寄存器一致
-        double torque_max = 54.0;          // T_MAX [Nm]，须与电机寄存器一致
+        double angle_bias = 0.0;       // rad
+        double position_max = 12.5;    // P_MAX [rad]，须与电机寄存器一致
+        double velocity_max = 45.0;    // V_MAX [rad/s]，须与电机寄存器一致
+        double torque_max = 54.0;      // T_MAX [Nm]，须与电机寄存器一致
         // Software command bound; motor-local effort between CAN frames still
         // requires the drive's independently configured current protection.
         double control_torque_max = 40.0;
@@ -190,7 +190,7 @@ public:
         if (!std::isfinite(p_des) || !std::isfinite(v_des) || !std::isfinite(kp)
             || !std::isfinite(kd) || !std::isfinite(t_ff))
             return generate_command(0.0);
-        if (!position_target_valid(p_des) || !std::isfinite(angle_) || !std::isfinite(velocity_))
+        if (!std::isfinite(angle_) || !std::isfinite(velocity_))
             return generate_command(0.0);
         const double sign = reversed_ ? -1.0 : 1.0;
         const double p_motor =
@@ -199,6 +199,13 @@ public:
         const double tff_motor = std::clamp(sign * t_ff, -control_torque_max_, control_torque_max_);
         kp = std::clamp(kp, 0.0, kKpMax);
         kd = std::clamp(kd, 0.0, kKdMax);
+
+        // P_MAX describes the MIT encoding, not an absolute mechanical stop.
+        // A continuous position outside that range still produces bounded
+        // host PD effort instead of dropping this command to zero.
+        if (!position_target_valid(p_des))
+            return generate_command(
+                kp * (p_des - angle_) + kd * (sign * v_motor - velocity_) + sign * tff_motor);
 
         const auto packet = encode_mit_frame(p_motor, v_motor, kp, kd, tff_motor);
         // MIT has no per-frame total-effort limit. Saturated samples use a
@@ -319,11 +326,6 @@ public:
     bool position_target_valid(double position) const {
         const double sign = reversed_ ? -1.0 : 1.0;
         return std::isfinite(position) && std::abs(angle_bias_ + sign * position) <= position_max_;
-    }
-    bool torque_feedback_within_limit() const {
-        // One feedback quantization bin avoids tripping on its rounded endpoint.
-        return std::isfinite(torque_)
-            && std::abs(torque_) <= control_torque_max_ + 2.0 * torque_max_ / 4095.0;
     }
     double control_angle() const {
         if (control_angle_.ready())

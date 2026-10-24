@@ -359,6 +359,7 @@ private:
             status.register_output("/wheel_leg/joint_position_kp", joint_kp_output_, joint_kp_);
             status.register_output("/wheel_leg/joint_position_kd", joint_kd_output_, joint_kd_);
             command.register_input("/wheel_leg/joint_command_steady_ns", joint_command_ns_, false);
+            command.register_input("/wheel_leg/joint_torque_override", joint_torque_override_, false);
             if (use_motor_position_pd_)
                 RCLCPP_WARN(
                     status_.get_logger(),
@@ -632,7 +633,7 @@ private:
                 enable = false;
                 RCLCPP_ERROR_THROTTLE(
                     status_.get_logger(), *status_.get_clock(), 1000,
-                    "DM position PD disabled: expired/invalid target or measured torque limit");
+                    "DM position PD disabled: invalid target");
             }
             const auto enable_sides =
                 wheel_leg_side_enable_requests(enable, side_bound, selected_side);
@@ -746,9 +747,14 @@ private:
                 return motor.generate_command(0.0);
             if (use_motor_position_pd_) {
                 if (!fresh || !motor.control_angle_ready()
-                    || !motor.position_target_valid(motor.control_angle())
                     || (joint_command_ns_.ready() && *joint_command_ns_ == 0))
                     return motor.generate_command(0.0);
+                // Honor the controller's relative-angle effort projection even
+                // with motor-local PD. Continuous targets beyond the MIT position
+                // encoding range also use the bounded host effort for this tick.
+                if ((joint_torque_override_.ready() && *joint_torque_override_)
+                    || !motor.position_target_valid(motor.control_angle()))
+                    return motor.generate_command(motor.control_torque());
                 return motor.generate_command_pd(joint_kp_, joint_kd_);
             }
             return motor.generate_command(fresh ? motor.control_torque() : 0.0);
@@ -759,23 +765,12 @@ private:
         const char* position_pd_command_issue() const {
             if (!use_motor_position_pd_)
                 return nullptr;
-            const auto torque_safe = [](const device::DmMotor& motor) {
-                return motor.torque_feedback_within_limit();
-            };
-            if (!std::ranges::all_of(hip_motors_, torque_safe)
-                || !std::ranges::all_of(knee_motors_, torque_safe))
-                return "measured_torque_limit";
             if (!joint_command_ns_.ready() || *joint_command_ns_ == 0)
                 // Startup uses zero-gain MIT frames until the controller sees
                 // enabled feedback. No position target is applied in that gap.
                 return nullptr;
-            const auto stamp = *joint_command_ns_;
-            const auto now = static_cast<std::uint64_t>(now_ns());
-            if (now < stamp || now - stamp >= 10'000'000)
-                return "expired_command";
             const auto valid_target = [](const device::DmMotor& motor) {
-                return motor.control_angle_ready()
-                    && motor.position_target_valid(motor.control_angle());
+                return motor.control_angle_ready() && std::isfinite(motor.control_angle());
             };
             if (!std::ranges::all_of(hip_motors_, valid_target)
                 || !std::ranges::all_of(knee_motors_, valid_target))
@@ -982,6 +977,7 @@ private:
         rmcs_executor::Component::InputInterface<bool> wheel_only_;
         rmcs_executor::Component::InputInterface<int> selected_side_;
         rmcs_executor::Component::InputInterface<std::uint64_t> joint_command_ns_;
+        rmcs_executor::Component::InputInterface<bool> joint_torque_override_;
 
         device::DjiMotor wheel_motors_[2];
         device::DmMotor hip_motors_[2];

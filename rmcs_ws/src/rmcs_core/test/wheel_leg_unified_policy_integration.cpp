@@ -65,11 +65,29 @@ public:
 
     void update() override {
         const int phase = phase_.load();
+        if (phase == 11 && !gap_complete.load()) {
+            std::this_thread::sleep_for(41ms);
+            gap_complete = true;
+        }
+        if (phase == 12 && !inference_gap_complete.load()) {
+            std::this_thread::sleep_for(80ms);
+            inference_gap_complete = true;
+        }
         *state_ = phase == 0 || phase == 4 || phase == 7 ? 1 : phase == 1 ? 2 : 3;
         *reset_ = phase < 4 ? 1 : phase < 7 ? 2 : 3;
         *ready_ = phase != 0;
         const double roll = phase == 2 ? std::numbers::pi : phase == 3 ? std::numbers::pi / 2 : 0.0;
         *orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{roll, Eigen::Vector3d::UnitX()}};
+        if (phase >= 9) {
+            const std::array<double, 4> model_q{1.0, 2.55, -1.0, -.75};
+            constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
+            for (std::size_t i = 0; i < 4; ++i) {
+                *q_[i] = offsets[i] - model_q[i] - 4 * std::numbers::pi;
+                *torque_[i] = 100.0;
+                *limit_[i] = i == 1 ? 10.0 : 40.0;
+                *dq_[i] = phase == 9 ? -300.0 : i % 2 == 0 ? 300.0 : -300.0;
+            }
+        }
         if (phase == 6)
             return;
         const auto now =
@@ -84,6 +102,9 @@ public:
         ++*acceleration_sequence_;
         *imu_stamp_ = *acceleration_stamp_ = now;
     }
+
+    std::atomic<bool> gap_complete{false};
+    std::atomic<bool> inference_gap_complete{false};
 
 private:
     std::atomic<int>& phase_;
@@ -110,6 +131,10 @@ public:
                 std::string{"/wheel_leg/"} + kMotorNames[i] + "/control_torque", torque_[i]);
             register_input(
                 std::string{"/wheel_leg/rl/effective_action/"} + kMotorNames[i], applied_[i]);
+            register_input(std::string{"/wheel_leg/"} + kMotorNames[i] + "/max_torque", limits_[i]);
+            if (i < 4)
+                register_input(
+                    std::string{"/wheel_leg/rl/model/"} + kMotorNames[i] + "/angle", angles_[i]);
         }
         for (std::size_t i = 0; i < 35; ++i)
             register_input(
@@ -128,8 +153,22 @@ public:
         for (std::size_t i = 0; i < 6; ++i) {
             const double value = *torque_[i];
             zero &= value == 0;
-            if (!std::isfinite(value) || std::abs(value) > (i < 4 ? 40.0 : 4.5))
+            if (!std::isfinite(value) || std::abs(value) > *limits_[i] + 1e-9)
                 invalid_effort = true;
+        }
+        if (*state_ == 3) {
+            for (int side = 0; side < 2; ++side) {
+                const int hip = side * 2, knee = hip + 1;
+                const double sign = side == 0 ? 1.0 : -1.0;
+                const double relative = sign * (*angles_[knee] - *angles_[hip]);
+                const double outward = sign * (*torque_[hip] - *torque_[knee]);
+                if ((relative >= 1.3889088544 - .03 && outward > 1e-9)
+                    || (relative <= -.140638855 + .03 && outward < -1e-9))
+                    invalid_soft_limit = true;
+                if ((relative >= 1.3889088544 && outward < -1.0)
+                    || (relative <= -.140638855 && outward > 1.0))
+                    inward_effort = true;
+            }
         }
         all_zero = zero;
         valid = *valid_ > .5;
@@ -161,7 +200,7 @@ public:
 
     std::atomic<int> state{0};
     std::atomic<bool> all_zero{true}, valid{false}, enabled{false}, invalid_effort{false},
-        fault{false}, effort_before_policy{false};
+        fault{false}, effort_before_policy{false}, invalid_soft_limit{false}, inward_effort{false};
     std::atomic<std::size_t> action_sequence{0}, frames{0};
     // Read after executor thread shutdown.
     std::array<double, 35> first_frame{};
@@ -169,6 +208,8 @@ public:
 
 private:
     std::array<InputInterface<double>, 6> torque_, applied_;
+    std::array<InputInterface<double>, 6> limits_;
+    std::array<InputInterface<double>, 4> angles_;
     std::array<InputInterface<double>, 35> serialized_;
     InputInterface<std::vector<double>> frame_;
     InputInterface<std::size_t> frame_sequence_, action_sequence_;
@@ -258,6 +299,24 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
         EXPECT_FALSE(observe->valid);
         phase = 2;
         EXPECT_TRUE(await([&] { return observe->state == 3 && observe->valid; }));
+        phase = 9;
+        std::this_thread::sleep_for(100ms);
+        EXPECT_EQ(observe->state, 3);
+        EXPECT_TRUE(observe->valid);
+        EXPECT_TRUE(observe->enabled);
+        EXPECT_FALSE(observe->fault);
+        EXPECT_FALSE(observe->invalid_soft_limit);
+        phase = 10;
+        std::this_thread::sleep_for(100ms);
+        EXPECT_EQ(observe->state, 3);
+        EXPECT_TRUE(observe->inward_effort);
+        phase = 11;
+        EXPECT_TRUE(await([&] { return sensors->gap_complete.load(); }));
+        std::this_thread::sleep_for(50ms);
+        EXPECT_EQ(observe->state, 3);
+        EXPECT_TRUE(observe->valid);
+        EXPECT_FALSE(observe->fault);
+        EXPECT_FALSE(observe->invalid_soft_limit);
         std::this_thread::sleep_for(100ms);
         EXPECT_EQ(observe->state, 3);
         phase = 3;
@@ -288,6 +347,13 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
         EXPECT_FALSE(observe->invalid_effort);
         EXPECT_FALSE(observe->effort_before_policy);
         EXPECT_GT(observe->frames.load(), 50u);
+        // Refresh every sensor after the gap: only the policy action is expired.
+        phase = 12;
+        EXPECT_TRUE(await([&] { return sensors->inference_gap_complete.load(); }));
+        EXPECT_TRUE(await([&] { return observe->fault.load(); }));
+        EXPECT_TRUE(observe->all_zero);
+        EXPECT_FALSE(observe->enabled);
+        EXPECT_EQ(observe->state, 1);
         rclcpp::shutdown();
     }
     auto q = kV6PolicyProfile.nominal;

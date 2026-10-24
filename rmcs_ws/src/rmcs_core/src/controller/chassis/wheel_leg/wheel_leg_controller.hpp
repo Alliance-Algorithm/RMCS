@@ -19,7 +19,6 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
-#include "control_interval.hpp"
 #include "feedback_sensor_guard.hpp"
 #include "leg_target_winding.hpp"
 #include "policy.hpp"
@@ -35,11 +34,6 @@ static_assert(kMotorNames.size() == PolicyAction{}.size());
 
 // PREPARE only waits for drive readiness and the first policy action.
 enum class State : int { kInit = 0, kIdle = 1, kPrepare = 2, kRl = 3 };
-
-bool accepts_motion_command(
-    bool jump, double height, rmcs_msgs::ChassisMode mode,
-    const rmcs_description::BaseLink::DirectionVector& command,
-    const PolicyProfile& profile = kV6PolicyProfile);
 
 class WheelLegController final
     : public rmcs_executor::Component
@@ -82,19 +76,18 @@ private:
     void publish_model_feedback_();
     std::expected<void, std::string> process_action_(std::span<const double> raw);
     void compute_motor_torques_();
-    void apply_soft_limits_(Eigen::Vector4d& leg_torque) const;
+    bool apply_soft_limits_(Eigen::Vector4d& leg_torque) const;
     bool policy_action_fresh_() const;
 
     std::array<InputInterface<double>, 6> angle_inputs_;
     std::array<InputInterface<double>, 6> velocity_inputs_;
     std::array<InputInterface<double>, 6> max_torque_inputs_;
-    std::array<InputInterface<double>, 6> torque_feedback_inputs_;
     std::array<OutputInterface<double>, 6> torque_outputs_;
     std::array<OutputInterface<double>, 4> angle_outputs_;
     InputInterface<bool> motor_position_pd_;
     InputInterface<double> motor_position_kp_, motor_position_kd_;
     OutputInterface<std::uint64_t> joint_command_ns_;
-    std::array<InputInterface<int>, 4> fault_inputs_;
+    OutputInterface<bool> joint_torque_override_;
     std::array<InputInterface<std::uint64_t>, 6> motor_feedback_sequences_;
     std::array<InputInterface<std::uint64_t>, 6> motor_feedback_ns_;
     InputInterface<bool> feedback_fresh_;
@@ -104,14 +97,11 @@ private:
     InputInterface<double> height_command_;
     InputInterface<int> state_command_;
     InputInterface<std::size_t> reset_count_;
-    InputInterface<bool> jump_command_;
-    InputInterface<double> jump_apex_command_;
     InputInterface<rmcs_msgs::ChassisMode> chassis_mode_;
     InputInterface<std::size_t> update_count_;
     InputInterface<double> update_rate_;
     InputInterface<Clock::time_point> timestamp_;
     InputInterface<bool> dm_control_ready_;
-    InputInterface<Eigen::Vector3d> acceleration_;
     InputInterface<std::uint64_t> acceleration_ns_;
     InputInterface<std::uint64_t> imu_ns_, imu_sequence_, acceleration_sequence_;
     OutputInterface<int> state_output_;
@@ -176,25 +166,18 @@ private:
     bool fault_latched_ = false;
     bool strict_feedback_ = true;
     bool policy_targets_valid_ = false;
-    bool motor_control_started_ = false;
-    bool motor_feedback_initialized_ = false;
     bool use_motor_position_pd_ = false;
 
     Vector6 q_ = Vector6::Zero();
     Vector6 dq_ = Vector6::Zero();
-    std::array<std::uint64_t, 4> previous_motor_sequence_{}, previous_motor_sample_ns_{};
-    std::array<double, 4> previous_motor_angle_{};
     bool leg_feedback_initialized_ = false;
-    std::array<double, 4> dm_feedback_position_max_{};
     Vector6 policy_targets_ = Vector6::Zero();
     FeedbackSensorGuard sensor_guard_;
     FeedbackSensorStatus sensor_status_;
-    ControlInterval control_interval_;
     std::array<double, 6> previous_action_{};
     std::size_t last_reset_count_ = 0;
     ControlSchedule schedule_;
     State state_ = State::kInit;
-    Clock::time_point enable_wait_start_{};
     Clock::time_point height_start_{};
     double vx_reference_ = 0.0;
     double yaw_reference_ = 0.0;
@@ -204,9 +187,6 @@ private:
     double height_transition_seconds_ = 6.0;
     bool height_command_is_reference_ = false;
     double height_reference_rate_max_ = 0.02;
-    double wheel_radius_ = 0.06;
-    double wheel_track_ = 0.4373;
-    double wheel_speed_limit_ = 0.0;
     double inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;
     double pd_frequency_ = DeployedPolicyContract::kControlFrequencyHz;
     double hinge_margin_ = 0.03;

@@ -39,13 +39,11 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         const std::string prefix = std::string{base} + kMotorNames[i];
         register_input(prefix + "/angle", angle_inputs_[i]);
         register_input(prefix + "/velocity", velocity_inputs_[i]);
-        register_input(prefix + "/torque", torque_feedback_inputs_[i]);
         register_input(prefix + "/max_torque", max_torque_inputs_[i]);
         register_output(prefix + "/control_torque", torque_outputs_[i], 0.0);
         register_input(prefix + "/feedback_sequence", motor_feedback_sequences_[i], false);
         register_input(prefix + "/feedback_steady_ns", motor_feedback_ns_[i], false);
         if (i < 4) {
-            register_input(prefix + "/fault_code", fault_inputs_[i]);
             register_output(
                 prefix + "/control_angle", angle_outputs_[i],
                 std::numeric_limits<double>::quiet_NaN());
@@ -55,6 +53,7 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     register_input("/wheel_leg/joint_position_kp", motor_position_kp_, false);
     register_input("/wheel_leg/joint_position_kd", motor_position_kd_, false);
     register_output("/wheel_leg/joint_command_steady_ns", joint_command_ns_, std::uint64_t{0});
+    register_output("/wheel_leg/joint_torque_override", joint_torque_override_, false);
     register_input("/wheel_leg/feedback_fresh", feedback_fresh_);
     register_input("/wheel_leg/imu/quaternion", orientation_);
     register_input("/wheel_leg/imu/angular_velocity", gyro_);
@@ -63,13 +62,10 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     register_input("/chassis/control_state", state_command_);
     register_input("/chassis/reset_count", reset_count_);
     register_input("/chassis/control_mode", chassis_mode_);
-    register_input("/chassis/jump_request", jump_command_);
-    register_input("/chassis/jump_apex_delta", jump_apex_command_);
     register_input("/predefined/update_count", update_count_);
     register_input("/predefined/update_rate", update_rate_);
     register_input("/predefined/timestamp", timestamp_);
     register_input("/wheel_leg/dm_control_ready", dm_control_ready_, false);
-    register_input("/wheel_leg/imu/acceleration", acceleration_, false);
     register_input("/wheel_leg/imu/acceleration_steady_ns", acceleration_ns_, false);
     register_input("/wheel_leg/imu/last_steady_ns", imu_ns_, false);
     register_input("/wheel_leg/imu/sequence", imu_sequence_, false);
@@ -168,27 +164,11 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     FeedbackSensorGuardConfig sensor_config;
     sensor_config.motor_age_seconds = get_parameter_or("feedback_motor_age_s", 0.02);
     sensor_config.imu_age_seconds = get_parameter_or("feedback_imu_age_s", 0.02);
-    sensor_config.acceleration_age_seconds = get_parameter_or("feedback_acceleration_age_s", 0.03);
-    sensor_config.maximum_skew_seconds = get_parameter_or("feedback_sensor_skew_s", 0.01);
     sensor_guard_ = FeedbackSensorGuard{sensor_config};
-    if (strict_feedback_) {
-        dm_feedback_position_max_ = parameter_array<4>(*this, "dm_feedback_position_max");
-        if (!std::ranges::all_of(
-                dm_feedback_position_max_, [](double value) { return value > 1.0; }))
-            throw std::runtime_error("DM MIT feedback position bounds require valid values");
-    }
-    const double maximum_interval = get_parameter_or("control_interval_max_s", 0.02);
-    if (!std::isfinite(maximum_interval) || maximum_interval <= 0.0 || maximum_interval > 0.05)
-        throw std::runtime_error("Control interval must be in (0, 50 ms]");
-    control_interval_.set_maximum_interval(
-        std::chrono::duration_cast<Clock::duration>(
-            std::chrono::duration<double>{maximum_interval}));
     hinge_margin_ = get_parameter_or("hinge_margin", 0.03);
     height_transition_seconds_ = get_parameter_or("height_transition_seconds", 6.0);
     height_command_is_reference_ = get_parameter_or("height_command_is_reference", false);
     height_reference_rate_max_ = get_parameter_or("height_reference_rate_max", 0.02);
-    wheel_radius_ = get_parameter_or("wheel_radius", 0.06);
-    wheel_track_ = get_parameter_or("wheel_track", 0.4373);
     inference_frequency_ = DeployedPolicyContract::kPolicyFrequencyHz;
     pd_frequency_ = get_parameter_or("pd_frequency", DeployedPolicyContract::kControlFrequencyHz);
     const std::array parameters{
@@ -199,8 +179,6 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         hinge_margin_,
         height_transition_seconds_,
         height_reference_rate_max_,
-        wheel_radius_,
-        wheel_track_,
         heading_hold_gain_,
         heading_hold_yaw_rate_max_,
     };
@@ -210,9 +188,8 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         || pd_frequency_ < DeployedPolicyContract::kControlFrequencyHz || pd_frequency_ > 1000.0
         || std::fmod(pd_frequency_, DeployedPolicyContract::kControlFrequencyHz) != 0.0
         || hinge_margin_ < 0 || height_transition_seconds_ <= 0 || height_reference_rate_max_ <= 0
-        || wheel_radius_ <= 0 || wheel_track_ <= 0 || heading_hold_gain_ < 0
-        || heading_hold_yaw_rate_max_ <= 0)
-        throw std::runtime_error("Invalid motion limits, PD frequency or robot geometry");
+        || heading_hold_gain_ < 0 || heading_hold_yaw_rate_max_ <= 0)
+        throw std::runtime_error("Invalid command limits or PD frequency");
 
     const auto matrix = parameter_array<16>(*this, "leg_motor_to_model");
     const auto offsets = parameter_array<4>(*this, "leg_model_offsets");

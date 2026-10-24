@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="11" failures="0" disabled="0" errors="0" time="0.039" timestamp="2026-10-24T12:05:25.150" name="AllTests">
+  <testsuite name="ImuLeverArm" tests="4" failures="0" disabled="0" skipped="0" errors="0" time="0." timestamp="2026-10-24T12:05:25.150">
+    <testcase name="RemovesTangentialAndCentripetalForceAtAccelerometerTime" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="45" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.150" classname="rmcs_core.ImuLeverArm" />
+    <testcase name="KeepsOriginTranslationAndGravity" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="58" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.150" classname="rmcs_core.ImuLeverArm" />
+    <testcase name="FiltersGyroDifferentiationNoise" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="67" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.150" classname="rmcs_core.ImuLeverArm" />
+    <testcase name="RejectsReorderedSamplesAndRequiresNewHistoryAfterGapOrReset" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="82" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.150" classname="rmcs_core.ImuLeverArm" />
+  </testsuite>
+  <testsuite name="Bmi088Mount" tests="5" failures="0" disabled="0" skipped="0" errors="0" time="0.001" timestamp="2026-10-24T12:05:25.150">
+    <testcase name="ZeroOffsetPreservesImmediateSpecificForceAndGyro" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="99" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.150" classname="rmcs_core.Bmi088Mount" />
+    <testcase name="OffsetCorrectionReachesEkfAndTelemetryForRotatedInstallation" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="110" status="run" result="completed" time="0.001" timestamp="2026-10-24T12:05:25.150" classname="rmcs_core.Bmi088Mount" />
+    <testcase name="RotationAlsoAlignsNonVerticalAngularVelocity" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="144" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.151" classname="rmcs_core.Bmi088Mount" />
+    <testcase name="OffsetAndMountRotationPreserveGravityForTiltedAndInvertedBodies" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="156" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.151" classname="rmcs_core.Bmi088Mount" />
+    <testcase name="ResetGapAndSaturationDoNotPublishUncompensatedOrStaleAcceleration" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="179" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.151" classname="rmcs_core.Bmi088Mount" />
+  </testsuite>
+  <testsuite name="WheelLegImuConfig" tests="2" failures="0" disabled="0" skipped="0" errors="0" time="0.032" timestamp="2026-10-24T12:05:25.156">
+    <testcase name="BothVehicleProfilesConfigureMountOnlyInHardware" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="226" status="run" result="completed" time="0.021" timestamp="2026-10-24T12:05:25.156" classname="rmcs_core.WheelLegImuConfig" />
+    <testcase name="ParsesBodyPositionAndRejectsMalformedMounts" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp" line="249" status="run" result="completed" time="0.011" timestamp="2026-10-24T12:05:25.178" classname="rmcs_core.WheelLegImuConfig" />
+  </testsuite>
+</testsuites>

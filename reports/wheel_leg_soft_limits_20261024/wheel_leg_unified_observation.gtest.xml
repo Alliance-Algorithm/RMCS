@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="5" failures="0" disabled="0" errors="0" time="0." timestamp="2026-10-24T12:05:25.386" name="AllTests">
+  <testsuite name="UnifiedObservation" tests="5" failures="0" disabled="0" skipped="0" errors="0" time="0." timestamp="2026-10-24T12:05:25.386">
+    <testcase name="UsesPolicyOrderAndTheAppliedActionSnapshot" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_observation.cpp" line="15" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.386" classname="rmcs_core.UnifiedObservation" />
+    <testcase name="CapturesAfterTheTrainingDelayAndUpdatesOncePerPolicyFrame" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_observation.cpp" line="46" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.386" classname="rmcs_core.UnifiedObservation" />
+    <testcase name="SevereTiltAndEntryResetDiscardTheOldReference" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_observation.cpp" line="72" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.386" classname="rmcs_core.UnifiedObservation" />
+    <testcase name="RejectsNonFiniteSources" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_observation.cpp" line="96" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.386" classname="rmcs_core.UnifiedObservation" />
+    <testcase name="PassiveHistoryPreservesTheMeasuredPairedBranch" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_observation.cpp" line="107" status="run" result="completed" time="0." timestamp="2026-10-24T12:05:25.386" classname="rmcs_core.UnifiedObservation" />
+  </testsuite>
+</testsuites>

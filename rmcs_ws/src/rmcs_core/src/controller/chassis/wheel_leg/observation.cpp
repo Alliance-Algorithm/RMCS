@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <numbers>
-#include <span>
 
 namespace rmcs_core::controller::chassis {
 
@@ -19,81 +17,34 @@ bool WheelLegController::read_model_state_() {
     Eigen::Vector4d motor_q, motor_dq;
     for (int i = 0; i < 6; ++i) {
         if (!std::isfinite(*angle_inputs_[i]) || !std::isfinite(*velocity_inputs_[i])
-            || !std::isfinite(*torque_feedback_inputs_[i]) || !std::isfinite(*max_torque_inputs_[i])
-            || *max_torque_inputs_[i] <= 0)
+            || !std::isfinite(*max_torque_inputs_[i]) || *max_torque_inputs_[i] <= 0)
             return feedback_valid_ = false;
         if (i < 4) {
-            if (*fault_inputs_[i] != 0)
-                return feedback_valid_ = false;
             motor_q[i] = *angle_inputs_[i];
             motor_dq[i] = *velocity_inputs_[i];
-            if (strict_feedback_ && std::abs(motor_q[i]) >= dm_feedback_position_max_[i] - 0.1)
-                return feedback_valid_ = false;
         }
     }
-    if (strict_feedback_ && (!acceleration_.ready() || !acceleration_->allFinite()))
-        return feedback_valid_ = false;
-    const bool awaiting_initial_drives = !motor_control_started_ && state_ != State::kRl
-                                      && (!dm_control_ready_.ready() || !*dm_control_ready_);
     if (strict_feedback_) {
-        const bool samples_valid = [&] {
-            const auto now = Clock::now();
-            const auto now_ns =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch())
-                    .count();
-            std::array<FeedbackSampleStamp, 8> samples{};
-            for (std::size_t i = 0; i < 6; ++i)
-                if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
-                    samples[i] = {*motor_feedback_sequences_[i], *motor_feedback_ns_[i]};
-            if (imu_sequence_.ready() && imu_ns_.ready())
-                samples[6] = {*imu_sequence_, *imu_ns_};
-            if (acceleration_sequence_.ready() && acceleration_ns_.ready())
-                samples[7] = {*acceleration_sequence_, *acceleration_ns_};
-            sensor_status_ =
-                sensor_guard_.update(now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
-            if (!sensor_status_.valid)
-                return false;
-            for (int i = 0; i < 4; ++i) {
-                const auto sequence = *motor_feedback_sequences_[i];
-                const auto stamp = *motor_feedback_ns_[i];
-                if (motor_feedback_initialized_) {
-                    if (sequence < previous_motor_sequence_[i]
-                        || (sequence == previous_motor_sequence_[i]
-                            && stamp != previous_motor_sample_ns_[i]))
-                        return false;
-                    if (sequence != previous_motor_sequence_[i]) {
-                        if (stamp <= previous_motor_sample_ns_[i])
-                            return false;
-                        const double dt = (stamp - previous_motor_sample_ns_[i]) * 1e-9;
-                        const double delta = motor_q[i] - previous_motor_angle_[i];
-                        const double displacement =
-                            leg_target_winding_ == LegTargetWinding::kPairedBranch107
-                                ? std::remainder(delta, 2 * std::numbers::pi)
-                                : delta;
-                        if (dt > 0.05 || std::abs(displacement) > 45.0 * dt + 0.15)
-                            return false;
-                    }
-                }
-                previous_motor_sequence_[i] = sequence;
-                previous_motor_sample_ns_[i] = stamp;
-                previous_motor_angle_[i] = motor_q[i];
-            }
-            motor_feedback_initialized_ = true;
-            return true;
-        }();
-        if (!samples_valid) {
-            if (!awaiting_initial_drives)
-                return feedback_valid_ = false;
-            // FC/neutral-MIT handshaking can refresh the paired buses at
-            // different times. Preserve hardware freshness and zero torque;
-            // the first ready snapshot must pass the complete sample guard.
-            sensor_guard_.reset();
-            sensor_status_ = {};
-            motor_feedback_initialized_ = false;
-        }
+        const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                Clock::now().time_since_epoch())
+                                .count();
+        std::array<FeedbackSampleStamp, 8> samples{};
+        for (std::size_t i = 0; i < 6; ++i)
+            if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
+                samples[i] = {*motor_feedback_sequences_[i], *motor_feedback_ns_[i]};
+        if (imu_sequence_.ready() && imu_ns_.ready())
+            samples[6] = {*imu_sequence_, *imu_ns_};
+        if (acceleration_sequence_.ready() && acceleration_ns_.ready())
+            samples[7] = {*acceleration_sequence_, *acceleration_ns_};
+        sensor_status_ =
+            sensor_guard_.update(now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
+        const bool awaiting_initial_drives = state_ != State::kRl
+                                          && (!dm_control_ready_.ready() || !*dm_control_ready_);
+        if (!sensor_status_.valid && !awaiting_initial_drives)
+            return feedback_valid_ = false;
     }
     if (!gyro_->allFinite() || !orientation_->coeffs().allFinite()
-        || orientation_->squaredNorm() < 0.5 || orientation_->squaredNorm() > 1.5)
+        || !std::isfinite(orientation_->norm()) || orientation_->norm() == 0.0)
         return feedback_valid_ = false;
     const Eigen::Vector4d measured = leg_jacobian_ * motor_q + leg_offset_;
     std::array<double, 4> raw{}, previous{};
@@ -150,40 +101,32 @@ void WheelLegController::update_command_reference_() {
         desired_yaw, -policy_profile_.negative_yaw_limit, policy_profile_.positive_yaw_limit);
     *heading_limited_rate_output_ = desired_yaw;
     // Match training: commands reach the actor on the next policy tick.
-    vx_reference_ = spinning ? 0.0 : requested_vx;
+    vx_reference_ = spinning
+                      ? 0.0
+                      : std::clamp(
+                            requested_vx, -policy_profile_.forward_limit,
+                            policy_profile_.forward_limit);
     yaw_reference_ = desired_yaw;
-
-    // Respect the wheel geometry and the combined command envelope.
-    const double max_linear = wheel_speed_limit_ * wheel_radius_;
-    const double demand = std::max(
-        std::abs(vx_reference_ - wheel_track_ * yaw_reference_ / 2),
-        std::abs(vx_reference_ + wheel_track_ * yaw_reference_ / 2));
-    if (demand > max_linear) {
-        const double scale = max_linear / demand;
-        vx_reference_ *= scale;
-        yaw_reference_ *= scale;
-    }
-    if (std::abs(vx_reference_ * yaw_reference_) > 2.06)
-        vx_reference_ = std::copysign(2.06 / std::abs(yaw_reference_), vx_reference_);
 }
 
 bool WheelLegController::assemble_observation_() {
     if (!feedback_valid_ || !std::isfinite(*height_command_)
-        || !velocity_command_->vector.allFinite() || *height_command_ < policy_profile_.height_min
-        || *height_command_ > policy_profile_.height_max || !std::isfinite(*jump_apex_command_))
+        || !velocity_command_->vector.allFinite())
         return false;
     update_command_reference_();
+    const double requested_height = std::clamp(
+        *height_command_, policy_profile_.height_min, policy_profile_.height_max);
     if (height_command_is_reference_) {
         // The chassis integrates the height input. Follow its continuous reference.
         const double max_step = height_reference_rate_max_ / inference_frequency_;
-        height_reference_ += std::clamp(*height_command_ - height_reference_, -max_step, max_step);
+        height_reference_ += std::clamp(requested_height - height_reference_, -max_step, max_step);
         height_from_ = height_reference_;
-        height_target_ = *height_command_;
+        height_target_ = requested_height;
         height_start_ = *timestamp_;
     } else {
-        if (std::abs(*height_command_ - height_target_) > 1e-6) {
+        if (std::abs(requested_height - height_target_) > 1e-6) {
             height_from_ = height_reference_;
-            height_target_ = *height_command_;
+            height_target_ = requested_height;
             height_start_ = *timestamp_;
         }
         const double u = std::clamp(
