@@ -1,6 +1,3 @@
-#include <algorithm>
-#include <chrono>
-#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
@@ -13,7 +10,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
-#include "hardware/device/tof_sense.hpp"
+#include "hardware/tof_sensors.hpp"
 
 namespace rmcs_core::hardware {
 
@@ -43,44 +40,23 @@ public:
         else
             throw std::invalid_argument("TOF port must be can0, can1, can2 or can3");
 
-        const auto timeout = std::chrono::duration<double>{timeout_seconds};
-        if (!std::isfinite(timeout_seconds) || timeout < Clock::duration{1}
-            || timeout >= Clock::duration::max())
-            throw std::invalid_argument("TOF feedback_timeout must be positive and finite");
-
-        if (configured_ids.empty())
-            throw std::invalid_argument("TOF sensor_ids must not be empty");
-        std::vector<std::uint8_t> ids;
-        ids.reserve(configured_ids.size());
-        for (const auto id : configured_ids) {
-            if (id < 0 || id > 255)
-                throw std::invalid_argument("TOF sensor IDs must be between 0 and 255");
-            const auto sensor_id = static_cast<std::uint8_t>(id);
-            if (std::ranges::find(ids, sensor_id) != ids.end())
-                throw std::invalid_argument("TOF sensor IDs must be unique");
-            ids.push_back(sensor_id);
-        }
-
-        tof_ = std::make_unique<device::TofSense>(
-            *this, prefix, ids, std::chrono::duration_cast<Clock::duration>(timeout));
+        tof_ = std::make_unique<TofSensors>(*this, prefix, configured_ids, timeout_seconds);
         board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial);
-        node::info("TOFSense receiving {} sensors on {}", ids.size(), port);
+        node::info("TOFSense receiving {} sensors on {}", configured_ids.size(), port);
     }
 
     void update() override { tof_->update_status(); }
 
 private:
-    using Clock = std::chrono::steady_clock;
-
     void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
         if (can != *port_ || data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission
             || data.can_data.size() != 8)
             return;
-        tof_->store_can_status(data.can_id, data.can_data);
+        tof_->store_status(data.can_id, data.can_data);
     }
 
     const Spec::Can* port_ = nullptr;
-    std::unique_ptr<device::TofSense> tof_;
+    std::unique_ptr<TofSensors> tof_;
     // Stop receive callbacks before destroying the device they access.
     std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
 };
