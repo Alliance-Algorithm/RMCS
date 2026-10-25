@@ -104,6 +104,7 @@ public:
     };
 
     AngleError update(const Operation& operation) {
+        pitch_limit_ = PitchLimit::None;
         update_yaw_axis();
 
         PitchLink::DirectionVector control_direction = operation.update(*this);
@@ -124,6 +125,25 @@ public:
     }
 
     bool enabled() const { return control_enabled_; }
+
+    double gimbal_world_pitch() const {
+        auto dir =
+            fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
+        return std::asin(std::clamp(dir->z(), -1.0, 1.0));
+    }
+
+    YawLink::DirectionVector odom_to_yaw_link(const OdomImu::DirectionVector& vector) const {
+        return fast_tf::cast<YawLink>(vector, *tf_);
+    }
+
+    double clamp_pitch_feedforward(double feedforward) const {
+        // Positive local pitch moves toward the lower limit.
+        if (pitch_limit_ == PitchLimit::Upper)
+            return std::max(feedforward, 0.0);
+        if (pitch_limit_ == PitchLimit::Lower)
+            return std::min(feedforward, 0.0);
+        return feedforward;
+    }
 
 private:
     void update_yaw_axis() {
@@ -168,10 +188,17 @@ private:
             return;
         }
 
-        if (z > upper_limit_.y())
-            *control_direction << upper_limit_.x() * projection, upper_limit_.y();
-        else if (z < lower_limit_.y())
-            *control_direction << lower_limit_.x() * projection, lower_limit_.y();
+        // Frame transforms can place a target on the limit slightly inside it.
+        constexpr double limit_tolerance = 1e-12;
+        if (z >= upper_limit_.y() - limit_tolerance) {
+            pitch_limit_ = PitchLimit::Upper;
+            if (z > upper_limit_.y())
+                *control_direction << upper_limit_.x() * projection, upper_limit_.y();
+        } else if (z <= lower_limit_.y() + limit_tolerance) {
+            pitch_limit_ = PitchLimit::Lower;
+            if (z < lower_limit_.y())
+                *control_direction << lower_limit_.x() * projection, lower_limit_.y();
+        }
     }
 
     void clamp_yaw_limit(YawLink::DirectionVector& control_direction) {
@@ -212,7 +239,10 @@ private:
 
     static constexpr double nan_ = std::numeric_limits<double>::quiet_NaN();
 
+    enum class PitchLimit { None, Upper, Lower };
+
     const Eigen::Vector2d upper_limit_, lower_limit_;
+    PitchLimit pitch_limit_ = PitchLimit::None;
     rmcs_executor::Component::InputInterface<Tf> tf_;
 
     double yaw_cw_min_ = 0.;
