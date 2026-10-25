@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <numbers>
 
 namespace rmcs::rl {
 
@@ -307,14 +306,9 @@ void RlController::compute_motor_torques_() {
             // Script-owned references are not actor-clipped actions. Remove
             // only a common leg winding and retain the last issued hold.
             const auto& reference = joint_reference_recovery_->command().targets;
-            constexpr double tau = 2 * std::numbers::pi;
-            for (int hip : {0, 2}) {
-                const double first = reference[hip] - nominal_[hip];
-                const double second = reference[hip + 1] - nominal_[hip + 1];
-                const double common = std::floor((first * 0.5 + second * 0.5) / tau + 0.5) * tau;
-                history[hip] = (first - common) / DeployedPolicyContract::kLegActionScale;
-                history[hip + 1] = (second - common) / DeployedPolicyContract::kLegActionScale;
-            }
+            const auto relative = paired_relative_leg_positions_(reference.head<4>());
+            for (int i = 0; i < 4; ++i)
+                history[i] = relative[i] / DeployedPolicyContract::kLegActionScale;
             history.tail<2>() = reference.tail<2>() / DeployedPolicyContract::kWheelActionScale;
         }
         for (int i = 0; i < 6; ++i)

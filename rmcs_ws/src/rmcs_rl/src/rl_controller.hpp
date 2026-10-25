@@ -84,6 +84,7 @@ private:
     void update_state_output_();
     bool read_model_state_();
     Eigen::Quaterniond world_base_orientation_() const;
+    Eigen::Vector4d paired_relative_leg_positions_(const Eigen::Vector4d& positions) const;
     std::optional<RecoveryFeedback> observe_recovery_();
     bool update_prepare_();
     bool upright_capture_ready_(double max_tilt_rad) const;

@@ -13,6 +13,20 @@ Eigen::Quaterniond RlController::world_base_orientation_() const {
     return orientation_->normalized() * base_to_imu_orientation_;
 }
 
+Eigen::Vector4d
+    RlController::paired_relative_leg_positions_(const Eigen::Vector4d& positions) const {
+    constexpr double tau = 2 * std::numbers::pi;
+    Eigen::Vector4d relative;
+    for (int hip : {0, 2}) {
+        const double first = positions[hip] - nominal_[hip];
+        const double second = positions[hip + 1] - nominal_[hip + 1];
+        const double common = std::floor((first * 0.5 + second * 0.5) / tau + 0.5) * tau;
+        relative[hip] = first - common;
+        relative[hip + 1] = second - common;
+    }
+    return relative;
+}
+
 bool RlController::read_model_state_() {
     if (!*feedback_fresh_)
         return feedback_valid_ = false;
@@ -245,14 +259,9 @@ bool RlController::assemble_observation_(bool shadow_recovery) {
     auto joint_position = observation.subspan<ObservationLayout::kJointPosition, 6>();
     std::ranges::fill(joint_position, 0.0f); // wheel positions are deliberately zero
     if (policy_->uses_history()) {
-        constexpr double tau = 2 * std::numbers::pi;
-        for (int hip : {0, 2}) {
-            const double first = q_[hip] - nominal_[hip];
-            const double second = q_[hip + 1] - nominal_[hip + 1];
-            const double common = std::floor((first * 0.5 + second * 0.5) / tau + 0.5) * tau;
-            joint_position[hip] = first - common;
-            joint_position[hip + 1] = second - common;
-        }
+        const auto relative = paired_relative_leg_positions_(q_.head<4>());
+        for (int i = 0; i < 4; ++i)
+            joint_position[i] = relative[i];
     } else {
         for (int i = 0; i < 4; ++i)
             joint_position[i] = std::remainder(q_[i] - nominal_[i], 2 * std::numbers::pi);
