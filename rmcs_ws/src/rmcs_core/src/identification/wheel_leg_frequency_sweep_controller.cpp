@@ -62,6 +62,7 @@ public:
         register_output("/wheel_leg/sweep/completed", completed_, false);
         register_output("/wheel_leg/sweep/stop_reason", stop_, 0);
         register_output("/wheel_leg/sweep/drives_ready", drives_ready_output_, false);
+        register_output("/wheel_leg/sweep/feedback_diagnostic", feedback_diagnostic_, 0);
         register_output("/wheel_leg/sweep/reference_active", reference_active_, false);
         register_output(
             "/wheel_leg/sweep/reference_sequence", reference_sequence_, std::uint64_t{0});
@@ -125,9 +126,9 @@ public:
         }
         RCLCPP_INFO(
             get_logger(),
-            "Sweep experiment=%s side=%d: DOWN/DOWN reset, MIDDLE/MIDDLE zero-torque arm; "
-            "300 ms mode selection, 1000 Hz host torque / 200 Hz reference. Motion guards "
-            "disabled.",
+            "Sweep remote=level-v2 experiment=%s side=%d: DOWN/DOWN off, MIDDLE/MIDDLE zero "
+            "effort, matching mode starts immediately. No arming/debounce/fault/completion latch. "
+            "Held mode repeats after completion. 1000 Hz torque / 200 Hz reference.",
             get_parameter("experiment").as_string().c_str(), side_);
     }
 
@@ -157,9 +158,10 @@ public:
         }
         *reference_active_ = false;
         update_feedback();
-        const auto health = sensor_health(now_ns);
+        *feedback_diagnostic_ = static_cast<int>(sensor_health(now_ns));
         const bool ready = drives_ready();
-        const bool started = session_.update(now, *remote_fresh_, *left_, *right_, health, ready);
+        const bool started =
+            session_.update(now, *remote_fresh_, *left_, *right_, control_feedback_issue(now_ns));
         if (session_.state == SweepState::kResetReady) {
             reference_ = {};
             have_phase_.fill(false);
@@ -188,6 +190,7 @@ public:
         }
         if (started) {
             last_logged_stage_ = -1;
+            last_status_log_ns_ = 0;
             previous_effort_ = 0;
             reference_tick_ = *tick_;
             *reference_sequence_ = 0;
@@ -236,8 +239,7 @@ public:
                 *torque_[i] = 0;
         }
         *enable_ = session_.enabled();
-        *clear_ = *enable_ && !session_.ready_seen() && *left_ == rmcs_msgs::Switch::MIDDLE
-               && *right_ == rmcs_msgs::Switch::MIDDLE;
+        *clear_ = *enable_ && !ready;
         *state_ = static_cast<int>(session_.state);
         *stop_ = static_cast<int>(session_.reason);
         *mode_ = session_.mode;
@@ -246,17 +248,21 @@ public:
         *drives_ready_output_ = ready;
         log_transition();
         log_stage();
+        log_live_status(now_ns);
         *control_end_ns_ = steady_ns();
     }
 
 private:
     void log_transition() {
         if (transition_logged_ && logged_state_ == session_.state
-            && logged_reason_ == session_.reason)
+            && logged_reason_ == session_.reason && logged_mode_ == session_.mode
+            && logged_run_ == session_.run_id)
             return;
         transition_logged_ = true;
         logged_state_ = session_.state;
         logged_reason_ = session_.reason;
+        logged_mode_ = session_.mode;
+        logged_run_ = session_.run_id;
         constexpr std::array names{"ResetRequired", "ResetReady",  "Standby", "Running",
                                    "Complete",      "Interrupted", "Fault"};
         constexpr std::array reasons{"none",           "both-down",        "remote-lost",
@@ -269,7 +275,7 @@ private:
             RCLCPP_ERROR(
                 get_logger(),
                 "Sweep state=%s stop=%d(%s), switches L/R=%d/%d, feedback_fresh=%d, "
-                "drives_ready=%d. Outputs zero and disabled; reset DOWN/DOWN then MIDDLE/MIDDLE.",
+                "drives_ready=%d. Outputs zero; current inputs are checked again next tick.",
                 state_name, static_cast<int>(session_.reason), reason_name,
                 static_cast<int>(*left_), static_cast<int>(*right_),
                 static_cast<int>(*feedback_fresh_), static_cast<int>(*drives_ready_output_));
@@ -283,11 +289,11 @@ private:
             if (session_.state == SweepState::kResetReady)
                 RCLCPP_INFO(
                     get_logger(),
-                    "DOWN/DOWN reset accepted; waiting for both switches MIDDLE, outputs zero.");
+                    "DOWN/DOWN: disabled and trajectory reset; select a mode to start directly.");
             if (session_.state == SweepState::kStandby)
                 RCLCPP_INFO(
                     get_logger(),
-                    "MIDDLE/MIDDLE standby: zero effort; select a mode for 300 ms to start.");
+                    "Standby: zero effort; matching remote mode starts on the next tick.");
         }
     }
 
@@ -298,14 +304,34 @@ private:
         if (kind_ == 1) {
             const auto& segment = wheel_plan_->segments()[static_cast<std::size_t>(*stage_)];
             RCLCPP_INFO(
-                get_logger(),
-                "Wheel stage=%d/%zu %s, duration=%.2f s, control=%s. Keep UP/UP to continue.",
-                *stage_, wheel_plan_->segments().size(), segment.label.c_str(), segment.duration_s,
+                get_logger(), "Wheel stage=%d/%zu %s, duration=%.2f s, control=%s.", *stage_,
+                wheel_plan_->segments().size(), segment.label.c_str(), segment.duration_s,
                 segment.coast ? "zero-current coast" : "velocity excitation");
         } else
             RCLCPP_INFO(
                 get_logger(), "Joint stage=%d waveform=%d elapsed=%.3f s", *stage_, *waveform_,
                 *run_elapsed_);
+    }
+
+    void log_live_status(std::uint64_t now) {
+        if (last_status_log_ns_ && now - last_status_log_ns_ < 1'000'000'000)
+            return;
+        last_status_log_ns_ = now;
+        RCLCPP_INFO(
+            get_logger(),
+            "Sweep live: switches=%d/%d remote_fresh=%d state=%d mode=%d run=%llu stage=%d "
+            "elapsed=%.3f enable_request=%d drives_ready=%d feedback_diagnostic=%d "
+            "wheel_ref=[%.4f,%.4f] velocity=[%.4f,%.4f] tau_cmd=[%.5f,%.5f] "
+            "wheel_age_ms=[%.2f,%.2f] DM_status=[%d,%d,%d,%d] DM_fault=[%d,%d,%d,%d]",
+            static_cast<int>(*left_), static_cast<int>(*right_), static_cast<int>(*remote_fresh_),
+            static_cast<int>(session_.state), session_.mode,
+            static_cast<unsigned long long>(session_.run_id), *stage_, *run_elapsed_,
+            static_cast<int>(*enable_), static_cast<int>(*drives_ready_output_),
+            *feedback_diagnostic_, *reference_dq_[4], *reference_dq_[5], *velocity_[4],
+            *velocity_[5], *torque_[4], *torque_[5],
+            static_cast<double>(now - std::min(now, *feedback_ns_[4])) * 1e-6,
+            static_cast<double>(now - std::min(now, *feedback_ns_[5])) * 1e-6, *status_[0],
+            *status_[1], *status_[2], *status_[3], *fault_[0], *fault_[1], *fault_[2], *fault_[3]);
     }
 
     PairGeometry load_geometry(const std::string& side) {
@@ -439,11 +465,6 @@ private:
         if (!quaternion_->coeffs().allFinite() || quaternion_->squaredNorm() < 1e-12
             || !gyro_->allFinite() || !acceleration_->allFinite())
             return SweepStop::kNonfinite;
-        if (session_.state == SweepState::kResetReady && *left_ == rmcs_msgs::Switch::MIDDLE
-            && *right_ == rmcs_msgs::Switch::MIDDLE)
-            for (const auto& status : status_)
-                if (*status == 1)
-                    return SweepStop::kEnableLost; // Require the DOWN disable acknowledgement.
         for (std::size_t i = 0; i < 6; ++i) {
             if (!fresh(*feedback_ns_[i], now) || !*feedback_sequence_[i])
                 return SweepStop::kFeedbackTimeout;
@@ -451,16 +472,22 @@ private:
                 || !std::isfinite(*feedback_torque_[i]) || !std::isfinite(*max_torque_[i])
                 || *max_torque_[i] <= 0 || !std::isfinite(*model_q_[i]))
                 return SweepStop::kNonfinite;
-            if (i < 4 && (*fault_[i] != 0 || (*status_[i] != 0 && *status_[i] != 1))) {
-                // Only the initial selected-pair arm can clear a recoverable drive
-                // fault. Any fault after acknowledgement immediately latches stop.
-                const bool initial_clear =
-                    kind_ != 1 && static_cast<int>(i / 2) == side_ && !session_.ready_seen()
-                    && *fault_[i] >= 8 && *fault_[i] <= 14 && *status_[i] == *fault_[i]
-                    && *left_ == rmcs_msgs::Switch::MIDDLE && *right_ == rmcs_msgs::Switch::MIDDLE;
-                if (!initial_clear)
-                    return SweepStop::kDriveFault;
-            }
+            if (i < 4 && (*fault_[i] != 0 || (*status_[i] != 0 && *status_[i] != 1)))
+                return SweepStop::kDriveFault;
+        }
+        return SweepStop::kNone;
+    }
+
+    SweepStop control_feedback_issue(std::uint64_t now) const {
+        // Only data used by this experiment can withhold its command. IMU and
+        // parked motors remain diagnostic and cannot block the wheel sweep.
+        const std::size_t first = kind_ == 1 ? 4 : 2 * side_;
+        for (std::size_t i = first; i < first + 2; ++i) {
+            if (!fresh(*feedback_ns_[i], now) || !*feedback_sequence_[i])
+                return SweepStop::kFeedbackTimeout;
+            if (!std::isfinite(*model_q_[i]) || !std::isfinite(*velocity_[i])
+                || !std::isfinite(*max_torque_[i]) || *max_torque_[i] <= 0)
+                return SweepStop::kNonfinite;
         }
         return SweepStop::kNone;
     }
@@ -584,7 +611,7 @@ private:
     OutputInterface<bool> enable_, clear_, wheel_only_, completed_, drives_ready_output_,
         reference_active_, validation_, beta_ref_valid_, guards_enabled_;
     OutputInterface<int> selected_side_, experiment_output_, side_output_, state_, mode_, stage_,
-        waveform_, stop_, remote_left_, remote_right_;
+        feedback_diagnostic_, waveform_, stop_, remote_left_, remote_right_;
     OutputInterface<std::uint64_t> heartbeat_, run_, reference_sequence_, control_ns_,
         scheduled_ns_, control_end_ns_;
     OutputInterface<double> reference_elapsed_, run_elapsed_, control_dt_, theta_ref_, beta_ref_;
@@ -617,12 +644,15 @@ private:
     std::array<bool, 2> pair_aligned_{};
     std::array<std::uint64_t, 6> last_sequence_{}, last_feedback_ns_{};
     std::uint64_t last_control_ns_ = 0;
+    std::uint64_t last_status_log_ns_ = 0;
     std::size_t reference_tick_ = 0;
     double previous_effort_ = 0;
     bool transition_logged_ = false;
     SweepState logged_state_ = SweepState::kResetRequired;
     SweepStop logged_reason_ = SweepStop::kNone;
     int last_logged_stage_ = -1;
+    int logged_mode_ = 0;
+    std::uint64_t logged_run_ = 0;
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     static constexpr double wheel_nm_per_amp = 15.62 * .3 * 187 / 3591;
 };

@@ -27,177 +27,128 @@ PairGeometry geometry(bool right = false) {
     return {b, d};
 }
 
-void arm(WheelLegSweepSession& s) {
-    EXPECT_FALSE(s.update(0, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, false));
-    EXPECT_FALSE(s.update(.1, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, false));
-    EXPECT_TRUE(s.enabled());
-    EXPECT_FALSE(s.update(.2, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true));
-}
-
-TEST(FrequencySweepSession, AllNineCombinationsRequireResetAndMiddleBeforeMotion) {
-    constexpr std::array switches{Switch::DOWN, Switch::MIDDLE, Switch::UP};
-    for (auto left : switches)
-        for (auto right : switches) {
-            WheelLegSweepSession s(true);
-            EXPECT_FALSE(s.update(0, true, left, right, SweepStop::kNone, true));
-            EXPECT_FALSE(s.update(10, true, left, right, SweepStop::kNone, true));
-            EXPECT_FALSE(s.enabled());
-            EXPECT_EQ(s.run_id, 0u);
-        }
-    WheelLegSweepSession s(true);
-    s.update(0, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, false);
-    EXPECT_FALSE(s.update(1, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-    EXPECT_FALSE(s.enabled());
-}
-
-TEST(FrequencySweepSession, ResetAllowsEitherSwitchToReachMiddleFirst) {
-    for (bool joints : {false, true})
-        for (bool left_first : {false, true}) {
-            SCOPED_TRACE(left_first ? "left first" : "right first");
-            WheelLegSweepSession session(joints);
-            session.update(0, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, true);
-            const auto left = left_first ? Switch::MIDDLE : Switch::DOWN;
-            const auto right = left_first ? Switch::DOWN : Switch::MIDDLE;
-            // Real DR16 CSV: the two switches reached MIDDLE 14 ms apart.
-            EXPECT_FALSE(session.update(.1, true, left, right, SweepStop::kNone, true));
-            EXPECT_EQ(session.state, SweepState::kResetReady);
-            EXPECT_FALSE(session.enabled());
-            EXPECT_FALSE(
-                session.update(.114, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true));
-            EXPECT_EQ(session.state, SweepState::kStandby);
-            EXPECT_TRUE(session.enabled());
-            EXPECT_FALSE(session.update(.2, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-            EXPECT_TRUE(session.update(.5, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-        }
-}
-
-TEST(FrequencySweepSession, StaggeredResetDoesNotBypassDownOrAllowAutoResume) {
-    WheelLegSweepSession session(false);
-    session.update(0, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
-    session.update(.1, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
-    EXPECT_FALSE(session.enabled());
-    session.update(.2, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, true);
-    session.update(.3, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
-    session.update(5, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
-    EXPECT_EQ(session.state, SweepState::kResetReady);
-    EXPECT_FALSE(session.enabled());
-    session.update(6, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
-    EXPECT_FALSE(session.enabled());
-    session.update(7, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
+void arm(WheelLegSweepSession& session) {
+    EXPECT_FALSE(session.update(0, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone));
     EXPECT_TRUE(session.enabled());
-    session.update(8, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
-    ASSERT_TRUE(session.update(8.3, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-    // A DOWN switch after arming is still an immediate disarm and fault.
-    session.update(8.301, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
-    EXPECT_FALSE(session.enabled());
-    EXPECT_EQ(session.reason, SweepStop::kInvalidSwitch);
-    session.update(9, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
-    EXPECT_FALSE(session.enabled());
-    session.update(10, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, true);
-    session.update(11, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
-    session.update(12, false, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
-    session.update(13, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
-    EXPECT_FALSE(session.enabled());
+}
+
+TEST(FrequencySweepSession, CurrentSwitchesStartImmediatelyWithoutResetOrMiddleHistory) {
+    constexpr std::array switches{Switch::DOWN, Switch::MIDDLE, Switch::UP};
+    for (bool joints : {false, true})
+        for (auto left : switches)
+            for (auto right : switches) {
+                WheelLegSweepSession session(joints);
+                const bool down = left == Switch::DOWN && right == Switch::DOWN;
+                const bool middle = left == Switch::MIDDLE && right == Switch::MIDDLE;
+                const bool matching = joints
+                                        ? (left == Switch::UP && right == Switch::MIDDLE)
+                                              || (left == Switch::MIDDLE && right == Switch::UP)
+                                              || (left == Switch::UP && right == Switch::UP)
+                                        : !down && !middle;
+                EXPECT_EQ(session.update(0, true, left, right, SweepStop::kNone), matching);
+                EXPECT_EQ(session.state == SweepState::kRunning, matching);
+                EXPECT_EQ(session.enabled(), !down);
+                EXPECT_EQ(session.run_id, matching ? 1u : 0u);
+            }
+}
+
+TEST(FrequencySweepSession, StartupUnknownAndRemoteRecoveryNeverLatch) {
+    WheelLegSweepSession session(false);
+    EXPECT_FALSE(session.update(0, false, Switch::UNKNOWN, Switch::UNKNOWN, SweepStop::kNone));
     EXPECT_EQ(session.reason, SweepStop::kRemoteLost);
+    ASSERT_TRUE(session.update(.004, true, Switch::UP, Switch::UP, SweepStop::kNone));
+    EXPECT_TRUE(session.enabled());
+    session.update(.005, false, Switch::UP, Switch::UP, SweepStop::kNone);
+    EXPECT_FALSE(session.enabled());
+    ASSERT_TRUE(session.update(.006, true, Switch::UP, Switch::UP, SweepStop::kNone));
+    EXPECT_EQ(session.run_id, 2u);
+    session.update(.007, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone);
+    EXPECT_FALSE(session.enabled());
+    EXPECT_EQ(session.reason, SweepStop::kBothDown);
+    ASSERT_TRUE(session.update(.008, true, Switch::UP, Switch::UP, SweepStop::kNone));
 }
 
-TEST(FrequencySweepSession, DebouncesLocksModesAndRequiresMiddleAfterChange) {
-    for (int mode : {1, 2, 3}) {
-        WheelLegSweepSession s(true);
-        arm(s);
-        const auto l = mode == 2 ? Switch::MIDDLE : Switch::UP;
-        const auto r = mode == 1 ? Switch::MIDDLE : Switch::UP;
-        EXPECT_FALSE(s.update(.3, true, l, r, SweepStop::kNone, true));
-        EXPECT_FALSE(s.update(.599, true, l, r, SweepStop::kNone, true));
-        EXPECT_TRUE(s.update(.6, true, l, r, SweepStop::kNone, true));
-        EXPECT_EQ(s.mode, mode);
-        const auto next_l = mode == 2 ? Switch::UP : Switch::MIDDLE;
-        EXPECT_FALSE(s.update(.601, true, next_l, r, SweepStop::kNone, true));
-        EXPECT_NE(s.state, SweepState::kRunning);
-        EXPECT_TRUE(s.enabled());
-        EXPECT_FALSE(s.update(10, true, l, r, SweepStop::kNone, true));
-        EXPECT_FALSE(s.update(20, true, l, r, SweepStop::kNone, true));
-        s.update(21, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
-        EXPECT_FALSE(s.update(22, true, l, r, SweepStop::kNone, true));
-        EXPECT_TRUE(s.update(22.3, true, l, r, SweepStop::kNone, true));
-        EXPECT_EQ(s.run_id, 2u);
+TEST(FrequencySweepSession, CurrentJointModeChangesImmediatelyAndSameModePreservesProgress) {
+    WheelLegSweepSession session(true);
+    ASSERT_TRUE(session.update(0, true, Switch::UP, Switch::MIDDLE, SweepStop::kNone));
+    EXPECT_EQ(session.mode, 1);
+    EXPECT_FALSE(session.update(.001, true, Switch::UP, Switch::MIDDLE, SweepStop::kNone));
+    EXPECT_DOUBLE_EQ(session.start_time, 0);
+    ASSERT_TRUE(session.update(.002, true, Switch::MIDDLE, Switch::UP, SweepStop::kNone));
+    EXPECT_EQ(session.mode, 2);
+    ASSERT_TRUE(session.update(.003, true, Switch::UP, Switch::UP, SweepStop::kNone));
+    EXPECT_EQ(session.mode, 3);
+    EXPECT_EQ(session.run_id, 3u);
+    session.update(.004, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone);
+    EXPECT_EQ(session.state, SweepState::kStandby);
+    ASSERT_TRUE(session.update(.005, true, Switch::UP, Switch::UP, SweepStop::kNone));
+}
+
+TEST(FrequencySweepSession, MixedDownJointStandbyDoesNotLatchTheNextMode) {
+    WheelLegSweepSession session(true);
+    EXPECT_FALSE(session.update(0, true, Switch::DOWN, Switch::MIDDLE, SweepStop::kNone));
+    EXPECT_EQ(session.state, SweepState::kStandby);
+    ASSERT_TRUE(session.update(.001, true, Switch::UP, Switch::MIDDLE, SweepStop::kNone));
+    session.update(.002, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone);
+    EXPECT_EQ(session.state, SweepState::kStandby);
+    ASSERT_TRUE(session.update(.003, true, Switch::MIDDLE, Switch::UP, SweepStop::kNone));
+    EXPECT_EQ(session.mode, 2);
+}
+
+TEST(FrequencySweepSession, WheelSwitchChangesDoNotRestartTheSameExperiment) {
+    WheelLegSweepSession session(false);
+    ASSERT_TRUE(session.update(0, true, Switch::UP, Switch::MIDDLE, SweepStop::kNone));
+    EXPECT_FALSE(session.update(.001, true, Switch::UP, Switch::UP, SweepStop::kNone));
+    EXPECT_FALSE(session.update(.002, true, Switch::MIDDLE, Switch::UP, SweepStop::kNone));
+    EXPECT_FALSE(session.update(.003, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone));
+    EXPECT_EQ(session.run_id, 1u);
+    EXPECT_DOUBLE_EQ(session.start_time, 0);
+}
+
+TEST(FrequencySweepSession, HeldModeRepeatsAfterCompletionWithoutACompletionLatch) {
+    WheelLegSweepSession session(false);
+    ASSERT_TRUE(session.update(0, true, Switch::UP, Switch::UP, SweepStop::kNone));
+    session.complete();
+    EXPECT_EQ(session.state, SweepState::kComplete);
+    EXPECT_TRUE(session.completed);
+    EXPECT_TRUE(session.enabled());
+    ASSERT_TRUE(session.update(10, true, Switch::UP, Switch::UP, SweepStop::kNone));
+    EXPECT_EQ(session.state, SweepState::kRunning);
+    EXPECT_FALSE(session.completed);
+    EXPECT_EQ(session.run_id, 2u);
+    EXPECT_DOUBLE_EQ(session.start_time, 10);
+}
+
+TEST(FrequencySweepSession, MissingActiveFeedbackRecoversOnNextValidTickWithoutReset) {
+    for (auto issue : {SweepStop::kFeedbackTimeout, SweepStop::kNonfinite}) {
+        WheelLegSweepSession session(false);
+        EXPECT_FALSE(session.update(0, true, Switch::UP, Switch::UP, issue));
+        EXPECT_FALSE(session.enabled());
+        ASSERT_TRUE(session.update(.001, true, Switch::UP, Switch::UP, SweepStop::kNone));
+        EXPECT_TRUE(session.enabled());
     }
 }
 
-TEST(FrequencySweepSession, IntermediateModesDoNotStartWheelsOrProbe) {
-    WheelLegSweepSession s(false);
-    arm(s);
-    for (auto [l, r] :
-         {std::pair{Switch::UP, Switch::MIDDLE}, std::pair{Switch::MIDDLE, Switch::UP}}) {
-        EXPECT_FALSE(s.update(1, true, l, r, SweepStop::kNone, true));
-        EXPECT_FALSE(s.update(2, true, l, r, SweepStop::kNone, true));
-        EXPECT_EQ(s.state, SweepState::kStandby);
-    }
-    EXPECT_FALSE(s.update(3, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-    EXPECT_TRUE(s.update(3.3, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-}
-
-TEST(FrequencySweepSession, CompletionLatchesEnabledAndFaultsRequireDownAgain) {
-    for (auto reason :
-         {SweepStop::kFeedbackTimeout, SweepStop::kNonfinite, SweepStop::kDriveFault}) {
-        WheelLegSweepSession s(true);
-        arm(s);
-        s.update(1, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
-        ASSERT_TRUE(s.update(1.3, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-        s.complete();
-        for (double t : {2.0, 100.0, 200.0}) {
-            EXPECT_FALSE(s.update(t, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
-            EXPECT_EQ(s.state, SweepState::kComplete);
-            EXPECT_TRUE(s.enabled());
-            EXPECT_TRUE(s.completed);
-            EXPECT_EQ(s.reason, SweepStop::kFinished);
-            EXPECT_EQ(s.run_id, 1u);
-        }
-        s.update(201, true, Switch::UP, Switch::UP, reason, true);
-        EXPECT_FALSE(s.enabled());
-        EXPECT_EQ(s.reason, reason);
-        EXPECT_FALSE(s.update(202, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true));
-        EXPECT_FALSE(s.enabled());
-    }
-}
-
-TEST(FrequencySweepSession, DownLossUnknownAndActualDisableAreImmediate) {
-    for (int scenario = 0; scenario < 5; ++scenario) {
-        WheelLegSweepSession s(true);
-        arm(s);
-        s.update(1, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
-        s.update(1.3, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
-        s.update(
-            1.301, scenario != 1,
-            scenario == 0   ? Switch::DOWN
-            : scenario == 2 ? Switch::UNKNOWN
-                            : Switch::UP,
-            scenario == 0 || scenario == 3 ? Switch::DOWN : Switch::UP, SweepStop::kNone,
-            scenario != 4);
-        EXPECT_FALSE(s.enabled());
-        EXPECT_NE(s.state, SweepState::kRunning);
-        if (scenario == 4) {
-            EXPECT_EQ(s.reason, SweepStop::kEnableLost);
-        }
-    }
-}
-
-TEST(FrequencySweepHardware, ExpandedRemoteGateIsOptInAndNeedsLiveRequest) {
+TEST(FrequencySweepHardware, DirectSweepRemoteGateDoesNotDependOnImuOrParkedDmStatus) {
     using namespace rmcs_core::hardware;
     constexpr std::array switches{Switch::UNKNOWN, Switch::DOWN, Switch::MIDDLE, Switch::UP};
-    const std::array<WheelLegDmPairFeedback, 2> disabled{{{0, 0, 0, 0, true}, {0, 0, 0, 0, true}}};
-    for (auto l : switches)
-        for (auto r : switches) {
-            const bool accepted = (l == Switch::UP || l == Switch::MIDDLE)
-                               && (r == Switch::UP || r == Switch::MIDDLE);
-            EXPECT_EQ(wheel_leg_drive_allowed(true, l, r, true, true, false, true), accepted);
+    const std::array<WheelLegDmPairFeedback, 2> unavailable{
+        {{8, 8, 8, 8, false}, {1, 1, 0, 0, false}}};
+    for (auto left : switches)
+        for (auto right : switches) {
+            const bool accepted = left != Switch::UNKNOWN && right != Switch::UNKNOWN
+                               && !(left == Switch::DOWN && right == Switch::DOWN);
             EXPECT_EQ(
-                wheel_leg_drive_allowed(true, l, r, true, true),
-                l == Switch::MIDDLE && r == Switch::MIDDLE);
-            EXPECT_FALSE(wheel_leg_drive_allowed(false, l, r, true, true, false, true));
-            EXPECT_FALSE(wheel_leg_drive_allowed(true, l, r, true, false, false, true));
+                wheel_leg_drive_allowed(true, left, right, true, true, false, true), accepted);
             EXPECT_EQ(
-                wheel_leg_wheel_only_allowed(true, l, r, true, true, disabled, true), accepted);
+                wheel_leg_wheel_only_allowed(true, left, right, true, false, unavailable, true),
+                accepted);
+            EXPECT_FALSE(wheel_leg_drive_allowed(false, left, right, true, true, false, true));
+            EXPECT_FALSE(wheel_leg_drive_allowed(true, left, right, true, false, false, true));
+            EXPECT_EQ(
+                wheel_leg_drive_allowed(true, left, right, true, true),
+                left == Switch::MIDDLE && right == Switch::MIDDLE);
+            EXPECT_FALSE(wheel_leg_wheel_only_allowed(true, left, right, true, false, unavailable));
         }
     EXPECT_EQ(wheel_leg_side_enable_requests(true, true, 0), (std::array{true, false}));
     EXPECT_EQ(wheel_leg_side_enable_requests(true, true, 1), (std::array{false, true}));
@@ -294,7 +245,7 @@ public:
     void update() override {}
 };
 
-TEST(FrequencySweepHardware, CompletedSessionKeepsFcAndZeroGainMitWithoutFd) {
+TEST(FrequencySweepHardware, EnabledSessionKeepsFcAndZeroGainMitWithoutFd) {
     using namespace rmcs_core::hardware;
     WheelLegSweepSession session(true);
     arm(session);
@@ -306,7 +257,7 @@ TEST(FrequencySweepHardware, CompletedSessionKeepsFcAndZeroGainMitWithoutFd) {
     WheelLegDmCommandScheduler scheduler;
     int mit = 0, enable = 0;
     for (int tick = 0; tick < 2000; ++tick) {
-        session.update(1 + tick * .001, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
+        session.update(1 + tick * .001, true, Switch::UP, Switch::UP, SweepStop::kNone);
         ASSERT_TRUE(session.enabled());
         const auto action = scheduler.next(session.enabled());
         EXPECT_NE(action, WheelLegDmCommandScheduler::Action::kDisable);

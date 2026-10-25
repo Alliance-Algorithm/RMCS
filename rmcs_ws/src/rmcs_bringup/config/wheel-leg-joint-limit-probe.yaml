@@ -1,10 +1,11 @@
 # Standalone identification. See docs/zh-cn/wheel_leg_frequency_sweep.md.
-# Reset DOWN/DOWN -> arm MIDDLE/MIDDLE (zero torque) -> select mode for >=300 ms.
-# After DOWN/DOWN, staggered switch movement to MIDDLE stays disabled until both are MIDDLE.
-# joints: UP/MIDDLE=1, MIDDLE/UP=2, UP/UP=3. wheels/limits: UP/UP starts.
-# Complete stays enabled at zero effort; MIDDLE/MIDDLE is required before another run.
+# Level-triggered remote: DOWN/DOWN off; MIDDLE/MIDDLE zero effort.
+# No reset/arming order, debounce, acknowledgement timeout, or fault/completion latch.
+# joints: UP/MIDDLE=1, MIDDLE/UP=2, UP/UP=3; other valid modes are standby.
+# wheels/limits: every valid non-DOWN/DOWN, non-MIDDLE/MIDDLE combination starts.
+# Held matching mode repeats after completion; mode changes take effect immediately.
 # Angles/speed/tracking/braking are diagnostics ONLY. No envelope exits or auto scaling.
-# Beta is CAD closure FK, not an independent knee sensor; never extrapolate the LUT.
+# Only active motor feedback is needed for control; IMU/parked motors are diagnostic.
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
@@ -85,6 +86,7 @@ value_collector:
       - /wheel_leg/sweep/completed
       - /wheel_leg/sweep/stop_reason
       - /wheel_leg/sweep/drives_ready
+      - /wheel_leg/sweep/feedback_diagnostic
       - /wheel_leg/sweep/reference_active
       - /wheel_leg/sweep/reference_sequence
       - /wheel_leg/sweep/reference_elapsed_s

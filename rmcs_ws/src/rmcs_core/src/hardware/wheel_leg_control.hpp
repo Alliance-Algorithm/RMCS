@@ -34,8 +34,8 @@ constexpr bool wheel_leg_drive_allowed(
                    && left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::DOWN;
     const bool identification =
         allow_identification_switch && require_request && requested
-        && (left == rmcs_msgs::Switch::MIDDLE || left == rmcs_msgs::Switch::UP)
-        && (right == rmcs_msgs::Switch::MIDDLE || right == rmcs_msgs::Switch::UP);
+        && left != rmcs_msgs::Switch::UNKNOWN && right != rmcs_msgs::Switch::UNKNOWN
+        && !(left == rmcs_msgs::Switch::DOWN && right == rmcs_msgs::Switch::DOWN);
     return dr16_fresh && (middle || spin || identification) && (!require_request || requested);
 }
 
@@ -213,8 +213,9 @@ constexpr bool wheel_leg_wheel_only_allowed(
     bool allow_identification_switch = false) noexcept {
     return wheel_leg_drive_allowed(
                remote_fresh, left, right, true, requested, false, allow_identification_switch)
-        && feedback_fresh && wheel_leg_dm_pair_confirmed_disabled(pairs[0])
-        && wheel_leg_dm_pair_confirmed_disabled(pairs[1]);
+        && (allow_identification_switch
+            || (feedback_fresh && wheel_leg_dm_pair_confirmed_disabled(pairs[0])
+                && wheel_leg_dm_pair_confirmed_disabled(pairs[1])));
 }
 
 constexpr bool wheel_leg_dm_pair_clearable_fault(const WheelLegDmPairFeedback& pair) noexcept {

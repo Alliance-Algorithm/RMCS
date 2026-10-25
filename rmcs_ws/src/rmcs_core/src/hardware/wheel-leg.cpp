@@ -101,6 +101,8 @@ private:
             bool side_valid;
             std::array<WheelLegDmPairFeedback, 2> pairs;
             bool remote_fresh;
+            bool controller_request;
+            bool sweep_alive;
             bool entered_both_down;
             bool enable;
             bool wheel_enable;
@@ -156,6 +158,7 @@ private:
                 queue_joint_commands(builder, cycle, actions);
                 commit_drive_request(cycle, actions);
             }
+            log_sweep_commands(cycle);
             // The builder submits on destruction. Transfer one complete previous submission to
             // the status component so observers can read it without a command -> controller cycle.
             // Torque is the encoded current expressed in API wheel Nm; time is the host queue
@@ -368,7 +371,8 @@ private:
             status.register_output("/wheel_leg/joint_position_kp", joint_kp_output_, joint_kp_);
             status.register_output("/wheel_leg/joint_position_kd", joint_kd_output_, joint_kd_);
             command.register_input("/wheel_leg/joint_command_steady_ns", joint_command_ns_, false);
-            command.register_input("/wheel_leg/joint_torque_override", joint_torque_override_, false);
+            command.register_input(
+                "/wheel_leg/joint_torque_override", joint_torque_override_, false);
             if (use_motor_position_pd_)
                 RCLCPP_WARN(
                     status_.get_logger(),
@@ -610,8 +614,7 @@ private:
             const bool sweep_alive = sweep_heartbeat_ns_.ready() && *sweep_heartbeat_ns_ > 0
                                   && *sweep_heartbeat_ns_ <= sweep_now
                                   && sweep_now - *sweep_heartbeat_ns_ < 20'000'000;
-            const bool controller_request = enable_request_.ready() && *enable_request_
-                                         && (!identification_remote_control_ || sweep_alive);
+            const bool controller_request = enable_request_.ready() && *enable_request_;
             bool enable = wheel_leg_drive_allowed(
                 remote_fresh, dr16_.switch_left(), dr16_.switch_right(),
                 require_enable_request_ || side_bound, controller_request, false,
@@ -623,12 +626,10 @@ private:
                     remote_fresh, dr16_.switch_left(), dr16_.switch_right(), controller_request,
                     feedback_fresh(), pairs, identification_remote_control_);
             if (side_bound) {
-                // Never arm the selected pair until the other pair reports disabled
-                // with current CAN feedback. Faults, stale feedback and invalid side
-                // values transition both schedulers to disable immediately.
-                enable = enable && side_valid && !use_motor_position_pd_
-                      && (!identification_remote_control_ || feedback_fresh());
-                if (enable) {
+                // Sweep requests follow the current remote mode directly. Other
+                // graphs retain the acknowledged paired-drive handoff below.
+                enable = enable && side_valid && !use_motor_position_pd_;
+                if (enable && !identification_remote_control_) {
                     const auto active = static_cast<std::size_t>(selected_side);
                     const bool previously_requested =
                         dm_enabled_[active].load(std::memory_order_relaxed);
@@ -680,6 +681,8 @@ private:
                 .side_valid = side_valid,
                 .pairs = pairs,
                 .remote_fresh = remote_fresh,
+                .controller_request = controller_request,
+                .sweep_alive = sweep_alive,
                 .entered_both_down = entered_both_down,
                 .enable = enable,
                 .wheel_enable = wheel_enable,
@@ -728,7 +731,13 @@ private:
                     enable_request_.ready() && *enable_request_,
                     clear_error_request_.ready() && *clear_error_request_, cycle.selected_side,
                     cycle.pairs);
-            if (cycle.side_bound && cycle.side_valid) {
+            if (identification_remote_control_) {
+                // Same continuous FB/FC retry used by the normal vehicle path;
+                // no double-MIDDLE prerequisite or disabled-status arm latch.
+                for (auto& scheduler : fault_clear_schedulers_)
+                    scheduler.next(false);
+                actions = normal_action_gate_.apply(actions, cycle.enable_sides, cycle.pairs);
+            } else if (cycle.side_bound && cycle.side_valid) {
                 const auto active = static_cast<std::size_t>(cycle.selected_side);
                 if (fault_clear_schedulers_[active].next(clear_fault))
                     actions[active] = Action::kClearError;
@@ -843,6 +852,45 @@ private:
             }
             *enable_requested_output_ =
                 cycle.enable_sides[0] || cycle.enable_sides[1] || cycle.wheel_enable;
+        }
+
+        void log_sweep_commands(const CommandCycle& cycle) {
+            if (!identification_remote_control_)
+                return;
+            const auto left = dr16_.switch_left(), right = dr16_.switch_right();
+            const unsigned mask =
+                (!cycle.remote_fresh ? 1u : 0u)
+                | (left == rmcs_msgs::Switch::UNKNOWN || right == rmcs_msgs::Switch::UNKNOWN ? 2u
+                                                                                             : 0u)
+                | (left == rmcs_msgs::Switch::DOWN && right == rmcs_msgs::Switch::DOWN ? 4u : 0u)
+                | (!cycle.controller_request ? 8u : 0u) | (!cycle.wheel_only ? 16u : 0u);
+            const auto now = now_ns();
+            if (sweep_log_initialized_ && mask == sweep_log_mask_
+                && now - last_sweep_log_ns_ < 1'000'000'000)
+                return;
+            sweep_log_initialized_ = true;
+            sweep_log_mask_ = mask;
+            last_sweep_log_ns_ = now;
+            const auto& bytes = *tx_frame_outputs_[4];
+            RCLCPP_INFO(
+                status_.get_logger(),
+                "Sweep TX level-v2: switches=%d/%d remote_fresh=%d request=%d wheel_only=%d "
+                "wheel_allowed=%d block_mask=0x%02x [remote=1 unknown=2 down=4 request=8 kind=16] "
+                "heartbeat_fresh=%d feedback_fresh=%d DM_fresh=%d sides=%d/%d "
+                "tau_req=[%.5f,%.5f] tau_frame=[%.5f,%.5f] velocity=[%.4f,%.4f] "
+                "CAN0 0x200=%02x %02x %02x %02x DM_status=[%d,%d,%d,%d]",
+                static_cast<int>(left), static_cast<int>(right),
+                static_cast<int>(cycle.remote_fresh), static_cast<int>(cycle.controller_request),
+                static_cast<int>(cycle.wheel_only), static_cast<int>(cycle.wheel_torque_allowed),
+                mask, static_cast<int>(cycle.sweep_alive), static_cast<int>(feedback_fresh()),
+                static_cast<int>(dm_feedback_fresh()), static_cast<int>(cycle.enable_sides[0]),
+                static_cast<int>(cycle.enable_sides[1]), wheel_motors_[0].control_torque(),
+                wheel_motors_[1].control_torque(), *frame_torque_outputs_[4],
+                *frame_torque_outputs_[5], wheel_motors_[0].velocity(), wheel_motors_[1].velocity(),
+                static_cast<unsigned>(bytes[0]), static_cast<unsigned>(bytes[1]),
+                static_cast<unsigned>(bytes[2]), static_cast<unsigned>(bytes[3]),
+                cycle.pairs[0].hip_status, cycle.pairs[0].knee_status, cycle.pairs[1].hip_status,
+                cycle.pairs[1].knee_status);
         }
 
         using Clock = std::chrono::steady_clock;
@@ -1031,6 +1079,9 @@ private:
         std::array<WheelLegDmFaultClearScheduler, 2> fault_clear_schedulers_;
         WheelLegNormalActionGate normal_action_gate_;
         bool previous_both_down_ = false;
+        bool sweep_log_initialized_ = false;
+        unsigned sweep_log_mask_ = 0;
+        std::int64_t last_sweep_log_ns_ = 0;
         double joint_kp_ = 5.0;
         double joint_kd_ = 0.3;
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;

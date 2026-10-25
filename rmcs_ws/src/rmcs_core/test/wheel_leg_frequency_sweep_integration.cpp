@@ -136,6 +136,11 @@ public:
                 *ds_[p + "angle"] += 2.6;
             if (phase == 6 && i == 0)
                 *ds_[p + "angle"] = std::numeric_limits<double>::quiet_NaN();
+            const bool selected_axis = kind == 1 ? i >= 4 : static_cast<int>(i / 2) == selected;
+            if (phase == 17 && selected_axis)
+                *ns_[p + "feedback_steady_ns"] = now - 100'000'000;
+            if (phase == 18 && selected_axis)
+                *ds_[p + "angle"] = std::numeric_limits<double>::quiet_NaN();
             if (i < 4) {
                 const bool active = kind != 1 && static_cast<int>(i / 2) == selected;
                 *is_[p + "status_code"] = active && armed ? 1 : 0;
@@ -169,6 +174,10 @@ class SweepCommand final : public Component {
 public:
     SweepCommand() {
         register_input("/wheel_leg/enable_request", enable_);
+        register_input("/remote/switch/left", left_);
+        register_input("/remote/switch/right", right_);
+        register_input("/wheel_leg/dr16_fresh", remote_fresh_);
+        register_input("/wheel_leg/feedback_fresh", feedback_fresh_);
         register_output("/wheel_leg/identification/enable_requested", requested_, false);
         for (std::size_t i = 0; i < 6; ++i) {
             const auto p = std::string{"/wheel_leg/"} + kAxisNames[i] + "/";
@@ -181,9 +190,13 @@ public:
         }
     }
     void update() override {
-        *requested_ = *enable_;
+        const bool allowed =
+            kind == 1 ? rmcs_core::hardware::wheel_leg_wheel_only_allowed(
+                            *remote_fresh_, *left_, *right_, *enable_, *feedback_fresh_, {}, true)
+                      : *enable_;
+        *requested_ = allowed;
         for (std::size_t i = 0; i < 6; ++i) {
-            *wire_[i] = *enable_ ? *torque_[i] : 0;
+            *wire_[i] = allowed ? *torque_[i] : 0;
             *ns_[i] = steady_ns();
             *kind_[i] = i < 4 ? 2 : 1;
         }
@@ -191,6 +204,8 @@ public:
 
 private:
     InputInterface<bool> enable_;
+    InputInterface<Switch> left_, right_;
+    InputInterface<bool> remote_fresh_, feedback_fresh_;
     OutputInterface<bool> requested_;
     std::array<InputInterface<double>, 6> torque_;
     std::array<OutputInterface<double>, 6> wire_;
@@ -209,6 +224,8 @@ public:
         register_input("/wheel_leg/sweep/reference_active", active_);
         register_input("/wheel_leg/sweep/run_id", run_);
         register_input("/wheel_leg/sweep/reference_sequence", reference_);
+        register_input("/wheel_leg/left_wheel/tau_frame_api", wheel_frame_[0]);
+        register_input("/wheel_leg/right_wheel/tau_frame_api", wheel_frame_[1]);
         register_input("/wheel_leg/sweep/remote_left", remote_left_);
         register_input("/wheel_leg/sweep/remote_right", remote_right_);
         register_input("/wheel_leg/sweep/left/theta_continuous", theta_left_);
@@ -251,6 +268,8 @@ public:
         invalid_effort = invalid_effort || !bounded;
         diagnostics = diagnosed;
         wheel_effort = std::max(std::abs(*torque_[4]), std::abs(*torque_[5]));
+        wheel_frame_effort = std::max(std::abs(*wheel_frame_[0]), std::abs(*wheel_frame_[1]));
+        completed_seen = completed_seen || *state_ == 4;
         remote_left = *remote_left_;
         remote_right = *remote_right_;
     }
@@ -258,7 +277,8 @@ public:
     std::atomic<bool> enabled{false}, ready{false}, active{false}, zero{true},
         invalid_mapping{false}, invalid_effort{false}, diagnostics{false};
     std::atomic<std::uint64_t> run{0}, reference{0};
-    std::atomic<double> theta_left{0}, theta_right{0}, wheel_effort{0};
+    std::atomic<double> theta_left{0}, theta_right{0}, wheel_effort{0}, wheel_frame_effort{0};
+    std::atomic<bool> completed_seen{false};
     std::atomic<bool> fk_valid{false};
 
 private:
@@ -268,6 +288,7 @@ private:
     InputInterface<double> theta_left_, theta_right_;
     InputInterface<bool> beta_left_, beta_right_;
     std::array<InputInterface<double>, 6> torque_;
+    std::array<InputInterface<double>, 2> wheel_frame_;
     std::array<InputInterface<std::uint32_t>, 6> diagnostic_;
 };
 
@@ -285,7 +306,7 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
     const std::string csv = "/tmp/rmcs_sweep_test_" + std::to_string(kind) + "_"
                           + std::to_string(selected)
                           + (RMCS_SWEEP_COMPLETE ? "_complete.csv" : ".csv");
-    std::atomic<int> phase{7}; // Direct UP/UP at program startup must not enable.
+    std::atomic<int> phase{8}; // Startup DR16 is unavailable for the first few frames.
     pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
     Component::initializing_component_name = "snapshots";
     auto sensors = std::make_shared<SweepSnapshots>(phase);
@@ -318,105 +339,91 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
         std::this_thread::sleep_for(40ms);
         EXPECT_FALSE(observe->enabled);
         EXPECT_EQ(observe->run, 0u);
-        int reset_count = 0;
-        const auto reset_arm = [&] {
-            phase = 0;
-            if (!await([&] { return observe->state == 1 && !observe->enabled; }))
-                return false;
-            // Physical switches arrive on different frames. Both orders must
-            // stay reset/disabled rather than latch InvalidSwitch as on robot.
-            const bool left_first = reset_count++ % 2 == 0;
-            phase = left_first ? 15 : 16;
-            if (!await([&] {
-                    return observe->remote_left
-                            == static_cast<int>(left_first ? Switch::MIDDLE : Switch::DOWN)
-                        && observe->remote_right
-                               == static_cast<int>(left_first ? Switch::DOWN : Switch::MIDDLE)
-                        && observe->state == 1 && !observe->enabled && observe->zero;
-                }))
-                return false;
-            phase = 1;
-            if (!await([&] { return observe->state == 2 && observe->enabled; }))
-                return false;
-            phase = 2;
-            return await([&] { return observe->ready.load(); });
+        phase = 7;             // Direct UP/UP after startup UNKNOWN, no DOWN or MIDDLE history.
+        ASSERT_TRUE(await([&] { return observe->state == 3 && observe->active; }, 100ms));
+        EXPECT_EQ(observe->run, 1u);
+        phase = 4;
+        ASSERT_TRUE(await([&] { return observe->state == 2 && observe->zero; }));
+        const auto standby = [&] {
+            phase = 4;
+            return await([&] { return observe->state == 2 && observe->zero && observe->enabled; });
         };
         const auto start = [&] {
             phase = 3;
-            return await([&] { return observe->state == 3 && observe->active; });
+            return await([&] { return observe->state == 3 && observe->active; }, 100ms);
         };
-        ASSERT_TRUE(reset_arm());
-        std::this_thread::sleep_for(30ms);
-        EXPECT_TRUE(observe->zero);
-        EXPECT_FALSE(observe->active);
         ASSERT_TRUE(start());
         const auto seq = observe->reference.load();
         std::this_thread::sleep_for(100ms);
         EXPECT_GE(observe->reference - seq, 10u);
         EXPECT_LE(observe->reference - seq, 30u);
         if (kind == 1) {
-            // Use the deployed 3 s initial zero-current segment. Testing only
-            // the first 100 ms used to miss an experiment that never excited.
             EXPECT_TRUE(observe->zero);
-            ASSERT_TRUE(
-                await([&] { return observe->state == 3 && observe->wheel_effort > .05; }, 4500ms));
-            EXPECT_TRUE(observe->enabled);
+            ASSERT_TRUE(await(
+                [&] { return observe->state == 3 && observe->wheel_frame_effort > .05; }, 4500ms));
+            // Parked joint faults/status and aggregate IMU health must not
+            // suppress the actual wheel frame after excitation has started.
+            const auto run = observe->run.load();
+            for (int diagnostic : {13, 11, 6, 12}) {
+                phase = diagnostic;
+                std::this_thread::sleep_for(15ms);
+                EXPECT_EQ(observe->state, 3);
+                EXPECT_EQ(observe->run, run);
+                EXPECT_GT(observe->wheel_frame_effort, .05);
+            }
+            phase = 3;
         }
         if (RMCS_SWEEP_COMPLETE) {
-            ASSERT_TRUE(await(
-                [&] { return observe->state == 4 && observe->zero && !observe->active; }, 12s));
-            EXPECT_TRUE(observe->enabled);
             const auto run = observe->run.load();
-            const auto reference = observe->reference.load();
-            std::this_thread::sleep_for(150ms);
-            EXPECT_EQ(observe->state, 4);
+            ASSERT_TRUE(await([&] { return observe->completed_seen && observe->run > run; }, 12s));
             EXPECT_TRUE(observe->enabled);
-            EXPECT_EQ(observe->run, run);
-            EXPECT_EQ(observe->reference, reference);
-            phase = 4;
-            ASSERT_TRUE(await([&] { return observe->state == 2; }));
-            ASSERT_TRUE(start());
         }
         if (kind == 2) {
             phase = 10;
             ASSERT_TRUE(await([&] { return observe->diagnostics.load(); }));
             std::this_thread::sleep_for(20ms);
             EXPECT_EQ(observe->state, 3);
-            EXPECT_TRUE(observe->enabled);
             phase = 3;
             ASSERT_TRUE(await([&] { return observe->fk_valid.load(); }));
             phase = 14;
             std::this_thread::sleep_for(1020ms);
             EXPECT_EQ(observe->state, 3);
-            EXPECT_TRUE(observe->enabled);
             EXPECT_TRUE(observe->fk_valid);
             EXPECT_GT(observe->theta_left.load(), 4 * std::numbers::pi);
             EXPECT_GT(observe->theta_right.load(), 4 * std::numbers::pi);
         }
-        phase = 4;
-        ASSERT_TRUE(
-            await([&] { return observe->zero && !observe->active && observe->reason == 4; }));
-        EXPECT_TRUE(observe->enabled);
-        std::this_thread::sleep_for(10ms);
-        for (int failure : {8, 11, 6, 12, 13}) {
+        ASSERT_TRUE(standby());
+        for (int failure : {8, 11, 6, 12, 13, 17, 18}) {
             SCOPED_TRACE(failure);
-            ASSERT_TRUE(reset_arm());
             ASSERT_TRUE(start());
-            phase = failure;
-            const int reason = failure == 8  ? 2
-                             : failure == 11 ? 7
-                             : failure == 6  ? 8
-                             : failure == 12 ? 9
-                                             : 10;
-            ASSERT_TRUE(await(
-                [&] { return observe->state == 6 && observe->reason == reason && observe->zero; }));
-            EXPECT_FALSE(observe->enabled);
             const auto run = observe->run.load();
-            phase = 7;
-            std::this_thread::sleep_for(30ms);
-            EXPECT_FALSE(observe->enabled);
-            EXPECT_EQ(observe->run, run);
+            phase = failure;
+            const int reason = failure == 8                                                  ? 2
+                             : failure == 17                                                 ? 7
+                             : failure == 18 || (failure == 6 && kind != 1 && selected == 0) ? 8
+                                                                                             : 0;
+            if (reason) {
+                ASSERT_TRUE(await([&] {
+                    return observe->state == 6 && observe->reason == reason && observe->zero;
+                }));
+                EXPECT_FALSE(observe->enabled);
+            } else {
+                std::this_thread::sleep_for(15ms);
+                EXPECT_EQ(observe->state, 3);
+                EXPECT_TRUE(observe->enabled);
+            }
+            phase = 3;
+            ASSERT_TRUE(await([&] { return observe->state == 3 && observe->active; }, 100ms));
+            if (reason) {
+                EXPECT_GT(observe->run, run);   // Recovery without either reset or standby.
+            }
+            ASSERT_TRUE(standby());
         }
+        ASSERT_TRUE(start());
+        phase = 0;
+        ASSERT_TRUE(
+            await([&] { return observe->state == 1 && !observe->enabled && observe->zero; }));
+        std::this_thread::sleep_for(1100ms);    // Keep every profile's CSV rate check meaningful.
         EXPECT_FALSE(observe->invalid_mapping);
         EXPECT_FALSE(observe->invalid_effort);
     }
@@ -480,13 +487,14 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
             ++wheel_excitation_rows;
             EXPECT_EQ(row[enable], "1");
             EXPECT_EQ(row[reference], "1");
+            EXPECT_GT(std::abs(std::stod(row[column("/wheel_leg/left_wheel/tau_frame_api")])), .05);
             EXPECT_GE(std::stod(row[column("/wheel_leg/sweep/run_elapsed_s")]), 3.0);
         }
         ++rows;
     }
     EXPECT_GT(rows, 1000u);
     if (RMCS_SWEEP_COMPLETE) {
-        EXPECT_GT(complete_rows, 100u);
+        EXPECT_GT(complete_rows, 0u);
     }
     if (kind == 1) {
         EXPECT_GT(wheel_excitation_rows, 0u);
