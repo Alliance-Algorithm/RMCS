@@ -26,12 +26,17 @@ bool wheel_leg_feedback_fresh(Now read_now, std::int64_t timeout_ns, const Stamp
 
 constexpr bool wheel_leg_drive_allowed(
     bool dr16_fresh, rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool require_request,
-    bool requested, bool allow_spin_switch = false) noexcept {
+    bool requested, bool allow_spin_switch = false,
+    bool allow_identification_switch = false) noexcept {
     const bool middle = left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::MIDDLE;
     // The production RL graph opts in and supplies proof of its armed session.
     const bool spin = allow_spin_switch && require_request && requested
                    && left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::DOWN;
-    return dr16_fresh && (middle || spin) && (!require_request || requested);
+    const bool identification =
+        allow_identification_switch && require_request && requested
+        && (left == rmcs_msgs::Switch::MIDDLE || left == rmcs_msgs::Switch::UP)
+        && (right == rmcs_msgs::Switch::MIDDLE || right == rmcs_msgs::Switch::UP);
+    return dr16_fresh && (middle || spin || identification) && (!require_request || requested);
 }
 
 class WheelLegDmCommandScheduler {
@@ -204,9 +209,11 @@ private:
 
 constexpr bool wheel_leg_wheel_only_allowed(
     bool remote_fresh, rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool requested,
-    bool feedback_fresh, const std::array<WheelLegDmPairFeedback, 2>& pairs) noexcept {
-    return wheel_leg_drive_allowed(remote_fresh, left, right, true, requested) && feedback_fresh
-        && wheel_leg_dm_pair_confirmed_disabled(pairs[0])
+    bool feedback_fresh, const std::array<WheelLegDmPairFeedback, 2>& pairs,
+    bool allow_identification_switch = false) noexcept {
+    return wheel_leg_drive_allowed(
+               remote_fresh, left, right, true, requested, false, allow_identification_switch)
+        && feedback_fresh && wheel_leg_dm_pair_confirmed_disabled(pairs[0])
         && wheel_leg_dm_pair_confirmed_disabled(pairs[1]);
 }
 
@@ -222,10 +229,11 @@ constexpr bool wheel_leg_dm_pair_clearable_fault(const WheelLegDmPairFeedback& p
 
 constexpr bool wheel_leg_selected_pair_clear_allowed(
     bool dr16_fresh, rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool enable_requested,
-    bool clear_requested, int selected_side,
-    const std::array<WheelLegDmPairFeedback, 2>& pairs) noexcept {
+    bool clear_requested, int selected_side, const std::array<WheelLegDmPairFeedback, 2>& pairs,
+    bool allow_identification_switch = false) noexcept {
     if (!clear_requested
-        || !wheel_leg_drive_allowed(dr16_fresh, left, right, true, enable_requested)
+        || !wheel_leg_drive_allowed(
+            dr16_fresh, left, right, true, enable_requested, false, allow_identification_switch)
         || !wheel_leg_valid_selected_side(true, selected_side))
         return false;
     const auto active = static_cast<std::size_t>(selected_side);

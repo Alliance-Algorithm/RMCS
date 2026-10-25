@@ -337,6 +337,8 @@ private:
         void configure_control(WheelLeg& status, rmcs_executor::Component& command) {
             require_enable_request_ = status.get_parameter_or("require_enable_request", false);
             allow_spin_switch_ = status.get_parameter_or("allow_spin_switch", false);
+            identification_remote_control_ =
+                status.get_parameter_or("identification_remote_control", false);
             allow_set_zero_ = status.get_parameter_or("allow_set_zero", false);
             command.register_input(
                 "/wheel_leg/enable_request", enable_request_, require_enable_request_);
@@ -344,11 +346,18 @@ private:
             command.register_input("/wheel_leg/identification/wheel_only", wheel_only_, false);
             command.register_input(
                 "/wheel_leg/identification/selected_side", selected_side_, false);
+            command.register_input(
+                "/wheel_leg/sweep/heartbeat_steady_ns", sweep_heartbeat_ns_,
+                identification_remote_control_);
             const auto control_mode =
                 status.get_parameter_or<std::string>("joint_control_mode", "torque");
             if (control_mode != "torque" && control_mode != "position_pd")
                 throw std::invalid_argument("joint_control_mode must be torque or position_pd");
             use_motor_position_pd_ = control_mode == "position_pd";
+            if (identification_remote_control_
+                && (!require_enable_request_ || use_motor_position_pd_))
+                throw std::invalid_argument(
+                    "Sweep remote gate requires an enable request and pure torque mode");
             joint_kp_ = status.get_parameter_or("joint_position_kp", 5.0);
             joint_kd_ = status.get_parameter_or("joint_position_kd", 0.3);
             if (!std::isfinite(joint_kp_) || !std::isfinite(joint_kd_) || joint_kp_ <= 0
@@ -597,20 +606,28 @@ private:
                                 && dr16_.switch_right() == rmcs_msgs::Switch::DOWN;
             const bool entered_both_down = both_down && !previous_both_down_;
             previous_both_down_ = both_down;
+            const auto sweep_now = static_cast<std::uint64_t>(now_ns());
+            const bool sweep_alive = sweep_heartbeat_ns_.ready() && *sweep_heartbeat_ns_ > 0
+                                  && *sweep_heartbeat_ns_ <= sweep_now
+                                  && sweep_now - *sweep_heartbeat_ns_ < 20'000'000;
+            const bool controller_request = enable_request_.ready() && *enable_request_
+                                         && (!identification_remote_control_ || sweep_alive);
             bool enable = wheel_leg_drive_allowed(
                 remote_fresh, dr16_.switch_left(), dr16_.switch_right(),
-                require_enable_request_ || side_bound, enable_request_.ready() && *enable_request_);
+                require_enable_request_ || side_bound, controller_request, false,
+                identification_remote_control_);
             enable = enable && !wheel_only;
             bool wheel_enable = false;
             if (wheel_only && !side_bound)
                 wheel_enable = wheel_leg_wheel_only_allowed(
-                    remote_fresh, dr16_.switch_left(), dr16_.switch_right(),
-                    enable_request_.ready() && *enable_request_, feedback_fresh(), pairs);
+                    remote_fresh, dr16_.switch_left(), dr16_.switch_right(), controller_request,
+                    feedback_fresh(), pairs, identification_remote_control_);
             if (side_bound) {
                 // Never arm the selected pair until the other pair reports disabled
                 // with current CAN feedback. Faults, stale feedback and invalid side
                 // values transition both schedulers to disable immediately.
-                enable = enable && side_valid && !use_motor_position_pd_;
+                enable = enable && side_valid && !use_motor_position_pd_
+                      && (!identification_remote_control_ || feedback_fresh());
                 if (enable) {
                     const auto active = static_cast<std::size_t>(selected_side);
                     const bool previously_requested =
@@ -622,7 +639,6 @@ private:
                     enable = active_healthy && parked_disabled;
                 }
             } else {
-                const bool controller_request = enable_request_.ready() && *enable_request_;
                 enable = !wheel_only
                       && wheel_leg_normal_enable_request(
                           remote_fresh, dr16_.switch_left(), dr16_.switch_right(),
@@ -977,6 +993,7 @@ private:
         rmcs_executor::Component::InputInterface<bool> wheel_only_;
         rmcs_executor::Component::InputInterface<int> selected_side_;
         rmcs_executor::Component::InputInterface<std::uint64_t> joint_command_ns_;
+        rmcs_executor::Component::InputInterface<std::uint64_t> sweep_heartbeat_ns_;
         rmcs_executor::Component::InputInterface<bool> joint_torque_override_;
 
         device::DjiMotor wheel_motors_[2];
@@ -1003,6 +1020,7 @@ private:
         std::atomic<int> observed_selected_side_{-1};
         bool require_enable_request_ = false;
         bool allow_spin_switch_ = false;
+        bool identification_remote_control_ = false;
         bool allow_set_zero_ = false;
         bool use_motor_position_pd_ = false;
         std::array<std::atomic<bool>, 2> dm_enabled_{};

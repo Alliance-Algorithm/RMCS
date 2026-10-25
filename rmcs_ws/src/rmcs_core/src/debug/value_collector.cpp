@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <typeinfo>
 #include <utility>
@@ -51,6 +52,9 @@ public:
         node::param("signals", signal_names_);
         node::param("write_interval", write_interval_);
         node::param("flush_interval", flush_interval_);
+        strict_signals_ = get_parameter_or("strict_signals", false);
+        if (write_interval_ <= 0 || flush_interval_ <= 0)
+            throw std::invalid_argument("ValueCollector intervals must be positive");
 
         if (csv_path_.empty() || signal_names_.empty())
             return;
@@ -58,15 +62,22 @@ public:
         for (const auto& name : signal_names_) {
             const auto it = output_map.find(name);
             if (it == output_map.end()) {
+                if (strict_signals_)
+                    throw std::invalid_argument("Missing CSV signal: " + name);
                 node::error("signal '{}' not found", name);
                 continue;
             }
             if (it->second.kind != rmcs_executor::InterfaceKind::Normal) {
+                if (strict_signals_)
+                    throw std::invalid_argument("CSV event signal: " + name);
                 node::error("signal '{}' is an event interface", name);
                 continue;
             }
-            if (!register_signal(name, it->second.type.get()))
+            if (!register_signal(name, it->second.type.get())) {
+                if (strict_signals_)
+                    throw std::invalid_argument("Unsupported CSV signal: " + name);
                 node::error("signal '{}' has an unsupported type", name);
+            }
         }
 
         if (units_.empty())
@@ -74,10 +85,12 @@ public:
 
         csv_file_.open(csv_path_, std::ios::out | std::ios::trunc);
         if (!csv_file_.is_open()) {
+            if (strict_signals_)
+                throw std::runtime_error("Cannot open CSV: " + csv_path_);
             node::error("failed to open {}", csv_path_);
             return;
         }
-        csv_file_ << std::setprecision(10);
+        csv_file_ << std::setprecision(17);
 
         csv_file_ << "index";
         for (const auto& unit : units_)
@@ -176,6 +189,7 @@ private:
     std::vector<std::string> signal_names_;
     int write_interval_ = 1;
     int flush_interval_ = 100;
+    bool strict_signals_ = false;
 
     std::vector<SignalUnit> units_;
     // Keeps every registered input alive; SignalUnit lambdas point into these.

@@ -83,6 +83,7 @@ CLAUDE.md
 # Local wheel-leg documentation, validation and simulation records
 /docs/zh-cn/artifacts/
 /docs/zh-cn/wheel_leg_*.md
+!/docs/zh-cn/wheel_leg_frequency_sweep.md
 /.script/simulation/
 /.script/tests/
 /.script/identification/test_*.py
@@ -91,3 +92,5 @@ CLAUDE.md
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_feedback.cpp
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_observation.cpp
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_policy_integration.cpp
+!/rmcs_ws/src/rmcs_core/test/wheel_leg_frequency_sweep.cpp
+!/rmcs_ws/src/rmcs_core/test/wheel_leg_frequency_sweep_integration.cpp

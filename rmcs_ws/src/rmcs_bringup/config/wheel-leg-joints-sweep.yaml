@@ -1,0 +1,297 @@
+# Standalone identification. See docs/zh-cn/wheel_leg_frequency_sweep.md.
+# Reset DOWN/DOWN -> arm MIDDLE/MIDDLE (zero torque) -> select mode for >=300 ms.
+# joints: UP/MIDDLE=1, MIDDLE/UP=2, UP/UP=3. wheels/limits: UP/UP starts.
+# Complete stays enabled at zero effort; MIDDLE/MIDDLE is required before another run.
+# Angles/speed/tracking/braking are diagnostics ONLY. No envelope exits or auto scaling.
+# Beta is CAD closure FK, not an independent knee sensor; never extrapolate the LUT.
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+      - rmcs_core::controller::identification::WheelLegFrequencySweepController -> frequency_sweep
+      - rmcs_core::debug::ValueCollector -> value_collector
+
+wheel_leg:
+  ros__parameters:
+    board_serial: ""
+    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    imu_position: [0.0, 0.0, 0.0]
+    imu_angular_acceleration_filter_tau_s: 0.01
+    joint_control_mode: "torque"
+    # Host PD owns the motion; MIT packets always carry Kp=Kd=0.
+    joint_position_kp: 160.0
+    joint_position_kd: 2.5
+    require_enable_request: true
+    allow_spin_switch: false
+    identification_remote_control: true
+    allow_set_zero: false
+    # Hardware parameter order: LH, RH, LK, RK (NOT CSV/controller axis order).
+    dm_master_ids: [1, 2, 1, 2]
+    dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
+    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
+    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
+    dm_control_torque_max: [20.0, 20.0, 20.0, 20.0]
+
+frequency_sweep:
+  ros__parameters:
+    experiment: "joints"
+    side: "left"
+    reference_frequency_hz: 200.0
+    feedback_timeout_s: 0.05
+    motion_guards_enabled: false
+    diagnostic_braking_rad_s2: 20.0
+    diagnostic_angle_rad: 12.5
+    diagnostic_speed_rad_s: 6.0
+    diagnostic_acceleration_rad_s2: 80.0
+    diagnostic_error_rad: 0.35
+    model_sign: [-1.0, -1.0, -1.0, -1.0]
+    model_offset: [1.6, 2.93, -1.6, -2.93]
+    hip_sign: [-1.0, 1.0]
+    hip_zero: [-1.5707963267948966, 1.5707963267948966]
+    # v6_pair_upstream_zero_geometry_v1 @ 8149afda; model order LH,LK,RH,RK.
+    geometry_beta_deg: [30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0, 85.0, 90.0, 95.0, 100.0, 105.0, 110.0, 115.0, 120.0]
+    geometry_left_delta: [-0.473731601, -0.297071061, -0.140638855, 0.001799635, 0.134193202, 0.259151808, 0.378464328, 0.493395522, 0.604863832, 0.713551877, 0.819977446, 0.924540437, 1.027554717, 1.129270232, 1.229888687, 1.329574849, 1.428464858, 1.526672408, 1.624293425]
+    geometry_right_delta: [0.473731601, 0.297071061, 0.140638855, -0.001799635, -0.134193202, -0.259151808, -0.378464328, -0.493395522, -0.604863832, -0.713551877, -0.819977446, -0.924540437, -1.027554717, -1.129270232, -1.229888687, -1.329574849, -1.428464858, -1.526672408, -1.624293425]
+    beta_min_deg: 35.0
+    beta_max_deg: 105.0
+    joint_kp: [60.0, 60.0]
+    joint_kd: [2.0, 2.0]
+    joint_torque_limit_nm: [20.0, 20.0]
+
+value_collector:
+  ros__parameters:
+    csv_path: "/tmp/wheel_leg_joints_<timestamp>.csv"
+    write_interval: 1
+    flush_interval: 1000
+    strict_signals: true
+    # tx_queued_steady_ns is host submission time, NOT drive execution time.
+    # Torque feedback is the drive current-based estimate, not a torque sensor.
+    signals:
+      - /wheel_leg/sweep/experiment
+      - /wheel_leg/sweep/side
+      - /wheel_leg/sweep/state
+      - /wheel_leg/sweep/mode
+      - /wheel_leg/sweep/run_id
+      - /wheel_leg/sweep/stage
+      - /wheel_leg/sweep/waveform
+      - /wheel_leg/sweep/validation
+      - /wheel_leg/sweep/completed
+      - /wheel_leg/sweep/stop_reason
+      - /wheel_leg/sweep/drives_ready
+      - /wheel_leg/sweep/reference_active
+      - /wheel_leg/sweep/reference_sequence
+      - /wheel_leg/sweep/reference_elapsed_s
+      - /wheel_leg/sweep/run_elapsed_s
+      - /wheel_leg/sweep/control_dt_s
+      - /wheel_leg/sweep/control_steady_ns
+      - /wheel_leg/sweep/scheduled_steady_ns
+      - /wheel_leg/sweep/control_end_steady_ns
+      - /wheel_leg/sweep/heartbeat_steady_ns
+      - /wheel_leg/sweep/remote_left
+      - /wheel_leg/sweep/remote_right
+      - /wheel_leg/sweep/theta_reference
+      - /wheel_leg/sweep/beta_reference
+      - /wheel_leg/sweep/beta_reference_valid
+      - /wheel_leg/sweep/motion_guards_enabled
+      - /wheel_leg/sweep/host/hip_kp
+      - /wheel_leg/sweep/host/hip_kd
+      - /wheel_leg/sweep/host/hip_torque_limit_nm
+      - /wheel_leg/sweep/host/knee_kp
+      - /wheel_leg/sweep/host/knee_kd
+      - /wheel_leg/sweep/host/knee_torque_limit_nm
+      - /wheel_leg/sweep/host/wheel_velocity_kp
+      - /wheel_leg/sweep/host/wheel_torque_limit_nm
+      - /wheel_leg/enable_request
+      - /wheel_leg/clear_error_request
+      - /wheel_leg/identification/enable_requested
+      - /wheel_leg/feedback_fresh
+      - /wheel_leg/dm_feedback_fresh
+      - /wheel_leg/dm_control_ready
+      - /wheel_leg/dr16_fresh
+      - /wheel_leg/joint_position_pd
+      - /wheel_leg/joint_position_kp
+      - /wheel_leg/joint_position_kd
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/torque
+      - /wheel_leg/left_hip_joint/max_torque
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_hip_joint/feedback_sequence
+      - /wheel_leg/left_hip_joint/feedback_steady_ns
+      - /wheel_leg/left_hip_joint/tau_frame_api
+      - /wheel_leg/left_hip_joint/tx_kind
+      - /wheel_leg/left_hip_joint/tx_queued_steady_ns
+      - /wheel_leg/left_hip_joint/tx_can_id
+      - /wheel_leg/left_hip_joint/tx_can_bus
+      - /wheel_leg/sweep/left_hip_joint/model_angle
+      - /wheel_leg/sweep/left_hip_joint/model_velocity
+      - /wheel_leg/sweep/left_hip_joint/model_acceleration
+      - /wheel_leg/sweep/left_hip_joint/estimated_stopping_distance
+      - /wheel_leg/sweep/left_hip_joint/reference
+      - /wheel_leg/sweep/left_hip_joint/reference_velocity
+      - /wheel_leg/sweep/left_hip_joint/reference_acceleration
+      - /wheel_leg/sweep/left_hip_joint/tracking_error
+      - /wheel_leg/sweep/left_hip_joint/torque_preclip
+      - /wheel_leg/sweep/left_hip_joint/saturated
+      - /wheel_leg/sweep/left_hip_joint/diagnostic_flags
+      - /wheel_leg/left_hip_joint/status_code
+      - /wheel_leg/left_hip_joint/fault_code
+      - /wheel_leg/left_hip_joint/temperature_mos
+      - /wheel_leg/left_hip_joint/temperature_rotor
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/torque
+      - /wheel_leg/left_knee_joint/max_torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/left_knee_joint/feedback_sequence
+      - /wheel_leg/left_knee_joint/feedback_steady_ns
+      - /wheel_leg/left_knee_joint/tau_frame_api
+      - /wheel_leg/left_knee_joint/tx_kind
+      - /wheel_leg/left_knee_joint/tx_queued_steady_ns
+      - /wheel_leg/left_knee_joint/tx_can_id
+      - /wheel_leg/left_knee_joint/tx_can_bus
+      - /wheel_leg/sweep/left_knee_joint/model_angle
+      - /wheel_leg/sweep/left_knee_joint/model_velocity
+      - /wheel_leg/sweep/left_knee_joint/model_acceleration
+      - /wheel_leg/sweep/left_knee_joint/estimated_stopping_distance
+      - /wheel_leg/sweep/left_knee_joint/reference
+      - /wheel_leg/sweep/left_knee_joint/reference_velocity
+      - /wheel_leg/sweep/left_knee_joint/reference_acceleration
+      - /wheel_leg/sweep/left_knee_joint/tracking_error
+      - /wheel_leg/sweep/left_knee_joint/torque_preclip
+      - /wheel_leg/sweep/left_knee_joint/saturated
+      - /wheel_leg/sweep/left_knee_joint/diagnostic_flags
+      - /wheel_leg/left_knee_joint/status_code
+      - /wheel_leg/left_knee_joint/fault_code
+      - /wheel_leg/left_knee_joint/temperature_mos
+      - /wheel_leg/left_knee_joint/temperature_rotor
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/torque
+      - /wheel_leg/right_hip_joint/max_torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_hip_joint/feedback_sequence
+      - /wheel_leg/right_hip_joint/feedback_steady_ns
+      - /wheel_leg/right_hip_joint/tau_frame_api
+      - /wheel_leg/right_hip_joint/tx_kind
+      - /wheel_leg/right_hip_joint/tx_queued_steady_ns
+      - /wheel_leg/right_hip_joint/tx_can_id
+      - /wheel_leg/right_hip_joint/tx_can_bus
+      - /wheel_leg/sweep/right_hip_joint/model_angle
+      - /wheel_leg/sweep/right_hip_joint/model_velocity
+      - /wheel_leg/sweep/right_hip_joint/model_acceleration
+      - /wheel_leg/sweep/right_hip_joint/estimated_stopping_distance
+      - /wheel_leg/sweep/right_hip_joint/reference
+      - /wheel_leg/sweep/right_hip_joint/reference_velocity
+      - /wheel_leg/sweep/right_hip_joint/reference_acceleration
+      - /wheel_leg/sweep/right_hip_joint/tracking_error
+      - /wheel_leg/sweep/right_hip_joint/torque_preclip
+      - /wheel_leg/sweep/right_hip_joint/saturated
+      - /wheel_leg/sweep/right_hip_joint/diagnostic_flags
+      - /wheel_leg/right_hip_joint/status_code
+      - /wheel_leg/right_hip_joint/fault_code
+      - /wheel_leg/right_hip_joint/temperature_mos
+      - /wheel_leg/right_hip_joint/temperature_rotor
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/torque
+      - /wheel_leg/right_knee_joint/max_torque
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/right_knee_joint/feedback_sequence
+      - /wheel_leg/right_knee_joint/feedback_steady_ns
+      - /wheel_leg/right_knee_joint/tau_frame_api
+      - /wheel_leg/right_knee_joint/tx_kind
+      - /wheel_leg/right_knee_joint/tx_queued_steady_ns
+      - /wheel_leg/right_knee_joint/tx_can_id
+      - /wheel_leg/right_knee_joint/tx_can_bus
+      - /wheel_leg/sweep/right_knee_joint/model_angle
+      - /wheel_leg/sweep/right_knee_joint/model_velocity
+      - /wheel_leg/sweep/right_knee_joint/model_acceleration
+      - /wheel_leg/sweep/right_knee_joint/estimated_stopping_distance
+      - /wheel_leg/sweep/right_knee_joint/reference
+      - /wheel_leg/sweep/right_knee_joint/reference_velocity
+      - /wheel_leg/sweep/right_knee_joint/reference_acceleration
+      - /wheel_leg/sweep/right_knee_joint/tracking_error
+      - /wheel_leg/sweep/right_knee_joint/torque_preclip
+      - /wheel_leg/sweep/right_knee_joint/saturated
+      - /wheel_leg/sweep/right_knee_joint/diagnostic_flags
+      - /wheel_leg/right_knee_joint/status_code
+      - /wheel_leg/right_knee_joint/fault_code
+      - /wheel_leg/right_knee_joint/temperature_mos
+      - /wheel_leg/right_knee_joint/temperature_rotor
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/torque
+      - /wheel_leg/left_wheel/max_torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/left_wheel/feedback_sequence
+      - /wheel_leg/left_wheel/feedback_steady_ns
+      - /wheel_leg/left_wheel/tau_frame_api
+      - /wheel_leg/left_wheel/tx_kind
+      - /wheel_leg/left_wheel/tx_queued_steady_ns
+      - /wheel_leg/left_wheel/tx_can_id
+      - /wheel_leg/left_wheel/tx_can_bus
+      - /wheel_leg/sweep/left_wheel/model_angle
+      - /wheel_leg/sweep/left_wheel/model_velocity
+      - /wheel_leg/sweep/left_wheel/model_acceleration
+      - /wheel_leg/sweep/left_wheel/estimated_stopping_distance
+      - /wheel_leg/sweep/left_wheel/reference
+      - /wheel_leg/sweep/left_wheel/reference_velocity
+      - /wheel_leg/sweep/left_wheel/reference_acceleration
+      - /wheel_leg/sweep/left_wheel/tracking_error
+      - /wheel_leg/sweep/left_wheel/torque_preclip
+      - /wheel_leg/sweep/left_wheel/saturated
+      - /wheel_leg/sweep/left_wheel/diagnostic_flags
+      - /wheel_leg/left_wheel/temperature_c
+      - /wheel_leg/left_wheel/last_submitted_torque
+      - /wheel_leg/left_wheel/last_submitted_kind
+      - /wheel_leg/left_wheel/last_submitted_steady_ns
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/torque
+      - /wheel_leg/right_wheel/max_torque
+      - /wheel_leg/right_wheel/control_torque
+      - /wheel_leg/right_wheel/feedback_sequence
+      - /wheel_leg/right_wheel/feedback_steady_ns
+      - /wheel_leg/right_wheel/tau_frame_api
+      - /wheel_leg/right_wheel/tx_kind
+      - /wheel_leg/right_wheel/tx_queued_steady_ns
+      - /wheel_leg/right_wheel/tx_can_id
+      - /wheel_leg/right_wheel/tx_can_bus
+      - /wheel_leg/sweep/right_wheel/model_angle
+      - /wheel_leg/sweep/right_wheel/model_velocity
+      - /wheel_leg/sweep/right_wheel/model_acceleration
+      - /wheel_leg/sweep/right_wheel/estimated_stopping_distance
+      - /wheel_leg/sweep/right_wheel/reference
+      - /wheel_leg/sweep/right_wheel/reference_velocity
+      - /wheel_leg/sweep/right_wheel/reference_acceleration
+      - /wheel_leg/sweep/right_wheel/tracking_error
+      - /wheel_leg/sweep/right_wheel/torque_preclip
+      - /wheel_leg/sweep/right_wheel/saturated
+      - /wheel_leg/sweep/right_wheel/diagnostic_flags
+      - /wheel_leg/right_wheel/temperature_c
+      - /wheel_leg/right_wheel/last_submitted_torque
+      - /wheel_leg/right_wheel/last_submitted_kind
+      - /wheel_leg/right_wheel/last_submitted_steady_ns
+      - /wheel_leg/sweep/left/beta_estimate
+      - /wheel_leg/sweep/left/beta_valid
+      - /wheel_leg/sweep/left/theta_continuous
+      - /wheel_leg/sweep/right/beta_estimate
+      - /wheel_leg/sweep/right/beta_valid
+      - /wheel_leg/sweep/right/theta_continuous
+      - /wheel_leg/sweep/probe/low/result
+      - /wheel_leg/sweep/probe/low/model_angle
+      - /wheel_leg/sweep/probe/low/beta_estimate
+      - /wheel_leg/sweep/probe/high/result
+      - /wheel_leg/sweep/probe/high/model_angle
+      - /wheel_leg/sweep/probe/high/beta_estimate
+      - /wheel_leg/imu/quaternion
+      - /wheel_leg/imu/angular_velocity
+      - /wheel_leg/imu/acceleration
+      - /wheel_leg/imu/sequence
+      - /wheel_leg/imu/last_steady_ns
+      - /wheel_leg/imu/acceleration_sequence
+      - /wheel_leg/imu/acceleration_steady_ns
+      - /wheel_leg/imu/accelerometer_board_quarter_us
+      - /wheel_leg/imu/gyroscope_board_quarter_us
