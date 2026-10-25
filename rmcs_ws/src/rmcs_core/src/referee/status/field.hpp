@@ -164,5 +164,6 @@ struct __attribute__((packed)) RobotInteractionData {
     uint16_t receiver_id;
     uint8_t user_data[112];
 };
+static_assert(sizeof(RobotInteractionData) == 118);
 
 } // namespace rmcs_core::referee::status

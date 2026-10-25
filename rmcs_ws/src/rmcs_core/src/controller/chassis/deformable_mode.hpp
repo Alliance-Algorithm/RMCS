@@ -40,10 +40,7 @@ public:
               std::clamp(
                   node.get_parameter_or("active_suspension_base_angle", max_angle_),
                   min_angle_ - 5.0, max_angle_))
-        , suspension_enable_(node.get_parameter_or("active_suspension_enable", false))
-        , wireless_charging_offset_deg_(normalize_ccw_deg_(
-              node.get_parameter("wireless_charging_offset_deg").as_double()))
-        , wireless_charging_offset_rad_(deg_to_rad_(wireless_charging_offset_deg_)) {
+        , suspension_enable_(node.get_parameter_or("active_suspension_enable", false)) {
         current_target_angle_ = max_angle_;
         joint_current_target_angle_.fill(max_angle_);
         update_joint_posture_state_(false);
@@ -73,7 +70,6 @@ public:
         last_keyboard_ = rmcs_msgs::Keyboard::zero();
         last_rotary_knob_ = 0.0;
         suspension_was_active_ = false;
-        posture_state_saved_ = false;
 
         update_joint_posture_state_(false);
     }
@@ -116,7 +112,6 @@ public:
 
     double min_angle() const { return min_angle_; }
     double max_angle() const { return max_angle_; }
-    double wireless_charging_offset_rad() const { return wireless_charging_offset_rad_; }
 
     bool correction_inverted() const {
         double midpoint = (min_angle_ - 5.0 + max_angle_) / 2.0;
@@ -129,15 +124,6 @@ private:
     static constexpr size_t kRightBack = 2;
     static constexpr size_t kRightFront = 3;
     static constexpr size_t kJointCount = 4;
-
-    static double deg_to_rad_(double deg) { return deg * std::numbers::pi / 180.0; }
-
-    static double normalize_ccw_deg_(double deg) {
-        double normalized = std::fmod(deg, 360.0);
-        if (normalized < 0.0)
-            normalized += 360.0;
-        return normalized;
-    }
 
     static bool gimbal_faces_physical_front_(double gimbal_yaw_rad) {
         if (!std::isfinite(gimbal_yaw_rad))
@@ -152,24 +138,6 @@ private:
         return std::all_of(joint_target_deg.begin() + 1, joint_target_deg.end(), [&](double v) {
             return std::abs(v - joint_target_deg.front()) <= epsilon;
         });
-    }
-
-    void save_posture_state_() {
-        saved_current_target_angle_ = current_target_angle_;
-        saved_active_suspension_base_angle_ = active_suspension_base_angle_;
-        saved_joint_current_target_angle_ = joint_current_target_angle_;
-        saved_apply_symmetric_target_ = apply_symmetric_target_;
-        posture_state_saved_ = true;
-    }
-
-    void restore_posture_state_() {
-        if (!posture_state_saved_)
-            return;
-        current_target_angle_ = saved_current_target_angle_;
-        active_suspension_base_angle_ = saved_active_suspension_base_angle_;
-        joint_current_target_angle_ = saved_joint_current_target_angle_;
-        apply_symmetric_target_ = saved_apply_symmetric_target_;
-        posture_state_saved_ = false;
     }
 
     void update_mode_from_inputs_(
@@ -199,25 +167,6 @@ private:
             next_mode = next_mode == rmcs_msgs::ChassisMode::STEP_DOWN
                           ? rmcs_msgs::ChassisMode::AUTO
                           : rmcs_msgs::ChassisMode::STEP_DOWN;
-        } else if (!last_keyboard_.x && keyboard.x) {
-            if (next_mode == rmcs_msgs::ChassisMode::WIRELESS_CHARGING) {
-                next_mode = rmcs_msgs::ChassisMode::AUTO;
-            } else {
-                next_mode = rmcs_msgs::ChassisMode::WIRELESS_CHARGING;
-                save_posture_state_();
-                // Entering wireless charging: force min-angle posture once, regardless of
-                // the current max/min posture. Q can still toggle freely afterwards.
-                current_target_angle_ = min_angle_;
-                active_suspension_base_angle_ = min_angle_;
-                apply_symmetric_target_ = true;
-                joint_current_target_angle_.fill(min_angle_);
-            }
-        }
-
-        if (posture_state_saved_
-            && joint_posture_state_.mode == rmcs_msgs::ChassisMode::WIRELESS_CHARGING
-            && next_mode != rmcs_msgs::ChassisMode::WIRELESS_CHARGING) {
-            restore_posture_state_();
         }
 
         joint_posture_state_.mode = next_mode;
@@ -430,8 +379,6 @@ private:
     double max_angle_;
     double active_suspension_base_angle_;
     bool suspension_enable_;
-    double wireless_charging_offset_deg_;
-    double wireless_charging_offset_rad_;
 
     double current_target_angle_;
     std::array<double, kJointCount> joint_current_target_angle_;
@@ -447,12 +394,6 @@ private:
     double saved_combo_active_suspension_base_angle_ = 0.0;
     std::array<double, kJointCount> saved_combo_joint_target_{};
     bool saved_combo_apply_symmetric_ = true;
-
-    bool posture_state_saved_ = false;
-    double saved_current_target_angle_ = 0.0;
-    double saved_active_suspension_base_angle_ = 0.0;
-    std::array<double, kJointCount> saved_joint_current_target_angle_{};
-    bool saved_apply_symmetric_target_ = true;
 
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();

@@ -330,8 +330,10 @@ private:
     std::pair<double, double> imu_yaw_pitch() const {
         auto dir = fast_tf::cast<rmcs_description::OdomImu>(
             rmcs_description::PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
-        return {
-            std::atan2(dir->y(), dir->x()), std::asin(std::clamp(dir->z(), -1.0, 1.0))};
+        const double pitch = std::asin(std::clamp(dir->z(), -1.0, 1.0));
+        if (std::abs(dir->x()) < 1e-6 && std::abs(dir->y()) < 1e-6)
+            return {nan_, pitch};
+        return {std::atan2(dir->y(), dir->x()), pitch};
     }
 
     void finish_test_sequence() {

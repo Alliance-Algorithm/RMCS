@@ -350,7 +350,8 @@ private:
             return;
 
         LidarMsgBroadcast lidar_msg{};
-        std::memcpy(lidar_msg.data(), data.user_data, lidar_msg.size());
+        static_assert(sizeof(data.user_data) == std::tuple_size_v<LidarMsgBroadcast>);
+        std::memcpy(lidar_msg.data(), data.user_data, sizeof(data.user_data));
         *lidar_msg_broadcast_ = lidar_msg;
     }
 
@@ -432,7 +433,7 @@ private:
     MapCommand last_map_command_{};
     bool has_last_map_command_ = false;
 
-    using LidarMsgBroadcast = std::array<std::uint8_t, 118>;
+    using LidarMsgBroadcast = std::array<std::uint8_t, sizeof(RobotInteractionData::user_data)>;
     OutputInterface<LidarMsgBroadcast> lidar_msg_broadcast_;
 };
 
