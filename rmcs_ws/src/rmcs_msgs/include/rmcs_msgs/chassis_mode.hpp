@@ -12,7 +12,7 @@ enum class ChassisMode : uint8_t {
     LAUNCH_RAMP,
     ALIGNMENT,
     ALIGNMENT_POWERED,
-    CLIMB = 8,
+    CLIMB,
 };
 
 constexpr auto is_powered(ChassisMode mode) noexcept {
