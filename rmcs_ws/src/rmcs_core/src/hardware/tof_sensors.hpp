@@ -17,13 +17,14 @@
 #include "hardware/device/tof_sense.hpp"
 
 namespace rmcs_core::hardware {
+using rmcs_executor::Component;
 
 class TofSensors {
 public:
     using Clock = device::TofSense::Clock;
 
     TofSensors(
-        rmcs_executor::Component& component, const std::string& prefix,
+        Component& status_component, const std::string& name_prefix,
         std::span<const int64_t> ids, double timeout_seconds) {
         const auto timeout = std::chrono::duration<double>{timeout_seconds};
         if (!std::isfinite(timeout_seconds) || timeout < Clock::duration{1}
@@ -45,12 +46,12 @@ public:
         for (const auto id : ids) {
             sensors_.push_back(
                 std::make_unique<device::TofSense>(
-                    component, prefix + "/sensor_" + std::to_string(id),
+                    status_component, name_prefix + "/sensor_" + std::to_string(id),
                     device::TofSense::Config{
                         .id = static_cast<uint8_t>(id),
                         .feedback_timeout = std::chrono::duration_cast<Clock::duration>(timeout)}));
         }
-        component.register_output(prefix + "/dropped_frames", dropped_frames_, 0);
+        status_component.register_output(name_prefix + "/dropped_frames", dropped_frames_, 0);
     }
 
     // The board callback filters the bus and rejects extended, remote and FD frames.
@@ -75,7 +76,7 @@ public:
 
 private:
     std::vector<std::unique_ptr<device::TofSense>> sensors_;
-    rmcs_executor::Component::OutputInterface<int> dropped_frames_;
+    Component::OutputInterface<int> dropped_frames_;
 };
 
 } // namespace rmcs_core::hardware

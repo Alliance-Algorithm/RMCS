@@ -19,6 +19,7 @@
 #include "hardware/device/can_packet.hpp"
 
 namespace rmcs_core::hardware::device {
+using rmcs_executor::Component;
 
 class TofSense {
 public:
@@ -29,17 +30,18 @@ public:
         Clock::duration feedback_timeout = std::chrono::milliseconds{200};
     };
 
-    TofSense(rmcs_executor::Component& component, const std::string& name, const Config& config)
+    TofSense(Component& status_component, const std::string& name_prefix, const Config& config)
         : config_(config) {
         if (config.feedback_timeout <= Clock::duration::zero())
             throw std::invalid_argument("TOFSense timeout must be positive");
 
-        component.register_output(name + "/distance", distance_, kUnknownDistance);
-        component.register_output(name + "/valid", valid_, false);
-        component.register_output(name + "/status", status_, uint8_t{0xff});
-        component.register_output(name + "/signal_strength", signal_strength_, 0);
-        component.register_output(name + "/age", age_, std::numeric_limits<double>::infinity());
-        component.register_output(name + "/frames", frames_, 0);
+        status_component.register_output(name_prefix + "/distance", distance_, kUnknownDistance);
+        status_component.register_output(name_prefix + "/valid", valid_, false);
+        status_component.register_output(name_prefix + "/status", status_, uint8_t{0xff});
+        status_component.register_output(name_prefix + "/signal_strength", signal_strength_, 0);
+        status_component.register_output(
+            name_prefix + "/age", age_, std::numeric_limits<double>::infinity());
+        status_component.register_output(name_prefix + "/frames", frames_, 0);
     }
 
     TofSense(const TofSense&) = delete;
@@ -143,12 +145,12 @@ private:
     rmcs_utility::RingBuffer<Sample> samples_{64};
     std::atomic<int> dropped_frames_{0};
 
-    rmcs_executor::Component::OutputInterface<double> distance_;
-    rmcs_executor::Component::OutputInterface<bool> valid_;
-    rmcs_executor::Component::OutputInterface<uint8_t> status_;
-    rmcs_executor::Component::OutputInterface<int> signal_strength_;
-    rmcs_executor::Component::OutputInterface<double> age_;
-    rmcs_executor::Component::OutputInterface<int> frames_;
+    Component::OutputInterface<double> distance_;
+    Component::OutputInterface<bool> valid_;
+    Component::OutputInterface<uint8_t> status_;
+    Component::OutputInterface<int> signal_strength_;
+    Component::OutputInterface<double> age_;
+    Component::OutputInterface<int> frames_;
 };
 
 } // namespace rmcs_core::hardware::device
