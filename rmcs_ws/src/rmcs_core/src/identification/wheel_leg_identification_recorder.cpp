@@ -19,6 +19,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/msg/wheel_leg_identification_sample.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/endian_promise.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
@@ -259,11 +260,11 @@ public:
             }
             sample.feedback_torque_source[i] = received ? (i < 4 ? 1 : 2) : 0;
             if (received && i >= 4) {
-                const auto raw = static_cast<std::uint16_t>(
-                    (static_cast<std::uint16_t>(sample.feedback_frame_bytes[8 * i + 4]) << 8)
-                    | sample.feedback_frame_bytes[8 * i + 5]);
+                const auto current = std::bit_cast<rmcs_utility::be_int16_t>(std::array{
+                    sample.feedback_frame_bytes[8 * i + 4],
+                    sample.feedback_frame_bytes[8 * i + 5]});
                 sample.feedback_current_a[i] =
-                    static_cast<double>(std::bit_cast<std::int16_t>(raw)) * 20.0 / 16384.0;
+                    static_cast<double>(current) * 20.0 / 16384.0;
             }
         }
         for (std::size_t i = 0; i < 2; ++i)

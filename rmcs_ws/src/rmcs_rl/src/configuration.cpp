@@ -236,9 +236,11 @@ RlController::RlController()
     recovery_dm_rated_torque_nm_ = get_parameter_or("recovery_dm_rated_torque_nm", 20.0);
     recovery_dm_peak_torque_nm_ = get_parameter_or("recovery_dm_peak_torque_nm", 40.0);
     prepare_kp_ = get_parameter_or(
-        "prepare_kp", policy_profile_.name == kV6PolicyProfile.name ? 160.0 : 80.0);
-    prepare_kd_ =
-        get_parameter_or("prepare_kd", policy_profile_.name == kV6PolicyProfile.name ? 2.5 : 2.0);
+        "prepare_kp",
+        policy_profile_.name == kV6PolicyProfile.name ? DeployedPolicyContract::kLegKp : 80.0);
+    prepare_kd_ = get_parameter_or(
+        "prepare_kd",
+        policy_profile_.name == kV6PolicyProfile.name ? DeployedPolicyContract::kLegKd : 2.0);
     prepare_max_velocity_ = get_parameter_or("prepare_max_velocity", 1.0);
     prepare_reach_threshold_ = get_parameter_or("prepare_reach_threshold", 0.02);
     prepare_max_tilt_rad_ = get_parameter_or("prepare_max_tilt_rad", 0.2);

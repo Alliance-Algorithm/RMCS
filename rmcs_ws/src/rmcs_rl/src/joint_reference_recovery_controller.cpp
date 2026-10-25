@@ -1,6 +1,7 @@
 #include "joint_reference_recovery_controller.hpp"
 
 #include "chassis_body_geometry.hpp"
+#include "policy.hpp"
 
 #include <algorithm>
 #include <array>
@@ -715,15 +716,21 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::torques(
         return JointReferenceRecoveryVector6::Zero();
     const Vector6f q = project_feedback(feedback.q).cast<float>();
     const Vector6f dq = feedback.dq.cast<float>();
+    constexpr float leg_kp = static_cast<float>(DeployedPolicyContract::kLegKp);
+    constexpr float leg_kd = static_cast<float>(DeployedPolicyContract::kLegKd);
+    constexpr float wheel_kp = static_cast<float>(DeployedPolicyContract::kWheelKp);
+    constexpr float leg_torque_limit = static_cast<float>(DeployedPolicyContract::kLegTorqueLimit);
+    constexpr float wheel_torque_limit =
+        static_cast<float>(DeployedPolicyContract::kWheelTorqueLimit);
     Vector6f script;
-    script.head<4>() = 160.0f * (targets_.head<4>() - q.head<4>()) - 2.5f * dq.head<4>();
+    script.head<4>() = leg_kp * (targets_.head<4>() - q.head<4>()) - leg_kd * dq.head<4>();
     script.tail<2>() =
-        0.6f * (targets_.tail<2>() - dq.tail<2>()) + feedback.wheel_probe_torque.cast<float>();
-    script.head<4>() = script.head<4>().cwiseMax(-40.0f).cwiseMin(40.0f);
-    script.tail<2>() = script.tail<2>().cwiseMax(-4.5f).cwiseMin(4.5f);
+        wheel_kp * (targets_.tail<2>() - dq.tail<2>()) + feedback.wheel_probe_torque.cast<float>();
+    script.head<4>() = script.head<4>().cwiseMax(-leg_torque_limit).cwiseMin(leg_torque_limit);
+    script.tail<2>() = script.tail<2>().cwiseMax(-wheel_torque_limit).cwiseMin(wheel_torque_limit);
     Vector6f actor = rl_torque.cast<float>();
-    actor.head<4>() = actor.head<4>().cwiseMax(-40.0f).cwiseMin(40.0f);
-    actor.tail<2>() = actor.tail<2>().cwiseMax(-4.5f).cwiseMin(4.5f);
+    actor.head<4>() = actor.head<4>().cwiseMax(-leg_torque_limit).cwiseMin(leg_torque_limit);
+    actor.tail<2>() = actor.tail<2>().cwiseMax(-wheel_torque_limit).cwiseMin(wheel_torque_limit);
     const float alpha = static_cast<float>(command_.blend);
     return ((1.0f - alpha) * script + alpha * actor).cast<double>();
 }

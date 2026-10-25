@@ -1,5 +1,7 @@
 #include "recovery_profile.hpp"
 
+#include "policy.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -95,9 +97,11 @@ RecoveryProfile RecoveryProfile::load(
     const auto geometry = policy_order(prepare.at("geometry_control6_rad"));
     const auto command = policy_order(prepare.at("pd_control6_rad"));
     const auto hold = policy_order(prepare.at("hold_torque_nm"));
-    if (prepare.at("kp").get<double>() != 160.0
-        || (command - geometry - hold / 160.0).cwiseAbs().maxCoeff() > 1e-9
-        || command.tail<2>().cwiseAbs().maxCoeff() > 1e-9 || hold.cwiseAbs().maxCoeff() > 40.0)
+    if (prepare.at("kp").get<double>() != DeployedPolicyContract::kLegKp
+        || (command - geometry - hold / DeployedPolicyContract::kLegKp).cwiseAbs().maxCoeff()
+               > 1e-9
+        || command.tail<2>().cwiseAbs().maxCoeff() > 1e-9
+        || hold.cwiseAbs().maxCoeff() > DeployedPolicyContract::kLegTorqueLimit)
         throw std::runtime_error("Invalid frozen V6 spring-load PREPARE reference");
     controller.nominal = command.head<4>();
     controller.support = controller.nominal;
@@ -107,8 +111,8 @@ RecoveryProfile RecoveryProfile::load(
         policy_order(profile.at("targets").at("thrust").at("control6_rad")).head<4>();
     controller.root_axis_signs = vector<4>(profile.at("axis_signs"));
     controller.wheel_axis_signs = vector<2>(profile.at("wheel_axis_signs"));
-    controller.rl_nominal = JointReferenceRecoveryVector6{
-        -0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0};
+    controller.rl_nominal = Eigen::Map<const JointReferenceRecoveryVector6>{
+        DeployedPolicyContract::kNominalPosition.data()};
     for (std::size_t side = 0; side < 2; ++side) {
         auto& table = result.geometry[side];
         const auto& data = lookup.at("sides").at(side == 0 ? "left" : "right");
