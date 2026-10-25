@@ -53,17 +53,21 @@ public:
             allow_start_ = false;
             return false;
         }
+        const bool middle = left == Switch::MIDDLE && right == Switch::MIDDLE;
+        // A DOWN/DOWN reset is already acknowledged. The two physical switches
+        // reach MIDDLE on separate DR16 frames: keep waiting with zero output
+        // through those intermediate positions. Once armed, a DOWN switch still
+        // disarms immediately and requires another complete DOWN/DOWN reset.
+        if (state == SweepState::kResetReady && !middle)
+            return false;
         if ((left != Switch::MIDDLE && left != Switch::UP)
             || (right != Switch::MIDDLE && right != Switch::UP)) {
             fault(SweepStop::kInvalidSwitch);
             return false;
         }
-        const bool middle = left == Switch::MIDDLE && right == Switch::MIDDLE;
         if (state == SweepState::kResetRequired || state == SweepState::kFault)
             return false;
         if (state == SweepState::kResetReady) {
-            if (!middle)
-                return false;
             state = SweepState::kStandby;
             arm_time_ = now;
             allow_start_ = true;

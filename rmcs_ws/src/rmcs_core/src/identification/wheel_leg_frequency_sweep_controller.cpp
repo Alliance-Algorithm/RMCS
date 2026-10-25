@@ -187,6 +187,7 @@ public:
             }
         }
         if (started) {
+            last_logged_stage_ = -1;
             previous_effort_ = 0;
             reference_tick_ = *tick_;
             *reference_sequence_ = 0;
@@ -243,10 +244,70 @@ public:
         *run_ = session_.run_id;
         *completed_ = session_.completed;
         *drives_ready_output_ = ready;
+        log_transition();
+        log_stage();
         *control_end_ns_ = steady_ns();
     }
 
 private:
+    void log_transition() {
+        if (transition_logged_ && logged_state_ == session_.state
+            && logged_reason_ == session_.reason)
+            return;
+        transition_logged_ = true;
+        logged_state_ = session_.state;
+        logged_reason_ = session_.reason;
+        constexpr std::array names{"ResetRequired", "ResetReady",  "Standby", "Running",
+                                   "Complete",      "Interrupted", "Fault"};
+        constexpr std::array reasons{"none",           "both-down",        "remote-lost",
+                                     "invalid-switch", "operator-stop",    "mode-changed",
+                                     "finished",       "feedback-timeout", "nonfinite",
+                                     "drive-fault",    "enable-lost"};
+        const auto state_name = names[static_cast<std::size_t>(session_.state)];
+        const auto reason_name = reasons[static_cast<std::size_t>(session_.reason)];
+        if (session_.state == SweepState::kFault) {
+            RCLCPP_ERROR(
+                get_logger(),
+                "Sweep state=%s stop=%d(%s), switches L/R=%d/%d, feedback_fresh=%d, "
+                "drives_ready=%d. Outputs zero and disabled; reset DOWN/DOWN then MIDDLE/MIDDLE.",
+                state_name, static_cast<int>(session_.reason), reason_name,
+                static_cast<int>(*left_), static_cast<int>(*right_),
+                static_cast<int>(*feedback_fresh_), static_cast<int>(*drives_ready_output_));
+        } else {
+            RCLCPP_INFO(
+                get_logger(),
+                "Sweep state=%s stop=%d(%s), mode=%d, run=%llu, enable_request=%d, drives_ready=%d",
+                state_name, static_cast<int>(session_.reason), reason_name, session_.mode,
+                static_cast<unsigned long long>(session_.run_id), static_cast<int>(*enable_),
+                static_cast<int>(*drives_ready_output_));
+            if (session_.state == SweepState::kResetReady)
+                RCLCPP_INFO(
+                    get_logger(),
+                    "DOWN/DOWN reset accepted; waiting for both switches MIDDLE, outputs zero.");
+            if (session_.state == SweepState::kStandby)
+                RCLCPP_INFO(
+                    get_logger(),
+                    "MIDDLE/MIDDLE standby: zero effort; select a mode for 300 ms to start.");
+        }
+    }
+
+    void log_stage() {
+        if (session_.state != SweepState::kRunning || last_logged_stage_ == *stage_)
+            return;
+        last_logged_stage_ = *stage_;
+        if (kind_ == 1) {
+            const auto& segment = wheel_plan_->segments()[static_cast<std::size_t>(*stage_)];
+            RCLCPP_INFO(
+                get_logger(),
+                "Wheel stage=%d/%zu %s, duration=%.2f s, control=%s. Keep UP/UP to continue.",
+                *stage_, wheel_plan_->segments().size(), segment.label.c_str(), segment.duration_s,
+                segment.coast ? "zero-current coast" : "velocity excitation");
+        } else
+            RCLCPP_INFO(
+                get_logger(), "Joint stage=%d waveform=%d elapsed=%.3f s", *stage_, *waveform_,
+                *run_elapsed_);
+    }
+
     PairGeometry load_geometry(const std::string& side) {
         auto beta = get_parameter("geometry_beta_deg").as_double_array();
         for (auto& value : beta)
@@ -558,6 +619,10 @@ private:
     std::uint64_t last_control_ns_ = 0;
     std::size_t reference_tick_ = 0;
     double previous_effort_ = 0;
+    bool transition_logged_ = false;
+    SweepState logged_state_ = SweepState::kResetRequired;
+    SweepStop logged_reason_ = SweepStop::kNone;
+    int last_logged_stage_ = -1;
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     static constexpr double wheel_nm_per_amp = 15.62 * .3 * 187 / 3591;
 };

@@ -1,5 +1,6 @@
 # Standalone identification. See docs/zh-cn/wheel_leg_frequency_sweep.md.
 # Reset DOWN/DOWN -> arm MIDDLE/MIDDLE (zero torque) -> select mode for >=300 ms.
+# After DOWN/DOWN, staggered switch movement to MIDDLE stays disabled until both are MIDDLE.
 # joints: UP/MIDDLE=1, MIDDLE/UP=2, UP/UP=3. wheels/limits: UP/UP starts.
 # Complete stays enabled at zero effort; MIDDLE/MIDDLE is required before another run.
 # Angles/speed/tracking/braking are diagnostics ONLY. No envelope exits or auto scaling.

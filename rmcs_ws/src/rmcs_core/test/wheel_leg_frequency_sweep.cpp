@@ -50,6 +50,57 @@ TEST(FrequencySweepSession, AllNineCombinationsRequireResetAndMiddleBeforeMotion
     EXPECT_FALSE(s.enabled());
 }
 
+TEST(FrequencySweepSession, ResetAllowsEitherSwitchToReachMiddleFirst) {
+    for (bool joints : {false, true})
+        for (bool left_first : {false, true}) {
+            SCOPED_TRACE(left_first ? "left first" : "right first");
+            WheelLegSweepSession session(joints);
+            session.update(0, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, true);
+            const auto left = left_first ? Switch::MIDDLE : Switch::DOWN;
+            const auto right = left_first ? Switch::DOWN : Switch::MIDDLE;
+            // Real DR16 CSV: the two switches reached MIDDLE 14 ms apart.
+            EXPECT_FALSE(session.update(.1, true, left, right, SweepStop::kNone, true));
+            EXPECT_EQ(session.state, SweepState::kResetReady);
+            EXPECT_FALSE(session.enabled());
+            EXPECT_FALSE(
+                session.update(.114, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true));
+            EXPECT_EQ(session.state, SweepState::kStandby);
+            EXPECT_TRUE(session.enabled());
+            EXPECT_FALSE(session.update(.2, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
+            EXPECT_TRUE(session.update(.5, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
+        }
+}
+
+TEST(FrequencySweepSession, StaggeredResetDoesNotBypassDownOrAllowAutoResume) {
+    WheelLegSweepSession session(false);
+    session.update(0, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
+    session.update(.1, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
+    EXPECT_FALSE(session.enabled());
+    session.update(.2, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, true);
+    session.update(.3, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
+    session.update(5, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
+    EXPECT_EQ(session.state, SweepState::kResetReady);
+    EXPECT_FALSE(session.enabled());
+    session.update(6, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
+    EXPECT_FALSE(session.enabled());
+    session.update(7, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
+    EXPECT_TRUE(session.enabled());
+    session.update(8, true, Switch::UP, Switch::UP, SweepStop::kNone, true);
+    ASSERT_TRUE(session.update(8.3, true, Switch::UP, Switch::UP, SweepStop::kNone, true));
+    // A DOWN switch after arming is still an immediate disarm and fault.
+    session.update(8.301, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
+    EXPECT_FALSE(session.enabled());
+    EXPECT_EQ(session.reason, SweepStop::kInvalidSwitch);
+    session.update(9, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
+    EXPECT_FALSE(session.enabled());
+    session.update(10, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone, true);
+    session.update(11, true, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
+    session.update(12, false, Switch::MIDDLE, Switch::DOWN, SweepStop::kNone, true);
+    session.update(13, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone, true);
+    EXPECT_FALSE(session.enabled());
+    EXPECT_EQ(session.reason, SweepStop::kRemoteLost);
+}
+
 TEST(FrequencySweepSession, DebouncesLocksModesAndRequiresMiddleAfterChange) {
     for (int mode : {1, 2, 3}) {
         WheelLegSweepSession s(true);

@@ -94,11 +94,16 @@ public:
             *left_ = Switch::UP;
             *right_ = Switch::MIDDLE;
         }
+        if (phase == 15 || phase == 16) {
+            *left_ = phase == 15 ? Switch::MIDDLE : Switch::DOWN;
+            *right_ = phase == 15 ? Switch::DOWN : Switch::MIDDLE;
+        }
         for (auto name : {"feedback_fresh", "dm_feedback_fresh", "dr16_fresh"})
             *bs_[name] = phase != 8 && phase != 11;
         *bs_["dr16_fresh"] = phase != 8;
         *bs_["joint_position_pd"] = false;
-        *bs_["dm_control_ready"] = phase >= 2 && kind != 1;
+        const bool armed = phase >= 2 && phase != 13 && phase != 15 && phase != 16;
+        *bs_["dm_control_ready"] = armed && kind != 1;
         const auto now = steady_ns();
         if (phase != previous_phase_) {
             phase_start_ns_ = now;
@@ -133,7 +138,7 @@ public:
                 *ds_[p + "angle"] = std::numeric_limits<double>::quiet_NaN();
             if (i < 4) {
                 const bool active = kind != 1 && static_cast<int>(i / 2) == selected;
-                *is_[p + "status_code"] = active && phase >= 2 && phase != 13 ? 1 : 0;
+                *is_[p + "status_code"] = active && armed ? 1 : 0;
                 *is_[p + "fault_code"] = 0;
                 if (phase == 12 && i == static_cast<std::size_t>(kind == 1 ? 0 : 2 * selected)) {
                     *is_[p + "status_code"] = 8;
@@ -204,6 +209,8 @@ public:
         register_input("/wheel_leg/sweep/reference_active", active_);
         register_input("/wheel_leg/sweep/run_id", run_);
         register_input("/wheel_leg/sweep/reference_sequence", reference_);
+        register_input("/wheel_leg/sweep/remote_left", remote_left_);
+        register_input("/wheel_leg/sweep/remote_right", remote_right_);
         register_input("/wheel_leg/sweep/left/theta_continuous", theta_left_);
         register_input("/wheel_leg/sweep/right/theta_continuous", theta_right_);
         register_input("/wheel_leg/sweep/left/beta_valid", beta_left_);
@@ -243,16 +250,19 @@ public:
         invalid_mapping = invalid_mapping || !parked_zero;
         invalid_effort = invalid_effort || !bounded;
         diagnostics = diagnosed;
+        wheel_effort = std::max(std::abs(*torque_[4]), std::abs(*torque_[5]));
+        remote_left = *remote_left_;
+        remote_right = *remote_right_;
     }
-    std::atomic<int> state{0}, reason{0};
+    std::atomic<int> state{0}, reason{0}, remote_left{0}, remote_right{0};
     std::atomic<bool> enabled{false}, ready{false}, active{false}, zero{true},
         invalid_mapping{false}, invalid_effort{false}, diagnostics{false};
     std::atomic<std::uint64_t> run{0}, reference{0};
-    std::atomic<double> theta_left{0}, theta_right{0};
+    std::atomic<double> theta_left{0}, theta_right{0}, wheel_effort{0};
     std::atomic<bool> fk_valid{false};
 
 private:
-    InputInterface<int> state_, reason_;
+    InputInterface<int> state_, reason_, remote_left_, remote_right_;
     InputInterface<bool> enable_, ready_, active_;
     InputInterface<std::uint64_t> run_, reference_;
     InputInterface<double> theta_left_, theta_right_;
@@ -308,9 +318,22 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
         std::this_thread::sleep_for(40ms);
         EXPECT_FALSE(observe->enabled);
         EXPECT_EQ(observe->run, 0u);
+        int reset_count = 0;
         const auto reset_arm = [&] {
             phase = 0;
             if (!await([&] { return observe->state == 1 && !observe->enabled; }))
+                return false;
+            // Physical switches arrive on different frames. Both orders must
+            // stay reset/disabled rather than latch InvalidSwitch as on robot.
+            const bool left_first = reset_count++ % 2 == 0;
+            phase = left_first ? 15 : 16;
+            if (!await([&] {
+                    return observe->remote_left
+                            == static_cast<int>(left_first ? Switch::MIDDLE : Switch::DOWN)
+                        && observe->remote_right
+                               == static_cast<int>(left_first ? Switch::DOWN : Switch::MIDDLE)
+                        && observe->state == 1 && !observe->enabled && observe->zero;
+                }))
                 return false;
             phase = 1;
             if (!await([&] { return observe->state == 2 && observe->enabled; }))
@@ -331,6 +354,14 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
         std::this_thread::sleep_for(100ms);
         EXPECT_GE(observe->reference - seq, 10u);
         EXPECT_LE(observe->reference - seq, 30u);
+        if (kind == 1) {
+            // Use the deployed 3 s initial zero-current segment. Testing only
+            // the first 100 ms used to miss an experiment that never excited.
+            EXPECT_TRUE(observe->zero);
+            ASSERT_TRUE(
+                await([&] { return observe->state == 3 && observe->wheel_effort > .05; }, 4500ms));
+            EXPECT_TRUE(observe->enabled);
+        }
         if (RMCS_SWEEP_COMPLETE) {
             ASSERT_TRUE(await(
                 [&] { return observe->state == 4 && observe->zero && !observe->active; }, 12s));
@@ -416,7 +447,7 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
     const auto reference = column("/wheel_leg/sweep/reference_active");
     ASSERT_LT(ticks, header.size());
     ASSERT_LT(time, header.size());
-    std::size_t rows = 0, complete_rows = 0;
+    std::size_t rows = 0, complete_rows = 0, wheel_excitation_rows = 0;
     std::uint64_t previous_tick = 0, first_time = 0, last_time = 0;
     while (std::getline(stream, line)) {
         const auto row = split(line);
@@ -444,11 +475,21 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
             EXPECT_EQ(row[reference], "0");
             EXPECT_EQ(row[column("/wheel_leg/sweep/completed")], "1");
         }
+        if (kind == 1 && row[state] == "3"
+            && std::abs(std::stod(row[column("/wheel_leg/left_wheel/control_torque")])) > .05) {
+            ++wheel_excitation_rows;
+            EXPECT_EQ(row[enable], "1");
+            EXPECT_EQ(row[reference], "1");
+            EXPECT_GE(std::stod(row[column("/wheel_leg/sweep/run_elapsed_s")]), 3.0);
+        }
         ++rows;
     }
     EXPECT_GT(rows, 1000u);
     if (RMCS_SWEEP_COMPLETE) {
         EXPECT_GT(complete_rows, 100u);
+    }
+    if (kind == 1) {
+        EXPECT_GT(wheel_excitation_rows, 0u);
     }
     const double rate = (rows - 1) / (static_cast<double>(last_time - first_time) * 1e-9);
     EXPECT_GT(rate, 900);

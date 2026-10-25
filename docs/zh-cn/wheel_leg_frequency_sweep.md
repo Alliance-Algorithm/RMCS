@@ -7,10 +7,10 @@
 
 ## 启动
 
-在当前开发容器中运行（宿主机工作区路径见下文）：
+在检出 `feat/wheel_leg_sweep` 的开发容器中运行：
 
 ```bash
-cd /home/ubuntu/.codex/worktrees/wheel-leg-frequency-sweep/RMCS
+cd /workspaces/RMCS
 export RMCS_PATH="$PWD"
 ./.script/build-rmcs --packages-select rmcs_core rmcs_bringup
 source rmcs_ws/install/setup.bash
@@ -19,10 +19,8 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-wheels-sweep
 # 或：robot:=wheel-leg-joint-limit-probe
 ```
 
-本分支的独立工作区在宿主机
-`/home/noir/.codex/worktrees/wheel-leg-frequency-sweep/RMCS`；当前开发容器对应路径为
-`/home/ubuntu/.codex/worktrees/wheel-leg-frequency-sweep/RMCS`。
-在容器构建时，将 `RMCS_PATH` 指向此目录并运行该目录的 `.script/build-rmcs`；
+使用独立工作区时，将上述目录换成该工作区在容器内的路径，
+将 `RMCS_PATH` 指向此目录并运行该目录的 `.script/build-rmcs`；
 本工作区生成独立的 build/install/log。首次建工作区时可先用同一脚本构建
 `fast_tf rmcs_msgs rmcs_utility rmcs_description rmcs_executor rmcs_rl`，
 避免原工作区切换分支造成消息头或插件的共享 install 漂移。
@@ -35,6 +33,7 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-wheels-sweep
 ## 遥控操作
 
 上电、丢控或故障后，先双下并等到四个 DM 反馈为失能，再双中。
+已识别双下复位后，允许两只拨杆先后到中档；到达双中前始终失能、零输出。
 双中仅使能并发送零力矩，不保持位置；随后选模式，稳定 300 ms 后启动。
 
 | 左 / 右 | 关节扫频 | 轮子 / 端点探测 |
@@ -44,7 +43,8 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-wheels-sweep
 | 中 / 上 | 模式 2：固定进入时的髋角，改变膝内角 | 零输出待机 |
 | 上 / 上 | 模式 3：共同转动并改变开合 | 开始实验 |
 | 下 / 下 | 立即失能并复位 | 同左 |
-| UNKNOWN、丢控、其他含下档组合 | 立即失能，重新双下才能恢复 | 同左 |
+| UNKNOWN、丢控 | 立即失能，重新双下才能恢复 | 同左 |
+| 其他含下档组合 | 已使能时立即失能，重新双下才能恢复；双下复位后的过渡过程保持失能等待 | 同左 |
 
 运行时换模式立即结束当前扫描，必须重新经过双中才能启动下一次。
 自然完成锁定 `Complete`，继续使能并发送零力矩，不再计算位置 PD。
@@ -52,6 +52,13 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-wheels-sweep
 DM 使用 Kp=Kd=0 的 MIT 命令；12 bit 力矩编码可能产生不超过一个量化步长的零点残差。
 硬件实验档位仅在新 YAML 的 `identification_remote_control: true` 下启用，
 同时需要控制器使能请求和 20 ms 内的控制心跳；生产 YAML 默认行为保持原样。
+
+轮子入口在 `Running` 开始后先执行 **3 s 零电流基线段**，然后从左轮
+0.15 rad/s 的低速平台开始，右轮稍后进入自己的实验段。双上需要持续保持；
+双中待机和基线段轮子不转均属预期。不要只保持双上不到 1 s 就判断启动失败。
+控制台现在按事件打印 `ResetReady`、`Standby`、`Running`、`Fault` 等状态，
+以及轮子段名、持续时间和是否零电流滑行。
+故障行包含原因、拨杆、反馈新鲜度及驱动就绪状态；不会每毫秒重复刷屏。
 
 ## 轨迹和探测
 
@@ -139,3 +146,14 @@ colcon test-result --test-result-base build/rmcs_core --verbose
 正式 CSV 为 235 列（含 index）；测试额外加入执行器计数列，因此为 236 列。
 内存集成测试采集约 1000 Hz，检查逐周期无漏行、完成锁存、实际使能丢失、
 两圈连续反馈及运动诊断不退出。加速探测只用于完成状态测试，不改变正式 YAML。
+
+启动过渡回归还覆盖双下后先左中、先右中两种顺序，验证进入双中前保持失能、
+失联后不自动续扫，以及使能后出现含下档组合立即停机。
+轮子集成测试保持正式 YAML 的 3 s 基线段，越过该段后检查非零命令和对应 CSV 行；
+只执行开头零电流段不能证明后续激励已运行。
+
+2026-10-26 启动问题修复：机器人 CSV 确认双下到双中之间约 14 ms 的中/下过渡
+被旧状态机锁为故障。修复在复位等待阶段接受该过渡，补充状态和轨迹段日志。
+修复后独立工作区两包构建通过，12 个 CTest 目标、42 个 GTest 用例通过；
+内存集成测试覆盖所有入口和两种到中档顺序，CSV 保持约 1 kHz、逐周期无漏行。
+此结果不代表修复已经部署到机器人或完成实车验证。
