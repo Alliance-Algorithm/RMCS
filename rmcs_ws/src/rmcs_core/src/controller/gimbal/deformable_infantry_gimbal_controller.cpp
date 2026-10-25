@@ -252,11 +252,14 @@ private:
             gimbal_solver_.odom_to_yaw_link(OdomImu::DirectionVector{*input_.auto_aim_ff_a});
         return {
             .yaw_ref_velocity = yaw_ref_velocity_gain_ * ff_v->z(),
-            .pitch_ref_velocity = pitch_ref_velocity_gain_ * ff_v->y(),
+            .pitch_ref_velocity =
+                gimbal_solver_.clamp_pitch_feedforward(pitch_ref_velocity_gain_ * ff_v->y()),
             .yaw_velocity = yaw_velocity_ff_gain_ * ff_v->z(),
             .yaw_acceleration = yaw_acceleration_ff_gain_ * ff_a->z(),
-            .pitch_velocity = pitch_velocity_ff_gain_ * ff_v->y(),
-            .pitch_acceleration = pitch_acceleration_ff_gain_ * ff_a->y(),
+            .pitch_velocity =
+                gimbal_solver_.clamp_pitch_feedforward(pitch_velocity_ff_gain_ * ff_v->y()),
+            .pitch_acceleration =
+                gimbal_solver_.clamp_pitch_feedforward(pitch_acceleration_ff_gain_ * ff_a->y()),
         };
     }
 
