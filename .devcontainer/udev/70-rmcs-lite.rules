@@ -1,0 +1,2 @@
+# Grant the active local user access before 73-seat-late.rules applies uaccess.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="a11c", ATTR{idProduct}=="a801", MODE="0660", TAG+="uaccess"

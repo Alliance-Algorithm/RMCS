@@ -12,6 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <eigen3/Eigen/Dense>
 #include <librmcs/board/rmcs_board_lite.hpp>
@@ -31,6 +32,7 @@
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "hardware/device/tof_sense.hpp"
 #include "hardware/device/wheel_leg_sensor_snapshot.hpp"
 #include "hardware/wheel_leg_control.hpp"
 
@@ -125,6 +127,7 @@ private:
             register_telemetry(status, command);
             configure_control(status, command);
             configure_motors(status);
+            configure_tof(status);
 
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = false;
@@ -140,6 +143,8 @@ private:
             publish_imu_feedback();
             publish_drive_readiness();
             update_remote_status();
+            if (tof_)
+                tof_->update_status();
         }
 
         void command_update() {
@@ -252,6 +257,28 @@ private:
         }
 
     private:
+        void configure_tof(WheelLeg& status) {
+            const auto configured_ids =
+                status.get_parameter_or<std::vector<std::int64_t>>("tof_sensor_ids", {});
+            if (configured_ids.empty())
+                return;
+
+            std::vector<std::uint8_t> ids;
+            ids.reserve(configured_ids.size());
+            for (const auto id : configured_ids) {
+                if (id < 0 || id > 255)
+                    throw std::invalid_argument{"tof_sensor_ids must be in [0, 255]"};
+                ids.push_back(static_cast<std::uint8_t>(id));
+            }
+            const auto timeout = status.get_parameter_or<double>("tof_feedback_timeout", 0.2);
+            if (!std::isfinite(timeout) || timeout <= 0.0 || timeout > 60.0)
+                throw std::invalid_argument{"tof_feedback_timeout must be in (0, 60] seconds"};
+            tof_ = std::make_unique<device::TofSense>(
+                status, "/wheel_leg/tof", ids,
+                std::chrono::duration_cast<device::TofSense::Clock::duration>(
+                    std::chrono::duration<double>{timeout}));
+        }
+
         void register_telemetry(WheelLeg& status, rmcs_executor::Component& command) {
             status.register_output(
                 "/wheel_leg/imu/quaternion", imu_quaternion_, Eigen::Quaterniond::Identity());
@@ -884,6 +911,8 @@ private:
                 store_motor_feedback(hip_motors_, 2, data);
             else if (can == Spec::kCans.kCan2)
                 store_motor_feedback(knee_motors_, 4, data);
+            else if (can == Spec::kCans.kCan3 && tof_ && !data.is_fdcan)
+                tof_->store_can_status(data.can_id, data.can_data);
         }
 
         template <typename Motor, std::size_t N>
@@ -964,6 +993,7 @@ private:
         device::DmMotor knee_motors_[2];
         device::Dr16 dr16_;
         device::Bmi088Ekf bmi088_;
+        std::unique_ptr<device::TofSense> tof_;
         device::WheelLegImuSampleClock imu_sample_clock_;
         std::array<device::WheelLegSensorMailbox<device::CanPacket8>, 6> motor_feedback_;
         device::WheelLegSensorMailbox<device::Bmi088Ekf::Snapshot> imu_feedback_;
