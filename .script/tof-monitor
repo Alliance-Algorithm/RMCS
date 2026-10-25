@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import math
 import os
 from pathlib import Path
+import select
 import signal
 import subprocess
 import sys
@@ -16,6 +17,66 @@ import time
 
 ROOT = Path(__file__).resolve().parent.parent
 FIELDS = ("distance", "valid", "status", "signal_strength", "age", "frames")
+
+
+class ShutdownSignals:
+    def __init__(self):
+        self.requested = False
+        self.previous = {}
+
+    def __enter__(self):
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            previous = signal.getsignal(sig)
+            # Respect an explicit nohup launch.
+            if sig == signal.SIGHUP and previous == signal.SIG_IGN:
+                continue
+            self.previous[sig] = previous
+            signal.signal(sig, self.request)
+        return self
+
+    def request(self, _signum, _frame):
+        self.requested = True
+
+    def __exit__(self, *_exception):
+        for sig, previous in self.previous.items():
+            signal.signal(sig, previous)
+
+
+def stop_process(process):
+    # Each owned child starts a new session. Never signal an existing publisher.
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
+        if process.poll() is not None:
+            return
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            process.wait()
+            return
+        try:
+            process.wait(timeout=3)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+    process.wait()
+
+
+def run_in_container(command, shutdown):
+    # A dedicated stdin pipe ties the container monitor to this launcher's lifetime.
+    # EOF also reaches it when the Docker client or launcher disappears.
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, start_new_session=True)
+    try:
+        while not shutdown.requested and process.poll() is None:
+            try:
+                process.wait(timeout=0.1)
+            except subprocess.TimeoutExpired:
+                pass
+    finally:
+        process.stdin.close()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            stop_process(process)
+    return 0 if shutdown.requested else process.returncode
 
 
 def check_usb_access():
@@ -39,7 +100,7 @@ def check_usb_access():
         )
 
 
-def enter_ros_environment():
+def enter_ros_environment(shutdown):
     if os.environ.get("RMCS_TOF_MONITOR_READY") == "1":
         return
     setup = (
@@ -52,14 +113,14 @@ def enter_ros_environment():
             and (ROOT / "rmcs_ws/install/lib/rmcs_executor/rmcs_executor").is_file()):
         os.execvp("bash", ["bash", "-c", setup, "tof-monitor", str(ROOT), *sys.argv[1:]])
     command = ["docker", "exec", "-i"]
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        command.append("-t")
     command += [
         "-u", "0", "-e", f"ROS_DOMAIN_ID={os.environ.get('ROS_DOMAIN_ID', '67')}",
+        "-e", "RMCS_TOF_MONITOR_WATCH_STDIN=1",
+        "-e", f"RMCS_TOF_MONITOR_TTY={int(sys.stdout.isatty())}",
         os.environ.get("RMCS_CONTAINER", "rmcs-rmcs-develop-1"),
         "bash", "-c", setup, "tof-monitor", "/workspaces/RMCS", *sys.argv[1:],
     ]
-    os.execvp(command[0], command)
+    sys.exit(run_in_container(command, shutdown))
 
 
 @dataclass
@@ -105,7 +166,7 @@ class Sensor:
         )
 
 
-def main():
+def main(shutdown):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", choices=("can0", "can1", "can2", "can3"), default="can2")
     parser.add_argument("--ids", type=int, nargs="+", default=[1, 2])
@@ -120,7 +181,7 @@ def main():
     if not math.isfinite(args.seconds) or args.seconds < 0:
         parser.error("--seconds must be finite and nonnegative")
 
-    enter_ros_environment()
+    enter_ros_environment(shutdown)
     if not args.attach:
         try:
             check_usb_access()
@@ -145,6 +206,7 @@ def main():
             return 1
     import rclpy
     from rclpy.qos import QoSProfile, ReliabilityPolicy
+    from rclpy.signals import SignalHandlerOptions
     from std_msgs.msg import Bool, Float64, Int32, UInt8
     import yaml
 
@@ -161,11 +223,7 @@ def main():
     process = None
     node = None
     result = 0
-    stopped = False
-
-    def stop(_signum, _frame):
-        nonlocal stopped
-        stopped = True
+    watch_stdin = os.environ.get("RMCS_TOF_MONITOR_WATCH_STDIN") == "1"
 
     with tempfile.TemporaryDirectory(prefix="rmcs-tof-") as temporary:
         directory = Path(temporary)
@@ -174,9 +232,7 @@ def main():
         log_path = directory / "executor.log"
         with log_path.open("w") as log:
             try:
-                rclpy.init(args=[])
-                signal.signal(signal.SIGINT, stop)
-                signal.signal(signal.SIGTERM, stop)
+                rclpy.init(args=[], signal_handler_options=SignalHandlerOptions.NO)
                 node = rclpy.create_node("tof_monitor")
                 qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
                 for sensor_id, sensor in sensors.items():
@@ -192,7 +248,7 @@ def main():
                     Int32, "/tof/dropped_frames",
                     lambda message: diagnostics.update(dropped=message.data), qos,
                 )
-                if not args.attach:
+                if not args.attach and not shutdown.requested:
                     executable = ROOT / "rmcs_ws/install/lib/rmcs_executor/rmcs_executor"
                     process = subprocess.Popen(
                         [str(executable), "--ros-args", "--params-file", str(config_path)],
@@ -200,9 +256,19 @@ def main():
                     )
                 started = time.monotonic()
                 next_display = started
-                while not stopped and rclpy.ok():
+                while not shutdown.requested and rclpy.ok():
+                    if watch_stdin and select.select([sys.stdin], [], [], 0)[0]:
+                        if not os.read(sys.stdin.fileno(), 1):
+                            break
                     if process is not None and process.poll() is not None:
-                        print(log_path.read_text(), file=sys.stderr)
+                        output = log_path.read_text()
+                        print(output, file=sys.stderr)
+                        if "ERROR_BUSY" in output:
+                            print(
+                                "The Lite Board is already in use. Stop the original monitor "
+                                "with Ctrl+C, or use --attach to observe it without claiming USB.",
+                                file=sys.stderr,
+                            )
                         raise RuntimeError(f"Sensor process exited: {process.returncode}")
                     now = time.monotonic()
                     if args.seconds and now - started >= args.seconds:
@@ -219,20 +285,20 @@ def main():
                         f"Queue drops: {diagnostics.get('dropped', '--')} | "
                         "Nonzero status is invalid; no old distance is reused.",
                     ]
-                    if sys.stdout.isatty():
+                    if (sys.stdout.isatty()
+                            or os.environ.get("RMCS_TOF_MONITOR_TTY") == "1"):
                         print("\033[2J\033[H", end="")
                     print("\n".join(lines), flush=True)
+            except BrokenPipeError:
+                # Avoid another failed flush during Python shutdown after a reader exits.
+                with open(os.devnull, "w") as sink:
+                    os.dup2(sink.fileno(), sys.stdout.fileno())
             except (OSError, RuntimeError) as error:
                 print(f"tof-monitor: {error}", file=sys.stderr)
                 result = 1
             finally:
-                if process is not None and process.poll() is None:
-                    process.send_signal(signal.SIGINT)
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait()
+                if process is not None:
+                    stop_process(process)
                 if node is not None:
                     node.destroy_node()
                 if rclpy.ok():
@@ -241,4 +307,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    with ShutdownSignals() as shutdown:
+        sys.exit(main(shutdown))
