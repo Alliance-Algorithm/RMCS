@@ -126,30 +126,37 @@ def enter_ros_environment(shutdown):
 @dataclass
 class Sensor:
     values: dict = field(default_factory=dict)
-    age_received_at: float = 0.0
+    received_at: dict = field(default_factory=dict)
     counts: deque = field(default_factory=deque)
 
     def receive(self, name, value):
         now = time.monotonic()
+        if name == "frames" and value < self.values.get("frames", 0):
+            # A restarted publisher must not inherit measurements from its previous run.
+            self.values.clear()
+            self.received_at.clear()
+            self.counts.clear()
         self.values[name] = value
-        if name == "age":
-            self.age_received_at = now
-        elif name == "frames":
-            if self.counts and value < self.counts[-1][1]:
-                self.counts.clear()
+        self.received_at[name] = now
+        if name == "frames":
             self.counts.append((now, value))
             while len(self.counts) > 2 and self.counts[1][0] < now - 1.0:
                 self.counts.popleft()
 
     def row(self, sensor_id, timeout):
         now = time.monotonic()
-        age = self.values.get("age", math.inf) + now - self.age_received_at
+        age = self.values.get("age", math.inf) + now - self.received_at.get("age", now)
         status = self.values.get("status", "--")
         distance = self.values.get("distance", math.nan)
         state = "WAITING"
         if self.values.get("frames", 0) > 0:
-            state = "STALE" if age >= timeout else "INVALID"
-            if (age < timeout and self.values.get("valid", False)
+            # Independent topics may stop separately; a fresh age cannot validate old fields.
+            fresh = age < timeout and all(
+                now - self.received_at.get(name, -math.inf) < timeout
+                for name in ("distance", "valid", "status", "age", "frames")
+            )
+            state = "INVALID" if fresh else "STALE"
+            if (fresh and self.values.get("valid", False)
                     and status == 0 and math.isfinite(distance)):
                 state = "VALID"
         rate = 0.0
