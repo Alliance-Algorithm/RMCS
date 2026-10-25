@@ -89,17 +89,17 @@ auto_aim_component:
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.07
-      offset_yaw: +0.2
-      offset_pitch: -1.2
+      offset_yaw: +0.8
+      offset_pitch: -1.4
       attack_window: 120.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.6
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: false
-      yaw_tolerance: 0.14
-      pitch_tolerance: 0.08
-      rune_idle_duration: 0.7
+      yaw_tolerance: 0.21
+      pitch_tolerance: 0.12
+      rune_idle_duration: 0.6
       rune_shoot_duration: 0.2
 
 auto_aim_ui:
@@ -110,19 +110,19 @@ auto_aim_ui:
 
 deformable_infantry:
   ros__parameters:
-    serial_filter_bottom_board: "AF-23FB-EE32-B892-1302-AE70-D640-7B4E-0CBF"
-    serial_filter_top_board: "AF-7A42-07AA-D181-0356-7715-6D7C-4C65-5762"
+    serial_filter_bottom_board: "AF-C1C3-DFE8-40A8-FC4B-B853-6ED7-AC9F-1DED"
+    serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     chassis_radius: 0.2341741
     rod_length: 0.140
-    yaw_motor_zero_point: 43365
-    pitch_motor_zero_point: 6432
+    yaw_motor_zero_point: 38910
+    pitch_motor_zero_point: 6783
 
 chassis_controller:
   ros__parameters:
     min_angle: 8.0
     max_angle: 59.0
     active_suspension_enable: true
-    wireless_charging_offset_deg: 45.0
+    wireless_charging_offset_deg: 135.0
     wireless_charging_speed_limit: 0.6
     wireless_charging_angular_velocity_limit: 10.0
 
@@ -188,8 +188,8 @@ gimbal_controller:
     yaw_velocity_integral_max: 5.0
 
     pitch_angle_kp: 35.0
-    pitch_angle_ki: 0.03
-    pitch_angle_kd: 0.2
+    pitch_angle_ki: 0.02
+    pitch_angle_kd: 0.3
     pitch_angle_integral_min: -0.5
     pitch_angle_integral_max: 0.5
 
@@ -200,13 +200,13 @@ gimbal_controller:
     yaw_ref_velocity_gain: 1.0
     pitch_ref_velocity_gain: 1.0
 
-    yaw_velocity_ff_gain: 0.20
-    yaw_acceleration_ff_gain: 0.17
-    pitch_velocity_ff_gain: 0.356
-    pitch_acceleration_ff_gain: 0.041
+    yaw_velocity_ff_gain: 0.13
+    yaw_acceleration_ff_gain: 0.18
+    pitch_velocity_ff_gain: 0.378
+    pitch_acceleration_ff_gain: 0.0396
 
     pitch_gravity_ff_gain: 2.575
-    pitch_gravity_ff_phase: 1.7814
+    pitch_gravity_ff_phase: 1.784
 
     pitch_torque_control: true
 
@@ -262,7 +262,7 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.5
+    kp: 0.9
     ki: 0.0
     kd: 0.0
 
