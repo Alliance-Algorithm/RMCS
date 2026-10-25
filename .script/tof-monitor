@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Run the sensor-only RMCS configuration and display live TOFSense measurements."""
+
+import argparse
+from collections import deque
+from dataclasses import dataclass, field
+import math
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+
+
+ROOT = Path(__file__).resolve().parent.parent
+FIELDS = ("distance", "valid", "status", "signal_strength", "age", "frames")
+
+
+def check_usb_access():
+    devices = []
+    for entry in Path("/sys/bus/usb/devices").iterdir():
+        try:
+            if ((entry / "idVendor").read_text().strip() != "a11c"
+                    or (entry / "idProduct").read_text().strip() != "a801"):
+                continue
+            bus = int((entry / "busnum").read_text())
+            device = int((entry / "devnum").read_text())
+        except (OSError, ValueError):
+            continue
+        devices.append(Path(f"/dev/bus/usb/{bus:03d}/{device:03d}"))
+    if devices and not any(os.access(path, os.R_OK | os.W_OK) for path in devices):
+        raise PermissionError(
+            f"UID {os.getuid()} cannot read/write the RMCS Lite USB device: "
+            + ", ".join(map(str, devices))
+            + ". Install .devcontainer/udev/70-rmcs-lite.rules on the host and "
+            "reload/trigger udev, or run this script from the host terminal."
+        )
+
+
+def enter_ros_environment():
+    if os.environ.get("RMCS_TOF_MONITOR_READY") == "1":
+        return
+    setup = (
+        'source /opt/ros/jazzy/setup.bash && '
+        'source "$1/rmcs_ws/install/setup.bash" && '
+        'export RMCS_TOF_MONITOR_READY=1 && '
+        'exec python3 "$1/.script/tof-monitor" "${@:2}"'
+    )
+    if (Path("/opt/ros/jazzy/setup.bash").exists()
+            and (ROOT / "rmcs_ws/install/lib/rmcs_executor/rmcs_executor").is_file()):
+        os.execvp("bash", ["bash", "-c", setup, "tof-monitor", str(ROOT), *sys.argv[1:]])
+    command = ["docker", "exec", "-i"]
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        command.append("-t")
+    command += [
+        "-u", "0", "-e", f"ROS_DOMAIN_ID={os.environ.get('ROS_DOMAIN_ID', '67')}",
+        os.environ.get("RMCS_CONTAINER", "rmcs-rmcs-develop-1"),
+        "bash", "-c", setup, "tof-monitor", "/workspaces/RMCS", *sys.argv[1:],
+    ]
+    os.execvp(command[0], command)
+
+
+@dataclass
+class Sensor:
+    values: dict = field(default_factory=dict)
+    age_received_at: float = 0.0
+    counts: deque = field(default_factory=deque)
+
+    def receive(self, name, value):
+        now = time.monotonic()
+        self.values[name] = value
+        if name == "age":
+            self.age_received_at = now
+        elif name == "frames":
+            if self.counts and value < self.counts[-1][1]:
+                self.counts.clear()
+            self.counts.append((now, value))
+            while len(self.counts) > 2 and self.counts[1][0] < now - 1.0:
+                self.counts.popleft()
+
+    def row(self, sensor_id, timeout):
+        now = time.monotonic()
+        age = self.values.get("age", math.inf) + now - self.age_received_at
+        status = self.values.get("status", "--")
+        distance = self.values.get("distance", math.nan)
+        state = "WAITING"
+        if self.values.get("frames", 0) > 0:
+            state = "STALE" if age >= timeout else "INVALID"
+            if (age < timeout and self.values.get("valid", False)
+                    and status == 0 and math.isfinite(distance)):
+                state = "VALID"
+        rate = 0.0
+        if len(self.counts) > 1 and now - self.counts[-1][0] < 0.5:
+            elapsed = self.counts[-1][0] - self.counts[0][0]
+            if elapsed > 0:
+                rate = (self.counts[-1][1] - self.counts[0][1]) / elapsed
+        distance_text = f"{distance:.3f}" if state == "VALID" else "--"
+        age_text = f"{age * 1000:.1f}" if math.isfinite(age) else "--"
+        return (
+            f"{sensor_id:>3}  {distance_text:>11}  {state:<8}  {status:>6}  "
+            f"{self.values.get('signal_strength', '--'):>8}  {age_text:>8}  "
+            f"{rate:>7.1f}  {self.values.get('frames', 0):>8}"
+        )
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", choices=("can0", "can1", "can2", "can3"), default="can2")
+    parser.add_argument("--ids", type=int, nargs="+", default=[1, 2])
+    parser.add_argument("--serial", default="", help="Lite Board USB serial filter")
+    parser.add_argument("--seconds", type=float, default=0, help="0 runs until Ctrl+C")
+    parser.add_argument(
+        "--attach", action="store_true", help="Only observe an existing /tof publisher"
+    )
+    args = parser.parse_args()
+    if len(set(args.ids)) != len(args.ids) or any(i < 0 or i > 255 for i in args.ids):
+        parser.error("IDs must be unique integers in [0, 255]")
+    if not math.isfinite(args.seconds) or args.seconds < 0:
+        parser.error("--seconds must be finite and nonnegative")
+
+    enter_ros_environment()
+    if not args.attach:
+        try:
+            check_usb_access()
+        except PermissionError as error:
+            # Match the host launcher without changing host USB permissions or prompting.
+            if Path("/.dockerenv").exists() and os.geteuid() != 0:
+                try:
+                    available = subprocess.run(
+                        ["sudo", "-n", "true"], stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL, check=False,
+                    ).returncode == 0
+                except OSError:
+                    available = False
+                if available:
+                    print("USB access requires container root; restarting the monitor.", flush=True)
+                    os.execvp("sudo", [
+                        "sudo", "-n", "env", "-u", "RMCS_TOF_MONITOR_READY",
+                        f"ROS_DOMAIN_ID={os.environ.get('ROS_DOMAIN_ID', '67')}",
+                        sys.executable, str(Path(__file__).resolve()), *sys.argv[1:],
+                    ])
+            print(f"tof-monitor: {error}", file=sys.stderr)
+            return 1
+    import rclpy
+    from rclpy.qos import QoSProfile, ReliabilityPolicy
+    from std_msgs.msg import Bool, Float64, Int32, UInt8
+    import yaml
+
+    os.environ.setdefault("ROS_DOMAIN_ID", "67")
+    sensors = {sensor_id: Sensor() for sensor_id in args.ids}
+    config = yaml.safe_load((ROOT / "rmcs_ws/src/rmcs_bringup/config/tof-sensor.yaml").read_text())
+    parameters = config["tof_sensor"]["ros__parameters"]
+    parameters.update(port=args.port, sensor_ids=args.ids, board_serial=args.serial)
+    config["value_broadcaster"]["ros__parameters"]["forward_list"] = [
+        f"/tof/sensor_{sensor_id}/{name}" for sensor_id in args.ids for name in FIELDS
+    ] + ["/tof/dropped_frames"]
+    timeout = parameters["feedback_timeout"]
+    types = (Float64, Bool, UInt8, Int32, Float64, Int32)
+    process = None
+    node = None
+    result = 0
+    stopped = False
+
+    def stop(_signum, _frame):
+        nonlocal stopped
+        stopped = True
+
+    with tempfile.TemporaryDirectory(prefix="rmcs-tof-") as temporary:
+        directory = Path(temporary)
+        config_path = directory / "sensors.yaml"
+        config_path.write_text(yaml.safe_dump(config))
+        log_path = directory / "executor.log"
+        with log_path.open("w") as log:
+            try:
+                rclpy.init(args=[])
+                signal.signal(signal.SIGINT, stop)
+                signal.signal(signal.SIGTERM, stop)
+                node = rclpy.create_node("tof_monitor")
+                qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+                for sensor_id, sensor in sensors.items():
+                    for name, message_type in zip(FIELDS, types):
+                        node.create_subscription(
+                            message_type, f"/tof/sensor_{sensor_id}/{name}",
+                            lambda message, sensor=sensor, name=name:
+                                sensor.receive(name, message.data),
+                            qos,
+                        )
+                diagnostics = {}
+                node.create_subscription(
+                    Int32, "/tof/dropped_frames",
+                    lambda message: diagnostics.update(dropped=message.data), qos,
+                )
+                if not args.attach:
+                    executable = ROOT / "rmcs_ws/install/lib/rmcs_executor/rmcs_executor"
+                    process = subprocess.Popen(
+                        [str(executable), "--ros-args", "--params-file", str(config_path)],
+                        stdout=log, stderr=log, start_new_session=True,
+                    )
+                started = time.monotonic()
+                next_display = started
+                while not stopped and rclpy.ok():
+                    if process is not None and process.poll() is not None:
+                        print(log_path.read_text(), file=sys.stderr)
+                        raise RuntimeError(f"Sensor process exited: {process.returncode}")
+                    now = time.monotonic()
+                    if args.seconds and now - started >= args.seconds:
+                        break
+                    rclpy.spin_once(node, timeout_sec=0.05)
+                    if now < next_display:
+                        continue
+                    next_display = now + 0.5
+                    lines = [
+                        f"TOFSense | {args.port} | IDs {args.ids} | Ctrl+C to exit",
+                        " ID  Distance(m)  State     Status  Strength   "
+                        "Age(ms)    Rx Hz    Frames",
+                        *(sensor.row(sensor_id, timeout) for sensor_id, sensor in sensors.items()),
+                        f"Queue drops: {diagnostics.get('dropped', '--')} | "
+                        "Nonzero status is invalid; no old distance is reused.",
+                    ]
+                    if sys.stdout.isatty():
+                        print("\033[2J\033[H", end="")
+                    print("\n".join(lines), flush=True)
+            except (OSError, RuntimeError) as error:
+                print(f"tof-monitor: {error}", file=sys.stderr)
+                result = 1
+            finally:
+                if process is not None and process.poll() is None:
+                    process.send_signal(signal.SIGINT)
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                if node is not None:
+                    node.destroy_node()
+                if rclpy.ok():
+                    rclpy.shutdown()
+    return result
+
+
+if __name__ == "__main__":
+    sys.exit(main())

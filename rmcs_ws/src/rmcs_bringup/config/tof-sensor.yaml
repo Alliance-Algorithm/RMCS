@@ -1,0 +1,33 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 200.0
+    components:
+      - rmcs_core::hardware::TofSensor -> tof_sensor
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+tof_sensor:
+  ros__parameters:
+    board_serial: ""
+    port: "can2"
+    # Module IDs observed on the connected CAN bus.
+    sensor_ids: [1, 2]
+    output_prefix: "/tof"
+    feedback_timeout: 0.2
+
+value_broadcaster:
+  ros__parameters:
+    update_rate: 50.0
+    forward_list:
+      - /tof/dropped_frames
+      - /tof/sensor_1/distance
+      - /tof/sensor_1/valid
+      - /tof/sensor_1/status
+      - /tof/sensor_1/signal_strength
+      - /tof/sensor_1/age
+      - /tof/sensor_1/frames
+      - /tof/sensor_2/distance
+      - /tof/sensor_2/valid
+      - /tof/sensor_2/status
+      - /tof/sensor_2/signal_strength
+      - /tof/sensor_2/age
+      - /tof/sensor_2/frames
