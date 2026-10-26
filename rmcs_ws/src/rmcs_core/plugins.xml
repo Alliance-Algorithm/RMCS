@@ -71,4 +71,25 @@
   <class type="rmcs_core::hardware::TEST" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::hardware::ShootingTest" base_class_type="rmcs_executor::Component">
+    <description>Lite-board shooting test with three friction wheels, LK feeder and stall-detected muzzle lock.</description>
+  </class>
+  <class type="rmcs_core::controller::shooting::FrictionWheelController" base_class_type="rmcs_executor::Component">
+    <description>Friction wheel soft start/stop, jam and bullet-fired detection.</description>
+  </class>
+  <class type="rmcs_core::controller::shooting::BulletFeederController42mm" base_class_type="rmcs_executor::Component">
+    <description>42 mm feeder preload/compress/shoot cycle.</description>
+  </class>
+  <class type="rmcs_core::controller::shooting::GripperKnobController" base_class_type="rmcs_executor::Component">
+    <description>Gripper latch driven by the DR16 rotary knob.</description>
+  </class>
+  <class type="rmcs_core::referee::Status" base_class_type="rmcs_executor::Component">
+    <description>Referee protocol decoder.</description>
+  </class>
+  <class type="rmcs_core::controller::shooting::HeatController" base_class_type="rmcs_executor::Component">
+    <description>Heat allowance derived from referee cooling and heat limit.</description>
+  </class>
+  <class type="rmcs_core::controller::shooting::MuzzleSpeedLogger" base_class_type="rmcs_executor::Component">
+    <description>Forward referee muzzle speed as double</description>
+  </class>
 </library>
