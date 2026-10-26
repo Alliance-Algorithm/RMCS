@@ -76,3 +76,9 @@ develop_ws
 
 # Ignore camera cache files
 cache
+
+# 崩溃转储（曾累积 349 个 / 3.4 GB）
+core.*
+
+# 本地临时备份
+.wip/
