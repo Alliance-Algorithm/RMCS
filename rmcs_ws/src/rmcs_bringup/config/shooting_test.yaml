@@ -1,0 +1,205 @@
+# =============================================================================
+# 发弹机构台架测试配置（42mm 拨弹盘）
+#
+# 分层约定：硬件组件只负责收发，所有"策略"都在控制器里。
+#
+#   ShootingTest                硬件层：3 个 M3508 摩擦轮 + 1 个 M3508 夹爪
+#                                       + 1 个 LK 拨弹电机 + DR16 + 裁判字节管道
+#   referee::Status             裁判层：解裁判协议，发布弹速、冷却值、热量上限等
+#   FrictionWheelController     摩擦轮：软启停、卡弹检测、踢弹检测
+#   BulletFeederController42mm  拨弹盘：42mm 压缩循环（预压→压缩→发射），角度闭环
+#   HeatController              热量：把冷却值/热量上限换算成"还能打几发"
+#   GripperKnobController       夹爪：右拨杆 DOWN 时，旋钮上拨锁紧、下拨松开
+#   PidController ×4            速度环：把速度设定变成电机力矩（3 摩擦轮 + 1 夹爪）
+#   ValueBroadcaster            观测：把内部接口转发成 ROS 话题，方便 ros2 topic echo
+#
+# 所有组件跑在同一个进程里：rmcs_executor 按下面的列表加载插件，
+# 然后在同一个 1 kHz 循环里按依赖顺序调用它们。组件之间不走 ROS 通信，直接传指针。
+#
+# -----------------------------------------------------------------------------
+# 操作方式（每个输入只做一件事，互不重叠）
+#
+#   右拨杆 DOWN（保持）   进入夹爪模式，此时旋钮才有效
+#     旋钮上拨一下       夹爪锁紧到 locked_angle（一步到位，不需要按住）
+#     旋钮下拨一下       夹爪松开到 released_angle
+#   左拨杆 DOWN（拨一下） 打一发（42mm 控制器原生触发方式）
+#   左拨杆 UP（拨一下）   开/关摩擦轮（FrictionWheelController 原生触发方式）
+#   左右都 DOWN           急停
+#   任何开关读到 UNKNOWN   全部输出置零（遥控失联保护）
+# =============================================================================
+
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0          # 每个组件每秒被调用 1000 次
+    components:
+      # 硬件层
+      - rmcs_core::hardware::ShootingTest -> shooting_hardware
+      # 裁判解帧（提供 /referee/shooter/initial_speed、cooling、heat_limit 等）
+      - rmcs_core::referee::Status -> referee_status
+
+      # 控制器（顺序无关，执行器按接口依赖自动排序）
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::BulletFeederController42mm -> bullet_feeder_42mm
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::MuzzleSpeedLogger -> muzzle_speed
+      - rmcs_core::controller::shooting::GripperKnobController -> gripper_knob
+
+      # 速度环
+      - rmcs_core::controller::pid::PidController -> friction_upper_pid
+      - rmcs_core::controller::pid::PidController -> friction_left_pid
+      - rmcs_core::controller::pid::PidController -> friction_right_pid
+
+      # 观测
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+# -----------------------------------------------------------------------------
+# 硬件参数
+# 注意：下面每一项都必须在场。少了任何一项，组件会用内置默认值悄悄启动，
+#       而默认值不一定是你的硬件（比如电机 ID）。
+# -----------------------------------------------------------------------------
+shooting_hardware:
+  ros__parameters:
+    board_serial_lite_board: ""      # 板子序列号；留空表示匹配找到的第一块板
+    dji_can_channel: 1               # 4 个大疆电机所在的 CAN 通道（已用自环验证：CAN1 正常）
+    feeder_can_channel: 3            # 拨弹电机所在的 CAN 通道（已用自环验证：CAN3 正常）
+    dji_motor_ids: [1, 2, 3, 4]      # 顺序固定：上、左、右、夹爪；必须与电调里烧录的 ID 一致
+    dji_reduction_ratios: [1.0, 1.0, 1.0, 1.0]   # 直驱为 1.0；有减速箱就填真实值
+    dji_reversed: [false, true, true, false]     # 顺序 [上, 左, 右, 夹爪]；实测左、右方向反了
+    feeder_can_id: 322               # 0x142 —— ID 扫描实测：拨弹电机的 CAN ID 是 2，不是 1
+    feeder_gear_ratio: 1.0          # 拨盘到电机的额外减速比（型号自带减速比之外再乘）
+    feeder_motor_type: "MG5010E_i10" # 型号填错会导致力矩常数错，可能飞车
+    feeder_reversed: true            # 拨弹方向反了改这里
+    feedback_timeout: 0.1            # 秒；任一电机超过这个时间没报文就断力矩
+    referee_uart: 0                  # 0 或 1，对应板子的 UART 1 / UART 2（UART 0 被 DBUS 占用）
+
+# -----------------------------------------------------------------------------
+# 摩擦轮规划
+# 注意：速度单位是"转子 rad/s"（因为减速比配成 1.0）。
+#       上游在 17mm 轮上用 580，42mm 一般需要更大；这里先用 500 起步。
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 42mm 拨弹控制器增益
+# 上游默认 kp=50 / ki=10 是按他们那颗电机调的；LK 电机力矩常数不同，
+# 50 意味着速度误差 0.1 rad/s 就要 5 N·m，力矩直接打满 → 抖着转。
+# -----------------------------------------------------------------------------
+bullet_feeder_42mm:
+  ros__parameters:
+    velocity_kp: 8.0                 # 速度环 P
+    velocity_ki: 2.0                 # 速度环 I（配合 integral_max 限幅）
+    velocity_kd: 0.0
+    velocity_integral_max: 6.0
+    velocity_integral_min: 0.0
+    angle_kp: 20.0                    # 角度环 P（输出是速度设定，单位 rad/s）
+    angle_ki: 0.0
+    angle_kd: 2.0
+    feed_velocity_max: 3.0           # 拨弹阶段速度上限 rad/s（原硬编码 1.0）
+    compress_velocity_max: 2.0      # 压缩阶段速度上限 rad/s（原硬编码 0.8）
+    torque_limit: 5.0              # 力矩上限 N·m —— 防止增益异常时飙到几十
+    velocity_filter_alpha: 0.02      # 速度低通系数，越小越平滑
+    compressed_zero_point: 0.58      # 压缩零点 rad
+    angle_per_bullet: 1.0471975512   # 每发转动角度 rad（2π/6）
+    
+    open_loop_push: true             # 用角度误差直接给固定力矩，绕过噪声极大的速度环
+    push_torque: 6.0                 # 前进方向力矩上限 (N·m)
+    angle_torque_kp: 12.0            # 角度比例增益 (N·m/rad)
+    angle_torque_kd: 0.30            # 角度阻尼增益 (N·m per rad/s)
+    angle_velocity_filter_alpha: 0.1 # 角度差分速度的低通系数            # 角度比例增益 (N·m/rad)
+    min_torque: 0.0                  # 最小起步力矩，打破静摩擦
+    push_deadband: 0.01              # 进入死区就松手 (rad)
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /shooting/friction_motor/upper
+      - /shooting/friction_motor/left
+      - /shooting/friction_motor/right
+    friction_velocities: [450.0, 450.0, 450.0]
+    friction_soft_start_stop_time: 1.0   # 从静止到额定转速的软启动时间（秒）
+
+# -----------------------------------------------------------------------------
+# 热量换算
+# 允许发数 = (热量上限 − 已用热量 − 保留热量) / 每发热量
+#   接裁判时：冷却值和热量上限来自裁判系统
+#   没接裁判：Status 用安全默认值（cooling=40、heat_limit=50000），
+#             算出 (50000−0−15000)/10000 = 3 发，只要大于 0 就放行，
+#             所以台架上等价于"一直允许发射"
+# -----------------------------------------------------------------------------
+heat_controller:
+  ros__parameters:
+    # 台架测试：把每发消耗压到 1、预留归零，额度就永远不会耗尽。
+    # 比赛用请恢复 heat_per_shot: 10000 / reserved_heat: 15000。
+    heat_per_shot: 1
+    reserved_heat: 0
+gripper_knob:
+  ros__parameters:
+    close_speed: 30.0
+    open_speed: -30.0
+    position_kp: 2.0
+    max_lead_rad: 0.3
+    torque_limit: 0.13
+    clamp_torque: 0.30
+    clamp_time_s: 2.0
+    stall_progress_rad: 0.3
+    stall_confirm_ticks: 150
+    stall_ignore_ticks: 100
+    over_speed_velocity: 300.0
+    edge_lockout_ticks: 300
+    knob_deadzone: 0.7
+    angle_velocity_filter_alpha: 0.1
+friction_upper_pid:
+  ros__parameters:
+    measurement: /shooting/friction_motor/upper/velocity
+    setpoint: /shooting/friction_motor/upper/control_velocity
+    control: /shooting/friction_motor/upper/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+    output_min: -0.30
+    output_max: 0.30
+
+friction_left_pid:
+  ros__parameters:
+    measurement: /shooting/friction_motor/left/velocity
+    setpoint: /shooting/friction_motor/left/control_velocity
+    control: /shooting/friction_motor/left/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+    output_min: -0.30
+    output_max: 0.30
+
+friction_right_pid:
+  ros__parameters:
+    measurement: /shooting/friction_motor/right/velocity
+    setpoint: /shooting/friction_motor/right/control_velocity
+    control: /shooting/friction_motor/right/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+    output_min: -0.30
+    output_max: 0.30
+
+muzzle_speed:
+  ros__parameters:
+    # 速度变化超过这个值才打印一行，避免重复帧刷屏
+    min_change: 0.05
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      # 三个摩擦轮：速度 + 力矩（力矩能看出是否带载、是否卡滞）
+      - /shooting/friction_motor/upper/velocity
+      - /shooting/friction_motor/upper/torque
+      - /shooting/friction_motor/left/velocity
+      - /shooting/friction_motor/left/torque
+      - /shooting/friction_motor/right/velocity
+      - /shooting/friction_motor/right/torque
+      # 夹爪：速度 + 角度 + 力矩（调堵转阈值要看这三个）
+      - /shooting/gripper_motor/velocity_filtered
+      - /shooting/gripper_motor/angle
+      - /shooting/gripper_motor/torque
+      # 拨弹：角度 + 速度 + 力矩（角度看在不在走，力矩看是否卡住）
+      - /gimbal/bullet_feeder/angle
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/torque
+      - /shooting/muzzle_speed
