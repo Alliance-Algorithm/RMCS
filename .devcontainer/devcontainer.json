@@ -8,7 +8,9 @@
     "service": "rmcs-develop",
     "workspaceFolder": "/workspaces/RMCS",
     "initializeCommand": "bash .devcontainer/scripts/generate-local-override.sh && bash .devcontainer/scripts/probe-host-tools.sh",
-    "postCreateCommand": "bash .devcontainer/scripts/setup-shell-history.sh && bash .devcontainer/scripts/bootstrap-tools.sh",
+    // bootstrap-tools.sh 会按宿主机清单 npm 安装 codex/claude，走代理极慢且会卡住容器创建。
+    // 需要时手动执行：bash .devcontainer/scripts/bootstrap-tools.sh
+    "postCreateCommand": "bash .devcontainer/scripts/setup-shell-history.sh",
     "customizations": {
         "vscode": {
             "settings": {

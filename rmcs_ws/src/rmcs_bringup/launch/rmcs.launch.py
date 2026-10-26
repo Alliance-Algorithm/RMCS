@@ -50,20 +50,31 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 output="screen",
             )
         )
-        demo_launch_path = os.path.join(
-            FindPackageShare("arm_moveit_config").perform(context),
-            "launch",
-            "demo.launch.py"
-        )
-        
-        entities.append(
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(demo_launch_path),
-                launch_arguments={
-                    "use_rviz": LaunchConfiguration("use_rviz")
-                }.items(),
+        # arm_moveit_config 的 demo launch 依赖 Python 模块 moveit_configs_utils。
+        # 本分支关闭了机械臂编译（RMCS_WITH_ARM=OFF），镜像里也没有 MoveIt，
+        # 所以先探测模块是否可用；不可用就跳过，否则整个 launch 会直接失败。
+        import importlib.util
+
+        if importlib.util.find_spec("moveit_configs_utils") is not None:
+            demo_launch_path = os.path.join(
+                FindPackageShare("arm_moveit_config").perform(context),
+                "launch",
+                "demo.launch.py"
             )
-        )
+            entities.append(
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(demo_launch_path),
+                    launch_arguments={
+                        "use_rviz": LaunchConfiguration("use_rviz")
+                    }.items(),
+                )
+            )
+        else:
+            entities.append(
+                LogInfo(
+                    msg="moveit_configs_utils 不可用（未构建机械臂），跳过 arm_moveit_config 的 demo launch"
+                )
+            )
        
 
         return entities

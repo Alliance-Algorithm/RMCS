@@ -11,6 +11,28 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-O2 -Wall -Wextra -Wpedantic)
 endif()
 
+# -----------------------------------------------------------------------------
+# 机械臂代码（controller/arm）依赖 MoveIt。本分支用于发弹台架，不需要机械臂，
+# 默认关闭：既不编译这些源文件，也不去查找 MoveIt。
+# 这样产物 librmcs_core.so 完全不依赖 MoveIt，真机也不必再装 1~2GB 的 MoveIt。
+# 需要机械臂时：colcon build --cmake-args -DRMCS_WITH_ARM=ON
+# -----------------------------------------------------------------------------
+option(RMCS_WITH_ARM "Build arm controllers that require MoveIt" OFF)
+
+if(NOT RMCS_WITH_ARM)
+  # 让下面的 ament_auto_find_build_dependencies() 找不到这些包，
+  # 它们就不会被写进链接列表，也就不会出现在产物的 DT_NEEDED 里。
+  foreach(_moveit_pkg
+          moveit_core
+          moveit_ros_planning_interface
+          moveit_ros_move_group
+          moveit_ros_planning
+          moveit_ros_visualization
+          moveit_visual_tools)
+    set(CMAKE_DISABLE_FIND_PACKAGE_${_moveit_pkg} TRUE)
+  endforeach()
+endif()
+
 find_package(ament_cmake_auto REQUIRED)
 include(FetchContent)
 
@@ -29,6 +51,11 @@ file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
   ${PROJECT_SOURCE_DIR}/src/*.c
 )
+
+if(NOT RMCS_WITH_ARM)
+  # 把整个 controller/arm 目录从编译列表里剔除
+  list(FILTER PROJECT_SOURCE EXCLUDE REGEX "/controller/arm/")
+endif()
 
 ament_auto_add_library(
   ${PROJECT_NAME} SHARED
