@@ -449,8 +449,10 @@ public:
             });
 
         dr16_.set_timeout_enabled(true);
-        board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial);
-
+        auto options = librmcs::board::AdvancedOptions{};
+        options.dangerously_skip_version_checks = true;
+        board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, board_serial, options);
+            
         for (const auto& ch : channels_) {
             RCLCPP_INFO(
                 logger_, "[hardware motor test] %s: family=%s tx=0x%03X rx=0x%03X id=%d",
@@ -458,6 +460,7 @@ public:
                 static_cast<unsigned>(ch.backend->tx_can_id()),
                 static_cast<unsigned>(ch.backend->rx_can_id()), motor_id);
         }
+
     }
 
     HardwareMotorTest(const HardwareMotorTest&) = delete;
