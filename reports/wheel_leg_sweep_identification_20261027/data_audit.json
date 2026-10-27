@@ -1,0 +1,188 @@
+[
+  {
+    "file": "wheel_leg_膝关节气簧辨识数据.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/wheel_leg_膝关节气簧辨识数据.csv",
+    "bytes": 442671383,
+    "sha256": "17d8ebf42472573a28a85352df0584b964ec4ecc183d4b26e29d5f4c729dc0ba",
+    "records": 218309,
+    "duration_s": 219.66502350200003,
+    "active_records": 183547,
+    "state_counts": {
+      "3": 183547,
+      "6": 28419,
+      "2": 3332,
+      "1": 3011
+    },
+    "stage_count": 45,
+    "validation_records": 81455,
+    "mode_values": [
+      0,
+      2
+    ]
+  },
+  {
+    "file": "wheel_leg_轮子低速辨识数据.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/wheel_leg_轮子低速辨识数据.csv",
+    "bytes": 1503644164,
+    "sha256": "9435cda103468a8dd3ef88188da0d418dc0e6bf09b72eb52d893bd1551735c12",
+    "records": 784953,
+    "duration_s": 789.9890276350001,
+    "active_records": 781011,
+    "state_counts": {
+      "3": 781011,
+      "1": 3909,
+      "2": 28,
+      "6": 5
+    },
+    "stage_count": 276,
+    "validation_records": 130205,
+    "mode_values": [
+      0,
+      3
+    ]
+  },
+  {
+    "file": "wheel_leg_轮子高速辨识数据.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/wheel_leg_轮子高速辨识数据.csv",
+    "bytes": 1500409851,
+    "sha256": "a0dd1035621e67f93f827adefaa2ca18cd106a9e3b3a8678c7811cf3f058896a",
+    "records": 784338,
+    "duration_s": 789.2120041740001,
+    "active_records": 781939,
+    "state_counts": {
+      "3": 781939,
+      "1": 1936,
+      "2": 462,
+      "4": 1
+    },
+    "stage_count": 61,
+    "validation_records": 159005,
+    "mode_values": [
+      0,
+      3
+    ]
+  },
+  {
+    "file": "不合适的腿扫频数据.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/不合适的腿扫频数据.csv",
+    "bytes": 110209239,
+    "sha256": "434a377e9c6fa46bd451459c676d35f421aa172ba91cc6bea5b620a1a397d51a",
+    "records": 66196,
+    "duration_s": 66.474915798,
+    "active_records": 0,
+    "state_counts": {
+      "6": 66196
+    },
+    "stage_count": 0,
+    "validation_records": 0,
+    "mode_values": [
+      0
+    ]
+  },
+  {
+    "file": "大小关节夹角扫频用来测试气簧和单膝关节（慢版）.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/大小关节夹角扫频用来测试气簧和单膝关节（慢版）.csv",
+    "bytes": 777191549,
+    "sha256": "d82f2055e0ac6932b5f73e8f8cc4fe0753d6e28aac75913e87b23c154cf8c8ae",
+    "records": 384117,
+    "duration_s": 386.353991463,
+    "active_records": 372163,
+    "state_counts": {
+      "3": 372163,
+      "1": 8881,
+      "2": 3073
+    },
+    "stage_count": 155,
+    "validation_records": 0,
+    "mode_values": [
+      0,
+      2
+    ]
+  },
+  {
+    "file": "左腿关节不同夹角扫频.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/左腿关节不同夹角扫频.csv",
+    "bytes": 1117267915,
+    "sha256": "da4a6f2e3286870f2646639dad9f665244a086d829863801cc8ad32b44766597",
+    "records": 535072,
+    "duration_s": 538.274006796,
+    "active_records": 507839,
+    "state_counts": {
+      "3": 507839,
+      "1": 15484,
+      "6": 11706,
+      "2": 42,
+      "4": 1
+    },
+    "stage_count": 22,
+    "validation_records": 209494,
+    "mode_values": [
+      0,
+      3
+    ]
+  },
+  {
+    "file": "左腿整腿转动，覆盖低速和约 2 秒一圈.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/左腿整腿转动，覆盖低速和约 2 秒一圈.csv",
+    "bytes": 492090254,
+    "sha256": "cd6db89bc493d5f0ddfb84ef775c4f9468429e511a7b2cd7dee355d34c5a196c",
+    "records": 245803,
+    "duration_s": 247.28302628300003,
+    "active_records": 211976,
+    "state_counts": {
+      "3": 211976,
+      "1": 17879,
+      "6": 10276,
+      "2": 3211,
+      "4": 2461
+    },
+    "stage_count": 13,
+    "validation_records": 0,
+    "mode_values": [
+      0,
+      1
+    ]
+  },
+  {
+    "file": "左腿整腿转动，覆盖低速和约 2 秒一圈（2）.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/左腿整腿转动，覆盖低速和约 2 秒一圈（2）.csv",
+    "bytes": 459917371,
+    "sha256": "8f7e2c78639e917b8d7bb33956d904876598509ad18f9d2d20fe98170c6aff50",
+    "records": 223759,
+    "duration_s": 225.14002562800002,
+    "active_records": 211997,
+    "state_counts": {
+      "3": 211997,
+      "1": 8837,
+      "4": 2911,
+      "2": 14
+    },
+    "stage_count": 13,
+    "validation_records": 0,
+    "mode_values": [
+      0,
+      1
+    ]
+  },
+  {
+    "file": "膝关节髋关节差值夹角限位数据.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/膝关节髋关节差值夹角限位数据.csv",
+    "bytes": 124727813,
+    "sha256": "1492cda479bd98b0d2f6b2d8136058bb5414f27de8301fc92713afc988f4e15e",
+    "records": 68188,
+    "duration_s": 68.605022522,
+    "active_records": 210,
+    "state_counts": {
+      "2": 51500,
+      "6": 12906,
+      "1": 3572,
+      "3": 210
+    },
+    "stage_count": 1,
+    "validation_records": 0,
+    "mode_values": [
+      0,
+      3
+    ]
+  }
+]

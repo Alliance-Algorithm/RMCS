@@ -1,0 +1,68 @@
+# Offline candidates from wheel_leg扫频 exports.
+# This file is evidence for the next controlled experiment; it is not loaded by
+# the vehicle profile and does not authorize physical motion.
+schema: wheel_leg_identification_candidates_v1
+status: offline_candidate_not_applied
+source_report: reports/wheel_leg_sweep_identification_20261027/README.md
+
+leg:
+  coordinate: v6_model_torque
+  torque_limit_nm: 40.0
+  archive_controller:
+    kp: [120.0, 120.0, 120.0, 120.0]
+    kd: [4.0, 4.0, 4.0, 4.0]
+  next_identification_sweep:
+    # Raises the position stiffness by 33% while retaining the observed
+    # velocity damping.  Check both sides and all beta points before loading.
+    kp: [160.0, 160.0, 160.0, 160.0]
+    kd: [4.0, 4.0, 4.0, 4.0]
+    feedforward: disabled_until_sign_and_right_side_check
+  current_v6_policy_reference:
+    kp: [160.0, 160.0, 160.0, 160.0]
+    kd: [2.5, 2.5, 2.5, 2.5]
+    note: Existing deployed V6 contract; this archive does not identify a new Kd.
+  left_model_static_feedforward_candidate:
+    # Interpolate in measured beta_actual_deg.  Values are model-frame Nm;
+    # the archive API torque has the opposite sign under v6 model_sign=-1.
+    beta_actual_deg: [62.54, 87.92, 101.87]
+    hip_nm: [17.49, 15.64, 2.22]
+    knee_nm: [-19.27, -16.96, -2.39]
+    note: Left-leg-only effective load table, not a transferable rigid-body model.
+  cascade:
+    recommendation: defer_numeric_double_loop_tuning
+    structure_if_needed: outer_position_p_inner_velocity_pi
+    reason: Static gas-spring load dominates the error; a second PD derivative does not remove zero-speed bias.
+    required_new_data: independent_inner_velocity_step_or_torque_sweep_with_current_and_voltage
+
+wheel:
+  actuator: M3508_without_original_gearbox_with_external_15p62_ratio
+  sweep_torque_cap_nm: 4.880434
+  archive_controller:
+    kp: 0.5
+    ki: 0.0
+    kd: 0.0
+  identification_candidate:
+    kp: 0.75
+    ki: 0.0
+    kd: 0.0
+    valid_range_rad_s: [30.0, 58.0]
+    note: Static scaling candidate only; run low/mid-speed A/B test with anti-windup kept ready.
+  v6_policy_reference:
+    kp: 0.6
+    ki: 0.0
+    kd: 0.0
+  high_speed:
+    target_rad_s: 65.0
+    measured_left_max_rad_s: 59.28
+    measured_right_max_rad_s: 57.13
+    recommendation: do_not_raise_pid_to_force_65
+    reason: The top plateau is speed/voltage limited; the feedback torque remains far below the requested preclip command.
+  integrator_and_derivative:
+    ki: 0.0
+    kd: 0.0
+    reason: No independent PI experiment and high-speed saturation makes integral windup unsafe; derivative would amplify quantized speed noise.
+
+validation:
+  independent_holdout_required: true
+  physical_robot_required_before_deployment: true
+  real2sim_model_status: no_validated_unique_joint_or_wheel_J_B_Fc_model

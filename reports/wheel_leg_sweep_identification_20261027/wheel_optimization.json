@@ -1,0 +1,127 @@
+{
+  "baseline_kp": 0.5,
+  "candidate_kp": 0.75,
+  "ki": 0.0,
+  "kd": 0.0,
+  "operating_range_rad_s": [
+    30.0,
+    58.0
+  ],
+  "operating": {
+    "left": {
+      "samples": 24,
+      "baseline_mae_rad_s": 0.12907628543875663,
+      "candidate_static_mae_rad_s": 0.08605085695917108,
+      "baseline_max_abs_error_rad_s": 0.15245729979832484,
+      "candidate_static_max_abs_error_rad_s": 0.1016381998655499
+    },
+    "right": {
+      "samples": 18,
+      "baseline_mae_rad_s": 0.5449658667416981,
+      "candidate_static_mae_rad_s": 0.36331057782779874,
+      "baseline_max_abs_error_rad_s": 0.69809107032426,
+      "candidate_static_max_abs_error_rad_s": 0.46539404688284
+    }
+  },
+  "top_speed": {
+    "left": {
+      "samples": 3,
+      "max_measured_rad_s": 59.27862194417616,
+      "target_rad_s": 65.0,
+      "mean_abs_error_rad_s": 6.177264313707124,
+      "interpretation": "speed/voltage-limited; proportional gain scaling is not validated here"
+    },
+    "right": {
+      "samples": 2,
+      "max_measured_rad_s": 57.13327484825482,
+      "target_rad_s": 65.0,
+      "mean_abs_error_rad_s": 8.047738812963532,
+      "interpretation": "speed/voltage-limited; proportional gain scaling is not validated here"
+    }
+  },
+  "mechanical_fit": {
+    "low_speed": {
+      "dataset": "wheel_leg_轮子低速辨识数据.csv",
+      "axes": {
+        "left": {
+          "J_kg_m2": 8.683100568018031e-05,
+          "B_Nm_s_rad": 0.001562719670550492,
+          "Fc_Nm": 0.040262149890831954,
+          "bias_nm": -0.0006207121406115247,
+          "train": {
+            "samples": 650820,
+            "rmse_nm": 0.05961220312850302,
+            "r2": 0.2332547830590499
+          },
+          "validation": {
+            "samples": 130191,
+            "rmse_nm": 0.08214155275974276,
+            "r2": 0.2067221387161977
+          },
+          "accepted": false,
+          "model": "tau_fb = J*ddq + B*dq + Fc*tanh(100*dq) + bias"
+        },
+        "right": {
+          "J_kg_m2": 0.00011665800638310863,
+          "B_Nm_s_rad": 0.008542551841626882,
+          "Fc_Nm": 0.1356887670163584,
+          "bias_nm": -0.0014466858417893622,
+          "train": {
+            "samples": 650820,
+            "rmse_nm": 0.08113723824847677,
+            "r2": 0.6598068128538743
+          },
+          "validation": {
+            "samples": 130191,
+            "rmse_nm": 0.08833132990083044,
+            "r2": 0.7348539844034137
+          },
+          "accepted": false,
+          "model": "tau_fb = J*ddq + B*dq + Fc*tanh(100*dq) + bias"
+        }
+      }
+    },
+    "high_speed": {
+      "dataset": "wheel_leg_轮子高速辨识数据.csv",
+      "axes": {
+        "left": {
+          "J_kg_m2": 0.0003302131546942526,
+          "B_Nm_s_rad": 0.0003272094948981942,
+          "Fc_Nm": 0.047417846049676214,
+          "bias_nm": -6.999333708105365e-05,
+          "train": {
+            "samples": 622934,
+            "rmse_nm": 0.08434087410289615,
+            "r2": 0.23541182926820303
+          },
+          "validation": {
+            "samples": 159005,
+            "rmse_nm": 0.11126181858704434,
+            "r2": 0.23695778410423152
+          },
+          "accepted": false,
+          "model": "tau_fb = J*ddq + B*dq + Fc*tanh(100*dq) + bias"
+        },
+        "right": {
+          "J_kg_m2": 0.000559006919286215,
+          "B_Nm_s_rad": 0.0014972520444804871,
+          "Fc_Nm": 0.182384143189789,
+          "bias_nm": -0.0006769435238102582,
+          "train": {
+            "samples": 622934,
+            "rmse_nm": 0.07342240513241248,
+            "r2": 0.7914212531150925
+          },
+          "validation": {
+            "samples": 159005,
+            "rmse_nm": 0.10946559908098988,
+            "r2": 0.7437298928692767
+          },
+          "accepted": false,
+          "model": "tau_fb = J*ddq + B*dq + Fc*tanh(100*dq) + bias"
+        }
+      }
+    },
+    "status": "effective regression only; no wheel model accepted for real2sim"
+  }
+}
