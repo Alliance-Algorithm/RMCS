@@ -127,7 +127,20 @@ public:
 
                 if (*navigation_enable_control_
                     && navigation_command_velocity_->array().isFinite().all()) {
+                    if (!mode_before_navigation_) {
+                        if (mode == ChassisMode::CROSS)
+                            mode_before_navigation_ =
+                                mode_before_cross_.value_or(ChassisMode::ALIGNMENT);
+                        else if (mode == ChassisMode::ALIGN)
+                            mode_before_navigation_ =
+                                mode_before_align_.value_or(ChassisMode::ALIGNMENT);
+                        else
+                            mode_before_navigation_ = mode;
+                    }
                     mode = *navigation_chassis_behavior_;
+                } else if (mode_before_navigation_) {
+                    mode = *mode_before_navigation_;
+                    mode_before_navigation_.reset();
                 }
 
                 if (cross_active()) {
@@ -169,6 +182,7 @@ public:
         *mode_ = rmcs_msgs::ChassisMode::ALIGNMENT;
         mode_before_cross_.reset();
         mode_before_align_.reset();
+        mode_before_navigation_.reset();
         *chassis_control_velocity_ = {kNaN, kNaN, kNaN};
 
         spin_stuck_count_ = 0;
@@ -404,6 +418,7 @@ private:
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     std::optional<rmcs_msgs::ChassisMode> mode_before_cross_;
     std::optional<rmcs_msgs::ChassisMode> mode_before_align_;
+    std::optional<rmcs_msgs::ChassisMode> mode_before_navigation_;
     bool spinning_forward_ = true;
 
     std::size_t spin_stuck_count_ = 0;
