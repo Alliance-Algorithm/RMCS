@@ -224,7 +224,7 @@ private:
     void log_due_reports(SteadyClock::time_point current_time, ThreadStats& stats) {
         while (current_time >= stats.next_report_time) {
             log_cumulative_stats(stats.cumulative);
-            log_window_stats(stats.window);
+            // log_window_stats(stats.window); // Component 5s occupancy report.
             reset_window_stats(stats.window);
             stats.next_report_time += std::chrono::seconds(5);
         }

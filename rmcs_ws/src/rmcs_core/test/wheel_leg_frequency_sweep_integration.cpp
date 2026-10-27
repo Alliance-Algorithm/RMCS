@@ -122,7 +122,7 @@ public:
             const auto p = std::string{"/wheel_leg/"} + kAxisNames[i] + "/";
             *ds_[p + "angle"] = i < 4 ? offsets[i] - model[i] : 0;
             *ds_[p + "velocity"] = phase == 10 ? 300 : 0;
-            *ds_[p + "max_torque"] = i < 4 ? (kind == 3 ? 5 : 20) : 4.88;
+            *ds_[p + "max_torque"] = i < 4 ? (kind == 3 ? 5 : kind == 2 ? 40 : 20) : 4.88;
             if (phase == 14 && i < 4) {
                 // Two full turns of canonical encoder feedback, with opposite
                 // model rotation signs on the two sides and a fixed leg shape.
@@ -258,7 +258,9 @@ public:
                 kind == 1 ? i >= 4 : i < 4 && static_cast<int>(i / 2) == selected;
             if (!selected_axis)
                 parked_zero = parked_zero && *torque_[i] == 0;
-            const double limit = kind == 3 ? 5 : i < 4 ? 20 : 10 * 15.62 * .3 * 187 / 3591;
+            const double limit = kind == 3 ? 5
+                               : i < 4     ? (kind == 2 ? 40 : 20)
+                                           : 10 * 15.62 * .3 * 187 / 3591;
             bounded =
                 bounded && std::isfinite(*torque_[i]) && std::abs(*torque_[i]) <= limit + 1e-9;
             diagnosed = diagnosed || *diagnostic_[i] != 0;
@@ -269,6 +271,9 @@ public:
         diagnostics = diagnosed;
         wheel_effort = std::max(std::abs(*torque_[4]), std::abs(*torque_[5]));
         wheel_frame_effort = std::max(std::abs(*wheel_frame_[0]), std::abs(*wheel_frame_[1]));
+        if (kind == 2)
+            joint_effort =
+                std::max(std::abs(*torque_[2 * selected]), std::abs(*torque_[2 * selected + 1]));
         completed_seen = completed_seen || *state_ == 4;
         remote_left = *remote_left_;
         remote_right = *remote_right_;
@@ -277,7 +282,8 @@ public:
     std::atomic<bool> enabled{false}, ready{false}, active{false}, zero{true},
         invalid_mapping{false}, invalid_effort{false}, diagnostics{false};
     std::atomic<std::uint64_t> run{0}, reference{0};
-    std::atomic<double> theta_left{0}, theta_right{0}, wheel_effort{0}, wheel_frame_effort{0};
+    std::atomic<double> theta_left{0}, theta_right{0}, wheel_effort{0}, wheel_frame_effort{0},
+        joint_effort{0};
     std::atomic<bool> completed_seen{false};
     std::atomic<bool> fk_valid{false};
 
@@ -390,6 +396,7 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
             ASSERT_TRUE(await([&] { return observe->diagnostics.load(); }));
             std::this_thread::sleep_for(20ms);
             EXPECT_EQ(observe->state, 3);
+            EXPECT_DOUBLE_EQ(observe->joint_effort.load(), 40);
             phase = 3;
             ASSERT_TRUE(await([&] { return observe->fk_valid.load(); }));
             phase = 14;

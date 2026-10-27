@@ -305,6 +305,18 @@ private:
                 state_name, static_cast<int>(session_.reason), reason_name,
                 static_cast<int>(*left_), static_cast<int>(*right_),
                 static_cast<int>(*feedback_fresh_), static_cast<int>(*drives_ready_output_));
+        } else if (session_.state == SweepState::kComplete) {
+            RCLCPP_INFO(
+                get_logger(),
+                "Sweep complete: experiment=%s side=%s mode=%d run=%llu elapsed=%.3f s; "
+                "all control torques zero.",
+                kind_ == 1   ? "wheels"
+                : kind_ == 2 ? "joints"
+                             : "limits",
+                side_ == 0   ? "left"
+                : side_ == 1 ? "right"
+                             : "both",
+                session_.mode, static_cast<unsigned long long>(session_.run_id), *run_elapsed_);
         } else {
             RCLCPP_INFO(
                 get_logger(),
