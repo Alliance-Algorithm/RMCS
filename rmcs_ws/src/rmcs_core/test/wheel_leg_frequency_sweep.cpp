@@ -214,29 +214,53 @@ TEST(FrequencySweepTrajectories, InvalidInitialFkDoesNotProjectOrDiscardRawAngle
     EXPECT_NEAR(plan.at(5).q[1] - 25, g.at(70 * rad).position, 1e-12);
 }
 
-TEST(FrequencySweepProbe, StalledEndsAreCandidatesAndRetreatFromMeasuredPosition) {
-    for (bool right : {false, true}) {
-        auto g = geometry(right);
-        WheelLegLimitProbe::Config c;
-        c.speed = 30 * rad; // Faster synthetic clock; production default tested below.
-        WheelLegLimitProbe probe(g, c);
-        const std::array measured{0.0, g.at(70 * rad).position};
-        probe.start(0, measured);
-        WheelLegJointSweepPlan::Sample x;
-        double t = 0;
-        for (; t < 10 && probe.stage == 1; t += .005)
-            x = probe.update(t, measured, 5);
-        ASSERT_EQ(probe.stage, 2);
-        EXPECT_EQ(probe.result[0], 1);
-        EXPECT_DOUBLE_EQ(probe.boundary_q[0], measured[1]);
-        EXPECT_NEAR(probe.boundary_beta[0], 70 * rad, 1e-9);
-        const auto y = probe.update(t + 1, measured, 5);
-        EXPECT_GT((y.q[1] - measured[1]) * (right ? -1 : 1), 0);
-        for (; t < 30 && probe.stage < 5; t += .005)
-            probe.update(t, measured, 5);
-        EXPECT_EQ(probe.stage, 5);
-        EXPECT_EQ(probe.result[1], 1);
+TEST(FrequencySweepProbe, DrivesBothEndsAndHoldsTheHip) {
+    auto g = geometry();
+    WheelLegLimitProbe::Config c;
+    c.speed = 90 * rad; // 360 deg in about 5 s, including the ramp-in.
+    WheelLegLimitProbe probe(g, c);
+    const std::array measured{0.0, 0.0};
+    probe.start(0, measured);
+    double t = 0;
+    for (; t < 20 && probe.stage < 3; t += .005) {
+        const auto sample = probe.update(t, measured);
+        EXPECT_DOUBLE_EQ(sample.q[0], 0.0);
+        EXPECT_DOUBLE_EQ(sample.dq[0], 0.0);
     }
+    ASSERT_EQ(probe.stage, 3);
+    EXPECT_EQ(probe.result[0], 1);
+    EXPECT_EQ(probe.result[1], 1);
+    EXPECT_DOUBLE_EQ(probe.boundary_q[0], measured[1]);
+    EXPECT_DOUBLE_EQ(probe.boundary_q[1], measured[1]);
+    EXPECT_DOUBLE_EQ(probe.boundary_hip[0], measured[0]);
+}
+
+TEST(FrequencySweepProbe, FinalReferenceIsTheConfiguredAngleEnd) {
+    auto g = geometry();
+    WheelLegLimitProbe::Config c;
+    c.speed = 90 * rad;
+    WheelLegLimitProbe probe(g, c);
+    const std::array measured{-30 * rad, -30 * rad + g.at(70 * rad).position};
+    probe.start(0, measured);
+    WheelLegJointSweepPlan::Sample last;
+    double t = 0;
+    for (; t < 20 && probe.stage < 3; t += .005)
+        last = probe.update(t, measured);
+    ASSERT_EQ(probe.stage, 3);
+    // The hip reference never moves; the knee ends exactly at the configured end.
+    EXPECT_DOUBLE_EQ(last.q[0], measured[0]);
+    EXPECT_NEAR(last.q[1], 360 * rad, 1e-9);
+    EXPECT_NEAR(probe.boundary_beta[0], 70 * rad, 1e-9);
+    EXPECT_DOUBLE_EQ(probe.boundary_q[1], measured[1]);
+}
+
+TEST(FrequencySweepProbe, RejectsDegenerateAngleSweep) {
+    auto g = geometry();
+    EXPECT_THROW(
+        WheelLegLimitProbe(g, WheelLegLimitProbe::Config{0, 0, .5 * rad}), std::invalid_argument);
+    EXPECT_THROW(
+        WheelLegLimitProbe(g, WheelLegLimitProbe::Config{0, 360 * rad, 0}), std::invalid_argument);
+    EXPECT_DOUBLE_EQ(WheelLegLimitProbe::Config{}.end, 360 * rad);
     EXPECT_DOUBLE_EQ(WheelLegLimitProbe::Config{}.speed, .5 * rad);
 }
 

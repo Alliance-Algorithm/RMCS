@@ -517,11 +517,9 @@ int main(int argc, char** argv) {
         "-p",
         RMCS_SWEEP_SIDE ? "frequency_sweep:side:=right" : "frequency_sweep:side:=left"};
     if (RMCS_SWEEP_COMPLETE) {
-        // Only this memory-only completion test accelerates the search. The
-        // separately tested deployed probe YAML retains 0.5 degree/s and 2 s.
-        arguments.insert(
-            arguments.end(), {"-p", "frequency_sweep:probe_speed_deg_s:=1000.0", "-p",
-                              "frequency_sweep:probe_stall_window_s:=0.5"});
+        // Only this memory-only completion test accelerates the sweep. The deployed
+        // probe YAML keeps 0.5 degree/s over 360 degrees.
+        arguments.insert(arguments.end(), {"-p", "frequency_sweep:probe_speed_deg_s:=1000.0"});
     }
     rclcpp::init(static_cast<int>(arguments.size()), arguments.data());
     const int result = RUN_ALL_TESTS();

@@ -83,10 +83,14 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-wheels-sweep
 - 轮子：复用 `wheel_multiband_v2` 的左右单轮及双轮速度平台、速度台阶、
   0.2–2 Hz / 2–8 Hz 扫频、多正弦验证和零电流滑行，按 200 Hz 取样。
   默认速度平台最高 20 rad/s、10 A 命令上限；C620 电流与原 15.62 减速比标定不变。
-- 端点：髋保持进入角，默认 0.5°/s、5 Nm，先寻找低端，再回撤，再寻找高端、回撤。
-  每 2 s 窗口内，膝驱动命令持续 ≥4 Nm 且膝电机位移 <0.15°，记录疑似边界并回撤约 3°。
-  反馈 β 有效时按 FK 曲线精确计算回撤目标；无效时在原始电机坐标中回撤。
-  达到参考搜索端且停留一个窗口时，记录“参考范围已走完”，不宣称找到物理限位。
+- 端点：髋由主机 PD 保持在进入角（主动保持，不是机械锁死）；膝目标角在模型关节坐标里
+  从 `probe_angle_start_deg` 单向慢速扫到 `probe_angle_end_deg`（默认 0°→360°、0.5°/s，约 12 min），
+  纯位置闭环。**不做停点判定、不回撤**：目标一直走到底，机械顶死时只有 20 Nm 力矩限幅兜底
+  （主机 `joint_torque_limit_nm` 与驱动 `dm_control_torque_max` 同为 20 Nm）。
+  两端到达时各记录一次当时的真实膝角与 FK β（`probe/{low,high}/model_angle|beta_estimate`，`result=1`），
+  控制台同时打印该端点髋相对进入角的偏移。
+  真实限位从 CSV 里读：`reference` 还在走、`model_angle` 停住的那一点就是该侧的角度限位；
+  β 超出 FK 表（30°–120°）时为 NaN，原始六电机 `angle` 始终有效。
 
 连续角由每个新反馈帧的相位差累加，初始髋膝分支按已装配 CAD 闭链选择。
 主机模型坐标为 `q_model = model_sign * q_motor + model_offset`；
@@ -100,7 +104,7 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-wheels-sweep
 这些量只记录，不自动减幅、投影目标或跳过工况。
 双下、丢控立即关闭；活动电机反馈超时/无效当周期零输出，恢复后自动重试。
 IMU、非活动电机及驱动状态不锁存扫描退出；保留电流/力矩编码上限。
-关节默认主机和驱动均限 20 Nm；端点入口两层均限 5 Nm。
+关节默认主机和驱动均限 20 Nm；端点入口同样两层 20 Nm，不再单独收紧到 5 Nm。
 
 ## CSV 字段
 
@@ -128,7 +132,7 @@ IMU、非活动电机及驱动状态不锁存扫描退出；保留电流/力矩�
 | `reference_sequence`, `reference_elapsed_s`, `run_elapsed_s` | 200 Hz 参考更新序号、参考采样时间和实际运行时间 |
 | `diagnostic_flags` | 位 0 绝对角、1 速度、2 加速度、3 跟踪误差、4 β 超范围/无效；只诊断 |
 | `estimated_stopping_distance` | `dq²/(2*diagnostic_braking_rad_s2)`，只作诊断估计 |
-| `probe/{low,high}/result` | 0 未获得、1 疑似边界、2 参考范围走完；保留对应连续模型膝角（`model_angle`）及 FK β；原始驱动角见六电机 `angle` 列 |
+| `probe/{low,high}/result` | 1 = 目标端点已到达（0 未到达）；保留到达时的连续模型膝角（`model_angle`）及 FK β；原始驱动角见六电机 `angle` 列 |
 
 另记录 DM 实际状态/故障、可用温度、IMU 姿态/角速度/加速度及各自时间戳。
 提交时间不代表 CAN 线上发送时刻或电机执行时刻，命令及反馈力矩也不能代替外部标定。
@@ -149,7 +153,7 @@ colcon test-result --test-result-base build/rmcs_core --verbose
 遥控停机、故障原因、禁用运动保护后的诊断，以及非选侧零命令。
 这些测试不代表 CAN 总线时序、装夹/气簧参数或实车轨迹已验证。
 
-2026-10-26 当前版本离线结果：两包构建通过，12 个 CTest 目标、42 个 GTest 用例通过。
+2026-10-26 当前版本离线结果：两包构建通过，12 个 CTest 目标、46 个 GTest 用例通过。
 三份 YAML 插件链及 228 个唯一日志信号检查通过；正式 CSV 为 236 列（含 index），
 集成测试额外加入执行器计数列，为 237 列。采集约 1000 Hz，逐周期无漏行。
 加速探测仅用于完成状态测试，不改变正式 YAML。

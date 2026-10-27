@@ -170,7 +170,6 @@ public:
             last_feedback_ns_.fill(0);
             previous_phase_.fill(0);
             previous_velocity_.fill(0);
-            previous_effort_ = 0;
             *stage_ = -1;
             *theta_ref_ = *beta_ref_ = nan;
             *beta_ref_valid_ = false;
@@ -191,9 +190,9 @@ public:
         if (started) {
             last_logged_stage_ = -1;
             last_status_log_ns_ = 0;
-            previous_effort_ = 0;
             reference_tick_ = *tick_;
             *reference_sequence_ = 0;
+            last_probe_result_.fill(0);
             if (kind_ == 2)
                 joint_plan_->start(
                     session_.mode, selected_angles(), hip_zero_[side_], beta_min_, beta_max_);
@@ -216,13 +215,27 @@ public:
                     else if (kind_ == 2)
                         reference_ = joint_plan_->at(elapsed);
                     else {
-                        reference_ = probe_->update(now, selected_angles(), previous_effort_);
+                        reference_ = probe_->update(now, selected_angles());
                         for (std::size_t i = 0; i < 2; ++i) {
                             *probe_result_[i] = probe_->result[i];
                             *probe_q_[i] = probe_->boundary_q[i];
                             *probe_beta_[i] = probe_->boundary_beta[i];
+                            if (last_probe_result_[i] || !probe_->result[i])
+                                continue;
+                            last_probe_result_[i] = probe_->result[i];
+                            // No boundary decision here: only where the target ended and
+                            // what the real angle was. A large gap is the mechanical stop,
+                            // held only by the torque clamp.
+                            RCLCPP_INFO(
+                                get_logger(),
+                                "Probe %s target reached: real knee=%.3f deg, beta=%.3f deg, "
+                                "hip drift=%.3f deg from entry %.4f rad",
+                                i == 0 ? "start" : "end", probe_->boundary_q[i] / PairGeometry::rad,
+                                probe_->boundary_beta[i] / PairGeometry::rad,
+                                (probe_->boundary_hip[i] - probe_->entry_hip()) / PairGeometry::rad,
+                                probe_->entry_hip());
                         }
-                        if (probe_->stage == 5)
+                        if (probe_->stage == 3)
                             session_.complete();
                     }
                 }
@@ -433,15 +446,9 @@ private:
             }
             if (kind_ == 3) {
                 WheelLegLimitProbe::Config c;
-                c.low = beta_min_;
-                c.high = beta_max_;
+                c.start = get_parameter("probe_angle_start_deg").as_double() * PairGeometry::rad;
+                c.end = get_parameter("probe_angle_end_deg").as_double() * PairGeometry::rad;
                 c.speed = get_parameter("probe_speed_deg_s").as_double() * PairGeometry::rad;
-                c.retract = get_parameter("probe_retract_deg").as_double() * PairGeometry::rad;
-                c.window = get_parameter("probe_stall_window_s").as_double();
-                c.motion = get_parameter("probe_stall_motion_deg").as_double() * PairGeometry::rad;
-                c.effort = get_parameter("probe_stall_effort_nm").as_double();
-                if (c.effort >= torque_cap_[1])
-                    throw std::invalid_argument("Probe stall threshold >= torque cap");
                 probe_ = std::make_unique<WheelLegLimitProbe>(geometry_[side_], c);
             }
         }
@@ -591,8 +598,6 @@ private:
                 *preclip_[axis] = requested;
                 *torque_[axis] = std::clamp(requested, -cap, cap);
                 *saturated_[axis] = std::abs(requested) > cap;
-                if (i == 1)
-                    previous_effort_ = *torque_[axis];
             }
         }
     }
@@ -646,7 +651,7 @@ private:
     std::uint64_t last_control_ns_ = 0;
     std::uint64_t last_status_log_ns_ = 0;
     std::size_t reference_tick_ = 0;
-    double previous_effort_ = 0;
+    std::array<int, 2> last_probe_result_{};
     bool transition_logged_ = false;
     SweepState logged_state_ = SweepState::kResetRequired;
     SweepStop logged_reason_ = SweepStop::kNone;
