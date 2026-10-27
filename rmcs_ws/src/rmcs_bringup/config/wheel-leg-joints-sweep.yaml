@@ -39,6 +39,11 @@ frequency_sweep:
   ros__parameters:
     experiment: "joints"
     side: "left"
+    # Press a valid mode once and keep running until DOWN/DOWN: releasing the stick no
+    # longer aborts and re-anchors the trajectory. A receiver gap of <= 0.25 s holds
+    # the last valid switches instead of faulting on one stale frame.
+    latch_run: true
+    remote_timeout_s: 0.25
     reference_frequency_hz: 200.0
     feedback_timeout_s: 0.05
     motion_guards_enabled: false
@@ -55,11 +60,18 @@ frequency_sweep:
     geometry_beta_deg: [30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0, 85.0, 90.0, 95.0, 100.0, 105.0, 110.0, 115.0, 120.0]
     geometry_left_delta: [-0.473731601, -0.297071061, -0.140638855, 0.001799635, 0.134193202, 0.259151808, 0.378464328, 0.493395522, 0.604863832, 0.713551877, 0.819977446, 0.924540437, 1.027554717, 1.129270232, 1.229888687, 1.329574849, 1.428464858, 1.526672408, 1.624293425]
     geometry_right_delta: [0.473731601, 0.297071061, 0.140638855, -0.001799635, -0.134193202, -0.259151808, -0.378464328, -0.493395522, -0.604863832, -0.713551877, -0.819977446, -0.924540437, -1.027554717, -1.129270232, -1.229888687, -1.329574849, -1.428464858, -1.526672408, -1.624293425]
-    beta_min_deg: 35.0
+    # Reference excursions remain inside the operator's 40--110 deg working range.
+    beta_min_deg: 45.0
     beta_max_deg: 105.0
-    joint_kp: [60.0, 60.0]
-    joint_kd: [2.0, 2.0]
+    # Initial collection gains, not identified/optimized gains. Host PD in torque mode.
+    joint_kp: [120.0, 120.0]
+    joint_kd: [4.0, 4.0]
     joint_torque_limit_nm: [20.0, 20.0]
+    joint_turn_speeds_rad_s: [0.2, 0.6, 1.5, 3.141592653589793]
+    joint_fast_turn_period_s: 2.0
+    # Independent model-coordinate torque probes AFTER PD, BEFORE final 20 Nm clamp.
+    # Only local waveform=6 uses these; each axis has distinct frequencies.
+    joint_probe_torque_nm: [1.0, 1.0]
 
 value_collector:
   ros__parameters:
@@ -83,6 +95,9 @@ value_collector:
       - /wheel_leg/sweep/drives_ready
       - /wheel_leg/sweep/feedback_diagnostic
       - /wheel_leg/sweep/reference_active
+      - /wheel_leg/sweep/excitation_revision
+      - /wheel_leg/sweep/stage_elapsed_s
+      - /wheel_leg/sweep/stage_duration_s
       - /wheel_leg/sweep/reference_sequence
       - /wheel_leg/sweep/reference_elapsed_s
       - /wheel_leg/sweep/run_elapsed_s
@@ -136,6 +151,7 @@ value_collector:
       - /wheel_leg/sweep/left_hip_joint/reference_acceleration
       - /wheel_leg/sweep/left_hip_joint/tracking_error
       - /wheel_leg/sweep/left_hip_joint/torque_preclip
+      - /wheel_leg/sweep/left_hip_joint/probe_torque_model
       - /wheel_leg/sweep/left_hip_joint/saturated
       - /wheel_leg/sweep/left_hip_joint/diagnostic_flags
       - /wheel_leg/left_hip_joint/status_code
@@ -163,6 +179,7 @@ value_collector:
       - /wheel_leg/sweep/left_knee_joint/reference_acceleration
       - /wheel_leg/sweep/left_knee_joint/tracking_error
       - /wheel_leg/sweep/left_knee_joint/torque_preclip
+      - /wheel_leg/sweep/left_knee_joint/probe_torque_model
       - /wheel_leg/sweep/left_knee_joint/saturated
       - /wheel_leg/sweep/left_knee_joint/diagnostic_flags
       - /wheel_leg/left_knee_joint/status_code
@@ -190,6 +207,7 @@ value_collector:
       - /wheel_leg/sweep/right_hip_joint/reference_acceleration
       - /wheel_leg/sweep/right_hip_joint/tracking_error
       - /wheel_leg/sweep/right_hip_joint/torque_preclip
+      - /wheel_leg/sweep/right_hip_joint/probe_torque_model
       - /wheel_leg/sweep/right_hip_joint/saturated
       - /wheel_leg/sweep/right_hip_joint/diagnostic_flags
       - /wheel_leg/right_hip_joint/status_code
@@ -217,6 +235,7 @@ value_collector:
       - /wheel_leg/sweep/right_knee_joint/reference_acceleration
       - /wheel_leg/sweep/right_knee_joint/tracking_error
       - /wheel_leg/sweep/right_knee_joint/torque_preclip
+      - /wheel_leg/sweep/right_knee_joint/probe_torque_model
       - /wheel_leg/sweep/right_knee_joint/saturated
       - /wheel_leg/sweep/right_knee_joint/diagnostic_flags
       - /wheel_leg/right_knee_joint/status_code

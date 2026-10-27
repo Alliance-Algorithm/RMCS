@@ -1,0 +1,43 @@
+{
+  "complete_records": 66196,
+  "incomplete_records": [
+    {
+      "line": 66198,
+      "fields": 132,
+      "expected": 236
+    }
+  ],
+  "duration_s": 66.474915798,
+  "state_counts": {
+    "6": 66196
+  },
+  "stop_reason_counts": {
+    "2": 66196
+  },
+  "active_records": 0,
+  "real2sim_ready": false,
+  "accepted": false,
+  "local_models": [],
+  "delay": [],
+  "high_speed_delay": [],
+  "axes": {},
+  "remote_counts": {
+    "/wheel_leg/dr16_fresh": {
+      "0": 66196
+    },
+    "/wheel_leg/enable_request": {
+      "0": 66196
+    },
+    "/wheel_leg/sweep/remote_left": {
+      "0": 66196
+    },
+    "/wheel_leg/sweep/remote_right": {
+      "0": 66196
+    }
+  },
+  "rejection_reasons": [
+    "no running/active reference samples; do not fit damping, delay or PD"
+  ],
+  "source_csv": "/home/noir/不合适的腿扫频数据.csv",
+  "source_sha256": "434a377e9c6fa46bd451459c676d35f421aa172ba91cc6bea5b620a1a397d51a"
+}

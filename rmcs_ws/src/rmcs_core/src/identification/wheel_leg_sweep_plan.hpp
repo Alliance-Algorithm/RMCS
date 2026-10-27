@@ -1,9 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "identification/wheel_leg_pair_recording_plan.hpp"
@@ -46,8 +49,13 @@ inline SweepScalar sweep_turn(double from, double to, double t, double duration)
 
 class WheelLegJointSweepPlan {
 public:
+    struct Config {
+        std::array<double, 4> turn_speeds{.2, .6, 1.5, std::numbers::pi};
+        double fast_turn_period_s = 2;
+        std::array<double, 2> probe_torque_nm{1, 1};
+    };
     struct Sample {
-        std::array<double, 2> q{}, dq{}, ddq{};
+        std::array<double, 2> q{}, dq{}, ddq{}, probe_torque{};
         double theta = 0, beta = 0, dtheta = 0, dbeta = 0;
         int segment = 0, kind = 0;
         bool beta_valid = true, validation = false;
@@ -58,14 +66,29 @@ public:
     struct Segment {
         Pose from, to;
         double start, duration;
-        int kind; // 0: preparation, 1: move/hold, 2: constant-speed turn, 3: chirp, 4: multisine
+        int kind; // 0: entry, 1: move/hold, 2: turn, 3: chirp, 4: rotating multisine, 6: local
+                  // probe
         double amplitude = 0, f0 = 0, f1 = 0;
         bool validation = false;
     };
 
     WheelLegJointSweepPlan(PairGeometry geometry, double hip_sign)
+        : WheelLegJointSweepPlan(std::move(geometry), hip_sign, Config{}) {}
+
+    WheelLegJointSweepPlan(PairGeometry geometry, double hip_sign, Config config)
         : geometry_(std::move(geometry))
-        , hip_sign_(hip_sign) {}
+        , hip_sign_(hip_sign)
+        , config_(config) {
+        for (double speed : config_.turn_speeds)
+            if (!std::isfinite(speed) || speed < .05 || speed > 6)
+                throw std::invalid_argument("Invalid common-turn speed");
+        if (!std::isfinite(config_.fast_turn_period_s) || config_.fast_turn_period_s < 1
+            || config_.fast_turn_period_s > 20)
+            throw std::invalid_argument("Invalid fast-turn period");
+        for (double torque : config_.probe_torque_nm)
+            if (!std::isfinite(torque) || torque <= 0 || torque > 3)
+                throw std::invalid_argument("Invalid independent torque-probe amplitude");
+    }
 
     void start(
         int mode, std::array<double, 2> initial, double hip_zero, double beta_min,
@@ -78,15 +101,17 @@ public:
         Pose pose{theta, mode == 1 ? 70 * rad : beta_min};
         add(pose, pose, 5, 0);
         if (mode == 1) {
-            for (double speed : {.2, .5, 1.0}) {
-                add(pose, {theta + 450 * rad, pose.beta}, 450 * rad / speed + 1, 2);
+            // Two continuous revolutions leave a full constant-speed revolution at pi rad/s.
+            // Low-speed forward/reverse pairs distinguish viscous and Coulomb effects.
+            for (double speed : config_.turn_speeds) {
+                add(pose, {theta + 4 * pi, pose.beta}, 4 * pi / speed + 1, 2);
                 pose = segments_.back().to;
-                add(pose, {theta, pose.beta}, 450 * rad / speed + 1, 2);
+                add(pose, {theta, pose.beta}, 4 * pi / speed + 1, 2);
                 pose = segments_.back().to;
                 add(pose, pose, 2, 1);
             }
         } else if (mode == 2) {
-            for (double speed : {3.0, 6.0, 12.0}) {
+            for (double speed : {3.0, 12.0, 30.0}) {
                 for (int direction : {1, -1}) {
                     const double end = direction > 0 ? beta_max : beta_min;
                     while (std::abs(pose.beta - end) > 1e-8) {
@@ -95,39 +120,41 @@ public:
                         add(pose, {theta, next}, 1.875 * std::abs(next - pose.beta) / (speed * rad),
                             1);
                         pose = segments_.back().to;
-                        add(pose, pose, 4, 1);
+                        add(pose, pose, 1, 1);
                     }
                 }
             }
-            for (double center : {40.0, 60.0, 80.0, 100.0}) {
+            for (double center : {50.0, 75.0, 100.0}) {
                 // Configuration must leave the full requested excitation in its range.
-                if (center * rad - 5 * rad < beta_min - 1e-9
-                    || center * rad + 5 * rad > beta_max + 1e-9)
+                if (center * rad - 4 * rad < beta_min - 1e-9
+                    || center * rad + 4 * rad > beta_max + 1e-9)
                     throw std::invalid_argument(
                         "Beta range excludes a requested chirp; no auto scaling");
                 add(pose, {theta, center * rad}, 5, 1);
                 pose = segments_.back().to;
-                add(pose, pose, 60, 3, 5 * rad, .1, .5);
-                add(pose, pose, 60, 3, 2 * rad, .5, 2);
-                add(pose, pose, 60, 3, .5 * rad, 2, 6);
+                add(pose, pose, 30, 3, 4 * rad, .1, .8);
+                add(pose, pose, 30, 3, 2 * rad, .8, 3);
+                add(pose, pose, 30, 3, .6 * rad, 3, 10);
             }
         } else if (mode == 3) {
-            for (double center : {40.0, 60.0, 80.0, 100.0, 50.0, 70.0, 90.0}) {
-                const bool validation = center == 50 || center == 70 || center == 90;
+            for (double center : {50.0, 75.0, 100.0, 60.0, 90.0}) {
+                const bool validation = center == 60 || center == 90;
                 if (center * rad - 2 * rad < beta_min || center * rad + 2 * rad > beta_max)
                     throw std::invalid_argument("Beta range excludes a requested multisine");
                 add(pose, {theta, center * rad}, 5, 1);
                 pose = segments_.back().to;
-                add(pose, {theta + 450 * rad, pose.beta}, 120, 4, 2 * rad, 0, 0, validation);
+                if (!validation) {
+                    // Separate reference bands and additive torque probes make the plant
+                    // input observable. A second complete segment is reserved for validation.
+                    add(pose, pose, 30, 6, 2 * rad);
+                    add(pose, pose, 30, 6, 2 * rad, 0, 0, true);
+                }
+                const double turn_s = 2 * config_.fast_turn_period_s + 1;
+                add(pose, {theta + 4 * pi, pose.beta}, turn_s, 4, 2 * rad, 0, 0, validation);
                 pose = segments_.back().to;
-                add(pose, {theta, pose.beta}, 120, 4, 2 * rad, 0, 0, validation);
+                add(pose, {theta, pose.beta}, turn_s, 4, 2 * rad, 0, 0, validation);
                 pose = segments_.back().to;
             }
-            add(pose, {theta, beta_min}, 5, 1);
-            pose = segments_.back().to;
-            add(pose, {theta + 450 * rad, beta_max}, 120, 1);
-            pose = segments_.back().to;
-            add(pose, {theta, beta_min}, 120, 1);
         } else
             throw std::invalid_argument("Unknown joint sweep mode");
     }
@@ -142,10 +169,12 @@ public:
             it == segments_.begin() ? 0 : static_cast<std::size_t>(it - segments_.begin() - 1);
         const auto& s = segments_[index];
         const double t = std::clamp(elapsed - s.start, 0.0, s.duration);
-        auto theta = s.kind == 2 ? sweep_turn(s.from.theta, s.to.theta, t, s.duration)
-                                 : sweep_blend(s.from.theta, s.to.theta, t, s.duration);
+        auto theta = s.kind == 2 || s.kind == 4
+                       ? sweep_turn(s.from.theta, s.to.theta, t, s.duration)
+                       : sweep_blend(s.from.theta, s.to.theta, t, s.duration);
         auto beta = sweep_blend(s.from.beta, s.to.beta, t, s.duration);
-        if (s.kind == 3 || s.kind == 4) {
+        Sample out;
+        if (s.kind == 3 || s.kind == 4 || s.kind == 6) {
             // C2 envelope: value, velocity and acceleration vanish at both ends.
             const auto rise = sweep_blend(0, 1, t, 3);
             const auto fall = sweep_blend(0, 1, s.duration - t, 3);
@@ -177,10 +206,20 @@ public:
                         beta, s.amplitude / bf.size(), 2 * pi * bf[i] * t + i * 1.1 + phase + 1,
                         2 * pi * bf[i], 0);
                 }
+                if (s.kind == 6) {
+                    constexpr std::array hf{.37, .83, 1.91, 3.17, 5.23, 8.71};
+                    constexpr std::array kf{.29, .97, 1.57, 2.83, 4.61, 9.13};
+                    for (std::size_t axis = 0; axis < 2; ++axis)
+                        for (std::size_t i = 0; i < hf.size(); ++i) {
+                            const double hz = axis == 0 ? hf[i] : kf[i];
+                            out.probe_torque[axis] +=
+                                envelope.q * config_.probe_torque_nm[axis] / hf.size()
+                                * std::sin(2 * pi * hz * t + i * 1.3 + phase + axis);
+                        }
+                }
             }
         }
         const auto g = geometry_.at(beta.q);
-        Sample out;
         out.q = {hip_zero_ + hip_sign_ * theta.q, hip_zero_ + hip_sign_ * theta.q + g.position};
         out.dq = {hip_sign_ * theta.dq, hip_sign_ * theta.dq + g.first * beta.dq};
         out.ddq = {
@@ -224,6 +263,7 @@ private:
     }
     PairGeometry geometry_;
     double hip_sign_, hip_zero_ = 0, duration_ = 0;
+    Config config_;
     std::array<double, 2> initial_{};
     std::vector<Segment> segments_;
 };

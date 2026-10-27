@@ -118,6 +118,36 @@ TEST(FrequencySweepSession, HeldModeRepeatsAfterCompletionWithoutACompletionLatc
     EXPECT_EQ(session.run_id, 2u);
     EXPECT_DOUBLE_EQ(session.start_time, 10);
 }
+TEST(FrequencySweepSession, LatchedRunIgnoresStickReleaseAndStopsOnBothDown) {
+    WheelLegSweepSession session(false);
+    session.latch_run = true;
+    ASSERT_TRUE(session.update(0, true, Switch::UP, Switch::MIDDLE, SweepStop::kNone));
+    const auto run = session.run_id;
+    EXPECT_EQ(session.state, SweepState::kRunning);
+    // Releasing the stick must not abort a latched sweep or re-anchor its trajectory.
+    EXPECT_FALSE(session.update(.001, true, Switch::MIDDLE, Switch::MIDDLE, SweepStop::kNone));
+    EXPECT_EQ(session.state, SweepState::kRunning);
+    EXPECT_FALSE(session.update(.002, true, Switch::UP, Switch::UP, SweepStop::kNone));
+    EXPECT_EQ(session.run_id, run);
+    // DOWN/DOWN is still the explicit abort.
+    session.update(.003, true, Switch::DOWN, Switch::DOWN, SweepStop::kNone);
+    EXPECT_EQ(session.state, SweepState::kResetReady);
+    EXPECT_FALSE(session.enabled());
+}
+
+TEST(FrequencySweepSession, ShortRemoteGapHoldsTheLastValidSwitches) {
+    WheelLegSweepSession session(false);
+    session.latch_run = true;
+    session.remote_timeout_s = .25;
+    ASSERT_TRUE(session.update(0, true, Switch::UP, Switch::MIDDLE, SweepStop::kNone));
+    // The receiver fails over to DOWN/DOWN while stale; inside the tolerance window that
+    // must not be read as an operator abort.
+    EXPECT_FALSE(session.update(.1, false, Switch::DOWN, Switch::DOWN, SweepStop::kNone));
+    EXPECT_EQ(session.state, SweepState::kRunning);
+    session.update(.3, false, Switch::DOWN, Switch::DOWN, SweepStop::kNone);
+    EXPECT_EQ(session.state, SweepState::kFault);
+    EXPECT_EQ(session.reason, SweepStop::kRemoteLost);
+}
 
 TEST(FrequencySweepSession, MissingActiveFeedbackRecoversOnNextValidTickWithoutReset) {
     for (auto issue : {SweepStop::kFeedbackTimeout, SweepStop::kNonfinite}) {
@@ -212,6 +242,65 @@ TEST(FrequencySweepTrajectories, InvalidInitialFkDoesNotProjectOrDiscardRawAngle
     EXPECT_THROW(g.at(29 * rad), std::out_of_range);
     EXPECT_NEAR(plan.at(5).q[0], 25, 1e-12);
     EXPECT_NEAR(plan.at(5).q[1] - 25, g.at(70 * rad).position, 1e-12);
+}
+
+TEST(FrequencySweepTrajectories, TwoSecondRevolutionsKeepLowSpeedBothDirections) {
+    auto g = geometry();
+    WheelLegJointSweepPlan plan(g, -1);
+    plan.start(1, {0, g.at(70 * rad).position}, 0, 45 * rad, 105 * rad);
+    std::vector<double> plateaus;
+    for (const auto& segment : plan.segments()) {
+        if (segment.kind != 2)
+            continue;
+        const auto sample = plan.at(segment.start + segment.duration / 2);
+        plateaus.push_back(sample.dtheta);
+        EXPECT_NEAR(sample.ddq[0], 0, 1e-12);
+        EXPECT_NEAR(sample.dq[0], sample.dq[1], 1e-12);
+        EXPECT_NEAR(std::abs(segment.to.theta - segment.from.theta), 4 * std::numbers::pi, 1e-12);
+        if (std::abs(sample.dtheta) > 3) {
+            EXPECT_NEAR(2 * std::numbers::pi / std::abs(sample.dtheta), 2, 1e-12);
+            EXPECT_GE(segment.duration - 2, 2);
+        }
+    }
+    ASSERT_EQ(plateaus.size(), 8u);
+    EXPECT_NEAR(plateaus[0], .2, 1e-12);
+    EXPECT_NEAR(plateaus[1], -.2, 1e-12);
+    EXPECT_NEAR(plateaus[6], std::numbers::pi, 1e-12);
+    EXPECT_NEAR(plateaus[7], -std::numbers::pi, 1e-12);
+}
+
+TEST(FrequencySweepTrajectories, LocalProbesAreIndependentBoundedAndHaveCompleteHoldout) {
+    auto g = geometry();
+    WheelLegJointSweepPlan plan(g, -1);
+    plan.start(3, {0, g.at(70 * rad).position}, 0, 45 * rad, 105 * rad);
+    int train = 0, holdout = 0;
+    double hip_energy = 0, knee_energy = 0, cross = 0;
+    for (const auto& segment : plan.segments()) {
+        const auto start = plan.at(segment.start);
+        const auto end = plan.at(segment.start + segment.duration - 1e-7);
+        for (std::size_t axis = 0; axis < 2; ++axis) {
+            EXPECT_NEAR(start.probe_torque[axis], 0, 1e-10);
+            EXPECT_NEAR(end.probe_torque[axis], 0, 1e-10);
+        }
+        if (segment.kind != 6)
+            continue;
+        segment.validation ? ++holdout : ++train;
+        for (double t = 0; t < segment.duration; t += .005) {
+            const auto sample = plan.at(segment.start + t);
+            EXPECT_GE(sample.beta / rad, 45);
+            EXPECT_LE(sample.beta / rad, 105);
+            EXPECT_LE(std::abs(sample.probe_torque[0]), 1);
+            EXPECT_LE(std::abs(sample.probe_torque[1]), 1);
+            hip_energy += sample.probe_torque[0] * sample.probe_torque[0];
+            knee_energy += sample.probe_torque[1] * sample.probe_torque[1];
+            cross += sample.probe_torque[0] * sample.probe_torque[1];
+        }
+    }
+    EXPECT_EQ(train, 3);
+    EXPECT_EQ(holdout, 3);
+    EXPECT_GT(hip_energy, 100);
+    EXPECT_GT(knee_energy, 100);
+    EXPECT_LT(std::abs(cross / std::sqrt(hip_energy * knee_energy)), .2);
 }
 
 TEST(FrequencySweepProbe, DrivesBothEndsAndHoldsTheHip) {

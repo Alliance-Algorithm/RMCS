@@ -342,12 +342,14 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
         phase = 7;             // Direct UP/UP after startup UNKNOWN, no DOWN or MIDDLE history.
         ASSERT_TRUE(await([&] { return observe->state == 3 && observe->active; }, 100ms));
         EXPECT_EQ(observe->run, 1u);
-        phase = 4;
-        ASSERT_TRUE(await([&] { return observe->state == 2 && observe->zero; }));
         const auto standby = [&] {
+            // DOWN/DOWN clears a latched run for every profile, then middle is standby.
+            phase = 0;
+            await([&] { return observe->state == 1; });
             phase = 4;
             return await([&] { return observe->state == 2 && observe->zero && observe->enabled; });
         };
+        ASSERT_TRUE(standby());
         const auto start = [&] {
             phase = 3;
             return await([&] { return observe->state == 3 && observe->active; }, 100ms);
@@ -375,8 +377,13 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
         }
         if (RMCS_SWEEP_COMPLETE) {
             const auto run = observe->run.load();
-            ASSERT_TRUE(await([&] { return observe->completed_seen && observe->run > run; }, 12s));
+            ASSERT_TRUE(await([&] { return observe->completed_seen.load(); }, 12s));
             EXPECT_TRUE(observe->enabled);
+            // The deployed leg profiles latch a run; completion no longer restarts it
+            // while the same mode is held, so clear the latch explicitly.
+            ASSERT_TRUE(standby());
+            ASSERT_TRUE(start());
+            EXPECT_GT(observe->run.load(), run);
         }
         if (kind == 2) {
             phase = 10;

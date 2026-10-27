@@ -64,6 +64,9 @@ public:
         register_output("/wheel_leg/sweep/drives_ready", drives_ready_output_, false);
         register_output("/wheel_leg/sweep/feedback_diagnostic", feedback_diagnostic_, 0);
         register_output("/wheel_leg/sweep/reference_active", reference_active_, false);
+        register_output("/wheel_leg/sweep/excitation_revision", excitation_revision_, 3);
+        register_output("/wheel_leg/sweep/stage_elapsed_s", stage_elapsed_, 0.0);
+        register_output("/wheel_leg/sweep/stage_duration_s", stage_duration_, 0.0);
         register_output(
             "/wheel_leg/sweep/reference_sequence", reference_sequence_, std::uint64_t{0});
         register_output("/wheel_leg/sweep/reference_elapsed_s", reference_elapsed_, 0.0);
@@ -107,6 +110,7 @@ public:
             register_output(out + "/reference_acceleration", reference_ddq_[i], 0.0);
             register_output(out + "/tracking_error", error_[i], nan);
             register_output(out + "/torque_preclip", preclip_[i], 0.0);
+            register_output(out + "/probe_torque_model", probe_torque_[i], 0.0);
             register_output(out + "/saturated", saturated_[i], false);
             register_output(out + "/diagnostic_flags", diagnostic_[i], std::uint32_t{0});
             if (i < 4) {
@@ -154,6 +158,7 @@ public:
         *remote_right_ = static_cast<int>(*right_);
         for (std::size_t i = 0; i < 6; ++i) {
             *torque_[i] = *preclip_[i] = 0;
+            *probe_torque_[i] = 0;
             *saturated_[i] = false;
         }
         *reference_active_ = false;
@@ -177,6 +182,7 @@ public:
             *waveform_ = 0;
             *validation_ = false;
             *reference_elapsed_ = *run_elapsed_ = 0;
+            *stage_elapsed_ = *stage_duration_ = 0;
             for (std::size_t i = 0; i < 6; ++i) {
                 *reference_q_[i] = *error_[i] = nan;
                 *reference_dq_[i] = *reference_ddq_[i] = 0;
@@ -196,6 +202,13 @@ public:
             if (kind_ == 2)
                 joint_plan_->start(
                     session_.mode, selected_angles(), hip_zero_[side_], beta_min_, beta_max_);
+            if (kind_ == 2)
+                RCLCPP_INFO(
+                    get_logger(),
+                    "Joint excitation-v3 mode=%d duration=%.1f s, PD hip=%.1f/%.2f knee=%.1f/%.2f; "
+                    "fast plateau=%.3f rad/s (%.2f s/rev), local probe only in waveform=6.",
+                    session_.mode, joint_plan_->duration(), kp_[0], kd_[0], kp_[1], kd_[1],
+                    2 * std::numbers::pi / fast_turn_period_, fast_turn_period_);
             if (kind_ == 3)
                 probe_->start(now, selected_angles());
         }
@@ -345,6 +358,21 @@ private:
             static_cast<double>(now - std::min(now, *feedback_ns_[4])) * 1e-6,
             static_cast<double>(now - std::min(now, *feedback_ns_[5])) * 1e-6, *status_[0],
             *status_[1], *status_[2], *status_[3], *fault_[0], *fault_[1], *fault_[2], *fault_[3]);
+        if (kind_ != 1) {
+            const auto h = static_cast<std::size_t>(2 * side_), k = h + 1;
+            RCLCPP_INFO(
+                get_logger(),
+                "Joint excitation-v3 side=%d q_ref=[%.3f,%.3f] q=[%.3f,%.3f] "
+                "dq_ref=[%.3f,%.3f] dq=[%.3f,%.3f] error=[%.3f,%.3f] "
+                "tau_cmd=[%.3f,%.3f] tau_fb=[%.3f,%.3f] probe_model=[%.3f,%.3f] "
+                "saturated=[%d,%d] beta_ref/actual=[%.2f,%.2f] deg",
+                side_, *reference_q_[h], *reference_q_[k], *model_q_[h], *model_q_[k],
+                *reference_dq_[h], *reference_dq_[k], *model_dq_[h], *model_dq_[k], *error_[h],
+                *error_[k], *torque_[h], *torque_[k], *feedback_torque_[h], *feedback_torque_[k],
+                *probe_torque_[h], *probe_torque_[k], static_cast<int>(*saturated_[h]),
+                static_cast<int>(*saturated_[k]), *beta_ref_ / PairGeometry::rad,
+                *beta_estimate_[side_] / PairGeometry::rad);
+        }
     }
 
     PairGeometry load_geometry(const std::string& side) {
@@ -362,6 +390,11 @@ private:
                                        : 0;
         if (!kind_)
             throw std::invalid_argument("experiment must be wheels, joints or limits");
+        session_.latch_run = get_parameter_or("latch_run", false);
+        session_.remote_timeout_s = get_parameter_or("remote_timeout_s", 0.0);
+        if (!std::isfinite(session_.remote_timeout_s) || session_.remote_timeout_s < 0
+            || session_.remote_timeout_s > 1)
+            throw std::invalid_argument("Invalid remote timeout");
         if (kind_ != 1) {
             const auto side = get_parameter("side").as_string();
             if (side != "left" && side != "right")
@@ -435,8 +468,15 @@ private:
             for (std::size_t i = 0; i < 2; ++i)
                 if (kp_[i] <= 0 || kd_[i] < 0 || torque_cap_[i] <= 0 || torque_cap_[i] > 40)
                     throw std::invalid_argument("Invalid joint PD/torque cap");
-            joint_plan_ =
-                std::make_unique<WheelLegJointSweepPlan>(geometry_[side_], hip_sign_[side_]);
+            WheelLegJointSweepPlan::Config plan_config;
+            if (kind_ == 2) {
+                copy("joint_turn_speeds_rad_s", plan_config.turn_speeds);
+                copy("joint_probe_torque_nm", plan_config.probe_torque_nm);
+                fast_turn_period_ = plan_config.fast_turn_period_s =
+                    get_parameter("joint_fast_turn_period_s").as_double();
+            }
+            joint_plan_ = std::make_unique<WheelLegJointSweepPlan>(
+                geometry_[side_], hip_sign_[side_], plan_config);
             if (kind_ == 2) {
                 const double h = hip_zero_[side_];
                 const std::array initial{
@@ -579,6 +619,11 @@ private:
             }
         } else {
             *stage_ = reference_.segment;
+            if (kind_ == 2) {
+                const auto& segment = joint_plan_->segments()[reference_.segment];
+                *stage_elapsed_ = *reference_elapsed_ - segment.start;
+                *stage_duration_ = segment.duration;
+            }
             *waveform_ = reference_.kind;
             *validation_ = reference_.validation;
             *theta_ref_ = kind_ == 3 ? (reference_.q[0] - hip_zero_[side_]) / hip_sign_[side_]
@@ -591,8 +636,10 @@ private:
                 *reference_dq_[axis] = reference_.dq[i];
                 *reference_ddq_[axis] = reference_.ddq[i];
                 *error_[axis] = reference_.q[i] - *model_q_[axis];
-                const double model_effort =
-                    kp_[i] * (*error_[axis]) + kd_[i] * (reference_.dq[i] - *model_dq_[axis]);
+                *probe_torque_[axis] = reference_.probe_torque[i];
+                const double model_effort = kp_[i] * (*error_[axis])
+                                          + kd_[i] * (reference_.dq[i] - *model_dq_[axis])
+                                          + reference_.probe_torque[i];
                 const double requested = model_sign_[axis] * model_effort;
                 const double cap = std::min(torque_cap_[i], *max_torque_[axis]);
                 *preclip_[axis] = requested;
@@ -619,9 +666,12 @@ private:
         feedback_diagnostic_, waveform_, stop_, remote_left_, remote_right_;
     OutputInterface<std::uint64_t> heartbeat_, run_, reference_sequence_, control_ns_,
         scheduled_ns_, control_end_ns_;
-    OutputInterface<double> reference_elapsed_, run_elapsed_, control_dt_, theta_ref_, beta_ref_;
+    OutputInterface<double> reference_elapsed_, run_elapsed_, control_dt_, theta_ref_, beta_ref_,
+        stage_elapsed_, stage_duration_;
+    OutputInterface<int> excitation_revision_;
     std::array<OutputInterface<double>, 6> torque_, model_q_, model_dq_, model_ddq_,
-        stopping_distance_, reference_q_, reference_dq_, reference_ddq_, error_, preclip_;
+        stopping_distance_, reference_q_, reference_dq_, reference_ddq_, error_, preclip_,
+        probe_torque_;
     std::array<OutputInterface<bool>, 6> saturated_;
     std::array<OutputInterface<std::uint32_t>, 6> diagnostic_;
     std::array<OutputInterface<double>, 2> beta_estimate_, theta_estimate_, probe_q_, probe_beta_;
@@ -644,6 +694,7 @@ private:
     double diagnostic_angle_ = 0, diagnostic_speed_ = 0, diagnostic_acceleration_ = 0,
            diagnostic_error_ = 0;
     double diagnostic_braking_ = 0;
+    double fast_turn_period_ = 2;
     std::array<double, 6> previous_phase_{}, previous_velocity_{};
     std::array<bool, 6> have_phase_{};
     std::array<bool, 2> pair_aligned_{};

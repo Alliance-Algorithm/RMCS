@@ -1,0 +1,94 @@
+{
+  "source_csv": "/home/noir/膝关节髋关节差值夹角限位数据.csv",
+  "source_sha256": "1492cda479bd98b0d2f6b2d8136058bb5414f27de8301fc92713afc988f4e15e",
+  "calibration_yaml": "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_bringup/config/wheel-leg-joint-limit-probe.yaml",
+  "calibration_sha256": "202be530da5596fbc7d8e840fd9dad099ee38ce85a3bee4877f275e221bcaf92",
+  "geometry_source": "v6_pair_upstream_zero_geometry_v1 @ 8149afda",
+  "method": "PairGeometry Hermite interpolation with 48-step inverse bisection",
+  "reference_beta_deg": [
+    40,
+    110
+  ],
+  "geometry_table_beta_deg": [
+    30,
+    120
+  ],
+  "complete_records": 68188,
+  "incomplete_records_excluded": [
+    {
+      "csv_line": 68190,
+      "index": "68188",
+      "fields": 18,
+      "expected_fields": 236
+    }
+  ],
+  "duration_s": 68.605022522,
+  "sides": {
+    "left": {
+      "valid_records": 68187,
+      "feedback_unavailable_records": 1,
+      "out_of_table_records": 0,
+      "delta_definition": "q_model_knee - q_model_hip",
+      "delta_reference_at_40_110_rad": [
+        -0.140638855,
+        1.428464858
+      ],
+      "delta_min_max_rad": [
+        -0.31530403601129287,
+        1.3650957503624017
+      ],
+      "below_40_records": 3417,
+      "above_110_records": 0,
+      "max_abs_beta_csv_error_rad": 0.0,
+      "max_abs_model_phase_error_rad": 0.0,
+      "min": {
+        "beta_deg": 34.45778067684657,
+        "time_s": 26.728022764000002,
+        "index": 26577,
+        "delta_rad": -0.31530403601129287,
+        "state": 2
+      },
+      "max": {
+        "beta_deg": 106.79159628714989,
+        "time_s": 28.162023454000003,
+        "index": 27974,
+        "delta_rad": 1.3650957503624017,
+        "state": 2
+      }
+    },
+    "right": {
+      "valid_records": 68187,
+      "feedback_unavailable_records": 1,
+      "out_of_table_records": 0,
+      "delta_definition": "q_model_knee - q_model_hip",
+      "delta_reference_at_40_110_rad": [
+        0.140638855,
+        -1.428464858
+      ],
+      "delta_min_max_rad": [
+        -1.3586106660563075,
+        0.2710528725108716
+      ],
+      "below_40_records": 2810,
+      "above_110_records": 0,
+      "max_abs_beta_csv_error_rad": 0.0,
+      "max_abs_model_phase_error_rad": 0.0,
+      "min": {
+        "beta_deg": 35.79257983523716,
+        "time_s": 47.558022671,
+        "index": 47285,
+        "delta_rad": 0.2710528725108716,
+        "state": 2
+      },
+      "max": {
+        "beta_deg": 106.46410108105172,
+        "time_s": 36.139022578,
+        "index": 35915,
+        "delta_rad": -1.3586106660563075,
+        "state": 2
+      }
+    }
+  },
+  "probe_low_result_max": 0.0,
+  "probe_high_result_max": 0.0
+}
