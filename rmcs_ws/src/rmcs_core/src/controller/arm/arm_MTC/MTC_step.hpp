@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <variant>
@@ -78,8 +79,8 @@ using SolverConfig = std::variant<PipelineConfig, JointInterpolationConfig, Cart
 
 struct MotionConfig {
     SolverConfig solver = PipelineConfig{};
-    double velocity_scaling = 0.03;
-    double acceleration_scaling = 0.01;
+    double velocity_scaling = 0.3;
+    double acceleration_scaling = 0.1;
     double timeout = 5.0;
 };
 
@@ -221,6 +222,8 @@ public:
 
     static StageConfig makeAttachObject(std::string name, std::string object) {
         const auto& config = obstacle::get_obstacle_config(object);
+        if (config.attach_link.empty())
+            throw std::invalid_argument(name + ": obstacle is not attachable: " + object);
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {AttachObjectConfig{
@@ -236,6 +239,8 @@ public:
 
     static StageConfig makeDetachObject(std::string name, std::string object) {
         const auto& config = obstacle::get_obstacle_config(object);
+        if (config.attach_link.empty())
+            throw std::invalid_argument(name + ": obstacle is not attachable: " + object);
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {DetachObjectConfig{

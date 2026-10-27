@@ -4,10 +4,13 @@
 
 #include <cmath>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <variant>
+#include <vector>
 
 namespace rmcs_core::controller::arm::MTC {
 
@@ -216,27 +219,69 @@ inline void validate(const TaskConfig& task) {
     }
 }
 
+// Stores reusable stage blocks (task children without the task shell) and composes them into
+// one task named after the shell, e.g. {"current_start", "pick", "place"} -> MTC_Task.
 class Dictionary {
 public:
-    using Entries = std::unordered_map<std::string, TaskConfig>;
+    using Block = std::vector<NodeConfig>;
+    using Entries = std::unordered_map<std::string, Block>;
 
-    explicit Dictionary(Entries entries)
-        : entries_(std::move(entries)) {
-        for (const auto& [name, task] : entries_) {
+    explicit Dictionary(Entries entries, TaskConfig shell = TaskConfig{.name = "MTC_Task"})
+        : entries_(std::move(entries))
+        , shell_(std::move(shell)) {
+        if (!shell_.children.empty())
+            throw std::invalid_argument(shell_.name + ": task shell must not have children");
+        for (const auto& [name, block] : entries_) {
             if (name.empty())
                 throw std::invalid_argument("MTC dictionary key is empty");
+            auto task = shell_;
+            task.name = name;
+            task.children = block;
             validate(task);
         }
     }
 
-    const TaskConfig& at(const std::string& name) const {
+    const Block& helper_find_chunk(const std::string& name) const {
         if (const auto it = entries_.find(name); it != entries_.end())
             return it->second;
-        throw std::out_of_range("Unknown MTC task: " + name);
+        throw std::out_of_range("Unknown MTC block: " + name);
+    }
+
+    TaskConfig helper_build_chunk(const std::vector<std::string>& composed) const {
+        if (composed.empty())
+            throw std::invalid_argument(shell_.name + ": composition is empty");
+
+        const auto is_start_state = [](const NodeConfig& node) {
+            const auto* stage = std::get_if<StageConfig>(&node.config);
+            return stage
+                && (std::holds_alternative<CurrentStateConfig>(stage->config)
+                    || std::holds_alternative<FixedStateConfig>(stage->config));
+        };
+
+        auto result = shell_;
+        for (const auto& name : composed) {
+            const auto& block = helper_find_chunk(name);
+            for (const auto& node : block) {
+                const bool first = result.children.empty();
+                if (first && !is_start_state(node))
+                    throw std::invalid_argument(
+                        shell_.name + ": composition must start with a start-state block, got '"
+                        + name + "'");
+                if (!first && is_start_state(node))
+                    throw std::invalid_argument(
+                        shell_.name + ": block '" + name
+                        + "' adds a start state after the beginning of the task");
+                result.children.push_back(node);
+            }
+        }
+
+        validate(result);
+        return result;
     }
 
 private:
     Entries entries_;
+    TaskConfig shell_;
 };
 
 } // namespace rmcs_core::controller::arm::MTC

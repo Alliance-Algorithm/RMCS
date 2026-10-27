@@ -19,6 +19,7 @@
 #include <moveit/task_constructor/task.h>
 #include <moveit_msgs/msg/collision_object.hpp>
 #include <moveit_msgs/msg/move_it_error_codes.hpp>
+#include <moveit_msgs/srv/get_planning_scene.hpp>
 #include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp/node.hpp>
 #include <shape_msgs/msg/solid_primitive.hpp>
@@ -29,6 +30,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <future>
 #include <iterator>
 #include <memory>
 #include <mutex>
@@ -39,6 +41,7 @@
 #include <thread>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace rmcs_core::controller::arm::MTC {
 
@@ -65,10 +68,10 @@ public:
     }
 
     void build(
-        const Dictionary& dictionary, const std::string& name,
+        const Dictionary& dictionary, const std::vector<std::string>& composed,
         planning_scene::PlanningSceneConstPtr scene = {}) {
         reset_task();
-        build(dictionary.at(name), std::move(scene));
+        build(dictionary.helper_build_chunk(composed), std::move(scene));
     }
 
     void build(const TaskConfig& config, planning_scene::PlanningSceneConstPtr scene = {}) {
@@ -399,6 +402,8 @@ public:
         move_group_ =
             std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
         planner_ = std::make_unique<Planner>(node_, model_);
+        scene_client_ = node_->create_client<moveit_msgs::srv::GetPlanningScene>(
+            "get_planning_scene");
         executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
         executor_->add_node(node_);
         try {
@@ -457,6 +462,33 @@ public:
     const moveit::core::RobotModelConstPtr& robot_model() const { return model_; }
     const auto& moveit_group_getter() const { return move_group_; }
 
+    // Call outside node callbacks: the machine's executor services this request.
+    planning_scene::PlanningScenePtr fetch_scene() const {
+        if (!scene_client_)
+            throw std::logic_error("This MTC machine has no planning scene service client");
+        if (!scene_client_->wait_for_service(std::chrono::seconds(5)))
+            throw std::runtime_error("Planning scene service is unavailable");
+        auto query = std::make_shared<moveit_msgs::srv::GetPlanningScene::Request>();
+        using Components = moveit_msgs::msg::PlanningSceneComponents;
+        query->components.components =
+            Components::SCENE_SETTINGS | Components::ROBOT_STATE
+            | Components::ROBOT_STATE_ATTACHED_OBJECTS
+            | Components::WORLD_OBJECT_GEOMETRY | Components::OCTOMAP
+            | Components::TRANSFORMS | Components::ALLOWED_COLLISION_MATRIX
+            | Components::LINK_PADDING_AND_SCALING | Components::OBJECT_COLORS;
+        auto response = scene_client_->async_send_request(query);
+        if (response.wait_for(std::chrono::seconds(5)) != std::future_status::ready) {
+            scene_client_->remove_pending_request(response);
+            throw std::runtime_error("Timed out fetching the planning scene");
+        }
+        auto scene = std::make_shared<planning_scene::PlanningScene>(model_);
+        const auto message = response.get();
+        if (message->scene.is_diff || !scene->setPlanningSceneMsg(message->scene))
+            throw std::runtime_error("Cannot load the complete planning scene");
+        scene->getCurrentStateNonConst().update();
+        return scene;
+    }
+
     void stop() {
         std::lock_guard stop_lock(stop_mutex_);
         {
@@ -494,6 +526,9 @@ private:
             auto result = std::make_shared<PlannedTrajectory>();
             result->request_id = request->request_id;
             try {
+                // Explicit snapshots are for simulation; otherwise use the latest world.
+                if (!request->scene && scene_client_)
+                    request->scene = fetch_scene();
                 planner_->build(request->config, request->scene);
                 const auto planned = planner_->plan();
                 result->diagnostic = planned.diagnostic;
@@ -515,6 +550,7 @@ private:
     }
 
     rclcpp::Node::SharedPtr node_;
+    rclcpp::Client<moveit_msgs::srv::GetPlanningScene>::SharedPtr scene_client_;
     std::unique_ptr<robot_model_loader::RobotModelLoader> model_loader_;
     moveit::core::RobotModelConstPtr model_;
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
