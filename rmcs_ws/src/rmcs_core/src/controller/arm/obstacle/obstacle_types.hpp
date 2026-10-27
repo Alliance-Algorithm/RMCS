@@ -25,7 +25,7 @@ struct ObstacleConfig {
     Pose pose{};
     CollisionObjectOperation initial_operation = CollisionObjectOperation::IDLE;
     std::vector<std::string> touch_links;
-    std::string attach_link;
+    std::string attach_link; // empty: the obstacle cannot be attached
 };
 
 } // namespace rmcs_core::controller::arm::obstacle
