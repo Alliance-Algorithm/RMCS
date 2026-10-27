@@ -106,6 +106,8 @@ wheel_leg_controller:
   ros__parameters:
     # Calibration, paired winding, feedback PD and actuator limits belong to RMCS.
     control_profile: v6
+    # The unified actor requires its original 160/2.5 actuator contract.
+    leg_control_law: rl_pd
     unified_full_rl: true
     leg_winding_version: "paired_branch107_v1"
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]

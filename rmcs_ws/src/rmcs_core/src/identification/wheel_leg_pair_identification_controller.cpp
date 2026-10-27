@@ -18,6 +18,7 @@
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
+#include "controller/pid/position_velocity_p.hpp"
 #include "identification/wheel_leg_identification_axes.hpp"
 #include "identification/wheel_leg_identification_phase.hpp"
 #include "identification/wheel_leg_pair_identification_planner.hpp"
@@ -44,6 +45,17 @@ public:
     }
 
     void before_updating() override {
+        if (cascade_pp_) {
+            const auto& hip = cascade_gains_[2 * side_];
+            const auto& knee = cascade_gains_[2 * side_ + 1];
+            RCLCPP_INFO(
+                get_logger(), "Paired cascade PP: %s, 50 Hz target / 1000 Hz feedback; "
+                              "position P=[%.3f,%.3f], velocity P=[%.3f,%.3f], "
+                              "velocity cap=[%.3f,%.3f] rad/s; I=0, inner D=0",
+                side_ == 0 ? "left" : "right", hip.position_kp, knee.position_kp,
+                hip.velocity_kp, knee.velocity_kp, hip.velocity_limit, knee.velocity_limit);
+            return;
+        }
         RCLCPP_INFO(
             get_logger(),
             "Paired PD: %s, 50 Hz target / 1000 Hz feedback; "
@@ -284,7 +296,8 @@ public:
             have_measured_speed_ = true;
             RCLCPP_INFO(
                 get_logger(), "Measured motor-pair %s preflight passed; starting %s (%.1f s)",
-                recording_mode_ ? recording_.run.c_str() : "multiband/chirp", "RL PD",
+                recording_mode_ ? recording_.run.c_str() : "multiband/chirp",
+                cascade_pp_ ? "cascade PP" : "RL PD",
                 probe_duration());
         }
 
@@ -349,14 +362,17 @@ private:
         side_ = side == "left" ? 0 : 1;
         const auto pattern = get_parameter("probe_pattern").as_string();
         recording_mode_ = pattern == "calibrated_recording";
+        const auto law = get_parameter("control_law").as_string();
+        cascade_pp_ = law == "cascade_pp";
         if (get_parameter("experiment_stage").as_string() != "probe"
             || (!recording_mode_ && pattern != "multiband_chirp")
-            || get_parameter("control_law").as_string() != "rl_pd"
+            || (law != "rl_pd" && !cascade_pp_) || (recording_mode_ && cascade_pp_)
             || !get_parameter("phase_api_angle").as_bool()
             || get_parameter("control_frequency_hz").as_double() != 1000.0
             || get_parameter("reference_frequency_hz").as_double() != 50.0)
             throw std::invalid_argument(
-                "Pair identification requires multiband PD: 50 Hz target, 1000 Hz feedback");
+                "Pair identification requires rl_pd or cascade_pp: 50 Hz target, "
+                "1000 Hz feedback; calibrated recording requires frozen rl_pd");
 
         load_array("model_sign", limits_.sign);
         load_array("model_offset", limits_.offset);
@@ -410,8 +426,23 @@ private:
             PairMultibandPlan::validate_config(multiband_);
         }
 
-        load_array("pd_kp", pd_kp_);
-        load_array("pd_kd", pd_kd_);
+        if (cascade_pp_) {
+            std::array<double, 4> position_kp{}, velocity_kp{}, velocity_limit{};
+            load_array("kp_position", position_kp);
+            load_array("kp_velocity", velocity_kp);
+            load_array("velocity_target_limit", velocity_limit);
+            for (std::size_t i = 0; i < 4; ++i) {
+                cascade_gains_[i] = {position_kp[i], velocity_kp[i], velocity_limit[i]};
+                if (!cascade_gains_[i].valid())
+                    throw std::invalid_argument("Invalid paired cascade P gains or speed cap");
+                // Effective gains are also used by the diagnostic validation below.
+                pd_kp_[i] = position_kp[i] * velocity_kp[i];
+                pd_kd_[i] = velocity_kp[i];
+            }
+        } else {
+            load_array("pd_kp", pd_kp_);
+            load_array("pd_kd", pd_kd_);
+        }
         if (recording_mode_
             && (std::any_of(pd_kp_.begin(), pd_kp_.end(), [](double v) { return v != 160; })
                 || std::any_of(pd_kd_.begin(), pd_kd_.end(), [](double v) { return v != 2.5; })))
@@ -420,7 +451,7 @@ private:
             const auto values = get_parameter(name).as_double_array();
             if (values.size() != 4
                 || std::any_of(values.begin(), values.end(), [](double v) { return v != 0; }))
-                throw std::invalid_argument("Pure PD requires zero integral and feedforward");
+                throw std::invalid_argument("PD/cascade PP requires zero integral and feedforward");
         }
         load_array("max_position_error", max_position_error_);
         load_array("max_velocity_error", max_velocity_error_);
@@ -783,17 +814,27 @@ private:
                     acceleration_warning_emitted_[j] = true;
                 }
             }
-            const auto result = pd_step(
+            const double torque_cap = std::min(limits_.max_torque[i], *measured_max_torque_[i]);
+            auto result = pd_step(
                 sample.position[j], measured[static_cast<Eigen::Index>(i)],
-                speed[static_cast<Eigen::Index>(i)], pd_kp_[i], pd_kd_[i],
-                std::min(limits_.max_torque[i], *measured_max_torque_[i]));
+                speed[static_cast<Eigen::Index>(i)], pd_kp_[i], pd_kd_[i], torque_cap);
+            if (cascade_pp_) {
+                // Same held-position contract as the RL actuator; no derivative
+                // of the 50 Hz target and no integral/acceleration feedback.
+                result.velocity_target = controller::pid::position_velocity_p_target(
+                    cascade_gains_[i], sample.position[j], measured[static_cast<Eigen::Index>(i)]);
+                result.speed_error = result.velocity_target - speed[static_cast<Eigen::Index>(i)];
+                result.preclip = controller::pid::position_velocity_p_effort(
+                    cascade_gains_[i], result.velocity_target, speed[static_cast<Eigen::Index>(i)]);
+                result.torque = std::clamp(result.preclip, -torque_cap, torque_cap);
+            }
             (*velocity_target_model_)[static_cast<Eigen::Index>(i)] = result.velocity_target;
             (*position_error_model_)[static_cast<Eigen::Index>(i)] = result.position_error;
             (*speed_error_model_)[static_cast<Eigen::Index>(i)] = result.speed_error;
             (*torque_preclip_model_)[static_cast<Eigen::Index>(i)] = result.preclip;
             (*torque_preclip_api_)[static_cast<Eigen::Index>(i)] = limits_.sign[i] * result.preclip;
             if (!std::isfinite(result.torque) || !std::isfinite(result.preclip)) {
-                fail(30, "Nonfinite PD output");
+                fail(30, "Nonfinite joint controller output");
                 return;
             }
             if (!check_tracking(i, result.position_error, result.speed_error))
@@ -866,6 +907,8 @@ private:
 
     std::size_t side_ = 0;
     std::array<double, 4> pd_kp_{}, pd_kd_{};
+    bool cascade_pp_ = false;
+    std::array<controller::pid::PositionVelocityPGains, 4> cascade_gains_{};
     static constexpr std::size_t reference_ticks_ = 20;
     std::size_t last_reference_tick_ = 0;
     PairSample held_reference_{};

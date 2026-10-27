@@ -239,6 +239,9 @@ public:
             register_input(
                 std::string{"/wheel_leg/sweep/"} + kAxisNames[i] + "/diagnostic_flags",
                 diagnostic_[i]);
+            register_input(
+                std::string{"/wheel_leg/sweep/"} + kAxisNames[i] + "/velocity_target",
+                velocity_target_[i]);
         }
     }
     void update() override {
@@ -266,6 +269,10 @@ public:
             bounded =
                 bounded && std::isfinite(*torque_[i]) && std::abs(*torque_[i]) <= limit + 1e-9;
             diagnosed = diagnosed || *diagnostic_[i] != 0;
+            const double target = *velocity_target_[i];
+            if (!std::isfinite(target) || std::abs(target) > 8.5 + 1e-9
+                || ((!selected_axis || !*active_) && target != 0.0))
+                invalid_velocity_target = true;
         }
         zero = all_zero;
         invalid_mapping = invalid_mapping || !parked_zero;
@@ -282,7 +289,8 @@ public:
     }
     std::atomic<int> state{0}, mode{0}, reason{0}, remote_left{0}, remote_right{0};
     std::atomic<bool> enabled{false}, ready{false}, active{false}, zero{true},
-        invalid_mapping{false}, invalid_effort{false}, diagnostics{false};
+        invalid_mapping{false}, invalid_effort{false}, diagnostics{false},
+        invalid_velocity_target{false};
     std::atomic<std::uint64_t> run{0}, reference{0};
     std::atomic<double> theta_left{0}, theta_right{0}, wheel_effort{0}, wheel_frame_effort{0},
         joint_effort{0};
@@ -295,7 +303,7 @@ private:
     InputInterface<std::uint64_t> run_, reference_;
     InputInterface<double> theta_left_, theta_right_;
     InputInterface<bool> beta_left_, beta_right_;
-    std::array<InputInterface<double>, 6> torque_;
+    std::array<InputInterface<double>, 6> torque_, velocity_target_;
     std::array<InputInterface<double>, 2> wheel_frame_;
     std::array<InputInterface<std::uint32_t>, 6> diagnostic_;
 };
@@ -454,6 +462,7 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
         std::this_thread::sleep_for(1100ms);    // Keep every profile's CSV rate check meaningful.
         EXPECT_FALSE(observe->invalid_mapping);
         EXPECT_FALSE(observe->invalid_effort);
+        EXPECT_FALSE(observe->invalid_velocity_target);
     }
     collector_node.reset();
     collector.reset();                          // close/flush CSV before checking all rows
@@ -482,6 +491,12 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
     const auto reference = column("/wheel_leg/sweep/reference_active");
     ASSERT_LT(ticks, header.size());
     ASSERT_LT(time, header.size());
+    if (kind == 2) {
+        ASSERT_LT(column("/wheel_leg/sweep/host/joint_control_law"), header.size());
+        for (auto axis : kAxisNames)
+            for (auto suffix : {"/velocity_target", "/velocity_error", "/velocity_target_limited"})
+                ASSERT_LT(column(std::string{"/wheel_leg/sweep/"} + axis + suffix), header.size());
+    }
     std::size_t rows = 0, complete_rows = 0, wheel_excitation_rows = 0;
     std::uint64_t previous_tick = 0, first_time = 0, last_time = 0;
     while (std::getline(stream, line)) {
@@ -500,6 +515,24 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
                 EXPECT_DOUBLE_EQ(
                     std::stod(row[column(std::string{"/wheel_leg/"} + axis + "/control_torque")]),
                     0);
+        }
+        if (kind == 2) {
+            EXPECT_EQ(row[column("/wheel_leg/sweep/host/joint_control_law")], "1");
+            for (std::size_t i = 0; i < 4; ++i) {
+                const auto prefix = std::string{"/wheel_leg/sweep/"} + kAxisNames[i];
+                const double target = std::stod(row[column(prefix + "/velocity_target")]);
+                EXPECT_LE(std::abs(target), 8.5 + 1e-9);
+                if (row[reference] == "0" || static_cast<int>(i / 2) != selected)
+                    EXPECT_DOUBLE_EQ(target, 0.0);
+                else {
+                    const double error = target - std::stod(row[column(prefix + "/model_velocity")]);
+                    EXPECT_NEAR(std::stod(row[column(prefix + "/velocity_error")]), error, 1e-9);
+                    const double effort = 4.0 * error
+                                        + std::stod(row[column(prefix + "/probe_torque_model")]);
+                    // Calibration is J=-I; commands and preclip are API-frame Nm.
+                    EXPECT_NEAR(std::stod(row[column(prefix + "/torque_preclip")]), -effort, 1e-8);
+                }
+            }
         }
         if (row[state] == "6") {
             EXPECT_EQ(row[enable], "0");

@@ -44,7 +44,8 @@ void WheelLegController::before_updating() {
     use_motor_position_pd_ = motor_position_pd_.ready() && *motor_position_pd_;
     if (unified_full_rl_) {
         if (policy_profile_.name != kV6PolicyProfile.name || heading_hold_enabled_
-            || use_motor_position_pd_ || inference_frequency_ != 200.0 || pd_frequency_ != 1000.0
+            || use_motor_position_pd_ || use_cascade_pp_
+            || inference_frequency_ != 200.0 || pd_frequency_ != 1000.0
             || leg_target_winding_ != LegTargetWinding::kPairedBranch107
             || !policy_observation_contract_input_.ready()
             || *policy_observation_contract_input_ != kStandingObservationContractSha256
@@ -67,6 +68,8 @@ void WheelLegController::before_updating() {
         throw std::runtime_error("This wheel-leg observation contract requires unified_full_rl");
     }
     if (use_motor_position_pd_) {
+        if (use_cascade_pp_)
+            throw std::runtime_error("Cascade PP requires MIT pure-torque hardware mode");
         if (policy_profile_.name != kV6PolicyProfile.name || !motor_position_kp_.ready()
             || !motor_position_kd_.ready() || *motor_position_kp_ != policy_profile_.leg_kp
             || *motor_position_kd_ != policy_profile_.leg_kd)
@@ -75,10 +78,19 @@ void WheelLegController::before_updating() {
             > 1e-9)
             throw std::runtime_error("Motor position PD requires independent signed 1:1 axes");
     }
-    RCLCPP_INFO(
-        get_logger(), "Joint PD backend: %s, Kp %.1f, Kd %.1f",
-        use_motor_position_pd_ ? "DM internal MIT" : "host torque", policy_profile_.leg_kp,
-        policy_profile_.leg_kd);
+    if (use_cascade_pp_) {
+        for (std::size_t i = 0; i < 4; ++i)
+            RCLCPP_INFO(
+                get_logger(), "Joint cascade PP %s: position P %.3f 1/s, velocity P %.3f "
+                              "Nm s/rad, target cap %.3f rad/s; I=0, inner D=0",
+                kMotorNames[i], cascade_gains_[i].position_kp, cascade_gains_[i].velocity_kp,
+                cascade_gains_[i].velocity_limit);
+    } else {
+        RCLCPP_INFO(
+            get_logger(), "Joint PD backend: %s, Kp %.1f, Kd %.1f",
+            use_motor_position_pd_ ? "DM internal MIT" : "host torque", policy_profile_.leg_kp,
+            policy_profile_.leg_kd);
+    }
     if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_)
         RCLCPP_WARN(
             get_logger(),
@@ -92,6 +104,8 @@ void WheelLegController::before_updating() {
 }
 
 void WheelLegController::clear_outputs_() {
+    for (auto& output : leg_velocity_target_outputs_)
+        *output = 0.0;
     for (auto& output : torque_outputs_)
         *output = 0.0;
     for (auto& output : angle_outputs_)

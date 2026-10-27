@@ -121,13 +121,23 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-wheels-sweep
 β 是 CAD 闭链 FK 估计，不是独立角度传感器数据。超出表域时记录 NaN 和无效标志，
 保留电机角和连续角；不外推、不因此退出。
 
-扫频配置关闭角度、相对角、误差、速度、加速度和刹停估计的限幅/退出功能。
+扫频配置关闭实测角度、相对角、误差、速度、加速度和刹停估计触发的退出功能。
 这些量只记录，不自动减幅、投影目标或跳过工况。
 双下、丢控立即关闭；活动电机反馈超时/无效当周期零输出，恢复后自动重试。
 IMU、非活动电机及驱动状态不锁存扫描退出；保留电流/力矩编码上限。
 关节扫频主机和驱动均限 **40 Nm**；端点入口两层限幅为 20 Nm。
-关节入口的采集初值为主机 `joint_kp=[120,120]`、`joint_kd=[4,4]`，
-这是尚待实测验证的采集增益；不把它标记为辨识优化结果。
+关节入口现使用外环位置 P + 内环速度 P（`joint_control_law: cascade_pp`），
+髋/膝的 `joint_position_kp=[40,40]` s⁻¹、`joint_velocity_kp=[4,4]` Nm·s/rad。
+两环均在 1000 Hz 反馈周期计算；不加积分和内环速度微分。
+速度目标为 `clip(dq_ref + 40*(q_ref-q), -8.5, 8.5)` rad/s，
+模型力矩为 `4*(dq_target-dq) + probe`，经标定符号转换后最终限幅 ±40 Nm。
+这项速度目标限幅属于级联控制器，不是实测速度越界停机；轨迹本身不自动减幅。
+不触发速度目标限幅时相当于位置 PD 160/4，保留原轨迹速度前馈。
+这些是基于原 120/4 数据的保守起始值，尚未实机验证最优性，也不能消除气簧的稳态误差。
+原单环可显式设 `joint_control_law: pd` 并配置 `joint_kp`、`joint_kd`。
+CSV 的 `host/joint_control_law` 为 1 时表示级联；为 0 时表示单环。
+新增每轴 `velocity_target`、`velocity_error`、`velocity_target_limited` 及两环增益记录。
+详见 `reports/wheel_leg_sweep_identification_20261027/leg_cascade_pp.md`。
 高速参数可通过 `joint_turn_speeds_rad_s`、`joint_fast_turn_period_s` 修改，
 模式 2 的参考范围及单程时间由 `joint_knee_beta_deg`、`joint_knee_half_periods_s` 配置。
 局部力矩激励通过 `joint_probe_torque_nm` 修改。每轮启动时打印 `Joint excitation-v4` 参数摘要；

@@ -45,6 +45,9 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         register_input(prefix + "/feedback_steady_ns", motor_feedback_ns_[i], false);
         if (i < 4) {
             register_output(
+                std::string{"/wheel_leg/rl/velocity_target/"} + kMotorNames[i],
+                leg_velocity_target_outputs_[i], 0.0);
+            register_output(
                 prefix + "/control_angle", angle_outputs_[i],
                 std::numeric_limits<double>::quiet_NaN());
         }
@@ -143,6 +146,21 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         policy_profile_ = kV5PolicyProfile;
     else
         throw std::runtime_error("Unknown wheel-leg control profile: " + profile_name);
+
+    const auto leg_control_law = get_parameter_or<std::string>("leg_control_law", "rl_pd");
+    if (leg_control_law != "rl_pd" && leg_control_law != "cascade_pp")
+        throw std::runtime_error("leg_control_law must be rl_pd or cascade_pp");
+    use_cascade_pp_ = leg_control_law == "cascade_pp";
+    if (use_cascade_pp_) {
+        const auto position_kp = parameter_array<4>(*this, "leg_position_kp");
+        const auto velocity_kp = parameter_array<4>(*this, "leg_velocity_kp");
+        const auto velocity_limit = parameter_array<4>(*this, "leg_velocity_target_limit");
+        for (std::size_t i = 0; i < 4; ++i) {
+            cascade_gains_[i] = {position_kp[i], velocity_kp[i], velocity_limit[i]};
+            if (!cascade_gains_[i].valid())
+                throw std::runtime_error("Invalid position/velocity P gains or target limit");
+        }
+    }
 
     policy_profile_.forward_limit = get_parameter_or("vx_max", policy_profile_.forward_limit);
     policy_profile_.positive_yaw_limit =

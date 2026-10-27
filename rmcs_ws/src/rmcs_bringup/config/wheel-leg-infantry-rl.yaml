@@ -116,6 +116,12 @@ wheel_leg_controller:
   ros__parameters:
     # Calibration, paired winding, feedback PD and actuator limits belong to RMCS.
     control_profile: v6
+    # Keep the actor's trained PD contract. The separate cascade-pp profile
+    # selects these offline candidates for controller validation.
+    leg_control_law: rl_pd
+    leg_position_kp: [40.0, 40.0, 40.0, 40.0]
+    leg_velocity_kp: [4.0, 4.0, 4.0, 4.0]
+    leg_velocity_target_limit: [8.5, 8.5, 8.5, 8.5]
     leg_winding_version: "paired_branch107_v1"
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
     inference_timeout: 0.06

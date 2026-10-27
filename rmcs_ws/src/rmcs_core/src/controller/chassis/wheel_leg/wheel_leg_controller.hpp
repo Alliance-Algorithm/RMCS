@@ -20,6 +20,7 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "feedback_sensor_guard.hpp"
+#include "controller/pid/position_velocity_p.hpp"
 #include "leg_target_winding.hpp"
 #include "policy.hpp"
 #include "unified_observation.hpp"
@@ -84,6 +85,7 @@ private:
     std::array<InputInterface<double>, 6> max_torque_inputs_;
     std::array<OutputInterface<double>, 6> torque_outputs_;
     std::array<OutputInterface<double>, 4> angle_outputs_;
+    std::array<OutputInterface<double>, 4> leg_velocity_target_outputs_;
     InputInterface<bool> motor_position_pd_;
     InputInterface<double> motor_position_kp_, motor_position_kd_;
     OutputInterface<std::uint64_t> joint_command_ns_;
@@ -142,6 +144,8 @@ private:
     std::optional<Clock::time_point> accepted_policy_submitted_at_;
     double inference_timeout_ = 0.04;
     PolicyProfile policy_profile_ = kV6PolicyProfile;
+    bool use_cascade_pp_ = false;
+    std::array<controller::pid::PositionVelocityPGains, 4> cascade_gains_{};
     LegTargetWinding leg_target_winding_ = LegTargetWinding::kIndependentNearest;
     std::optional<double> heading_target_rad_;
     bool heading_hold_enabled_ = true;

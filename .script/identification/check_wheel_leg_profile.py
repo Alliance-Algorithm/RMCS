@@ -199,19 +199,20 @@ def check(profile: dict) -> list[str]:
         errors.append("this hardware run records the confirmed 105-degree DM set-zero pose")
     if passive:
         return errors
-    law = controller.get("control_law", "cascade_pi")
+    law = controller.get("control_law", "rl_pd")
     pd = law == "rl_pd"
-    if law not in ("cascade_pi", "rl_pd"):
-        errors.append("control_law must be cascade_pi or rl_pd")
+    pp = law == "cascade_pp"
+    if law not in ("cascade_pp", "rl_pd"):
+        errors.append("control_law must be cascade_pp or rl_pd")
     frequency = 1000.0
     if any(params.get("control_frequency_hz") != frequency for params in (controller, recorder)):
         errors.append(f"paired controller and recorder control_frequency_hz must both be {frequency:g} Hz")
-    if pd:
+    if pd or pp:
         if controller.get("reference_frequency_hz") not in (50.0, 200.0):
             errors.append("PD reference_frequency_hz must explicitly be 50 or 200 Hz")
         for key in ("ki_velocity", "integral_limit", "gravity_feedforward_model"):
             if controller.get(key) != [0.0] * 4:
-                errors.append(f"RL PD {key} must be four zeros")
+                errors.append(f"PD/cascade PP {key} must be four zeros")
         if (controller.get("dm_motor_family") != "DM-J8009"
                 or controller.get("dm_rated_torque_nm") != 20.0
                 or controller.get("dm_peak_torque_nm") != 40.0):
@@ -220,6 +221,8 @@ def check(profile: dict) -> list[str]:
     if pd:
         del array_sizes["kp_position"], array_sizes["kp_velocity"]
         array_sizes.update(pd_kp=4, pd_kd=4)
+    elif pp:
+        array_sizes["velocity_target_limit"] = 4
 
     for key, count in {**array_sizes,
                        **(TRAJECTORY_ARRAY_SIZES if stage == "trajectory" else {})}.items():
@@ -393,7 +396,7 @@ def check(profile: dict) -> list[str]:
                 and not 0 < progress < knee:
             errors.append("probe_min_interior_delta must be less than knee amplitude")
     if stage == "probe" and isinstance(requested, list) and all(isinstance(x, (int, float)) for x in requested) \
-            and any(x > (40.0 if pd else 20.0) for x in requested):
+            and any(x > (40.0 if pd or pp else 20.0) for x in requested):
         errors.append("PROBE torque cap exceeds its explicit motor/profile limit")
     if pd:
         for key, strictly_positive in (("pd_kp", True), ("pd_kd", False)):
@@ -402,6 +405,14 @@ def check(profile: dict) -> list[str]:
                     isinstance(x, (int, float)) and (x <= 0 if strictly_positive else x < 0)
                     for x in values):
                 errors.append(f"{key}: invalid PD gain")
+    if pp:
+        for key in ("kp_position", "kp_velocity", "velocity_target_limit"):
+            values = controller.get(key, [])
+            if isinstance(values, list) and any(
+                    isinstance(x, (int, float)) and x <= 0 for x in values):
+                errors.append(f"{key}: cascade PP values must be positive")
+        if recorder.get("trajectory_revision") == "pair_v6_recording_v1":
+            errors.append("calibrated V6 recording requires its frozen rl_pd contract")
     for side in ("left", "right"):
         beta = controller.get(f"{side}_beta_degrees")
         delta = controller.get(f"{side}_delta_rad")

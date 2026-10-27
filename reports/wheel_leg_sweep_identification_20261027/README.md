@@ -1,5 +1,10 @@
 # wheel-leg sweep identification (2026-10-27)
 
+后续代码更新：按本轮要求采用**外环位置 P + 内环速度 P**，不加 I，内环 D=0。
+启动参数为 40 s⁻¹ / 4 Nm·s/rad，速度目标上限 8.5 rad/s、力矩上限 40 Nm；
+已接入 `wheel-leg-joints-sweep.yaml`。推导、误差边界和验证记录见
+[级联 P/P 更新](leg_cascade_pp.md)。以下保留原始辨识结论，旧 PI 建议已由此次 P/P 方案替代。
+
 这份报告对 `/home/noir/Documents/workspace/wheel_leg扫频` 中的 9 份 ValueCollector CSV 做了离线审计。原始 CSV 没有改写；分析结果和候选参数保存在本目录。计算使用了带原始文件 SHA-256 校验的缓存 DataFrame，命令为：
 
 ```bash

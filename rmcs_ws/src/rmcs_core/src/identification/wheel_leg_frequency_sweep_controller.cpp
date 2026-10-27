@@ -15,6 +15,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
+#include "controller/pid/position_velocity_p.hpp"
 #include "identification/wheel_leg_identification_axes.hpp"
 #include "identification/wheel_leg_limit_probe.hpp"
 #include "identification/wheel_leg_sweep_session.hpp"
@@ -89,11 +90,18 @@ public:
         register_output("/wheel_leg/sweep/beta_reference_valid", beta_ref_valid_, false);
         // These flags describe diagnostics; none is a motion interlock.
         register_output("/wheel_leg/sweep/motion_guards_enabled", guards_enabled_, false);
+        register_output("/wheel_leg/sweep/host/joint_control_law", joint_law_output_, cascade_pp_ ? 1 : 0);
         for (std::size_t i = 0; i < 2; ++i) {
             const auto prefix = std::string{"/wheel_leg/sweep/host/"} + (i == 0 ? "hip" : "knee");
             register_output(prefix + "_kp", host_kp_[i], kp_[i]);
             register_output(prefix + "_kd", host_kd_[i], kd_[i]);
             register_output(prefix + "_torque_limit_nm", host_limit_[i], torque_cap_[i]);
+            register_output(prefix + "_position_kp", host_position_kp_[i],
+                            cascade_pp_ ? cascade_gains_[i].position_kp : 0.0);
+            register_output(prefix + "_velocity_kp", host_velocity_kp_[i],
+                            cascade_pp_ ? cascade_gains_[i].velocity_kp : 0.0);
+            register_output(prefix + "_velocity_target_limit", host_velocity_limit_[i],
+                            cascade_pp_ ? cascade_gains_[i].velocity_limit : 0.0);
         }
         register_output("/wheel_leg/sweep/host/wheel_velocity_kp", wheel_gain_, wheel_kp_);
         register_output("/wheel_leg/sweep/host/wheel_torque_limit_nm", wheel_limit_, wheel_cap_);
@@ -114,6 +122,9 @@ public:
             register_output(out + "/reference", reference_q_[i], nan);
             register_output(out + "/reference_velocity", reference_dq_[i], 0.0);
             register_output(out + "/reference_acceleration", reference_ddq_[i], 0.0);
+            register_output(out + "/velocity_target", velocity_target_[i], 0.0);
+            register_output(out + "/velocity_error", velocity_error_[i], 0.0);
+            register_output(out + "/velocity_target_limited", velocity_limited_[i], false);
             register_output(out + "/tracking_error", error_[i], nan);
             register_output(out + "/torque_preclip", preclip_[i], 0.0);
             register_output(out + "/probe_torque_model", probe_torque_[i], 0.0);
@@ -145,6 +156,14 @@ public:
     void before_updating() override {
         if (*motor_pd_)
             throw std::invalid_argument("Frequency sweep requires pure MIT torque mode");
+        if (cascade_pp_)
+            RCLCPP_INFO(
+                get_logger(), "Joint cascade PP: position P=[%.2f,%.2f] 1/s, velocity P=[%.2f,%.2f] "
+                              "Nm s/rad, velocity target cap=[%.2f,%.2f] rad/s; "
+                              "trajectory velocity feedforward retained; I=0, inner D=0",
+                cascade_gains_[0].position_kp, cascade_gains_[1].position_kp,
+                cascade_gains_[0].velocity_kp, cascade_gains_[1].velocity_kp,
+                cascade_gains_[0].velocity_limit, cascade_gains_[1].velocity_limit);
     }
 
     void update() override {
@@ -165,6 +184,8 @@ public:
         for (std::size_t i = 0; i < 6; ++i) {
             *torque_[i] = *preclip_[i] = 0;
             *probe_torque_[i] = 0;
+            *velocity_target_[i] = *velocity_error_[i] = 0;
+            *velocity_limited_[i] = false;
             *saturated_[i] = false;
         }
         *reference_active_ = false;
@@ -212,9 +233,11 @@ public:
             if (kind_ == 2)
                 RCLCPP_INFO(
                     get_logger(),
-                    "Joint excitation-v4 mode=%d duration=%.1f s, PD hip=%.1f/%.2f knee=%.1f/%.2f; "
+                    "Joint excitation-v4 mode=%d duration=%.1f s, control=%s "
+                    "effective PD hip=%.1f/%.2f knee=%.1f/%.2f; "
                     "fast plateau=%.3f rad/s (%.2f s/rev), torque probes in waveform=3/6/7.",
-                    session_.mode, joint_plan_->duration(), kp_[0], kd_[0], kp_[1], kd_[1],
+                    session_.mode, joint_plan_->duration(), cascade_pp_ ? "cascade_pp" : "pd",
+                    kp_[0], kd_[0], kp_[1], kd_[1],
                     2 * std::numbers::pi / fast_turn_period_, fast_turn_period_);
             if (kind_ == 3)
                 probe_->start(now, selected_angles());
@@ -268,8 +291,11 @@ public:
                 session_.fault(SweepStop::kNonfinite);
         if (session_.state != SweepState::kRunning) {
             *reference_active_ = false;
-            for (std::size_t i = 0; i < 6; ++i)
+            for (std::size_t i = 0; i < 6; ++i) {
                 *torque_[i] = 0;
+                *velocity_target_[i] = *velocity_error_[i] = 0;
+                *velocity_limited_[i] = false;
+            }
         }
         *enable_ = session_.enabled();
         *clear_ = *enable_ && !ready;
@@ -491,8 +517,26 @@ private:
                 wheel_plan_->max_target_speed() * 60 / (2 * std::numbers::pi),
                 static_cast<int>(c.high_speed_only), wheel_plan_->duration(), amps);
         } else {
-            copy("joint_kp", kp_);
-            copy("joint_kd", kd_);
+            const auto law = get_parameter_or<std::string>("joint_control_law", "pd");
+            if (law != "pd" && law != "cascade_pp")
+                throw std::invalid_argument("joint_control_law must be pd or cascade_pp");
+            cascade_pp_ = law == "cascade_pp";
+            if (cascade_pp_) {
+                std::array<double, 2> position_kp{}, velocity_kp{}, velocity_limit{};
+                copy("joint_position_kp", position_kp);
+                copy("joint_velocity_kp", velocity_kp);
+                copy("joint_velocity_target_limit", velocity_limit);
+                for (std::size_t i = 0; i < 2; ++i) {
+                    cascade_gains_[i] = {position_kp[i], velocity_kp[i], velocity_limit[i]};
+                    if (!cascade_gains_[i].valid())
+                        throw std::invalid_argument("Invalid joint cascade PP gains or speed target cap");
+                    kp_[i] = position_kp[i] * velocity_kp[i];
+                    kd_[i] = velocity_kp[i];
+                }
+            } else {
+                copy("joint_kp", kp_);
+                copy("joint_kd", kd_);
+            }
             copy("joint_torque_limit_nm", torque_cap_);
             for (std::size_t i = 0; i < 2; ++i)
                 if (kp_[i] <= 0 || kd_[i] < 0 || torque_cap_[i] <= 0 || torque_cap_[i] > 40)
@@ -674,9 +718,23 @@ private:
                 *reference_ddq_[axis] = reference_.ddq[i];
                 *error_[axis] = reference_.q[i] - *model_q_[axis];
                 *probe_torque_[axis] = reference_.probe_torque[i];
-                const double model_effort = kp_[i] * (*error_[axis])
-                                          + kd_[i] * (reference_.dq[i] - *model_dq_[axis])
-                                          + reference_.probe_torque[i];
+                double model_effort;
+                if (cascade_pp_) {
+                    const auto& gains = cascade_gains_[i];
+                    *velocity_target_[axis] = controller::pid::position_velocity_p_target(
+                        gains, reference_.q[i], *model_q_[axis], reference_.dq[i]);
+                    *velocity_error_[axis] = *velocity_target_[axis] - *model_dq_[axis];
+                    *velocity_limited_[axis] =
+                        std::abs(reference_.dq[i] + gains.position_kp * *error_[axis])
+                        > gains.velocity_limit;
+                    model_effort = controller::pid::position_velocity_p_effort(
+                                       gains, *velocity_target_[axis], *model_dq_[axis])
+                                 + reference_.probe_torque[i];
+                } else {
+                    model_effort = kp_[i] * (*error_[axis])
+                                 + kd_[i] * (reference_.dq[i] - *model_dq_[axis])
+                                 + reference_.probe_torque[i];
+                }
                 const double requested = model_sign_[axis] * model_effort;
                 const double cap = std::min(torque_cap_[i], *max_torque_[axis]);
                 *preclip_[axis] = requested;
@@ -710,13 +768,15 @@ private:
     OutputInterface<double> wheel_top_speed_output_;
     std::array<OutputInterface<double>, 6> torque_, model_q_, model_dq_, model_ddq_,
         stopping_distance_, reference_q_, reference_dq_, reference_ddq_, error_, preclip_,
-        probe_torque_;
-    std::array<OutputInterface<bool>, 6> saturated_;
+        probe_torque_, velocity_target_, velocity_error_;
+    std::array<OutputInterface<bool>, 6> saturated_, velocity_limited_;
     std::array<OutputInterface<std::uint32_t>, 6> diagnostic_;
     std::array<OutputInterface<double>, 2> beta_estimate_, theta_estimate_, probe_q_, probe_beta_;
     std::array<OutputInterface<bool>, 2> beta_valid_;
     std::array<OutputInterface<int>, 2> probe_result_;
     std::array<OutputInterface<double>, 2> host_kp_, host_kd_, host_limit_;
+    std::array<OutputInterface<double>, 2> host_position_kp_, host_velocity_kp_, host_velocity_limit_;
+    OutputInterface<int> joint_law_output_;
     OutputInterface<double> wheel_gain_, wheel_limit_;
 
     std::array<PairGeometry, 2> geometry_;
@@ -727,6 +787,8 @@ private:
     WheelLegJointSweepPlan::Sample reference_;
     WheelProbeSample wheel_sample_;
     int kind_ = 0, side_ = -1;
+    bool cascade_pp_ = false;
+    std::array<controller::pid::PositionVelocityPGains, 2> cascade_gains_{};
     std::array<double, 4> model_sign_{}, model_offset_{};
     std::array<double, 2> hip_sign_{}, hip_zero_{}, kp_{}, kd_{}, torque_cap_{};
     double beta_min_ = 0, beta_max_ = 0, feedback_timeout_ = .05, wheel_kp_ = 0, wheel_cap_ = 0;

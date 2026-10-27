@@ -84,10 +84,41 @@ void WheelLegController::compute_motor_torques_() {
         return;
     }
     const auto now = Clock::now();
-    Eigen::Vector4d tau = (policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
-                           - policy_profile_.leg_kd * dq_.head<4>())
-                              .cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
-                              .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
+    Eigen::Vector4d tau;
+    if (use_cascade_pp_) {
+        Eigen::Vector4d velocity_target;
+        for (int i = 0; i < 4; ++i)
+            velocity_target[i] = controller::pid::position_velocity_p_target(
+                cascade_gains_[i], policy_targets_[i], q_[i]);
+        if (!velocity_target.allFinite()) {
+            latch_fault_("non-finite cascade velocity target");
+            return;
+        }
+        // Policy positions are held between actor updates. Do not differentiate
+        // those steps into velocity feedforward. Remove outward reference motion
+        // at the same hinge boundaries used for the final effort projection.
+        apply_soft_limits_(velocity_target);
+        double velocity_scale = 1.0;
+        for (int i = 0; i < 4; ++i)
+            if (std::abs(velocity_target[i]) > cascade_gains_[i].velocity_limit)
+                velocity_scale = std::min(
+                    velocity_scale,
+                    cascade_gains_[i].velocity_limit / std::abs(velocity_target[i]));
+        for (int i = 0; i < 4; ++i) {
+            *leg_velocity_target_outputs_[i] = velocity_scale * velocity_target[i];
+            tau[i] = controller::pid::position_velocity_p_effort(
+                cascade_gains_[i], *leg_velocity_target_outputs_[i], dq_[i]);
+        }
+    } else {
+        tau = policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
+            - policy_profile_.leg_kd * dq_.head<4>();
+    }
+    if (!tau.allFinite()) {
+        latch_fault_("non-finite joint controller effort");
+        return;
+    }
+    tau = tau.cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
+              .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
     const Eigen::Vector2d wheel_tau =
         (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
             .cwiseMax(-policy_profile_.wheel_torque_limit)

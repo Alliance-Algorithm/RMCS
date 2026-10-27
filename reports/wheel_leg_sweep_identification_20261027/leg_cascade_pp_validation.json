@@ -1,0 +1,199 @@
+{
+  "completed_utc": "2026-10-27T13:42:06.172589+00:00",
+  "branch": "feat/wheel_leg_sweep",
+  "base_commit": "9147c783e3cbac7886881e932346f1d14830aafc",
+  "build": {
+    "command": ".script/build-rmcs --packages-select rmcs_core rmcs_bringup",
+    "environment": "rmcs_devcontainer-rmcs-develop-1",
+    "passed": true
+  },
+  "tests": {
+    "command": "colcon test --merge-install --packages-select rmcs_core",
+    "summary_command": "colcon test-result --test-result-base build/rmcs_core --verbose",
+    "targets": [
+      {
+        "target": "wheel_leg_frequency_sweep",
+        "cases": 22,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_sweep_wheels_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_sweep_wheels_high_speed_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_sweep_joints_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_sweep_limits_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_sweep_right_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_sweep_limits_complete_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_imu",
+        "cases": 11,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_feedback",
+        "cases": 5,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_cascade_pp",
+        "cases": 4,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_unified_observation",
+        "cases": 5,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_unified_policy_integration",
+        "cases": 2,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_policy_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "wheel_leg_cascade_policy_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      },
+      {
+        "target": "deformable_policy_bridge_integration",
+        "cases": 1,
+        "failures": 0,
+        "errors": 0,
+        "disabled": 0
+      }
+    ],
+    "target_count": 15,
+    "current_gtest_case_count": 58,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "colcon_summary_count": 75,
+    "count_note": "Use current CTest registrations: 15 executables with 58 GTest cases. The aggregate colcon count also includes CTest metadata and two stale GTest results from another branch; those stale results are excluded here."
+  },
+  "csv_checks": [
+    {
+      "file": "/tmp/rmcs_sweep_test_1_0.csv",
+      "rows": 4759,
+      "columns": 244,
+      "rate_hz": 999.997
+    },
+    {
+      "file": "/tmp/rmcs_sweep_test_1_0_high_speed.csv",
+      "rows": 4759,
+      "columns": 244,
+      "rate_hz": 999.995
+    },
+    {
+      "file": "/tmp/rmcs_sweep_test_2_0.csv",
+      "rows": 2430,
+      "columns": 269,
+      "rate_hz": 999.99
+    },
+    {
+      "file": "/tmp/rmcs_sweep_test_3_0.csv",
+      "rows": 1343,
+      "columns": 237,
+      "rate_hz": 999.99
+    },
+    {
+      "file": "/tmp/rmcs_sweep_test_2_1.csv",
+      "rows": 2441,
+      "columns": 269,
+      "rate_hz": 1000.01
+    },
+    {
+      "file": "/tmp/rmcs_sweep_test_3_0_complete.csv",
+      "rows": 2558,
+      "columns": 237,
+      "rate_hz": 999.993
+    }
+  ],
+  "tested_source_sha256": {
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml": "44e6331ff3e6b98e9d8d7f3f05cd47aa4c9ceaa59607c2876b2ed0b0e13a7f44",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml": "285aa8a65d8904589c5e3867be6c165abb3251ffaa7c5abf2c08192a417bfbd5",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-joints-sweep.yaml": "6c70d70a9c4d1091573773fd48167edc0978bbef7fb57d875766b8ede4b681d9",
+    "rmcs_ws/src/rmcs_core/CMakeLists.txt": "eae5004fb72a81c0aa6d9d28810a70f96e8ba94f4ba648ff7ace9d2cc8a8fd07",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/action.cpp": "aa85d9b8045203c251e11b2687c404324391a894cf042a7bde2eb512bb5be2e4",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/configuration.cpp": "671970781446abe5ce449f3e4452716a4e363f32b07668afb703d3dd784c580b",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp": "7b5f8c1a4ce06723af4b11cbd534f4e5c199518c70adc119a6a47f77807321c9",
+    "rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.hpp": "c059af81d0a2267f3ac5271a63af5c346fb19ffd4c3dc761f7d23d4d999946e4",
+    "rmcs_ws/src/rmcs_core/src/identification/wheel_leg_frequency_sweep_controller.cpp": "a686bd4cf12c723bda99a8203bb246389bc19febb1afecbbb88ed0d5ca2a99c2",
+    "rmcs_ws/src/rmcs_core/src/identification/wheel_leg_pair_identification_controller.cpp": "7e515d963859ec42c61547e9280b6f4fc01163b10fc4f0fe69d2e6f4f1033b3f",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_frequency_sweep_integration.cpp": "6855ec66b21517182287f79ff7d47bf65e314eba078ec57988524f614cf64c42",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_policy_integration.cpp": "1c50a2371c6af69f57dbdc778ec831b7bd39808a4b390a8ffc4ebda976ba8fc2",
+    "rmcs_ws/src/rmcs_core/src/controller/pid/position_velocity_p.hpp": "f19ae674f3cc6d99fa6a9f8ea107917514c482b7ea586167168ffe6d6672ee8f",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_cascade_pp.cpp": "f3fcd6d631d51b5ad6632da6d8aa9562523e67f0273a8880066c5f56619f86a7",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-cascade-pp.yaml": "aa000d4bbee23c28bf371c81ee60c0c4f008956c5d8c57ccb592dfde44cf2de1"
+  },
+  "offline_only": true,
+  "physical_motion_started_by_agent": false,
+  "physical_tracking_performance_validated": false,
+  "gains_status": "data_informed_conservative_starting_values_not_dynamic_optimum",
+  "checks": [
+    "separate position and velocity gain units",
+    "no integral residual",
+    "nonfinite inputs rejected before velocity clamp",
+    "sweep model/API torque sign and probe summation",
+    "speed target cap and stop/reset clearing",
+    "inactive leg and wheel zero command",
+    "left and right sweep mode selection based on current DR16 switches",
+    "RL hinge effort/reference projection and stale feedback stop",
+    "YAML syntax, component list and duplicate signals",
+    "git diff --check"
+  ]
+}

@@ -92,6 +92,8 @@ if(BUILD_TESTING)
     ament_add_gtest(wheel_leg_feedback test/wheel_leg_feedback.cpp)
     target_include_directories(wheel_leg_feedback PRIVATE src)
     target_link_libraries(wheel_leg_feedback ${PROJECT_NAME})
+    ament_add_gtest(wheel_leg_cascade_pp test/wheel_leg_cascade_pp.cpp)
+    target_include_directories(wheel_leg_cascade_pp PRIVATE src)
     ament_add_gtest(wheel_leg_unified_observation test/wheel_leg_unified_observation.cpp)
     target_include_directories(wheel_leg_unified_observation PRIVATE src)
     add_executable(wheel_leg_observation_parity tools/wheel_leg_observation_parity.cpp)
@@ -108,6 +110,13 @@ if(BUILD_TESTING)
     target_compile_definitions(wheel_leg_policy_integration PRIVATE
         RMCS_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-rl.yaml")
     target_link_libraries(wheel_leg_policy_integration ${PROJECT_NAME})
+    ament_add_gtest(wheel_leg_cascade_policy_integration test/wheel_leg_policy_integration.cpp)
+    target_include_directories(wheel_leg_cascade_policy_integration PRIVATE
+        src ${CMAKE_CURRENT_SOURCE_DIR}/../rmcs_executor/src)
+    target_compile_definitions(wheel_leg_cascade_policy_integration PRIVATE
+        RMCS_TEST_CASCADE_PP=1
+        RMCS_PROFILE="${CMAKE_CURRENT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-cascade-pp.yaml")
+    target_link_libraries(wheel_leg_cascade_policy_integration ${PROJECT_NAME})
     ament_add_gtest(deformable_policy_bridge_integration test/deformable_policy_bridge_integration.cpp)
     target_include_directories(deformable_policy_bridge_integration PRIVATE
         ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)

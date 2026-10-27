@@ -21,7 +21,7 @@ wheel_leg:
     imu_position: [0.0, 0.0, 0.0]
     imu_angular_acceleration_filter_tau_s: 0.01
     joint_control_mode: "torque"
-    # Host PD owns the motion; MIT packets always carry Kp=Kd=0.
+    # Host cascade PP owns the motion; MIT packets always carry Kp=Kd=0.
     joint_position_kp: 160.0
     joint_position_kd: 2.5
     require_enable_request: true
@@ -59,9 +59,13 @@ frequency_sweep:
     # Reference excursions remain inside the operator's 40--110 deg working range.
     beta_min_deg: 45.0
     beta_max_deg: 105.0
-    # Initial collection gains, not identified/optimized gains. Host PD in torque mode.
-    joint_kp: [120.0, 120.0]
-    joint_kd: [4.0, 4.0]
+    # Model coordinates, hip/knee order. Conservative data-informed starting gains.
+    # v_target=clip(v_ref+P_position*(q_ref-q), +/-8.5); tau=P_velocity*(v_target-v)+probe.
+    # Equivalent unsaturated position PD: 160/4. No I or inner-loop D.
+    joint_control_law: cascade_pp
+    joint_position_kp: [40.0, 40.0]
+    joint_velocity_kp: [4.0, 4.0]
+    joint_velocity_target_limit: [8.5, 8.5]
     joint_torque_limit_nm: [40.0, 40.0]
     joint_turn_speeds_rad_s: [0.2, 0.6, 1.5, 3.141592653589793]
     joint_fast_turn_period_s: 2.0
@@ -69,7 +73,7 @@ frequency_sweep:
     # Reference range lies inside both observed leg ranges; actual loaded motion differs.
     joint_knee_beta_deg: [45.0, 100.0]
     joint_knee_half_periods_s: [4.0, 2.0, 1.0]
-    # Independent model-coordinate torque probes AFTER PD, BEFORE final 40 Nm clamp.
+    # Independent model-coordinate torque probes AFTER the servo, BEFORE final 40 Nm clamp.
     # Waveform=6 uses both axes; mode-2 waveform=3/7 uses the knee only.
     joint_probe_torque_nm: [1.0, 1.0]
 
@@ -112,6 +116,13 @@ value_collector:
       - /wheel_leg/sweep/beta_reference
       - /wheel_leg/sweep/beta_reference_valid
       - /wheel_leg/sweep/motion_guards_enabled
+      - /wheel_leg/sweep/host/joint_control_law
+      - /wheel_leg/sweep/host/hip_position_kp
+      - /wheel_leg/sweep/host/hip_velocity_kp
+      - /wheel_leg/sweep/host/hip_velocity_target_limit
+      - /wheel_leg/sweep/host/knee_position_kp
+      - /wheel_leg/sweep/host/knee_velocity_kp
+      - /wheel_leg/sweep/host/knee_velocity_target_limit
       - /wheel_leg/sweep/host/hip_kp
       - /wheel_leg/sweep/host/hip_kd
       - /wheel_leg/sweep/host/hip_torque_limit_nm
@@ -148,6 +159,9 @@ value_collector:
       - /wheel_leg/sweep/left_hip_joint/estimated_stopping_distance
       - /wheel_leg/sweep/left_hip_joint/reference
       - /wheel_leg/sweep/left_hip_joint/reference_velocity
+      - /wheel_leg/sweep/left_hip_joint/velocity_target
+      - /wheel_leg/sweep/left_hip_joint/velocity_error
+      - /wheel_leg/sweep/left_hip_joint/velocity_target_limited
       - /wheel_leg/sweep/left_hip_joint/reference_acceleration
       - /wheel_leg/sweep/left_hip_joint/tracking_error
       - /wheel_leg/sweep/left_hip_joint/torque_preclip
@@ -176,6 +190,9 @@ value_collector:
       - /wheel_leg/sweep/left_knee_joint/estimated_stopping_distance
       - /wheel_leg/sweep/left_knee_joint/reference
       - /wheel_leg/sweep/left_knee_joint/reference_velocity
+      - /wheel_leg/sweep/left_knee_joint/velocity_target
+      - /wheel_leg/sweep/left_knee_joint/velocity_error
+      - /wheel_leg/sweep/left_knee_joint/velocity_target_limited
       - /wheel_leg/sweep/left_knee_joint/reference_acceleration
       - /wheel_leg/sweep/left_knee_joint/tracking_error
       - /wheel_leg/sweep/left_knee_joint/torque_preclip
@@ -204,6 +221,9 @@ value_collector:
       - /wheel_leg/sweep/right_hip_joint/estimated_stopping_distance
       - /wheel_leg/sweep/right_hip_joint/reference
       - /wheel_leg/sweep/right_hip_joint/reference_velocity
+      - /wheel_leg/sweep/right_hip_joint/velocity_target
+      - /wheel_leg/sweep/right_hip_joint/velocity_error
+      - /wheel_leg/sweep/right_hip_joint/velocity_target_limited
       - /wheel_leg/sweep/right_hip_joint/reference_acceleration
       - /wheel_leg/sweep/right_hip_joint/tracking_error
       - /wheel_leg/sweep/right_hip_joint/torque_preclip
@@ -232,6 +252,9 @@ value_collector:
       - /wheel_leg/sweep/right_knee_joint/estimated_stopping_distance
       - /wheel_leg/sweep/right_knee_joint/reference
       - /wheel_leg/sweep/right_knee_joint/reference_velocity
+      - /wheel_leg/sweep/right_knee_joint/velocity_target
+      - /wheel_leg/sweep/right_knee_joint/velocity_error
+      - /wheel_leg/sweep/right_knee_joint/velocity_target_limited
       - /wheel_leg/sweep/right_knee_joint/reference_acceleration
       - /wheel_leg/sweep/right_knee_joint/tracking_error
       - /wheel_leg/sweep/right_knee_joint/torque_preclip
@@ -260,6 +283,9 @@ value_collector:
       - /wheel_leg/sweep/left_wheel/estimated_stopping_distance
       - /wheel_leg/sweep/left_wheel/reference
       - /wheel_leg/sweep/left_wheel/reference_velocity
+      - /wheel_leg/sweep/left_wheel/velocity_target
+      - /wheel_leg/sweep/left_wheel/velocity_error
+      - /wheel_leg/sweep/left_wheel/velocity_target_limited
       - /wheel_leg/sweep/left_wheel/reference_acceleration
       - /wheel_leg/sweep/left_wheel/tracking_error
       - /wheel_leg/sweep/left_wheel/torque_preclip
@@ -287,6 +313,9 @@ value_collector:
       - /wheel_leg/sweep/right_wheel/estimated_stopping_distance
       - /wheel_leg/sweep/right_wheel/reference
       - /wheel_leg/sweep/right_wheel/reference_velocity
+      - /wheel_leg/sweep/right_wheel/velocity_target
+      - /wheel_leg/sweep/right_wheel/velocity_error
+      - /wheel_leg/sweep/right_wheel/velocity_target_limited
       - /wheel_leg/sweep/right_wheel/reference_acceleration
       - /wheel_leg/sweep/right_wheel/tracking_error
       - /wheel_leg/sweep/right_wheel/torque_preclip

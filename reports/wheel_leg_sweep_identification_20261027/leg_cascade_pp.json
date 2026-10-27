@@ -1,0 +1,180 @@
+{
+  "status": "conservative_starting_gains_not_dynamic_optimum_or_hardware_validation",
+  "source": "/home/noir/Documents/workspace/wheel_leg扫频/左腿关节不同夹角扫频.csv",
+  "source_sha256": "da4a6f2e3286870f2646639dad9f665244a086d829863801cc8ad32b44766597",
+  "knee_source": "/home/noir/Documents/workspace/wheel_leg扫频/wheel_leg_膝关节气簧辨识数据.csv",
+  "knee_source_sha256": "17d8ebf42472573a28a85352df0584b964ec4ecc183d4b26e29d5f4c729dc0ba",
+  "coordinates": "model rad/rad_s/Nm; tau_model=-tau_api for model_sign=-1",
+  "gains": {
+    "position_p_per_s": 40.0,
+    "velocity_p_nm_s_per_rad": 4.0,
+    "velocity_i": 0.0,
+    "velocity_d": 0.0,
+    "velocity_target_limit_rad_s": 8.5,
+    "torque_limit_nm": 40.0,
+    "equivalent_position_kp_nm_per_rad": 160.0,
+    "equivalent_position_kd_nm_s_per_rad": 4.0
+  },
+  "static_effective_load_and_recorded_state_command_audit": [
+    {
+      "beta_reference_deg": 50,
+      "samples": 119170,
+      "segments": [
+        {
+          "run": 1,
+          "stage": 2,
+          "samples": 29810,
+          "validation": 0
+        },
+        {
+          "run": 1,
+          "stage": 3,
+          "samples": 29805,
+          "validation": 1
+        },
+        {
+          "run": 2,
+          "stage": 2,
+          "samples": 29775,
+          "validation": 0
+        },
+        {
+          "run": 2,
+          "stage": 3,
+          "samples": 29780,
+          "validation": 1
+        }
+      ],
+      "beta_actual_deg_median": 62.64016943632071,
+      "left_hip_joint": {
+        "model_torque_nm_median": 17.393406593406596,
+        "error_deg_median": 8.285364419346191,
+        "error_deg_constant_load_estimate_at_k160": 6.228554932232604,
+        "velocity_target_clipped_fraction_on_recorded_states": 0.0,
+        "torque_clipped_fraction_on_recorded_states": 0.0
+      },
+      "left_knee_joint": {
+        "model_torque_nm_median": -19.028571428571425,
+        "error_deg_median": -9.115129510165184,
+        "error_deg_constant_load_estimate_at_k160": -6.814105206377289,
+        "velocity_target_clipped_fraction_on_recorded_states": 0.0,
+        "torque_clipped_fraction_on_recorded_states": 0.0
+      }
+    },
+    {
+      "beta_reference_deg": 75,
+      "samples": 119425,
+      "segments": [
+        {
+          "run": 1,
+          "stage": 7,
+          "samples": 29900,
+          "validation": 0
+        },
+        {
+          "run": 1,
+          "stage": 8,
+          "samples": 29840,
+          "validation": 1
+        },
+        {
+          "run": 2,
+          "stage": 7,
+          "samples": 29845,
+          "validation": 0
+        },
+        {
+          "run": 2,
+          "stage": 8,
+          "samples": 29840,
+          "validation": 1
+        }
+      ],
+      "beta_actual_deg_median": 87.91482150801764,
+      "left_hip_joint": {
+        "model_torque_nm_median": 15.468131868131875,
+        "error_deg_median": 7.380431152114936,
+        "error_deg_constant_load_estimate_at_k160": 5.539116706223538,
+        "velocity_target_clipped_fraction_on_recorded_states": 0.0,
+        "torque_clipped_fraction_on_recorded_states": 0.0
+      },
+      "left_knee_joint": {
+        "model_torque_nm_median": -16.839560439560437,
+        "error_deg_median": -8.07240491054939,
+        "error_deg_constant_load_estimate_at_k160": -6.030223387764241,
+        "velocity_target_clipped_fraction_on_recorded_states": 0.0,
+        "torque_clipped_fraction_on_recorded_states": 0.0
+      }
+    },
+    {
+      "beta_reference_deg": 100,
+      "samples": 119205,
+      "segments": [
+        {
+          "run": 1,
+          "stage": 12,
+          "samples": 29780,
+          "validation": 0
+        },
+        {
+          "run": 1,
+          "stage": 13,
+          "samples": 29845,
+          "validation": 1
+        },
+        {
+          "run": 2,
+          "stage": 12,
+          "samples": 29805,
+          "validation": 0
+        },
+        {
+          "run": 2,
+          "stage": 13,
+          "samples": 29775,
+          "validation": 1
+        }
+      ],
+      "beta_actual_deg_median": 101.91643582182115,
+      "left_hip_joint": {
+        "model_torque_nm_median": 2.149450549450556,
+        "error_deg_median": 1.012491425075371,
+        "error_deg_constant_load_estimate_at_k160": 0.7697152797224545,
+        "velocity_target_clipped_fraction_on_recorded_states": 0.0,
+        "torque_clipped_fraction_on_recorded_states": 0.0
+      },
+      "left_knee_joint": {
+        "model_torque_nm_median": -2.413186813186812,
+        "error_deg_median": -1.1781309909103217,
+        "error_deg_constant_load_estimate_at_k160": -0.8641588723264336,
+        "velocity_target_clipped_fraction_on_recorded_states": 0.0,
+        "torque_clipped_fraction_on_recorded_states": 0.0
+      }
+    }
+  ],
+  "rotation_speed": {
+    "left_hip_joint": {
+      "reference_speed_p99_rad_s": 3.4030339069824604,
+      "actual_speed_p99_rad_s": 3.417582417582416
+    },
+    "left_knee_joint": {
+      "reference_speed_p99_rad_s": 3.3494593951272984,
+      "actual_speed_p99_rad_s": 3.3736263736263723
+    }
+  },
+  "derivative_diagnostic": {
+    "left_hip_joint": {
+      "raw_velocity_difference_acceleration_abs_p99_rad_s2": 43.969334569967145
+    },
+    "left_knee_joint": {
+      "raw_velocity_difference_acceleration_abs_p99_rad_s2": 87.9557720266519
+    }
+  },
+  "limitations": [
+    "Recorded-state clipping fractions are not closed-loop replay or a performance prediction.",
+    "Constant-load estimates omit changing spring stiffness, hysteresis and friction.",
+    "No independently accepted J/B model or inner-loop bandwidth was obtained.",
+    "Right-leg gains are mirrored starting values; independent right-leg validation is still required.",
+    "Raw velocity differences include both real acceleration and quantization; they do not identify sensor noise alone."
+  ]
+}
