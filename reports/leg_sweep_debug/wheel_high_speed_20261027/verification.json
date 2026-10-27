@@ -1,0 +1,125 @@
+{
+  "date": "2026-10-27",
+  "scope": "Offline only: synthetic motor feedback, no hardware plugin loaded and no physical robot motion launched",
+  "build_command": "build-rmcs --packages-select rmcs_core rmcs_bringup",
+  "build_result": "2 packages passed",
+  "test_command": "colcon test --merge-install --packages-select rmcs_core --return-code-on-test-failure",
+  "ctest_targets": 14,
+  "gtest_cases": 55,
+  "failures": 0,
+  "results": [
+    {
+      "target": "deformable_gimbal_feedforward",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "deformable_policy_bridge_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_feedback",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_frequency_sweep",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_imu",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_policy_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_sweep_joints_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_sweep_limits_complete_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_sweep_limits_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_sweep_right_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_sweep_wheels_high_speed_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_sweep_wheels_integration",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_unified_observation",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "target": "wheel_leg_unified_policy_integration",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0
+    }
+  ],
+  "synthetic_csv_results": [],
+  "checks": [
+    "Both UP/MIDDLE and MIDDLE/UP immediately yield to UP/UP mode 3 in deployed joint YAMLs",
+    "Direct MIDDLE/MIDDLE zero effort, DOWN/DOWN reset, stale remote stop and recovery",
+    "High-speed target covers both wheel sides and both directions, with no braking before coast",
+    "Independent bounded torque probes, separate train/holdout phases and high-speed metadata",
+    "Strict CSV graph pairing for both wheel YAMLs; parked joints stay zero",
+    "Periodic sweep/executor prints remain disabled and completion log remains",
+    "New YAML installed with existing plugin and launch wiring"
+  ],
+  "file_sha256": {
+    "rmcs_ws/src/rmcs_core/src/identification/wheel_leg_sweep_session.hpp": "fd96c49904afd77fdd72c5c2106fc1a2586eeebea72dc9d1d1b8b9c7f262813d",
+    "rmcs_ws/src/rmcs_core/src/identification/wheel_leg_wheel_identification_plan.hpp": "c97d7132a99786a4dac90e51fbd44817abfd988f84bf032cad8b92da232e4ce2",
+    "rmcs_ws/src/rmcs_core/src/identification/wheel_leg_frequency_sweep_controller.cpp": "c0cb204c4d6becb5badddca16eeb36868506a3a3394ef0358cb704cc94897b98",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_frequency_sweep.cpp": "c5280a4bb3aae64aa610cae819d39b7085e7d6fc3071bf043670e807d38a6718",
+    "rmcs_ws/src/rmcs_core/test/wheel_leg_frequency_sweep_integration.cpp": "df8ca553f0af821e916832c1da486d7d6fde02b6160a18dba957b7cfb432bcae",
+    "rmcs_ws/src/rmcs_core/CMakeLists.txt": "0a7d41006fc731a6d32a3043fb1bb232a7a3557e5cc02fdb68ffe787caeb4afc",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-wheels-high-speed-sweep.yaml": "164ba999c5a73c59a5d77b5a843e5da961ad606ee135f4e4950000484941de77",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-wheels-sweep.yaml": "20909433ef6210817607c8b6b39d91a843da1e164b82d5d29c574d98525ed5d3",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-joints-sweep.yaml": "078b7004cbee534cc0cc439432bbb33b1095ff8954413f40889bf0157b0e84c7",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-joint-limit-probe.yaml": "d3e2731969facc891726774d63a0207011e168be825a7a7c2258873b606e8c03"
+  },
+  "physical_results": {
+    "actual_top_speed_rad_s": null,
+    "damping": null,
+    "inertia": null,
+    "delay_ms": null
+  },
+  "real2sim_ready": false
+}

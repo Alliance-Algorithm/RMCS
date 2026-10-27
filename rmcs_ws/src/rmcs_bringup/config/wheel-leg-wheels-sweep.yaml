@@ -6,7 +6,7 @@
 # Held matching mode repeats after completion; mode changes take effect immediately.
 # Angles/speed/tracking/braking are diagnostics ONLY. No envelope exits or auto scaling.
 # Only active motor feedback is needed for control; IMU/parked motors are diagnostic.
-# First 3 s are zero-current baseline, then LEFT wheel starts at 0.15 rad/s.
+# First 3 s are zero-current baseline, then the high-speed experiment starts.
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
@@ -58,7 +58,12 @@ frequency_sweep:
     beta_min_deg: 35.0
     beta_max_deg: 105.0
     wheel_velocity_kp: 0.5
-    wheel_current_limit_a: 10.0
+    wheel_current_limit_a: 20.0
+    # M3508, stock gearbox removed, external 15.62:1, confirmed 24 V supply.
+    # 65 rad/s is a requested ceiling; achieved top speed is measured, not assumed.
+    wheel_high_speed_target_rad_s: 65.0
+    wheel_high_speed_probe_nm: 0.35
+    wheel_high_speed_only: false
     wheel_low_speeds: [0.15, 0.3, 0.6]
     wheel_speeds: [1.5, 3.0, 6.0, 12.0, 20.0]
     wheel_ramp_s: 1.0
@@ -91,6 +96,11 @@ value_collector:
       - /wheel_leg/sweep/drives_ready
       - /wheel_leg/sweep/feedback_diagnostic
       - /wheel_leg/sweep/reference_active
+      - /wheel_leg/sweep/excitation_revision
+      - /wheel_leg/sweep/stage_elapsed_s
+      - /wheel_leg/sweep/stage_duration_s
+      - /wheel_leg/sweep/wheel_high_speed
+      - /wheel_leg/sweep/wheel_high_speed_target_rad_s
       - /wheel_leg/sweep/reference_sequence
       - /wheel_leg/sweep/reference_elapsed_s
       - /wheel_leg/sweep/run_elapsed_s
@@ -252,6 +262,7 @@ value_collector:
       - /wheel_leg/sweep/left_wheel/reference_acceleration
       - /wheel_leg/sweep/left_wheel/tracking_error
       - /wheel_leg/sweep/left_wheel/torque_preclip
+      - /wheel_leg/sweep/left_wheel/probe_torque_model
       - /wheel_leg/sweep/left_wheel/saturated
       - /wheel_leg/sweep/left_wheel/diagnostic_flags
       - /wheel_leg/left_wheel/temperature_c
@@ -279,6 +290,7 @@ value_collector:
       - /wheel_leg/sweep/right_wheel/reference_acceleration
       - /wheel_leg/sweep/right_wheel/tracking_error
       - /wheel_leg/sweep/right_wheel/torque_preclip
+      - /wheel_leg/sweep/right_wheel/probe_torque_model
       - /wheel_leg/sweep/right_wheel/saturated
       - /wheel_leg/sweep/right_wheel/diagnostic_flags
       - /wheel_leg/right_wheel/temperature_c

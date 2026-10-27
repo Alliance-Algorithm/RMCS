@@ -64,7 +64,13 @@ public:
         register_output("/wheel_leg/sweep/drives_ready", drives_ready_output_, false);
         register_output("/wheel_leg/sweep/feedback_diagnostic", feedback_diagnostic_, 0);
         register_output("/wheel_leg/sweep/reference_active", reference_active_, false);
-        register_output("/wheel_leg/sweep/excitation_revision", excitation_revision_, 3);
+        register_output(
+            "/wheel_leg/sweep/excitation_revision", excitation_revision_,
+            kind_ == 1 && wheel_top_speed_ > 0 ? 5 : 4);
+        register_output("/wheel_leg/sweep/wheel_high_speed", wheel_high_speed_stage_, false);
+        register_output(
+            "/wheel_leg/sweep/wheel_high_speed_target_rad_s", wheel_top_speed_output_,
+            wheel_top_speed_);
         register_output("/wheel_leg/sweep/stage_elapsed_s", stage_elapsed_, 0.0);
         register_output("/wheel_leg/sweep/stage_duration_s", stage_duration_, 0.0);
         register_output(
@@ -162,6 +168,7 @@ public:
             *saturated_[i] = false;
         }
         *reference_active_ = false;
+        *wheel_high_speed_stage_ = false;
         update_feedback();
         *feedback_diagnostic_ = static_cast<int>(sensor_health(now_ns));
         const bool ready = drives_ready();
@@ -205,8 +212,8 @@ public:
             if (kind_ == 2)
                 RCLCPP_INFO(
                     get_logger(),
-                    "Joint excitation-v3 mode=%d duration=%.1f s, PD hip=%.1f/%.2f knee=%.1f/%.2f; "
-                    "fast plateau=%.3f rad/s (%.2f s/rev), local probe only in waveform=6.",
+                    "Joint excitation-v4 mode=%d duration=%.1f s, PD hip=%.1f/%.2f knee=%.1f/%.2f; "
+                    "fast plateau=%.3f rad/s (%.2f s/rev), torque probes in waveform=3/6/7.",
                     session_.mode, joint_plan_->duration(), kp_[0], kd_[0], kp_[1], kd_[1],
                     2 * std::numbers::pi / fast_turn_period_, fast_turn_period_);
             if (kind_ == 3)
@@ -274,7 +281,7 @@ public:
         *drives_ready_output_ = ready;
         log_transition();
         log_stage();
-        log_live_status(now_ns);
+        // log_live_status(now_ns); // Periodic sweep and joint diagnostics.
         *control_end_ns_ = steady_ns();
     }
 
@@ -342,9 +349,13 @@ private:
         if (kind_ == 1) {
             const auto& segment = wheel_plan_->segments()[static_cast<std::size_t>(*stage_)];
             RCLCPP_INFO(
-                get_logger(), "Wheel stage=%d/%zu %s, duration=%.2f s, control=%s.", *stage_,
-                wheel_plan_->segments().size(), segment.label.c_str(), segment.duration_s,
-                segment.coast ? "zero-current coast" : "velocity excitation");
+                get_logger(),
+                "Wheel stage=%d/%zu %s, duration=%.2f s, control=%s, target=%.2f rad/s, "
+                "feedback L/R=[%.2f,%.2f] rad/s, torque_fb L/R=[%.3f,%.3f] Nm, validation=%d.",
+                *stage_, wheel_plan_->segments().size(), segment.label.c_str(), segment.duration_s,
+                segment.coast ? "zero-current coast" : "velocity excitation", segment.to,
+                *velocity_[4], *velocity_[5], *feedback_torque_[4], *feedback_torque_[5],
+                static_cast<int>(segment.validation));
         } else
             RCLCPP_INFO(
                 get_logger(), "Joint stage=%d waveform=%d elapsed=%.3f s", *stage_, *waveform_,
@@ -402,11 +413,6 @@ private:
                                        : 0;
         if (!kind_)
             throw std::invalid_argument("experiment must be wheels, joints or limits");
-        session_.latch_run = get_parameter_or("latch_run", false);
-        session_.remote_timeout_s = get_parameter_or("remote_timeout_s", 0.0);
-        if (!std::isfinite(session_.remote_timeout_s) || session_.remote_timeout_s < 0
-            || session_.remote_timeout_s > 1)
-            throw std::invalid_argument("Invalid remote timeout");
         if (kind_ != 1) {
             const auto side = get_parameter("side").as_string();
             if (side != "left" && side != "right")
@@ -466,6 +472,10 @@ private:
             c.chirp_s = get_parameter("wheel_chirp_s").as_double();
             c.validation_s = get_parameter("wheel_validation_s").as_double();
             c.step_repetitions = get_parameter("wheel_step_repetitions").as_int();
+            c.high_speed_target = wheel_top_speed_ =
+                get_parameter_or("wheel_high_speed_target_rad_s", 0.0);
+            c.high_speed_probe_nm = get_parameter_or("wheel_high_speed_probe_nm", .35);
+            c.high_speed_only = get_parameter_or("wheel_high_speed_only", false);
             wheel_plan_ = std::make_unique<WheelProbePlan>(c);
             wheel_kp_ = get_parameter("wheel_velocity_kp").as_double();
             const double amps = get_parameter("wheel_current_limit_a").as_double();
@@ -473,6 +483,13 @@ private:
                 || wheel_kp_ <= 0)
                 throw std::invalid_argument("Invalid wheel gain/current cap");
             wheel_cap_ = amps * wheel_nm_per_amp;
+            RCLCPP_INFO(
+                get_logger(),
+                "Wheel sweep: top target=%.2f rad/s (%.1f rpm), high_speed_only=%d, "
+                "duration=%.1f s, current cap=%.1f A; actual top speed requires feedback.",
+                wheel_plan_->max_target_speed(),
+                wheel_plan_->max_target_speed() * 60 / (2 * std::numbers::pi),
+                static_cast<int>(c.high_speed_only), wheel_plan_->duration(), amps);
         } else {
             copy("joint_kp", kp_);
             copy("joint_kd", kd_);
@@ -484,6 +501,8 @@ private:
             if (kind_ == 2) {
                 copy("joint_turn_speeds_rad_s", plan_config.turn_speeds);
                 copy("joint_probe_torque_nm", plan_config.probe_torque_nm);
+                copy("joint_knee_beta_deg", plan_config.knee_beta_deg);
+                copy("joint_knee_half_periods_s", plan_config.knee_half_periods_s);
                 fast_turn_period_ = plan_config.fast_turn_period_s =
                     get_parameter("joint_fast_turn_period_s").as_double();
             }
@@ -618,12 +637,18 @@ private:
             *stage_ = wheel_sample_.segment_id;
             *waveform_ = wheel_sample_.waveform;
             *validation_ = wheel_sample_.validation;
+            *wheel_high_speed_stage_ = wheel_sample_.high_speed;
+            const auto& segment = wheel_plan_->segments()[wheel_sample_.segment_id];
+            *stage_elapsed_ = *reference_elapsed_ - segment.start_s;
+            *stage_duration_ = segment.duration_s;
             for (std::size_t i = 0; i < 2; ++i) {
                 const auto axis = 4 + i;
                 *reference_q_[axis] = nan;
                 *reference_dq_[axis] = wheel_sample_.velocity_target[i];
                 *error_[axis] = wheel_sample_.velocity_target[i] - *velocity_[axis];
-                const double requested = wheel_sample_.servo[i] ? wheel_kp_ * (*error_[axis]) : 0;
+                *probe_torque_[axis] = wheel_sample_.probe_torque[i];
+                const double requested =
+                    wheel_sample_.servo[i] ? wheel_kp_ * (*error_[axis]) + *probe_torque_[axis] : 0;
                 const double cap = std::min(wheel_cap_, *max_torque_[axis]);
                 *preclip_[axis] = requested;
                 *torque_[axis] = std::clamp(requested, -cap, cap);
@@ -681,6 +706,8 @@ private:
     OutputInterface<double> reference_elapsed_, run_elapsed_, control_dt_, theta_ref_, beta_ref_,
         stage_elapsed_, stage_duration_;
     OutputInterface<int> excitation_revision_;
+    OutputInterface<bool> wheel_high_speed_stage_;
+    OutputInterface<double> wheel_top_speed_output_;
     std::array<OutputInterface<double>, 6> torque_, model_q_, model_dq_, model_ddq_,
         stopping_distance_, reference_q_, reference_dq_, reference_ddq_, error_, preclip_,
         probe_torque_;
@@ -707,6 +734,7 @@ private:
            diagnostic_error_ = 0;
     double diagnostic_braking_ = 0;
     double fast_turn_period_ = 2;
+    double wheel_top_speed_ = 0;
     std::array<double, 6> previous_phase_{}, previous_velocity_{};
     std::array<bool, 6> have_phase_{};
     std::array<bool, 2> pair_aligned_{};

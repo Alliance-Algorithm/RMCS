@@ -1,0 +1,219 @@
+{
+  "complete_records": 535072,
+  "incomplete_records": [],
+  "duration_s": 538.274006796,
+  "state_counts": {
+    "1": 15484,
+    "2": 42,
+    "3": 507839,
+    "4": 1,
+    "6": 11706
+  },
+  "stop_reason_counts": {
+    "0": 507880,
+    "1": 15484,
+    "2": 11706,
+    "4": 1,
+    "6": 1
+  },
+  "active_records": 507839,
+  "real2sim_ready": false,
+  "accepted": false,
+  "local_models": [
+    {
+      "beta_deg": 50,
+      "accepted": false,
+      "reason": "missing local data or excursion outside local model"
+    },
+    {
+      "beta_deg": 75,
+      "accepted": false,
+      "reason": "missing local data or excursion outside local model"
+    },
+    {
+      "accepted": false,
+      "scope": "local fixed-base effective model in reported-torque units; not a global URDF damping fit",
+      "M": [
+        [
+          0.005514523183696801,
+          0.0020065233114629813
+        ],
+        [
+          0.0020065233114629813,
+          0.0077049134726663165
+        ]
+      ],
+      "B": [
+        [
+          0.778129673218548,
+          0.7643091631355143
+        ],
+        [
+          0.7643091631355143,
+          0.7507341217921925
+        ]
+      ],
+      "coulomb": [
+        0.4849126824126339,
+        0.5037112023269948
+      ],
+      "load_affine": [
+        [
+          2.221397005650352,
+          66.00094088065474,
+          -67.88600283859395
+        ],
+        [
+          -2.4843491680397918,
+          -76.20444856026295,
+          78.53491303397449
+        ]
+      ],
+      "q_center": [
+        4.360157869178991,
+        5.628148950686386
+      ],
+      "condition": 23.112007618729155,
+      "holdout_torque": [
+        {
+          "rmse": 0.4619371561036544,
+          "nrmse": 0.6146167815762643,
+          "r2": 0.6222462118048346
+        },
+        {
+          "rmse": 0.5405817852188413,
+          "nrmse": 0.5825678777766137,
+          "r2": 0.6606146677828525
+        }
+      ],
+      "optimizer_success": true,
+      "beta_deg": 100
+    }
+  ],
+  "delay": [
+    {
+      "delay_ms": 0,
+      "time_constant_ms": 10.0,
+      "gain": 1.000016122991506,
+      "bias_nm": -0.013931669450942308,
+      "train": {
+        "rmse": 0.06358099603607983,
+        "nrmse": 0.009330868506410238,
+        "r2": 0.9999129348929161
+      },
+      "holdout": {
+        "rmse": 0.06253756280018531,
+        "nrmse": 0.009058040477413386,
+        "r2": 0.9999179519027095
+      },
+      "accepted": true,
+      "scope": "host queue to reported current-based torque, including transport/measurement effects"
+    },
+    {
+      "delay_ms": 0,
+      "time_constant_ms": 10.0,
+      "gain": 1.0003059834341024,
+      "bias_nm": -0.009409934420803063,
+      "train": {
+        "rmse": 0.07332578991762481,
+        "nrmse": 0.009754134674828349,
+        "r2": 0.9999048568567453
+      },
+      "holdout": {
+        "rmse": 0.07370152614840823,
+        "nrmse": 0.00978189769675368,
+        "r2": 0.9999043144774502
+      },
+      "accepted": true,
+      "scope": "host queue to reported current-based torque, including transport/measurement effects"
+    }
+  ],
+  "high_speed_delay": [
+    {
+      "delay_ms": 2,
+      "time_constant_ms": 10.0,
+      "gain": 0.9998348852451695,
+      "bias_nm": -0.011435284190773496,
+      "train": {
+        "rmse": 0.12007624267740453,
+        "nrmse": 0.01737305029811215,
+        "r2": 0.9996981771233393
+      },
+      "holdout": {
+        "rmse": 0.13485836568382095,
+        "nrmse": 0.029791626894543944,
+        "r2": 0.9991124589669763
+      },
+      "accepted": true,
+      "scope": "host queue to reported current-based torque, including transport/measurement effects"
+    },
+    {
+      "delay_ms": 0,
+      "time_constant_ms": 10.0,
+      "gain": 0.9997973182334519,
+      "bias_nm": -0.014941317325687882,
+      "train": {
+        "rmse": 0.1359429460153272,
+        "nrmse": 0.01808039339447728,
+        "r2": 0.999673099374701
+      },
+      "holdout": {
+        "rmse": 0.14669069393747788,
+        "nrmse": 0.029642103247818262,
+        "r2": 0.9991213457150456
+      },
+      "accepted": true,
+      "scope": "host queue to reported current-based torque, including transport/measurement effects"
+    }
+  ],
+  "axes": {
+    "left_hip_joint": {
+      "angle_span_rad": 12.817578393224995,
+      "speed_abs_p95_rad_s": 3.1538461538461533,
+      "tracking_rms_rad": 0.11533797888405253,
+      "saturated_fraction": 0.0,
+      "repeated_feedback_fraction": 0.045393975752750566
+    },
+    "left_knee_joint": {
+      "angle_span_rad": 13.675135423819334,
+      "speed_abs_p95_rad_s": 3.1538461538461533,
+      "tracking_rms_rad": 0.12719364380682147,
+      "saturated_fraction": 0.0,
+      "repeated_feedback_fraction": 0.045420140504718064
+    }
+  },
+  "remote_counts": {
+    "/wheel_leg/dr16_fresh": {
+      "0": 11706,
+      "1": 523366
+    },
+    "/wheel_leg/enable_request": {
+      "0": 27190,
+      "1": 507882
+    },
+    "/wheel_leg/sweep/remote_left": {
+      "0": 7,
+      "1": 507840,
+      "2": 27211,
+      "3": 14
+    },
+    "/wheel_leg/sweep/remote_right": {
+      "0": 7,
+      "1": 507840,
+      "2": 27183,
+      "3": 42
+    }
+  },
+  "side": "left",
+  "model_sign": [
+    -1,
+    -1
+  ],
+  "real2sim_limits": [
+    "effective torque scale lacks independent shaft-torque calibration",
+    "local models do not identify full-turn gravity/gas-spring/Coriolis or grounded contact",
+    "PD candidates require independent trajectory replay and vehicle validation before deployment"
+  ],
+  "source_csv": "/home/noir/Documents/workspace/wheel_leg扫频/左腿关节不同夹角扫频.csv",
+  "source_sha256": "da4a6f2e3286870f2646639dad9f665244a086d829863801cc8ad32b44766597"
+}

@@ -40,11 +40,7 @@ frequency_sweep:
   ros__parameters:
     experiment: "limits"
     side: "left"
-    # Press a valid mode once and keep running until DOWN/DOWN: releasing the stick no
-    # longer aborts and re-anchors the trajectory. A receiver gap of <= 0.25 s holds
-    # the last valid switches instead of faulting on one stale frame.
-    latch_run: true
-    remote_timeout_s: 0.25
+    # Follow current switches every tick; transient modes never latch the final mode.
     reference_frequency_hz: 200.0
     feedback_timeout_s: 0.05
     motion_guards_enabled: false

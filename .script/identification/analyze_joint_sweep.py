@@ -291,11 +291,11 @@ def analyze(data, incomplete, fit=False):
             "repeated_feedback_fraction": float(np.mean(np.diff(data[f"/wheel_leg/{axis}/feedback_sequence"]) == 0))}
     if not fit:
         report["accepted"] = True
-        report["fit_status"] = "audit only; use --fit-local on excitation-v3 mode 3 for candidate models"
+        report["fit_status"] = "audit only; use --fit-local on excitation-v3/v4 mode 3 for candidate models"
         return report
     required = [S + name for name in ("excitation_revision", "stage_elapsed_s", "stage_duration_s")]
     if any(name not in data for name in required):
-        report["rejection_reasons"] = ["missing excitation-v3 stage metadata and independent probe provenance"]
+        report["rejection_reasons"] = ["missing excitation-v3/v4 stage metadata and independent probe provenance"]
         return report
     # Reject partial segments and never let a holdout segment become training rows.
     eligible = np.zeros(len(state), dtype=bool)
@@ -303,7 +303,8 @@ def analyze(data, incomplete, fit=False):
     for run, stage in np.unique(np.column_stack((data[S + "run_id"], data[S + "stage"])), axis=0):
         mask = running & (data[S + "run_id"] == run) & (data[S + "stage"] == stage)
         indices = np.flatnonzero(mask)
-        if len(indices) < 500 or np.any(data[S + "excitation_revision"][mask] != 3):
+        revisions = np.unique(data[S + "excitation_revision"][mask])
+        if len(indices) < 500 or len(revisions) != 1 or revisions[0] not in (3, 4):
             continue
         if not np.all(np.isin(data[S + "waveform"][mask], [4, 6])):
             continue

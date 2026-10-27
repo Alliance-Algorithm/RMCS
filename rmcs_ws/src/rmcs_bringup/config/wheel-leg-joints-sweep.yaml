@@ -39,11 +39,7 @@ frequency_sweep:
   ros__parameters:
     experiment: "joints"
     side: "left"
-    # Press a valid mode once and keep running until DOWN/DOWN: releasing the stick no
-    # longer aborts and re-anchors the trajectory. A receiver gap of <= 0.25 s holds
-    # the last valid switches instead of faulting on one stale frame.
-    latch_run: true
-    remote_timeout_s: 0.25
+    # Follow current switches every tick; transient modes never latch the final mode.
     reference_frequency_hz: 200.0
     feedback_timeout_s: 0.05
     motion_guards_enabled: false
@@ -69,8 +65,12 @@ frequency_sweep:
     joint_torque_limit_nm: [40.0, 40.0]
     joint_turn_speeds_rad_s: [0.2, 0.6, 1.5, 3.141592653589793]
     joint_fast_turn_period_s: 2.0
+    # Mode 2: continuous 45--100 deg sweeps, 8/4/2 s per round trip.
+    # Reference range lies inside both observed leg ranges; actual loaded motion differs.
+    joint_knee_beta_deg: [45.0, 100.0]
+    joint_knee_half_periods_s: [4.0, 2.0, 1.0]
     # Independent model-coordinate torque probes AFTER PD, BEFORE final 40 Nm clamp.
-    # Only local waveform=6 uses these; each axis has distinct frequencies.
+    # Waveform=6 uses both axes; mode-2 waveform=3/7 uses the knee only.
     joint_probe_torque_nm: [1.0, 1.0]
 
 value_collector:

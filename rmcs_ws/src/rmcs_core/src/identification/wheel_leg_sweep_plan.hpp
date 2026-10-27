@@ -53,6 +53,8 @@ public:
         std::array<double, 4> turn_speeds{.2, .6, 1.5, std::numbers::pi};
         double fast_turn_period_s = 2;
         std::array<double, 2> probe_torque_nm{1, 1};
+        std::array<double, 2> knee_beta_deg{45, 100};
+        std::array<double, 3> knee_half_periods_s{4, 2, 1};
     };
     struct Sample {
         std::array<double, 2> q{}, dq{}, ddq{}, probe_torque{};
@@ -66,8 +68,8 @@ public:
     struct Segment {
         Pose from, to;
         double start, duration;
-        int kind; // 0: entry, 1: move/hold, 2: turn, 3: chirp, 4: rotating multisine, 6: local
-                  // probe
+        int kind; // 0: entry, 1: move/hold, 2: turn, 3: chirp, 4: rotating multisine,
+                  // 6: local probe, 7: continuous knee sweep with independent torque probe
         double amplitude = 0, f0 = 0, f1 = 0;
         bool validation = false;
     };
@@ -88,6 +90,12 @@ public:
         for (double torque : config_.probe_torque_nm)
             if (!std::isfinite(torque) || torque <= 0 || torque > 3)
                 throw std::invalid_argument("Invalid independent torque-probe amplitude");
+        if (!std::isfinite(config_.knee_beta_deg[0]) || !std::isfinite(config_.knee_beta_deg[1])
+            || config_.knee_beta_deg[0] >= config_.knee_beta_deg[1])
+            throw std::invalid_argument("Invalid knee excitation range");
+        for (double half_period : config_.knee_half_periods_s)
+            if (!std::isfinite(half_period) || half_period < 1 || half_period > 20)
+                throw std::invalid_argument("Invalid knee excitation half-period");
     }
 
     void start(
@@ -98,7 +106,11 @@ public:
         initial_ = initial;
         hip_zero_ = hip_zero;
         const double theta = (initial[0] - hip_zero) / hip_sign_;
-        Pose pose{theta, mode == 1 ? 70 * rad : beta_min};
+        const double knee_min = config_.knee_beta_deg[0] * rad;
+        const double knee_max = config_.knee_beta_deg[1] * rad;
+        if (mode == 2 && (knee_min < beta_min - 1e-9 || knee_max > beta_max + 1e-9))
+            throw std::invalid_argument("Knee excitation exceeds configured beta range");
+        Pose pose{theta, mode == 1 ? 70 * rad : mode == 2 ? knee_min : beta_min};
         add(pose, pose, 5, 0);
         if (mode == 1) {
             // Two continuous revolutions leave a full constant-speed revolution at pi rad/s.
@@ -111,30 +123,29 @@ public:
                 add(pose, pose, 2, 1);
             }
         } else if (mode == 2) {
-            for (double speed : {3.0, 12.0, 30.0}) {
-                for (int direction : {1, -1}) {
-                    const double end = direction > 0 ? beta_max : beta_min;
-                    while (std::abs(pose.beta - end) > 1e-8) {
-                        const double next = direction > 0 ? std::min(end, pose.beta + 5 * rad)
-                                                          : std::max(end, pose.beta - 5 * rad);
-                        add(pose, {theta, next}, 1.875 * std::abs(next - pose.beta) / (speed * rad),
-                            1);
+            // Keep moving through the range instead of restarting from stiction every 5 deg.
+            // A whole independent repeat at each speed is reserved for validation.
+            for (double half_period : config_.knee_half_periods_s) {
+                for (bool validation : {false, true}) {
+                    for (int cycle = 0; cycle < 3; ++cycle) {
+                        add(pose, {theta, knee_max}, half_period, 7, 0, 0, 0, validation);
                         pose = segments_.back().to;
-                        add(pose, pose, 1, 1);
+                        add(pose, {theta, knee_min}, half_period, 7, 0, 0, 0, validation);
+                        pose = segments_.back().to;
                     }
                 }
             }
-            for (double center : {50.0, 75.0, 100.0}) {
-                // Configuration must leave the full requested excitation in its range.
-                if (center * rad - 4 * rad < beta_min - 1e-9
-                    || center * rad + 4 * rad > beta_max + 1e-9)
+            for (double center : {50.0, 75.0, 95.0}) {
+                if (center * rad - 4 * rad < knee_min - 1e-9
+                    || center * rad + 4 * rad > knee_max + 1e-9)
                     throw std::invalid_argument(
                         "Beta range excludes a requested chirp; no auto scaling");
                 add(pose, {theta, center * rad}, 5, 1);
                 pose = segments_.back().to;
-                add(pose, pose, 30, 3, 4 * rad, .1, .8);
-                add(pose, pose, 30, 3, 2 * rad, .8, 3);
-                add(pose, pose, 30, 3, .6 * rad, 3, 10);
+                // Larger position excitation than the old 0.6 deg / 3--10 Hz stage,
+                // plus an independent knee torque probe. Keep a fresh phase for holdout.
+                add(pose, pose, 20, 3, 4 * rad, .15, 3);
+                add(pose, pose, 20, 3, 4 * rad, .15, 3, true);
             }
         } else if (mode == 3) {
             for (double center : {50.0, 75.0, 100.0, 60.0, 90.0}) {
@@ -174,10 +185,11 @@ public:
                        : sweep_blend(s.from.theta, s.to.theta, t, s.duration);
         auto beta = sweep_blend(s.from.beta, s.to.beta, t, s.duration);
         Sample out;
-        if (s.kind == 3 || s.kind == 4 || s.kind == 6) {
+        if (s.kind == 3 || s.kind == 4 || s.kind == 6 || s.kind == 7) {
             // C2 envelope: value, velocity and acceleration vanish at both ends.
-            const auto rise = sweep_blend(0, 1, t, 3);
-            const auto fall = sweep_blend(0, 1, s.duration - t, 3);
+            const double edge_s = s.kind == 7 ? std::min(3.0, s.duration / 4) : 3.0;
+            const auto rise = sweep_blend(0, 1, t, edge_s);
+            const auto fall = sweep_blend(0, 1, s.duration - t, edge_s);
             const SweepScalar envelope{
                 rise.q * fall.q, rise.dq * fall.q - rise.q * fall.dq,
                 rise.ddq * fall.q - 2 * rise.dq * fall.dq + rise.q * fall.ddq};
@@ -192,9 +204,10 @@ public:
             if (s.kind == 3) {
                 const double k = (s.f1 - s.f0) / s.duration;
                 inject(
-                    beta, s.amplitude, 2 * pi * (s.f0 * t + k * t * t / 2), 2 * pi * (s.f0 + k * t),
-                    2 * pi * k);
-            } else {
+                    beta, s.amplitude,
+                    2 * pi * (s.f0 * t + k * t * t / 2) + (s.validation ? 1.27 : 0),
+                    2 * pi * (s.f0 + k * t), 2 * pi * k);
+            } else if (s.kind != 7) {
                 constexpr std::array tf{.17, .43, .79, 1.31, 2.17, 3.73};
                 constexpr std::array bf{.23, .61, 1.07, 1.73, 2.41, 3.91};
                 const double phase = s.validation ? 1.27 : .31;
@@ -206,17 +219,19 @@ public:
                         beta, s.amplitude / bf.size(), 2 * pi * bf[i] * t + i * 1.1 + phase + 1,
                         2 * pi * bf[i], 0);
                 }
-                if (s.kind == 6) {
-                    constexpr std::array hf{.37, .83, 1.91, 3.17, 5.23, 8.71};
-                    constexpr std::array kf{.29, .97, 1.57, 2.83, 4.61, 9.13};
-                    for (std::size_t axis = 0; axis < 2; ++axis)
-                        for (std::size_t i = 0; i < hf.size(); ++i) {
-                            const double hz = axis == 0 ? hf[i] : kf[i];
-                            out.probe_torque[axis] +=
-                                envelope.q * config_.probe_torque_nm[axis] / hf.size()
-                                * std::sin(2 * pi * hz * t + i * 1.3 + phase + axis);
-                        }
-                }
+            }
+            if (s.kind == 3 || s.kind == 6 || s.kind == 7) {
+                constexpr std::array hf{.37, .83, 1.91, 3.17, 5.23, 8.71};
+                constexpr std::array kf{.29, .97, 1.57, 2.83, 4.61, 9.13};
+                const double phase = s.validation ? 1.27 : .31;
+                // Mode 2 keeps the hip position servo and excites only the knee effort.
+                for (std::size_t axis = s.kind == 6 ? 0 : 1; axis < 2; ++axis)
+                    for (std::size_t i = 0; i < hf.size(); ++i) {
+                        const double hz = axis == 0 ? hf[i] : kf[i];
+                        out.probe_torque[axis] +=
+                            envelope.q * config_.probe_torque_nm[axis] / hf.size()
+                            * std::sin(2 * pi * hz * t + i * 1.3 + phase + axis);
+                    }
             }
         }
         const auto g = geometry_.at(beta.q);

@@ -1,0 +1,308 @@
+{
+  "real2sim_ready": false,
+  "auto_applied": false,
+  "wheels": [
+    {
+      "accepted": false,
+      "parameter_order": [
+        "J_kg_m2",
+        "B_nm_s_rad",
+        "quadratic_nm_s2_rad2",
+        "Fc_positive_nm",
+        "Fc_negative_nm"
+      ],
+      "parameters": [
+        0.0031963758001268936,
+        5.13393183386346e-06,
+        4.669264496977549e-06,
+        0.05028354797844845,
+        0.05210877080119862
+      ],
+      "condition": 17.81103614031925,
+      "train": {
+        "rmse": 0.027746688039134913,
+        "nrmse": 0.3230690707455347,
+        "r2": 0.8956263755276167
+      },
+      "holdout": {
+        "rmse": 0.022268944407080438,
+        "nrmse": 0.1855881717740467,
+        "r2": 0.9655570304975669
+      },
+      "train_samples": 50954,
+      "holdout_samples": 15701,
+      "torque_scope": "drive-current estimate and nominal wheel torque constant",
+      "holdout_rollout": {
+        "accepted": false,
+        "window_s": 0.2,
+        "speed_rmse_rad_s": 0.43725977693868645,
+        "stages": [
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 130,
+            "speed_rmse_rad_s": 0.22412436587415366
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 131,
+            "speed_rmse_rad_s": 0.24958226788572316
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 132,
+            "speed_rmse_rad_s": 0.19220845790246088
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 133,
+            "speed_rmse_rad_s": 0.2890035141672687
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 134,
+            "speed_rmse_rad_s": 0.23290340013972063
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 135,
+            "speed_rmse_rad_s": 0.5876291087728707
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 12,
+            "speed_rmse_rad_s": 0.7373295246622905
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 13,
+            "speed_rmse_rad_s": 0.21549768851125717
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 14,
+            "speed_rmse_rad_s": 0.2196440549602991
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 27,
+            "speed_rmse_rad_s": 0.806057156991409
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 28,
+            "speed_rmse_rad_s": 0.22120632337076837
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 29,
+            "speed_rmse_rad_s": 0.2973275236437783
+          }
+        ]
+      },
+      "axis": "left_wheel",
+      "low_speed_current_delay": {
+        "delay_ms": 0.0,
+        "time_constant_ms": 8.0,
+        "gain": 0.8274460576271219,
+        "bias_nm": 5.848916332530625e-05,
+        "train": {
+          "rmse": 0.029946829540441665,
+          "nrmse": 0.3208064399100549,
+          "r2": 0.8970832281122363
+        },
+        "holdout": {
+          "rmse": 0.0365556379998971,
+          "nrmse": 0.2805226185489622,
+          "r2": 0.9213070604824334
+        },
+        "segments": 8,
+        "accepted": true,
+        "scope": "host queue to reported current; transport, drive and feedback measurement combined",
+        "resolution_ms": 1
+      },
+      "high_speed_current_delay": {
+        "delay_ms": 1.0,
+        "time_constant_ms": 5.0,
+        "gain": 0.9615729029602273,
+        "bias_nm": 0.00010634659008934695,
+        "train": {
+          "rmse": 0.09228168070198242,
+          "nrmse": 0.7895300160505626,
+          "r2": 0.3766423537551985
+        },
+        "holdout": {
+          "rmse": 0.09269103628731465,
+          "nrmse": 0.7956183233110845,
+          "r2": 0.36699148361165856
+        },
+        "segments": 4,
+        "accepted": false,
+        "scope": "host queue to reported current; transport, drive and feedback measurement combined",
+        "resolution_ms": 1
+      }
+    },
+    {
+      "accepted": false,
+      "parameter_order": [
+        "J_kg_m2",
+        "B_nm_s_rad",
+        "quadratic_nm_s2_rad2",
+        "Fc_positive_nm",
+        "Fc_negative_nm"
+      ],
+      "parameters": [
+        0.0030708780489915356,
+        0.0015708911258466528,
+        2.857317178921698e-17,
+        0.17829431519444786,
+        0.18246508051733337
+      ],
+      "condition": 18.930457198069107,
+      "train": {
+        "rmse": 0.06450548343614923,
+        "nrmse": 0.28686002758755885,
+        "r2": 0.917711324572465
+      },
+      "holdout": {
+        "rmse": 0.035069513194520105,
+        "nrmse": 0.14483546371986228,
+        "r2": 0.9790226884490525
+      },
+      "train_samples": 44703,
+      "holdout_samples": 15683,
+      "torque_scope": "drive-current estimate and nominal wheel torque constant",
+      "holdout_rollout": {
+        "accepted": false,
+        "window_s": 0.2,
+        "speed_rmse_rad_s": 0.9592535871852932,
+        "stages": [
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 266,
+            "speed_rmse_rad_s": 0.33328807456540926
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 267,
+            "speed_rmse_rad_s": 1.2023087669001762
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 268,
+            "speed_rmse_rad_s": 0.9950785271102788
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 269,
+            "speed_rmse_rad_s": 1.0661276962683734
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 270,
+            "speed_rmse_rad_s": 1.4877330476790902
+          },
+          {
+            "source": "wheel_leg_轮子低速辨识数据.csv",
+            "run": 1,
+            "stage": 271,
+            "speed_rmse_rad_s": 1.337655873240943
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 42,
+            "speed_rmse_rad_s": 0.7316018583114473
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 43,
+            "speed_rmse_rad_s": 0.8038888350010961
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 44,
+            "speed_rmse_rad_s": 0.3791133058399922
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 57,
+            "speed_rmse_rad_s": 0.5680298906274903
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 58,
+            "speed_rmse_rad_s": 0.49595454793937777
+          },
+          {
+            "source": "wheel_leg_轮子高速辨识数据.csv",
+            "run": 2,
+            "stage": 59,
+            "speed_rmse_rad_s": 0.2718459194640739
+          }
+        ]
+      },
+      "axis": "right_wheel",
+      "low_speed_current_delay": {
+        "delay_ms": 0.0,
+        "time_constant_ms": 5.0,
+        "gain": 0.957061183036446,
+        "bias_nm": -0.0001711539647942157,
+        "train": {
+          "rmse": 0.0388987028397606,
+          "nrmse": 0.19140652704037314,
+          "r2": 0.963363541406343
+        },
+        "holdout": {
+          "rmse": 0.04651577724918893,
+          "nrmse": 0.19206772448315018,
+          "r2": 0.9631099892118647
+        },
+        "segments": 8,
+        "accepted": true,
+        "scope": "host queue to reported current; transport, drive and feedback measurement combined",
+        "resolution_ms": 1
+      },
+      "high_speed_current_delay": {
+        "delay_ms": 1.0,
+        "time_constant_ms": 5.0,
+        "gain": 1.0016176438595312,
+        "bias_nm": -0.00036096476577230697,
+        "train": {
+          "rmse": 0.08025090314604594,
+          "nrmse": 0.2909035533946245,
+          "r2": 0.9153751226223809
+        },
+        "holdout": {
+          "rmse": 0.07994543856790828,
+          "nrmse": 0.3008532846535598,
+          "r2": 0.9094873011131641
+        },
+        "segments": 4,
+        "accepted": true,
+        "scope": "host queue to reported current; transport, drive and feedback measurement combined",
+        "resolution_ms": 1
+      }
+    }
+  ]
+}

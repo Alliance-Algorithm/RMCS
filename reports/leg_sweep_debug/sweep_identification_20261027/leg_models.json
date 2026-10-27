@@ -1,0 +1,343 @@
+{
+  "source": {
+    "file": "左腿关节不同夹角扫频.csv",
+    "path": "/home/noir/Documents/workspace/wheel_leg扫频/左腿关节不同夹角扫频.csv",
+    "bytes": 1117267915,
+    "mtime_ns": 1793098971286601870,
+    "sha256": "da4a6f2e3286870f2646639dad9f665244a086d829863801cc8ad32b44766597",
+    "columns": 243,
+    "records": 535072,
+    "malformed_lines_excluded": []
+  },
+  "side": "left",
+  "gravity": "omitted: horizontal suspended by operator confirmation",
+  "right_leg_identified": false,
+  "real2sim_ready": false,
+  "auto_applied": false,
+  "local_models": [
+    {
+      "accepted": false,
+      "M": [
+        [
+          0.024530383452518293,
+          -0.002572958865564039
+        ],
+        [
+          -0.002572958865564039,
+          0.00027088943714240074
+        ]
+      ],
+      "B": [
+        [
+          5.361131322079354,
+          -3.6495197071239383
+        ],
+        [
+          -3.6495197071239383,
+          7.604593851866229
+        ]
+      ],
+      "coulomb": [
+        0.8885634127865686,
+        1.1091119023780576
+      ],
+      "load_affine": [
+        [
+          17.439268985746534,
+          -22.519882496341864,
+          22.22532582329846
+        ],
+        [
+          -18.754274927628806,
+          62.355628862622495,
+          -59.15503653579238
+        ]
+      ],
+      "q_center": [
+        4.234156716927987,
+        4.670623461270808
+      ],
+      "condition": 9.317593972694496,
+      "holdout_torque": [
+        {
+          "rmse": 0.9851219279216915,
+          "nrmse": 0.8477230057426992,
+          "r2": 0.2813657055345635
+        },
+        {
+          "rmse": 1.5173648594005542,
+          "nrmse": 0.8416668403299411,
+          "r2": 0.2915969298890133
+        }
+      ],
+      "train_torque": [
+        {
+          "rmse": 0.9439526841423621,
+          "nrmse": 0.7755199936089415,
+          "r2": 0.39856873951278715
+        },
+        {
+          "rmse": 1.4532251188706065,
+          "nrmse": 0.7499504309495474,
+          "r2": 0.4375743511185882
+        }
+      ],
+      "optimizer_success": true,
+      "train_samples": 5830,
+      "holdout_samples": 5829,
+      "integral_window_s": 0.04,
+      "reference_beta_deg": 50,
+      "actual_beta_deg": 62.62356783817764,
+      "holdout_rollouts": [
+        {
+          "run": 1,
+          "stage": 3,
+          "accepted": false,
+          "q_rmse_rad": null,
+          "velocity_rmse_rad_s": null,
+          "window_s": 0.15,
+          "observations": 14799
+        },
+        {
+          "run": 2,
+          "stage": 3,
+          "accepted": false,
+          "q_rmse_rad": null,
+          "velocity_rmse_rad_s": null,
+          "window_s": 0.15,
+          "observations": 14802
+        }
+      ]
+    },
+    {
+      "accepted": false,
+      "M": [
+        [
+          0.018437575939829184,
+          -0.0022349120515644232
+        ],
+        [
+          -0.0022349120515644232,
+          0.0002719198660011879
+        ]
+      ],
+      "B": [
+        [
+          2.899355652411486,
+          -0.9883655525193256
+        ],
+        [
+          -0.9883655525193256,
+          5.630462280522527
+        ]
+      ],
+      "coulomb": [
+        0.8203350778934938,
+        1.0421300256981694
+      ],
+      "load_affine": [
+        [
+          15.535209894230304,
+          -17.819858443733057,
+          18.407032820745997
+        ],
+        [
+          -16.499620961617552,
+          86.26938323988657,
+          -84.34048426042592
+        ]
+      ],
+      "q_center": [
+        4.250075403480885,
+        5.231285998909043
+      ],
+      "condition": 10.78551626401817,
+      "holdout_torque": [
+        {
+          "rmse": 0.9469162072787275,
+          "nrmse": 0.8275709601798872,
+          "r2": 0.31512630586693946
+        },
+        {
+          "rmse": 1.3338418368976015,
+          "nrmse": 0.8251364836825504,
+          "r2": 0.3191497832959961
+        }
+      ],
+      "train_torque": [
+        {
+          "rmse": 0.933362250199686,
+          "nrmse": 0.7843620141510481,
+          "r2": 0.3847762307569108
+        },
+        {
+          "rmse": 1.2893540020539005,
+          "nrmse": 0.7077635556922454,
+          "r2": 0.49907074923386996
+        }
+      ],
+      "optimizer_success": true,
+      "train_samples": 5850,
+      "holdout_samples": 5837,
+      "integral_window_s": 0.04,
+      "reference_beta_deg": 75,
+      "actual_beta_deg": 87.92409256073566,
+      "holdout_rollouts": [
+        {
+          "run": 1,
+          "stage": 8,
+          "accepted": false,
+          "q_rmse_rad": null,
+          "velocity_rmse_rad_s": null,
+          "window_s": 0.15,
+          "observations": 14802
+        },
+        {
+          "run": 2,
+          "stage": 8,
+          "accepted": false,
+          "q_rmse_rad": null,
+          "velocity_rmse_rad_s": null,
+          "window_s": 0.15,
+          "observations": 14801
+        }
+      ]
+    },
+    {
+      "accepted": false,
+      "M": [
+        [
+          0.04360959307394667,
+          0.010980386123720749
+        ],
+        [
+          0.010980386123720749,
+          0.0027657963657672963
+        ]
+      ],
+      "B": [
+        [
+          1.7549433828787098,
+          -0.8267716359271674
+        ],
+        [
+          -0.8267716359271674,
+          2.1753876060681625
+        ]
+      ],
+      "coulomb": [
+        0.6483121814157081,
+        0.568018252651947
+      ],
+      "load_affine": [
+        [
+          2.216874578582514,
+          67.62242488879568,
+          -68.89713918053208
+        ],
+        [
+          -2.4967434097589902,
+          -84.16700192422523,
+          86.58817223219451
+        ]
+      ],
+      "q_center": [
+        4.360239380264343,
+        5.628312693154853
+      ],
+      "condition": 24.886662691401092,
+      "holdout_torque": [
+        {
+          "rmse": 0.38070431477797484,
+          "nrmse": 0.5199547312434399,
+          "r2": 0.7296470774575621
+        },
+        {
+          "rmse": 0.45350561128774963,
+          "nrmse": 0.499963452943016,
+          "r2": 0.7500365457212966
+        }
+      ],
+      "train_torque": [
+        {
+          "rmse": 0.3843292055697799,
+          "nrmse": 0.519211642327904,
+          "r2": 0.7304192704711607
+        },
+        {
+          "rmse": 0.651116068969015,
+          "nrmse": 0.6772939633426027,
+          "r2": 0.541272887219669
+        }
+      ],
+      "optimizer_success": true,
+      "train_samples": 5828,
+      "holdout_samples": 5835,
+      "integral_window_s": 0.04,
+      "reference_beta_deg": 100,
+      "actual_beta_deg": 101.90687811695972,
+      "holdout_rollouts": [
+        {
+          "run": 1,
+          "stage": 13,
+          "accepted": false,
+          "q_rmse_rad": null,
+          "velocity_rmse_rad_s": null,
+          "window_s": 0.15,
+          "observations": 14801
+        },
+        {
+          "run": 2,
+          "stage": 13,
+          "accepted": false,
+          "q_rmse_rad": null,
+          "velocity_rmse_rad_s": null,
+          "window_s": 0.15,
+          "observations": 14801
+        }
+      ]
+    }
+  ],
+  "current_delay": [
+    {
+      "delay_ms": 1.0,
+      "time_constant_ms": 8.0,
+      "gain": 0.99984817743834,
+      "bias_nm": 0.012082854650011694,
+      "train": {
+        "rmse": 0.06811418425763946,
+        "nrmse": 0.009990114044761233,
+        "r2": 0.9999001976213726
+      },
+      "holdout": {
+        "rmse": 0.06605809850214396,
+        "nrmse": 0.009567321165227783,
+        "r2": 0.9999084663657214
+      },
+      "segments": 12,
+      "accepted": true,
+      "scope": "host queue to reported current; transport, drive and feedback measurement combined",
+      "resolution_ms": 1
+    },
+    {
+      "delay_ms": 0.0,
+      "time_constant_ms": 8.0,
+      "gain": 1.0000921733311865,
+      "bias_nm": 0.012150429839185252,
+      "train": {
+        "rmse": 0.07262010070430323,
+        "nrmse": 0.009651714637086228,
+        "r2": 0.9999068444045642
+      },
+      "holdout": {
+        "rmse": 0.0685415330926562,
+        "nrmse": 0.009096814845308743,
+        "r2": 0.9999172479596702
+      },
+      "segments": 12,
+      "accepted": true,
+      "scope": "host queue to reported current; transport, drive and feedback measurement combined",
+      "resolution_ms": 1
+    }
+  ]
+}

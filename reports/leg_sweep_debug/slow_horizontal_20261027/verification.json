@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-27",
+  "scope": "offline only; no physical robot motion launched",
+  "build_command": "build-rmcs --packages-select rmcs_core rmcs_bringup",
+  "build_result": "2 packages passed",
+  "ctest_command": "colcon test --merge-install --packages-select rmcs_core --ctest-args -R \"wheel_leg_frequency_sweep|wheel_leg_sweep_.*_integration\" -V --return-code-on-test-failure",
+  "ctest_targets": 6,
+  "gtest_cases": 25,
+  "python_command": "python3 -m unittest discover -s .script/identification -p '*analysis_test.py' -v",
+  "python_tests_passed": 8,
+  "checks": [
+    "periodic diagnostic logs absent",
+    "one completion log preserved",
+    "source CSV unchanged; hash recorded in audit.json"
+  ],
+  "source_sha256": "d82f2055e0ac6932b5f73e8f8cc4fe0753d6e28aac75913e87b23c154cf8c8ae",
+  "file_sha256": {
+    "rmcs_ws/src/rmcs_core/src/identification/wheel_leg_sweep_plan.hpp": "7705182f7f23f201d2f7a5ea4341e364980713599061e36a6964f6535f464d39",
+    "rmcs_ws/src/rmcs_core/src/identification/wheel_leg_frequency_sweep_controller.cpp": "f69eebe4e17d49989c3cb9841476f8b8d3c5831e771956b1f6762b8e95b0affe",
+    "rmcs_ws/src/rmcs_bringup/config/wheel-leg-joints-sweep.yaml": "3cfbb452aadbd292f49715aab9cc50ec14ac41f9eb803c98c1ef995c54c87cc7",
+    ".script/identification/analyze_horizontal_knee_sweep.py": "6db211d0a6a93b18aa60bfe7f79bc58cca7b560d04ab25c4f4baa3a5f2eddf12",
+    ".script/identification/analyze_joint_sweep.py": "562c975d3f789192e6858bdbc21512b6f7bcd43c834db1d816b683649b541340"
+  }
+}

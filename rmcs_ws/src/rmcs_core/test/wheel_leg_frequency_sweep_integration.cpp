@@ -218,6 +218,7 @@ class SweepObserve final : public Component {
 public:
     SweepObserve() {
         register_input("/wheel_leg/sweep/state", state_);
+        register_input("/wheel_leg/sweep/mode", mode_);
         register_input("/wheel_leg/sweep/stop_reason", reason_);
         register_input("/wheel_leg/enable_request", enable_);
         register_input("/wheel_leg/sweep/drives_ready", ready_);
@@ -242,6 +243,7 @@ public:
     }
     void update() override {
         state = *state_;
+        mode = *mode_;
         reason = *reason_;
         enabled = *enable_;
         ready = *ready_;
@@ -260,7 +262,7 @@ public:
                 parked_zero = parked_zero && *torque_[i] == 0;
             const double limit = kind == 3 ? 5
                                : i < 4     ? (kind == 2 ? 40 : 20)
-                                           : 10 * 15.62 * .3 * 187 / 3591;
+                                           : 20 * 15.62 * .3 * 187 / 3591;
             bounded =
                 bounded && std::isfinite(*torque_[i]) && std::abs(*torque_[i]) <= limit + 1e-9;
             diagnosed = diagnosed || *diagnostic_[i] != 0;
@@ -278,7 +280,7 @@ public:
         remote_left = *remote_left_;
         remote_right = *remote_right_;
     }
-    std::atomic<int> state{0}, reason{0}, remote_left{0}, remote_right{0};
+    std::atomic<int> state{0}, mode{0}, reason{0}, remote_left{0}, remote_right{0};
     std::atomic<bool> enabled{false}, ready{false}, active{false}, zero{true},
         invalid_mapping{false}, invalid_effort{false}, diagnostics{false};
     std::atomic<std::uint64_t> run{0}, reference{0};
@@ -288,7 +290,7 @@ public:
     std::atomic<bool> fk_valid{false};
 
 private:
-    InputInterface<int> state_, reason_, remote_left_, remote_right_;
+    InputInterface<int> state_, mode_, reason_, remote_left_, remote_right_;
     InputInterface<bool> enable_, ready_, active_;
     InputInterface<std::uint64_t> run_, reference_;
     InputInterface<double> theta_left_, theta_right_;
@@ -310,7 +312,7 @@ bool await(const std::function<bool()>& predicate, std::chrono::milliseconds tim
 
 TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryTickCsv) {
     const std::string csv = "/tmp/rmcs_sweep_test_" + std::to_string(kind) + "_"
-                          + std::to_string(selected)
+                          + std::to_string(selected) + (RMCS_SWEEP_HIGH_SPEED ? "_high_speed" : "")
                           + (RMCS_SWEEP_COMPLETE ? "_complete.csv" : ".csv");
     std::atomic<int> phase{8}; // Startup DR16 is unavailable for the first few frames.
     pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
@@ -349,13 +351,26 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
         ASSERT_TRUE(await([&] { return observe->state == 3 && observe->active; }, 100ms));
         EXPECT_EQ(observe->run, 1u);
         const auto standby = [&] {
-            // DOWN/DOWN clears a latched run for every profile, then middle is standby.
-            phase = 0;
-            await([&] { return observe->state == 1; });
             phase = 4;
             return await([&] { return observe->state == 2 && observe->zero && observe->enabled; });
         };
         ASSERT_TRUE(standby());
+        if (kind == 2) {
+            for (const auto intermediate : {std::array{3, 1}, std::array{5, 2}}) {
+                phase = intermediate[0];
+                ASSERT_TRUE(await(
+                    [&] { return observe->state == 3 && observe->mode == intermediate[1]; },
+                    100ms));
+                const auto run = observe->run.load();
+                phase = 7;
+                ASSERT_TRUE(
+                    await([&] { return observe->state == 3 && observe->mode == 3; }, 100ms));
+                EXPECT_EQ(observe->run.load(), run + 1);
+                std::this_thread::sleep_for(15ms);
+                EXPECT_EQ(observe->run.load(), run + 1);
+                ASSERT_TRUE(standby());
+            }
+        }
         const auto start = [&] {
             phase = 3;
             return await([&] { return observe->state == 3 && observe->active; }, 100ms);
@@ -385,8 +400,7 @@ TEST(FrequencySweepIntegration, DeployedYamlGraphRemoteStopsDiagnosticsAndEveryT
             const auto run = observe->run.load();
             ASSERT_TRUE(await([&] { return observe->completed_seen.load(); }, 12s));
             EXPECT_TRUE(observe->enabled);
-            // The deployed leg profiles latch a run; completion no longer restarts it
-            // while the same mode is held, so clear the latch explicitly.
+            ASSERT_TRUE(await([&] { return observe->run.load() > run; }, 100ms));
             ASSERT_TRUE(standby());
             ASSERT_TRUE(start());
             EXPECT_GT(observe->run.load(), run);

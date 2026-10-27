@@ -139,6 +139,12 @@ class JointSweepAnalysisTest(unittest.TestCase):
         self.assertEqual(len(report["high_speed_delay"]), 2)
         for model in report["local_models"]:
             np.testing.assert_allclose(model["M"], m, atol=1e-3)
+        data[S + "excitation_revision"].fill(4)
+        report_v4 = analyze(data, [], fit=True)
+        self.assertTrue(report_v4["accepted"], report_v4)
+        data[S + "excitation_revision"].fill(5)
+        self.assertFalse(analyze(data, [], fit=True)["accepted"])
+        data[S + "excitation_revision"].fill(4)
         for joint in ("hip", "knee"):
             data[f"/wheel_leg/left_{joint}_joint/tx_kind"].fill(0)
         report = analyze(data, [], fit=True)

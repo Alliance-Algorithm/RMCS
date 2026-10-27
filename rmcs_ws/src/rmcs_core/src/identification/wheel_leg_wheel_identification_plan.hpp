@@ -19,16 +19,21 @@ struct WheelProbeConfig {
     double ramp_s = 0, hold_s = 0, coast_s = 0, step_hold_s = 0;
     double chirp_s = 0, validation_s = 0;
     int step_repetitions = 0;
+    // Opt-in extension for the standalone sweep; legacy recording stays unchanged.
+    double high_speed_target = 0, high_speed_probe_nm = .35;
+    bool high_speed_only = false;
 };
 
 struct WheelProbeSample {
     std::array<double, 2> velocity_target{};
+    std::array<double, 2> probe_torque{};
     std::array<bool, 2> servo{};
     // 1=selected wheel(s) velocity servo, 2=both enabled zero-current coast.
     // A non-selected wheel always receives zero current, never a zero-speed servo.
     std::uint8_t mode = 0, waveform = 0;
     int segment_id = -1;
     bool validation = false;
+    bool high_speed = false;
 };
 
 class WheelProbePlan {
@@ -43,9 +48,16 @@ public:
         std::uint8_t waveform = 0;
         bool coast = false, validation = false;
         std::string label;
+        double probe_nm = 0, phase = 0;
     };
 
     explicit WheelProbePlan(const WheelProbeConfig& c) {
+        high_speed_ = c.high_speed_target > 0;
+        if (!std::isfinite(c.high_speed_target) || c.high_speed_target < 0
+            || (high_speed_ && (c.high_speed_target < 40 || c.high_speed_target > 70))
+            || (c.high_speed_only && !high_speed_) || !std::isfinite(c.high_speed_probe_nm)
+            || c.high_speed_probe_nm <= 0 || c.high_speed_probe_nm > .5)
+            throw std::invalid_argument("Invalid high-speed wheel experiment");
         validate_speeds(c.low_speeds, 1.0);
         validate_speeds(c.speeds, 30.0);
         if (c.low_speeds.back() >= c.speeds.front())
@@ -60,6 +72,16 @@ public:
             throw std::invalid_argument("Wheel sequence lacks settling or repeated excitation");
         max_target_speed_ = c.speeds.back();
         add("initial_zero_current", {0, 0}, 0, 0, c.coast_s, 0, true);
+        if (high_speed_) {
+            add_high_speed(c);
+            if (c.high_speed_only) {
+                if (duration_s_ > 1800)
+                    throw std::invalid_argument(
+                        "Wheel sequence exceeds configured experiment duration");
+                max_target_speed_ = c.high_speed_target;
+                return;
+            }
+        }
         for (const auto axes : {std::array{1.0, 0.0}, std::array{0.0, 1.0}}) {
             const std::string side = axes[0] ? "left_" : "right_";
             for (double speed : c.low_speeds)
@@ -129,10 +151,10 @@ public:
         for (const auto& s : segments_)
             max_target_speed_ = std::max(
                 max_target_speed_, std::max(std::abs(s.from), std::abs(s.to)) + s.amplitude);
-        if (max_target_speed_ > 30.)
-            throw std::invalid_argument("Excitation exceeds this 30 rad/s wheel experiment range");
-        if (duration_s_ > 1200)
-            throw std::invalid_argument("Wheel sequence exceeds twenty minutes");
+        if (max_target_speed_ > (high_speed_ ? c.high_speed_target : 30.))
+            throw std::invalid_argument("Excitation exceeds configured wheel experiment range");
+        if (duration_s_ > (high_speed_ ? 1800 : 1200))
+            throw std::invalid_argument("Wheel sequence exceeds configured experiment duration");
     }
 
     [[nodiscard]] double duration() const { return duration_s_; }
@@ -160,7 +182,7 @@ public:
             const double cycle = std::fmod(t, 2.) / 2.;
             const double triangle = 1. - std::abs(2. * cycle - 1.);
             value = segment.from + (segment.to - segment.from) * triangle;
-        } else if (segment.waveform == 6 || segment.waveform == 8) {
+        } else if (segment.waveform == 6 || segment.waveform == 8 || segment.waveform == 11) {
             // Smooth the first/last 0.5 s to meet the surrounding bias exactly.
             const double envelope = std::pow(
                 std::sin(
@@ -168,11 +190,12 @@ public:
                     * std::clamp(std::min(t, segment.duration_s - t) / .5, 0., 1.)),
                 2);
             double oscillation = 0;
-            if (segment.waveform == 6) {
+            if (segment.waveform == 6 || segment.waveform == 11) {
                 const double phase =
                     2 * std::numbers::pi
-                    * (segment.f0 * t
-                       + .5 * (segment.f1 - segment.f0) / segment.duration_s * t * t);
+                        * (segment.f0 * t
+                           + .5 * (segment.f1 - segment.f0) / segment.duration_s * t * t)
+                    + segment.phase;
                 oscillation = std::sin(phase);
             } else {
                 constexpr std::array hz{.37, 1.13, 2.71, 5.17};
@@ -187,9 +210,22 @@ public:
         sample.mode = segment.coast ? 2 : 1;
         sample.waveform = segment.waveform;
         sample.validation = segment.validation;
+        sample.high_speed = segment.label.starts_with("high_speed_");
+        double probe = 0;
+        if (segment.waveform == 9) {
+            const double envelope = std::pow(
+                std::sin(
+                    std::numbers::pi / 2 * std::clamp(std::min(t, segment.duration_s - t), 0., 1.)),
+                2);
+            constexpr std::array hz{.37, 1.13, 2.71, 5.17, 9.13};
+            for (std::size_t i = 0; i < hz.size(); ++i)
+                probe += segment.probe_nm / hz.size() * envelope
+                       * std::sin(2 * std::numbers::pi * hz[i] * t + .7 * i + segment.phase);
+        }
         for (std::size_t i = 0; i < 2; ++i) {
             sample.servo[i] = !segment.coast && segment.axis_scale[i] != 0;
             sample.velocity_target[i] = segment.coast ? 0 : segment.axis_scale[i] * value;
+            sample.probe_torque[i] = segment.coast ? 0 : segment.axis_scale[i] * probe;
         }
         return sample;
     }
@@ -204,9 +240,10 @@ public:
 
     [[nodiscard]] std::string manifest_json() const {
         std::ostringstream out;
-        out << std::setprecision(17) << "{\"revision\":\"" << kRevision
-            << "\",\"reference_frequency_hz\":50,\"duration_s\":" << duration_s_
-            << ",\"segments\":[";
+        out << std::setprecision(17) << "{\"revision\":\""
+            << (high_speed_ ? "wheel_high_speed_v1" : kRevision)
+            << "\",\"reference_frequency_hz\":" << (high_speed_ ? 200 : kReferenceHz)
+            << ",\"duration_s\":" << duration_s_ << ",\"segments\":[";
         for (std::size_t i = 0; i < segments_.size(); ++i) {
             const auto& s = segments_[i];
             if (i)
@@ -217,13 +254,49 @@ public:
                 << s.axis_scale[1] << "],\"amplitude\":" << s.amplitude << ",\"f0\":" << s.f0
                 << ",\"f1\":" << s.f1 << ",\"waveform\":" << static_cast<int>(s.waveform)
                 << ",\"coast\":" << (s.coast ? "true" : "false")
-                << ",\"validation\":" << (s.validation ? "true" : "false") << '}';
+                << ",\"validation\":" << (s.validation ? "true" : "false")
+                << ",\"probe_nm\":" << s.probe_nm << ",\"phase\":" << s.phase << '}';
         }
         out << "]}";
         return out.str();
     }
 
 private:
+    void add_high_speed(const WheelProbeConfig& c) {
+        const double top = c.high_speed_target;
+        for (const auto axes : {std::array{1., 0.}, std::array{0., 1.}}) {
+            const std::string side = axes[0] ? "left_" : "right_";
+            for (double sign : {1., -1.}) {
+                const auto prefix = "high_speed_" + side + (sign > 0 ? "positive_" : "negative_");
+                add(prefix + "peak_runup", axes, 0, sign * top, 8, 1);
+                add(prefix + "peak_plateau", axes, sign * top, sign * top, 8, 10);
+                // Direct zero-current release measures drag; no speed braking before it.
+                add(prefix + "peak_coast", axes, 0, 0, 10, 0, true);
+                add(prefix + "recover_zero", axes, 0, 0, 8, 3);
+                double previous = 0;
+                for (double fraction : {.55, .75}) {
+                    const double target = sign * top * fraction;
+                    add(prefix + "load_runup", axes, previous, target, 8, 1);
+                    add(prefix + "load_plateau", axes, target, target, 8, 10);
+                    previous = target;
+                }
+                // Keep voltage/speed headroom for dynamic delay identification below top speed.
+                const double bias = sign * .85 * top;
+                add(prefix + "bias_entry", axes, previous, bias, 8, 1);
+                for (bool validation : {false, true}) {
+                    add(prefix + "bias_chirp", axes, bias, bias, 20, 11, false, validation,
+                        .04 * top, .3, 8);
+                    segments_.back().phase = validation ? 1.27 : .31;
+                    add(prefix + "torque_probe", axes, bias, bias, 20, 9, false, validation);
+                    segments_.back().probe_nm = c.high_speed_probe_nm;
+                    segments_.back().phase = validation ? 1.27 : .31;
+                }
+                add(prefix + "bias_coast", axes, 0, 0, 10, 0, true);
+                add(prefix + "end_zero", axes, 0, 0, 8, 3);
+            }
+        }
+    }
+
     template <std::size_t N>
     static void validate_speeds(const std::array<double, N>& values, double maximum) {
         double previous = 0;
@@ -255,6 +328,7 @@ private:
     }
     std::vector<Segment> segments_;
     double duration_s_ = 0, max_target_speed_ = 0;
+    bool high_speed_ = false;
 };
 
 } // namespace rmcs_core::controller::identification

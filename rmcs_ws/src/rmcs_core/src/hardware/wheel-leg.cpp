@@ -158,7 +158,7 @@ private:
                 queue_joint_commands(builder, cycle, actions);
                 commit_drive_request(cycle, actions);
             }
-            log_sweep_commands(cycle);
+            // log_sweep_commands(cycle); // Periodic sweep TX diagnostics.
             // The builder submits on destruction. Transfer one complete previous submission to
             // the status component so observers can read it without a command -> controller cycle.
             // Torque is the encoded current expressed in API wheel Nm; time is the host queue
