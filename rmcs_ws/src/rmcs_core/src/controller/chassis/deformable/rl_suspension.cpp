@@ -9,7 +9,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "deformable/rl_contract.hpp"
+#include "controller/chassis/deformable/rl_contract.hpp"
 
 namespace rmcs_core::controller::chassis {
 
