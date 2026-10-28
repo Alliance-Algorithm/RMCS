@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites tests="1" failures="0" disabled="0" errors="0" time="2.378" timestamp="2026-10-24T12:05:26.714" name="AllTests">
-  <testsuite name="WheelLegPolicyIntegration" tests="1" failures="0" disabled="0" skipped="0" errors="0" time="2.378" timestamp="2026-10-24T12:05:26.714">
-    <testcase name="SaturationAndHingeSoftLimitsKeepPolicyActiveWithReceiveTimeouts" file="/workspaces/RMCS/rmcs_ws/src/rmcs_core/test/wheel_leg_policy_integration.cpp" line="232" status="run" result="completed" time="2.378" timestamp="2026-10-24T12:05:26.714" classname="rmcs_core.WheelLegPolicyIntegration" />
-  </testsuite>
-</testsuites>
