@@ -126,6 +126,11 @@ wheel_leg_controller:
     yaw_rate_max: 4.0
     # Feedback PD runs every 1 ms; policy targets update every 20 ms.
     pd_frequency: 1000.0
+    # Mean elastic gas-spring load; actual angles, both RL leg outputs.
+    # Measured beta=56--101 deg; endpoint-trend extension covers the full soft-limit range.
+    # Right uses left force symmetry; extrapolated samples are marked in recordings.
+    gas_spring_compensation_enabled: true
+    gas_spring_compensation_gain: 1.0
     # Retain CAN/IMU receive timeouts; motion envelopes never disarm RL.
     feedback_motor_age_s: 0.04
     feedback_imu_age_s: 0.04
@@ -274,6 +279,18 @@ value_collector:
       - /wheel_leg/rl/heading/limited_yaw_rate
       - /chassis/control_height
       # ===== 电机反馈（DM 四关节 + M3508 两轮）=====
+      - /wheel_leg/left_hip_joint/gas_spring_compensation_torque
+      - /wheel_leg/left_knee_joint/gas_spring_compensation_torque
+      - /wheel_leg/right_hip_joint/gas_spring_compensation_torque
+      - /wheel_leg/right_knee_joint/gas_spring_compensation_torque
+      - /wheel_leg/rl/gas_spring/left/beta_deg
+      - /wheel_leg/rl/gas_spring/right/beta_deg
+      - /wheel_leg/rl/gas_spring/left/force_n
+      - /wheel_leg/rl/gas_spring/right/force_n
+      - /wheel_leg/rl/gas_spring/left/weight
+      - /wheel_leg/rl/gas_spring/right/weight
+      - /wheel_leg/rl/gas_spring/left/extrapolated
+      - /wheel_leg/rl/gas_spring/right/extrapolated
       - /wheel_leg/left_hip_joint/angle
       - /wheel_leg/left_hip_joint/velocity
       - /wheel_leg/left_hip_joint/torque

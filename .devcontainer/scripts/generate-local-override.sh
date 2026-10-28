@@ -84,6 +84,11 @@ add_mount "$HOME/.local/share/lark-cli" "/home/ubuntu/.local/share/lark-cli"
 add_mount "$HOME/.local/share/opencode" "/home/ubuntu/.local/share/opencode"
 add_ro_mount "$HOME/.agents/skills" "/home/ubuntu/.agents/skills"
 
+# git worktree 把链接写成绝对路径（.git 文件 / .git/worktrees/<name>/gitdir），
+# 只有宿主 workspace 的父目录以「相同绝对路径」挂进容器时，宿主和容器两侧的
+# git 才能同时解析同一个 worktree。否则一边能用的树，另一边必然是 prunable。
+add_mount "$(dirname "$repo_root")" "$(dirname "$repo_root")"
+
 mkdir -p "$generated_dir"
 
 {

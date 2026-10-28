@@ -45,6 +45,9 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         register_input(prefix + "/feedback_steady_ns", motor_feedback_ns_[i], false);
         if (i < 4) {
             register_output(
+                prefix + "/gas_spring_compensation_torque", gas_compensation_torque_outputs_[i],
+                0.0);
+            register_output(
                 prefix + "/control_angle", angle_outputs_[i],
                 std::numeric_limits<double>::quiet_NaN());
         }
@@ -80,6 +83,15 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     register_output("/wheel_leg/rl/feedback/imu_age_ms", imu_age_output_, -1.0);
     register_output("/wheel_leg/rl/feedback/acceleration_age_ms", acceleration_age_output_, -1.0);
     register_output("/wheel_leg/rl/performance/pd_us", pd_time_us_, 0.0);
+    for (std::size_t side = 0; side < 2; ++side) {
+        const std::string prefix =
+            side == 0 ? "/wheel_leg/rl/gas_spring/left/" : "/wheel_leg/rl/gas_spring/right/";
+        register_output(
+            prefix + "beta_deg", gas_beta_outputs_[side], std::numeric_limits<double>::quiet_NaN());
+        register_output(prefix + "force_n", gas_force_outputs_[side], 0.0);
+        register_output(prefix + "weight", gas_weight_outputs_[side], 0.0);
+        register_output(prefix + "extrapolated", gas_extrapolated_outputs_[side], 0.0);
+    }
     register_output("/wheel_leg/rl/heading/active", heading_hold_active_output_, false);
     register_output("/wheel_leg/rl/heading/yaw", heading_yaw_output_, 0.0);
     register_output("/wheel_leg/rl/heading/target", heading_target_output_, 0.0);
@@ -135,6 +147,11 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     imu_alignment_ready_ = get_parameter_or("imu_alignment_ready", false);
     auto_enter_rl_ = get_parameter_or("auto_enter_rl", false);
     unified_full_rl_ = get_parameter_or("unified_full_rl", false);
+    gas_spring_compensation_enabled_ = get_parameter_or("gas_spring_compensation_enabled", false);
+    gas_spring_compensation_gain_ = get_parameter_or("gas_spring_compensation_gain", 1.0);
+    if (!std::isfinite(gas_spring_compensation_gain_) || gas_spring_compensation_gain_ < 0.0
+        || gas_spring_compensation_gain_ > 1.0)
+        throw std::runtime_error("Invalid gas-spring compensation gain");
     const auto profile_name = get_parameter_or<std::string>(
         "control_profile", std::string{DeployedPolicyContract::kName});
     if (profile_name == kV6PolicyProfile.name)
