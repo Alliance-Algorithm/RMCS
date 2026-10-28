@@ -50,7 +50,7 @@ foldable_sentry:
     roll_motor_zero_point: 14733
     top_yaw_motor_zero_point: 3433
     pitch_motor_zero_point: 28369
-    bottom_yaw_motor_zero_point: 18677
+    bottom_yaw_motor_zero_point: 51786
 
 auto_aim_capturer:
   ros__parameters:
@@ -115,12 +115,12 @@ sentry_chassis_align:
 value_broadcaster:
   ros__parameters:
     forward_list:
-      - /gimbal/roll/angle
-      - /gimbal/roll/velocity
-      - /gimbal/roll/control_torque
-      - /gimbal/roll/torque
-      - /gimbal/roll/temperature
-      - /gimbal/bottom_yaw/torque
+      - /gimbal/top_yaw/angle
+      - /gimbal/pitch/angle
+      - /gimbal/bottom_yaw/angle
+      - /gimbal/bullet_feeder/torque
+      - /gimbal/bullet_feeder/velocity
+
 
 gimbal_controller:
   ros__parameters:
@@ -256,7 +256,7 @@ top_yaw_sweep_controller:
 
 heat_controller:
   ros__parameters:
-    heat_per_shot: 10000
+    heat_per_shot: 1
     reserved_heat: 30000
 
 friction_wheel_controller:
@@ -265,7 +265,7 @@ friction_wheel_controller:
       - /gimbal/top_friction
       - /gimbal/left_friction
       - /gimbal/right_friction
-    friction_velocities: [950.0, 950.0, 950.0]
+    friction_velocities: [900.0, 900.0, 900.0]
     friction_soft_start_stop_time: 1.0
     friction_reverse_velocity: -150.0
     friction_reverse_time: 1.0
@@ -314,6 +314,6 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 0.700
+    kp: 2.0
     ki: 0.0
     kd: 0.0
