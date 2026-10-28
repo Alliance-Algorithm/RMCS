@@ -1,6 +1,0 @@
-{
-  "source": "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/recovery_tuck_controller.cpp",
-  "source_sha256": "980dd093fd11ec48ca8032d64c350c07d6a25581e418597a4ff1e803b0b449af",
-  "ablation_sha256": "e145ac224f9bba0a9d373f6cf7acb6e7e00b491d2320181ae91e01d7930348a3",
-  "change": "Only suppress solved.ready rejection; return and measure the solved IK target. Does not qualify handover or implement a complete recovery fix."
-}

@@ -1,3 +1,0 @@
-{
-  "error": "ValueError(\"The following joints have default positions out of the limits: \\n\\t- 'R_jonit2': -1.083 not in [-1.083, 0.086]\\n\")"
-}

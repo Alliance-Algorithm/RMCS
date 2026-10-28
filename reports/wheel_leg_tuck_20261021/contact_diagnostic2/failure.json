@@ -1,4 +1,0 @@
-{
-  "status": "failed",
-  "error": "Invalid C++ tuck geometry: ground_supported, 0, [ 0.01550528 -0.12653664 -0.01339099  0.12745744]"
-}
