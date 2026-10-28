@@ -25,7 +25,7 @@
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
-#include "deformable/rl_contract.hpp"
+#include "controller/chassis/deformable/rl_contract.hpp"
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/bmi088_ekf.hpp"
 #include "hardware/device/board_clock_lifter.hpp"
