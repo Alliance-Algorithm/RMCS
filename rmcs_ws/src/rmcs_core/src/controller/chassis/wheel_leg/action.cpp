@@ -4,6 +4,7 @@
 #include <cmath>
 #include <numbers>
 
+#include "gas_spring_compensation.hpp"
 #include "leg_target_winding.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -84,17 +85,38 @@ void WheelLegController::compute_motor_torques_() {
         return;
     }
     const auto now = Clock::now();
-    Eigen::Vector4d tau = (policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
-                           - policy_profile_.leg_kd * dq_.head<4>())
-                              .cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
-                              .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
+    Eigen::Vector4d tau = policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
+                        - policy_profile_.leg_kd * dq_.head<4>();
+    if (gas_spring_compensation_enabled_) {
+        const auto gas =
+            gas_spring_compensation({q_[0], q_[1], q_[2], q_[3]}, gas_spring_compensation_gain_);
+        if (!gas.valid) {
+            latch_fault_("invalid gas-spring compensation input");
+            return;
+        }
+        const Eigen::Vector4d compensation = Eigen::Map<const Eigen::Vector4d>{gas.torque.data()};
+        tau += compensation;
+        const Eigen::Vector4d compensation_api = leg_jacobian_.transpose() * compensation;
+        for (int i = 0; i < 4; ++i)
+            *gas_compensation_torque_outputs_[i] = compensation_api[i];
+        for (int side = 0; side < 2; ++side) {
+            *gas_beta_outputs_[side] = gas.beta_deg[side];
+            *gas_force_outputs_[side] = gas.force_n[side];
+            *gas_weight_outputs_[side] = gas.weight[side];
+            *gas_extrapolated_outputs_[side] = gas.extrapolated[side] ? 1.0 : 0.0;
+        }
+    }
+    tau = tau.cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
+              .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
     const Eigen::Vector2d wheel_tau =
         (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
             .cwiseMax(-policy_profile_.wheel_torque_limit)
             .cwiseMin(policy_profile_.wheel_torque_limit);
     // A crossed hinge boundary only removes outward effort. Preserve inward
     // correction and common rotation without leaving the policy-controlled state.
-    *joint_torque_override_ = apply_soft_limits_(tau);
+    const bool at_limit = apply_soft_limits_(tau);
+    // MIT position PD would otherwise discard the host's compensated effort.
+    *joint_torque_override_ = at_limit || gas_spring_compensation_enabled_;
     const Eigen::Vector4d motor_tau = leg_jacobian_.transpose() * tau;
     if (!motor_tau.allFinite() || !wheel_tau.allFinite()) {
         latch_fault_("non-finite actuator effort");
@@ -104,8 +126,8 @@ void WheelLegController::compute_motor_torques_() {
     // hinge projection could recreate an outward relative effort.
     double effort_scale = 1.0;
     for (int i = 0; i < 4; ++i) {
-        const double limit = std::min(
-            *max_torque_inputs_[i], DeployedPolicyContract::kLegTorqueLimit);
+        const double limit =
+            std::min(*max_torque_inputs_[i], DeployedPolicyContract::kLegTorqueLimit);
         if (std::abs(motor_tau[i]) > limit)
             effort_scale = std::min(effort_scale, limit / std::abs(motor_tau[i]));
     }

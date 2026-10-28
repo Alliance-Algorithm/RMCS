@@ -110,6 +110,9 @@ private:
     OutputInterface<int> sensor_issue_output_, sensor_mask_output_;
     OutputInterface<double> motor_age_output_, imu_age_output_, acceleration_age_output_;
     OutputInterface<double> pd_time_us_;
+    std::array<OutputInterface<double>, 4> gas_compensation_torque_outputs_;
+    std::array<OutputInterface<double>, 2> gas_beta_outputs_, gas_force_outputs_,
+        gas_weight_outputs_, gas_extrapolated_outputs_;
     std::array<OutputInterface<double>, PolicyAction{}.size()> action_outputs_;
     std::array<OutputInterface<double>, 6> effective_action_outputs_;
     std::array<OutputInterface<double>, 6> model_angle_outputs_, model_velocity_outputs_;
@@ -167,6 +170,8 @@ private:
     bool strict_feedback_ = true;
     bool policy_targets_valid_ = false;
     bool use_motor_position_pd_ = false;
+    bool gas_spring_compensation_enabled_ = false;
+    double gas_spring_compensation_gain_ = 1.0;
 
     Vector6 q_ = Vector6::Zero();
     Vector6 dq_ = Vector6::Zero();

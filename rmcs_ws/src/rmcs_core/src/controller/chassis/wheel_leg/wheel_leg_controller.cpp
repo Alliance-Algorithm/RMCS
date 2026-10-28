@@ -8,6 +8,8 @@
 
 #include <pluginlib/class_list_macros.hpp>
 
+#include "gas_spring_model.hpp"
+
 namespace rmcs_core::controller::chassis {
 namespace {
 bool almost_integer(double value) {
@@ -38,6 +40,11 @@ void WheelLegController::before_updating() {
         throw std::runtime_error("Wheel action bounds must allow both drive directions");
     validate_leg_target_model_spec(
         leg_target_winding_, *policy_model_spec_input_, "Wheel-leg bridge model");
+    if (gas_spring_compensation_enabled_
+        && (policy_profile_.name != kV6PolicyProfile.name
+            || *policy_model_spec_input_ != gas_spring_model::kModelSpecSha256))
+        throw std::runtime_error(
+            "Gas-spring compensation requires the calibrated V7 model specification");
     policy_ready_ = true;
     // Executor::start sets /predefined/update_rate AFTER before_updating().
     last_reset_count_ = *reset_count_;
@@ -77,8 +84,13 @@ void WheelLegController::before_updating() {
     }
     RCLCPP_INFO(
         get_logger(), "Joint PD backend: %s, Kp %.1f, Kd %.1f",
-        use_motor_position_pd_ ? "DM internal MIT" : "host torque", policy_profile_.leg_kp,
-        policy_profile_.leg_kd);
+        use_motor_position_pd_ && !gas_spring_compensation_enabled_ ? "DM internal MIT"
+                                                                    : "host torque",
+        policy_profile_.leg_kp, policy_profile_.leg_kd);
+    RCLCPP_INFO(
+        get_logger(), "Gas-spring compensation %s: gain %.2f, full soft-limit coverage, model %s",
+        gas_spring_compensation_enabled_ ? "enabled" : "disabled", gas_spring_compensation_gain_,
+        gas_spring_model::kModelSha256.data());
     if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_)
         RCLCPP_WARN(
             get_logger(),
@@ -98,6 +110,14 @@ void WheelLegController::clear_outputs_() {
         *output = std::numeric_limits<double>::quiet_NaN();
     *joint_command_ns_ = 0;
     *joint_torque_override_ = false;
+    for (auto& output : gas_compensation_torque_outputs_)
+        *output = 0.0;
+    for (int side = 0; side < 2; ++side) {
+        *gas_beta_outputs_[side] = std::numeric_limits<double>::quiet_NaN();
+        *gas_force_outputs_[side] = 0.0;
+        *gas_weight_outputs_[side] = 0.0;
+        *gas_extrapolated_outputs_[side] = 0.0;
+    }
 }
 
 void WheelLegController::log_fault_(const char* reason, std::source_location location) const {
@@ -277,9 +297,8 @@ void WheelLegController::update() {
         update_state_output_();
         return;
     }
-    if ((requested != 2 && requested != 3 && !automatic)
-        || !policy_ready_ || !calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_
-        || !read_model_state_()) {
+    if ((requested != 2 && requested != 3 && !automatic) || !policy_ready_ || !calibration_ready_
+        || !soft_limits_ready_ || !imu_alignment_ready_ || !read_model_state_()) {
         latch_fault_("invalid command, calibration or feedback");
         update_state_output_();
         return;

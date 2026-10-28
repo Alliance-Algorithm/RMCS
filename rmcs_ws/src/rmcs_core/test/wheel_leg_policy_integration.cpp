@@ -76,6 +76,10 @@ public:
         // Deliberately far from nominal, with a whole-turn right encoder offset.
         // This is a fixed sensor fixture, not a recovery trajectory or dynamics model.
         std::array model_q{-1.2, -1.2 + 1.2945, 1.0, 1.0 - (-4.9422 + 2 * std::numbers::pi)};
+        if (phase == 10) {
+            model_q[1] = model_q[0] + .7135512281089706;
+            model_q[3] = model_q[2] - .7135524531;
+        }
         if (phase >= 11) {
             hinge_violation_ = std::min(0.25, hinge_violation_ + 0.002);
             model_q[1] += hinge_violation_;
@@ -139,9 +143,13 @@ public:
     Observe() {
         for (std::size_t i = 0; i < 6; ++i) {
             register_input(std::string{"/wheel_leg/"} + kNames[i] + "/control_torque", torque_[i]);
-            if (i < 4)
+            if (i < 4) {
+                register_input(
+                    std::string{"/wheel_leg/"} + kNames[i] + "/gas_spring_compensation_torque",
+                    gas_[i]);
                 register_input(
                     std::string{"/wheel_leg/rl/model/"} + kNames[i] + "/angle", angle_[i]);
+            }
         }
         register_input("/wheel_leg/rl/valid", valid_);
         register_input("/wheel_leg/rl/action_seq", sequence_);
@@ -154,6 +162,7 @@ public:
         register_input("/wheel_leg/rl/input/command", command_);
         register_input("/wheel_leg/rl/input/projected_gravity", gravity_);
         register_input("/wheel_leg/joint_torque_override", torque_override_);
+        register_input("/wheel_leg/rl/gas_spring/left/beta_deg", gas_beta_);
         for (std::size_t i = 0; i < 6; ++i)
             register_input(std::string{"/wheel_leg/rl/effective_action/"} + kNames[i], history_[i]);
     }
@@ -166,6 +175,11 @@ public:
         }
         if (!bounded)
             invalid_effort = true;
+        gas_zero = std::ranges::all_of(gas_, [](const auto& value) { return *value == 0.0; });
+        if (*state_ != 3 && !gas_zero)
+            gas_while_stopped = true;
+        if (*state_ == 3 && std::abs(*gas_beta_ - 75.0) < .1)
+            gas_signs = *gas_[0] < -18.0 && *gas_[1] > 18.0 && *gas_[2] > 18.0 && *gas_[3] < -18.0;
         if (*state_ == 3) {
             for (int side = 0; side < 2; ++side) {
                 const int hip = side * 2, knee = hip + 1;
@@ -207,6 +221,7 @@ public:
     }
     std::atomic<std::size_t> ticks{0}, action_sequence{0};
     std::atomic<bool> valid{false}, enabled{false}, all_zero{true}, invalid_effort{false};
+    std::atomic<bool> gas_zero{true}, gas_while_stopped{false}, gas_signs{false};
     std::atomic<int> state{0};
     std::atomic<double> policy_rate{0.0};
     std::atomic<bool> fault{false}, history_cleared{true}, effort_before_policy{false};
@@ -219,6 +234,8 @@ public:
 private:
     std::array<InputInterface<double>, 6> torque_;
     std::array<InputInterface<double>, 4> angle_;
+    std::array<InputInterface<double>, 4> gas_;
+    InputInterface<double> gas_beta_;
     InputInterface<bool> torque_override_;
     InputInterface<double> valid_, rate_, age_, inference_;
     InputInterface<std::size_t> sequence_;
@@ -309,6 +326,7 @@ TEST(WheelLegPolicyIntegration, SaturationAndHingeSoftLimitsKeepPolicyActiveWith
         EXPECT_EQ(observe->state, 3);
         EXPECT_TRUE(observe->valid);
         EXPECT_FALSE(observe->invalid_effort);
+        EXPECT_TRUE(observe->gas_signs);
         phase = 11;
         std::this_thread::sleep_for(200ms);
         EXPECT_EQ(observe->state, 3); // Crossed hinge bounds never disarm RL.
@@ -335,6 +353,7 @@ TEST(WheelLegPolicyIntegration, SaturationAndHingeSoftLimitsKeepPolicyActiveWith
         std::this_thread::sleep_for(1100ms);
         EXPECT_EQ(observe->state, 2);
         EXPECT_TRUE(observe->all_zero);
+        EXPECT_TRUE(observe->gas_zero);
         EXPECT_TRUE(observe->enabled);
         EXPECT_FALSE(observe->fault);
         phase = 15;
@@ -344,6 +363,7 @@ TEST(WheelLegPolicyIntegration, SaturationAndHingeSoftLimitsKeepPolicyActiveWith
         EXPECT_FALSE(observe->fault);
         EXPECT_FALSE(observe->invalid_effort);
         EXPECT_FALSE(observe->effort_before_policy);
+        EXPECT_FALSE(observe->gas_while_stopped);
         EXPECT_GT(observe->ticks.load(), 100u);
         rclcpp::shutdown();
     }
