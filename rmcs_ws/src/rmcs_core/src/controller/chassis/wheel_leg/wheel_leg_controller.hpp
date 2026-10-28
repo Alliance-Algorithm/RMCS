@@ -20,6 +20,7 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "feedback_sensor_guard.hpp"
+#include "controller/pid/pid_calculator.hpp"
 #include "controller/pid/position_velocity_p.hpp"
 #include "leg_target_winding.hpp"
 #include "policy.hpp"
@@ -145,6 +146,11 @@ private:
     double inference_timeout_ = 0.04;
     PolicyProfile policy_profile_ = kV6PolicyProfile;
     bool use_cascade_pp_ = false;
+    // One PID per actuator in policy order: four DM joints, then two wheels.
+    // Legs hold a position, wheels hold a wheel-side speed; ki/kd are per
+    // control cycle, so a physical damping Kd is configured as Kd * pd_frequency.
+    std::array<controller::pid::PidCalculator, 4> leg_pids_{};
+    std::array<controller::pid::PidCalculator, 2> wheel_pids_{};
     std::array<controller::pid::PositionVelocityPGains, 4> cascade_gains_{};
     LegTargetWinding leg_target_winding_ = LegTargetWinding::kIndependentNearest;
     std::optional<double> heading_target_rad_;

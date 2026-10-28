@@ -26,28 +26,42 @@ public:
 
     void reset() {
         last_err_ = nan;
+        last_measurement_ = nan;
         err_integral_ = 0;
     }
 
+    // Derivative on the error. A reference that steps between calls injects a
+    // derivative kick; prefer the measurement overload for stepped references.
     double update(double err) {
         if (!std::isfinite(err)) {
             reset();
             return nan;
-        } else {
-            double control = kp * err;
-
-            if (err < integral_split_max && err > integral_split_min) {
-                control += ki * err_integral_;
-                err_integral_ = std::clamp(err_integral_ + err, integral_min, integral_max);
-            } else
-                err_integral_ = 0;
-
-            if (!std::isnan(last_err_))
-                control += kd * (err - last_err_);
-            last_err_ = err;
-
-            return std::clamp(control, output_min, output_max);
         }
+        double control = accumulate_(err);
+
+        if (!std::isnan(last_err_))
+            control += kd * (err - last_err_);
+        last_err_ = err;
+
+        return std::clamp(control, output_min, output_max);
+    }
+
+    // Derivative on the measurement. `measurement` is the signal err refers to,
+    // so d(reference - measurement)/dt equals -d(measurement)/dt while the
+    // reference is held. Stepped references therefore cannot inject a kick.
+    double update(double err, double measurement) {
+        if (!std::isfinite(err) || !std::isfinite(measurement)) {
+            reset();
+            return nan;
+        }
+        double control = accumulate_(err);
+
+        if (!std::isnan(last_measurement_))
+            control += kd * (last_measurement_ - measurement);
+        last_err_ = err;
+        last_measurement_ = measurement;
+
+        return std::clamp(control, output_min, output_max);
     }
 
     double kp, ki, kd;
@@ -56,10 +70,24 @@ public:
     double output_min = -inf, output_max = inf;
 
 private:
+    // Proportional term plus the integral accumulated by the previous cycle,
+    // then this error is integrated for the next cycle.
+    double accumulate_(double err) {
+        double control = kp * err;
+
+        if (err < integral_split_max && err > integral_split_min) {
+            control += ki * err_integral_;
+            err_integral_ = std::clamp(err_integral_ + err, integral_min, integral_max);
+        } else
+            err_integral_ = 0;
+
+        return control;
+    }
+
     static constexpr double inf = std::numeric_limits<double>::infinity();
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
-    double last_err_, err_integral_;
+    double last_err_ = nan, last_measurement_ = nan, err_integral_ = 0.0;
 };
 
 inline auto make_pid_calculator(

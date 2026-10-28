@@ -121,10 +121,11 @@ wheel_leg_controller:
     control_profile: v6
     # Offline P/P starting gains: effective position stiffness 160 Nm/rad;
     # damping 4 Nm s/rad. No I, inner D, or gas-spring feedforward.
+    # The host PID is bypassed in this law, so it keeps its contract defaults.
     leg_control_law: cascade_pp
-    leg_position_kp: [40.0, 40.0, 40.0, 40.0]
-    leg_velocity_kp: [4.0, 4.0, 4.0, 4.0]
-    leg_velocity_target_limit: [8.5, 8.5, 8.5, 8.5]
+    cascade_leg_position_kp: [40.0, 40.0, 40.0, 40.0]
+    cascade_leg_velocity_kp: [4.0, 4.0, 4.0, 4.0]
+    cascade_leg_velocity_target_limit: [8.5, 8.5, 8.5, 8.5]
     leg_winding_version: "paired_branch107_v1"
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
     inference_timeout: 0.06

@@ -110,8 +110,10 @@ void WheelLegController::compute_motor_torques_() {
                 cascade_gains_[i], *leg_velocity_target_outputs_[i], dq_[i]);
         }
     } else {
-        tau = policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
-            - policy_profile_.leg_kd * dq_.head<4>();
+        // Derivative on the measurement: policy targets step at the actor rate,
+        // so differentiating the error would kick the torque on every update.
+        for (int i = 0; i < 4; ++i)
+            tau[i] = leg_pids_[i].update(policy_targets_[i] - q_[i], q_[i]);
     }
     if (!tau.allFinite()) {
         latch_fault_("non-finite joint controller effort");
@@ -119,10 +121,9 @@ void WheelLegController::compute_motor_torques_() {
     }
     tau = tau.cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
               .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
-    const Eigen::Vector2d wheel_tau =
-        (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
-            .cwiseMax(-policy_profile_.wheel_torque_limit)
-            .cwiseMin(policy_profile_.wheel_torque_limit);
+    Eigen::Vector2d wheel_tau;
+    for (int i = 0; i < 2; ++i)
+        wheel_tau[i] = wheel_pids_[i].update(policy_targets_[4 + i] - dq_[4 + i], dq_[4 + i]);
     // A crossed hinge boundary only removes outward effort. Preserve inward
     // correction and common rotation without leaving the policy-controlled state.
     *joint_torque_override_ = apply_soft_limits_(tau);

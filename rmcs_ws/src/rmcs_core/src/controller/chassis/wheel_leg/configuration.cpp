@@ -23,6 +23,36 @@ std::array<double, Size> parameter_array(rclcpp::Node& node, const char* name) {
     return values;
 }
 
+template <std::size_t Size>
+std::array<double, Size> filled(double value) {
+    std::array<double, Size> values{};
+    values.fill(value);
+    return values;
+}
+
+// A missing array keeps the trained control contract, so profiles that do not
+// tune the host PID retain the deployed behaviour.
+template <std::size_t Size>
+std::array<double, Size> optional_array(
+    rclcpp::Node& node, const char* name, const std::array<double, Size>& defaults) {
+    return node.has_parameter(name) ? parameter_array<Size>(node, name) : defaults;
+}
+
+void load_pid_(
+    controller::pid::PidCalculator& pid, double kp, double ki, double kd, double integral_min,
+    double integral_max, double output_min, double output_max, const std::string& axis) {
+    if (!std::isfinite(kp) || !std::isfinite(ki) || !std::isfinite(kd)
+        || !std::isfinite(output_min) || !std::isfinite(output_max) || output_min >= output_max
+        || kp <= 0.0 || ki < 0.0 || kd < 0.0 || std::isnan(integral_min)
+        || std::isnan(integral_max) || integral_min > integral_max)
+        throw std::runtime_error("Invalid PID gains, integral or output limits for " + axis);
+    pid = controller::pid::PidCalculator{kp, ki, kd};
+    pid.integral_min = integral_min;
+    pid.integral_max = integral_max;
+    pid.output_min = output_min;
+    pid.output_max = output_max;
+}
+
 } // namespace
 
 WheelLegController::WheelLegController()
@@ -152,9 +182,9 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         throw std::runtime_error("leg_control_law must be rl_pd or cascade_pp");
     use_cascade_pp_ = leg_control_law == "cascade_pp";
     if (use_cascade_pp_) {
-        const auto position_kp = parameter_array<4>(*this, "leg_position_kp");
-        const auto velocity_kp = parameter_array<4>(*this, "leg_velocity_kp");
-        const auto velocity_limit = parameter_array<4>(*this, "leg_velocity_target_limit");
+        const auto position_kp = parameter_array<4>(*this, "cascade_leg_position_kp");
+        const auto velocity_kp = parameter_array<4>(*this, "cascade_leg_velocity_kp");
+        const auto velocity_limit = parameter_array<4>(*this, "cascade_leg_velocity_target_limit");
         for (std::size_t i = 0; i < 4; ++i) {
             cascade_gains_[i] = {position_kp[i], velocity_kp[i], velocity_limit[i]};
             if (!cascade_gains_[i].valid())
@@ -208,6 +238,49 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         || hinge_margin_ < 0 || height_transition_seconds_ <= 0 || height_reference_rate_max_ <= 0
         || heading_hold_gain_ < 0 || heading_hold_yaw_rate_max_ <= 0)
         throw std::runtime_error("Invalid command limits or PD frequency");
+
+    // Host PID for the four DM joints and the two wheels, one axis each in policy
+    // order. ki is an accumulator gain per control cycle and kd differentiates
+    // the measurement per control cycle, so a physical damping Kd Nm s/rad is
+    // configured as Kd * pd_frequency (2.5 at 1 kHz -> 2500). Omitting an array
+    // keeps the trained contract; output limits default to the actuator caps.
+    constexpr double kInfinity = std::numeric_limits<double>::infinity();
+    const auto leg_kp =
+        optional_array<4>(*this, "leg_position_kp", filled<4>(policy_profile_.leg_kp));
+    const auto leg_ki = optional_array<4>(*this, "leg_position_ki", filled<4>(0.0));
+    const auto leg_kd = optional_array<4>(
+        *this, "leg_position_kd", filled<4>(policy_profile_.leg_kd * pd_frequency_));
+    const auto leg_integral_min =
+        optional_array<4>(*this, "leg_position_integral_min", filled<4>(-kInfinity));
+    const auto leg_integral_max =
+        optional_array<4>(*this, "leg_position_integral_max", filled<4>(kInfinity));
+    const auto leg_output_min = optional_array<4>(
+        *this, "leg_position_output_min", filled<4>(-DeployedPolicyContract::kLegTorqueLimit));
+    const auto leg_output_max = optional_array<4>(
+        *this, "leg_position_output_max", filled<4>(DeployedPolicyContract::kLegTorqueLimit));
+    for (std::size_t i = 0; i < leg_pids_.size(); ++i)
+        load_pid_(
+            leg_pids_[i], leg_kp[i], leg_ki[i], leg_kd[i], leg_integral_min[i],
+            leg_integral_max[i], leg_output_min[i], leg_output_max[i],
+            std::string{"leg "} + kMotorNames[i]);
+
+    const auto wheel_kp =
+        optional_array<2>(*this, "wheel_velocity_kp", filled<2>(policy_profile_.wheel_kp));
+    const auto wheel_ki = optional_array<2>(*this, "wheel_velocity_ki", filled<2>(0.0));
+    const auto wheel_kd = optional_array<2>(*this, "wheel_velocity_kd", filled<2>(0.0));
+    const auto wheel_integral_min =
+        optional_array<2>(*this, "wheel_velocity_integral_min", filled<2>(-kInfinity));
+    const auto wheel_integral_max =
+        optional_array<2>(*this, "wheel_velocity_integral_max", filled<2>(kInfinity));
+    const auto wheel_output_min = optional_array<2>(
+        *this, "wheel_velocity_output_min", filled<2>(-policy_profile_.wheel_torque_limit));
+    const auto wheel_output_max = optional_array<2>(
+        *this, "wheel_velocity_output_max", filled<2>(policy_profile_.wheel_torque_limit));
+    for (std::size_t i = 0; i < wheel_pids_.size(); ++i)
+        load_pid_(
+            wheel_pids_[i], wheel_kp[i], wheel_ki[i], wheel_kd[i], wheel_integral_min[i],
+            wheel_integral_max[i], wheel_output_min[i], wheel_output_max[i],
+            std::string{"wheel "} + kMotorNames[4 + i]);
 
     const auto matrix = parameter_array<16>(*this, "leg_motor_to_model");
     const auto offsets = parameter_array<4>(*this, "leg_model_offsets");

@@ -104,10 +104,26 @@ rl_bridge:
 
 wheel_leg_controller:
   ros__parameters:
-    # Calibration, paired winding, feedback PD and actuator limits belong to RMCS.
+    # Calibration, paired winding and the feedback PID belong to RMCS.
     control_profile: v6
     # The unified actor requires its original 160/2.5 actuator contract.
     leg_control_law: rl_pd
+    # Pinned to the trained contract; retune only with a matching actor.
+    # Host PID, one entry per axis in policy order (left_hip, left_knee,
+    # right_hip, right_knee; then left_wheel, right_wheel). Ki and Kd are per
+    # control cycle, so a physical damping Kd Nm s/rad is written as
+    # Kd * pd_frequency (2.5 at 1 kHz -> 2500). Output limits bracket the
+    # model torque; omitting any array keeps the trained contract value.
+    leg_position_kp: [160.0, 160.0, 160.0, 160.0]
+    leg_position_ki: [0.0, 0.0, 0.0, 0.0]
+    leg_position_kd: [2500.0, 2500.0, 2500.0, 2500.0]
+    leg_position_output_min: [-40.0, -40.0, -40.0, -40.0]
+    leg_position_output_max: [40.0, 40.0, 40.0, 40.0]
+    wheel_velocity_kp: [0.6, 0.6]
+    wheel_velocity_ki: [0.0, 0.0]
+    wheel_velocity_kd: [0.0, 0.0]
+    wheel_velocity_output_min: [-4.5, -4.5]
+    wheel_velocity_output_max: [4.5, 4.5]
     unified_full_rl: true
     leg_winding_version: "paired_branch107_v1"
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]

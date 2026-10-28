@@ -45,6 +45,8 @@ struct LegacyPolicyContract : DeployedPolicyContract {
 struct PolicyProfile {
     std::string_view name;
     std::array<double, 6> nominal;
+    // Trained actuator contract; the host PID defaults to these values and YAML
+    // overrides them per axis.
     double leg_kp, leg_kd, wheel_kp, wheel_torque_limit;
     double height_min, height_max;
     double forward_limit, negative_yaw_limit, positive_yaw_limit;

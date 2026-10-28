@@ -57,7 +57,7 @@ frequency_sweep:
     geometry_left_delta: [-0.473731601, -0.297071061, -0.140638855, 0.001799635, 0.134193202, 0.259151808, 0.378464328, 0.493395522, 0.604863832, 0.713551877, 0.819977446, 0.924540437, 1.027554717, 1.129270232, 1.229888687, 1.329574849, 1.428464858, 1.526672408, 1.624293425]
     geometry_right_delta: [0.473731601, 0.297071061, 0.140638855, -0.001799635, -0.134193202, -0.259151808, -0.378464328, -0.493395522, -0.604863832, -0.713551877, -0.819977446, -0.924540437, -1.027554717, -1.129270232, -1.229888687, -1.329574849, -1.428464858, -1.526672408, -1.624293425]
     # Reference excursions remain inside the operator's 40--110 deg working range.
-    beta_min_deg: 45.0
+    beta_min_deg: 35.0
     beta_max_deg: 105.0
     # Model coordinates, hip/knee order. Conservative data-informed starting gains.
     # v_target=clip(v_ref+P_position*(q_ref-q), +/-8.5); tau=P_velocity*(v_target-v)+probe.

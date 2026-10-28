@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "raw_source_and_hash_checked_cache_model_max_difference": {
+    "transfer_model/beta_deg": 0.0,
+    "transfer_model/holding_torque_per_motor_model_nm": 0.0,
+    "transfer_model/direction_half_width_nm": 0.0,
+    "candidate_model/beta_deg": 0.0,
+    "candidate_model/holding_torque_per_motor_model_nm": 0.0,
+    "candidate_model/direction_half_width_nm": 0.0
+  },
+  "holdout_metrics_exactly_match": true,
+  "sources": {
+    "old_pd": "17d8ebf42472573a28a85352df0584b964ec4ecc183d4b26e29d5f4c729dc0ba",
+    "new_pp": "abc75e2fb5791cca1ff7e3d74f2d5f9694fa5a29e838820e5e55f6e601c21e02"
+  },
+  "raw_source_reader_excluded_lines": {
+    "old_pd": [
+      218311
+    ],
+    "new_pp": []
+  },
+  "control_code_modified": false,
+  "hardware_commands_sent": false
+}

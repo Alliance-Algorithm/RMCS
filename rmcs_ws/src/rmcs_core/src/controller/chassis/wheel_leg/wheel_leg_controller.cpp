@@ -71,9 +71,16 @@ void WheelLegController::before_updating() {
         if (use_cascade_pp_)
             throw std::runtime_error("Cascade PP requires MIT pure-torque hardware mode");
         if (policy_profile_.name != kV6PolicyProfile.name || !motor_position_kp_.ready()
-            || !motor_position_kd_.ready() || *motor_position_kp_ != policy_profile_.leg_kp
-            || *motor_position_kd_ != policy_profile_.leg_kd)
+            || !motor_position_kd_.ready())
             throw std::runtime_error("Motor position PD requires native gains");
+        // The drive owns the position loop, so the host PID only declares it here.
+        // It must still describe the same loop, and kd is a per-cycle gain, hence
+        // the pd_frequency conversion back to Nm s/rad.
+        for (std::size_t i = 0; i < leg_pids_.size(); ++i)
+            if (leg_pids_[i].kp != *motor_position_kp_ || leg_pids_[i].ki != 0.0
+                || leg_pids_[i].kd != *motor_position_kd_ * pd_frequency_)
+                throw std::runtime_error(
+                    "Motor position PD requires host PID gains matching the drive gains");
         if ((leg_jacobian_.array().abs() - Eigen::Matrix4d::Identity().array()).abs().maxCoeff()
             > 1e-9)
             throw std::runtime_error("Motor position PD requires independent signed 1:1 axes");
@@ -86,10 +93,22 @@ void WheelLegController::before_updating() {
                 kMotorNames[i], cascade_gains_[i].position_kp, cascade_gains_[i].velocity_kp,
                 cascade_gains_[i].velocity_limit);
     } else {
+        for (std::size_t i = 0; i < leg_pids_.size(); ++i)
+            RCLCPP_INFO(
+                get_logger(),
+                "Joint PID %s: Kp %.3f Nm/rad, Ki %.5f, Kd %.3f per cycle (%.3f Nm s/rad at "
+                "%.0f Hz), out [%.2f, %.2f]",
+                kMotorNames[i], leg_pids_[i].kp, leg_pids_[i].ki, leg_pids_[i].kd,
+                leg_pids_[i].kd / pd_frequency_, pd_frequency_, leg_pids_[i].output_min,
+                leg_pids_[i].output_max);
+        for (std::size_t i = 0; i < wheel_pids_.size(); ++i)
+            RCLCPP_INFO(
+                get_logger(), "Wheel PID %s: Kp %.4f, Ki %.5f, Kd %.3f per cycle, out [%.3f, %.3f]",
+                kMotorNames[4 + i], wheel_pids_[i].kp, wheel_pids_[i].ki, wheel_pids_[i].kd,
+                wheel_pids_[i].output_min, wheel_pids_[i].output_max);
         RCLCPP_INFO(
-            get_logger(), "Joint PD backend: %s, Kp %.1f, Kd %.1f",
-            use_motor_position_pd_ ? "DM internal MIT" : "host torque", policy_profile_.leg_kp,
-            policy_profile_.leg_kd);
+            get_logger(), "Joint PD backend: %s",
+            use_motor_position_pd_ ? "DM internal MIT" : "host torque");
     }
     if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_)
         RCLCPP_WARN(
@@ -158,6 +177,10 @@ void WheelLegController::enter_(State next, bool force_reset) {
     if (next == State::kRl)
         return;
 
+    for (auto& pid : leg_pids_)
+        pid.reset();
+    for (auto& pid : wheel_pids_)
+        pid.reset();
     clear_outputs_();
     *pd_time_us_ = 0.0;
     *policy_enable_output_ = false;

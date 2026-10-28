@@ -114,14 +114,31 @@ rl_bridge:
 
 wheel_leg_controller:
   ros__parameters:
-    # Calibration, paired winding, feedback PD and actuator limits belong to RMCS.
+    # Calibration, paired winding and the feedback PID belong to RMCS.
     control_profile: v6
-    # Keep the actor's trained PD contract. The separate cascade-pp profile
-    # selects these offline candidates for controller validation.
+    # rl_pd runs the host PID below; leg_control_law: cascade_pp instead selects
+    # the offline cascade_* candidates for controller validation.
     leg_control_law: rl_pd
-    leg_position_kp: [40.0, 40.0, 40.0, 40.0]
-    leg_velocity_kp: [4.0, 4.0, 4.0, 4.0]
-    leg_velocity_target_limit: [8.5, 8.5, 8.5, 8.5]
+    # Trained contract: 160 Nm/rad, 2.5 Nm s/rad; wheels 0.6 Nm s/rad.
+    # Host PID, one entry per axis in policy order (left_hip, left_knee,
+    # right_hip, right_knee; then left_wheel, right_wheel). Ki and Kd are per
+    # control cycle, so a physical damping Kd Nm s/rad is written as
+    # Kd * pd_frequency (2.5 at 1 kHz -> 2500). Output limits bracket the
+    # model torque; omitting any array keeps the trained contract value.
+    leg_position_kp: [160.0, 160.0, 160.0, 160.0]
+    leg_position_ki: [0.0, 0.0, 0.0, 0.0]
+    leg_position_kd: [2500.0, 2500.0, 2500.0, 2500.0]
+    leg_position_output_min: [-40.0, -40.0, -40.0, -40.0]
+    leg_position_output_max: [40.0, 40.0, 40.0, 40.0]
+    wheel_velocity_kp: [0.6, 0.6]
+    wheel_velocity_ki: [0.0, 0.0]
+    wheel_velocity_kd: [0.0, 0.0]
+    wheel_velocity_output_min: [-4.5, -4.5]
+    wheel_velocity_output_max: [4.5, 4.5]
+    # Offline position/velocity P candidates, used only by cascade_pp.
+    cascade_leg_position_kp: [40.0, 40.0, 40.0, 40.0]
+    cascade_leg_velocity_kp: [4.0, 4.0, 4.0, 4.0]
+    cascade_leg_velocity_target_limit: [8.5, 8.5, 8.5, 8.5]
     leg_winding_version: "paired_branch107_v1"
     nominal_model_pos: [-0.42, 0.13742282595395358, 0.42, -0.1374155762580851, 0.0, 0.0]
     inference_timeout: 0.06
