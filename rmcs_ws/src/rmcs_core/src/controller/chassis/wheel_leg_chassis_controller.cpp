@@ -17,7 +17,7 @@
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
-#include "wheel_leg_arm_sequence.hpp"
+#include "wheel_leg/mode.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -33,7 +33,8 @@ public:
         , vx_max_(get_parameter_or<double>("vx_max", 0.5))
         , vy_max_(get_parameter_or<double>("vy_max", 0.0))
         , yaw_rate_max_(get_parameter_or<double>("yaw_rate_max", 1.0))
-        , spin_yaw_rate_(get_parameter_or<double>("spin_yaw_rate", 1.0)) {
+        , spin_yaw_rate_(get_parameter_or<double>("spin_yaw_rate", 1.0))
+        , mode_mgr_(*this) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -52,25 +53,23 @@ public:
         register_output("/chassis/jump_request", jump_request_, false);
         register_output("/chassis/jump_apex_delta", jump_apex_delta_, 0.0);
         load_parameters_();
-        height_ = default_command_height_;
         stop_controls_(0);
     }
 
     void update() override {
         using rmcs_msgs::Switch;
 
-        // RemoteControl may retain the last DR16 switch values after a receive
-        // gap. Invalidate the arm sequence independently of those cached values.
-        const auto switch_right = *remote_fresh_ ? *switch_right_ : Switch::UNKNOWN;
-        const auto switch_left = *remote_fresh_ ? *switch_left_ : Switch::UNKNOWN;
+        // RemoteControl outputs UNKNOWN when both DR16 and VT13 are disconnected.
+        // dr16_fresh tracks DR16 connection; VT13 state is implicitly in switch values.
+        const auto switch_right = *switch_right_;
+        const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
+        const bool dr16_fresh = *remote_fresh_;
 
-        const bool both_down = switch_left == Switch::DOWN && switch_right == Switch::DOWN;
-        const bool any_unknown = switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
-        if (any_unknown && arm_sequence_.armed())
-            RCLCPP_WARN(
-                get_logger(), "Armed chassis disarmed: DR16 fresh=%d, switches=[%d,%d]",
-                *remote_fresh_, static_cast<int>(switch_left), static_cast<int>(switch_right));
+        // VT13 is considered connected if switches are valid and dr16 is not fresh
+        const bool vt13_valid = !dr16_fresh
+                             && switch_left != Switch::UNKNOWN
+                             && switch_right != Switch::UNKNOWN;
 
         // Power-on hold: stay at kInit(0) until the operator first moves a switch.
         if (!switch_activity_seen_
@@ -82,20 +81,24 @@ public:
 
         if (!switch_activity_seen_) {
             stop_controls_(0);
-        } else if (any_unknown || both_down) {
-            reset_all_controls_(switch_left, switch_right);
+            mode_mgr_.reset();
         } else {
-            reset_active_ = false;
-            update_state_command_(switch_left, switch_right);
-            if (arm_sequence_.armed()) {
-                update_mode_(switch_left, switch_right, keyboard);
-                update_remote_control_();
+            // Update mode manager with remote connection state
+            mode_mgr_.update(switch_left, switch_right, keyboard, dr16_fresh, vt13_valid);
+
+            const bool any_unknown = switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN;
+            if (any_unknown || !mode_mgr_.armed()) {
+                if (!mode_mgr_.disarm_reason().empty() && mode_mgr_.armed() != last_armed_state_)
+                    RCLCPP_WARN(get_logger(), "Chassis disarmed: %s", mode_mgr_.disarm_reason().c_str());
+                reset_all_controls_();
             } else {
-                *mode_ = rmcs_msgs::ChassisMode::AUTO;
-                stop_controls_(1);
+                reset_active_ = false;
+                *chassis_control_state_ = 3;  // Armed
+                update_remote_control_();
             }
         }
 
+        last_armed_state_ = mode_mgr_.armed();
         last_switch_left_ = switch_left;
         last_switch_right_ = switch_right;
         last_keyboard_ = keyboard;
@@ -106,101 +109,51 @@ private:
 
     void load_parameters_() {
         deadzone_ = get_parameter_or<double>("deadzone", 0.05);
-
-        command_height_min_ = get_parameter_or<double>("command_height_min", 0.23);
-        command_height_max_ = get_parameter_or<double>("command_height_max", 0.43);
-        default_command_height_ =
-            get_parameter_or<double>("default_command_height", command_height_min_);
         height_rate_max_ = get_parameter_or<double>("height_rate_max", 0.02);
-        height_step_ = get_parameter_or<double>("height_step", 0.01);
-
         angular_z_invert_ = get_parameter_or<bool>("angular_z_invert", false);
         height_invert_ = get_parameter_or<bool>("height_invert", false);
-        jump_enabled_ = get_parameter_or<bool>("jump_enabled", false);
 
-        const std::array values{
-            vx_max_,
-            vy_max_,
-            yaw_rate_max_,
-            spin_yaw_rate_,
-            deadzone_,
-            command_height_min_,
-            command_height_max_,
-            default_command_height_,
-            height_rate_max_,
-            height_step_};
+        const std::array values{vx_max_, vy_max_, yaw_rate_max_, spin_yaw_rate_, deadzone_, height_rate_max_};
         if (!std::ranges::all_of(values, [](double value) { return std::isfinite(value); })
             || vx_max_ <= 0.0 || vy_max_ < 0.0 || yaw_rate_max_ <= 0.0 || spin_yaw_rate_ <= 0.0
-            || deadzone_ < 0.0 || deadzone_ >= 1.0 || command_height_min_ <= 0.0
-            || command_height_min_ > command_height_max_
-            || default_command_height_ < command_height_min_
-            || default_command_height_ > command_height_max_ || height_rate_max_ <= 0.0
-            || height_step_ < 0.0)
+            || deadzone_ < 0.0 || deadzone_ >= 1.0 || height_rate_max_ <= 0.0)
             throw std::invalid_argument("Invalid wheel-leg chassis command limits");
     }
 
-    void update_mode_(
-        rmcs_msgs::Switch switch_left, rmcs_msgs::Switch switch_right,
-        const rmcs_msgs::Keyboard& keyboard) {
-        using rmcs_msgs::Switch;
-        // Match the common chassis input: the right switch enters DOWN once
-        // while the left switch stays MIDDLE. Holding DOWN does not retrigger.
-        const bool spin_switch_edge = switch_left == Switch::MIDDLE
-                                   && last_switch_right_ == Switch::MIDDLE
-                                   && switch_right == Switch::DOWN;
-        if (spin_switch_edge || (!last_keyboard_.c && keyboard.c)) {
-            if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST) {
-                *mode_ = rmcs_msgs::ChassisMode::AUTO;
-                node::info("Chassis mode: AUTO");
-            } else {
-                *mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
-                spinning_forward_ = !spinning_forward_;
-                const double yaw_rate = spinning_forward_ ? spin_yaw_rate_ : -spin_yaw_rate_;
-                node::info(
-                    "Chassis mode: SPIN, yaw command {} rad/s",
-                    angular_z_invert_ ? -yaw_rate : yaw_rate);
-            }
-        }
-    }
-
-    void reset_all_controls_(rmcs_msgs::Switch left, rmcs_msgs::Switch right) {
+    void reset_all_controls_() {
         if (!reset_active_) {
             *reset_count_output_ += 1;
             reset_active_ = true;
         }
-        arm_sequence_.update(left, right, true);
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         stop_controls_(1);
     }
 
     void stop_controls_(int state) {
         chassis_control_velocity_->vector << 0.0, 0.0, 0.0;
-        *chassis_control_height_ = default_command_height_;
+        *chassis_control_height_ = mode_mgr_.default_command_height();
         *chassis_control_state_ = state;
         *jump_request_ = false;
         *jump_apex_delta_ = 0.0;
-        height_ = default_command_height_;
         previous_height_timestamp_.reset();
     }
 
     void update_remote_control_() {
+        *mode_ = mode_mgr_.mode();
         update_velocity_control_();
         update_height_control_();
         // Hold the request while V is held; RL owns the elapsed time and release transition.
-        *jump_request_ = jump_enabled_ && keyboard_->v;
+        const bool jump_enabled = mode_mgr_.jump_enabled();
+        *jump_request_ = jump_enabled && keyboard_->v;
         *jump_apex_delta_ = *jump_request_ ? (keyboard_->shift ? 0.10 : 0.06) : 0.0;
-    }
-
-    // Require double DOWN before arming; a single MIDDLE cannot start the policy.
-    void update_state_command_(rmcs_msgs::Switch left, rmcs_msgs::Switch right) {
-        arm_sequence_.update(left, right, true);
-        *chassis_control_state_ = arm_sequence_.armed() ? 3 : 1;
     }
 
     void update_velocity_control_() {
         // Pure SPIN has no translation reference, including keyboard and right-stick input.
-        if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST) {
-            const double yaw_rate = spinning_forward_ ? spin_yaw_rate_ : -spin_yaw_rate_;
+        const auto mode = mode_mgr_.mode();
+        if (mode == rmcs_msgs::ChassisMode::SPIN_FAST) {
+            const bool spinning_forward = mode_mgr_.spinning_forward();
+            const double yaw_rate = spinning_forward ? spin_yaw_rate_ : -spin_yaw_rate_;
             chassis_control_velocity_->vector << 0.0, 0.0,
                 (angular_z_invert_ ? -yaw_rate : yaw_rate);
             return;
@@ -246,14 +199,17 @@ private:
         // Do not integrate a startup/reset interval or catch up after a gap.
         // Centered input holds the accumulated height in both AUTO and SPIN.
         previous_height_timestamp_ = now;
-        height_ += height_input * height_rate_max_ * dt;
+
+        double height = mode_mgr_.height() + height_input * height_rate_max_ * dt;
         const auto& keyboard = *keyboard_;
         if (!last_keyboard_.r && keyboard.r)
-            height_ += height_step_;
-        if (!last_keyboard_.f && keyboard.f)
-            height_ -= height_step_;
-        height_ = std::clamp(height_, command_height_min_, command_height_max_);
-        *chassis_control_height_ = height_;
+            mode_mgr_.add_height_step();
+        else if (!last_keyboard_.f && keyboard.f)
+            mode_mgr_.sub_height_step();
+        else
+            mode_mgr_.set_height(height);
+
+        *chassis_control_height_ = mode_mgr_.height();
     }
 
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -282,20 +238,14 @@ private:
     double yaw_rate_max_ = 1.0;
     double spin_yaw_rate_ = 1.0;
     double deadzone_ = 0.05;
-    double command_height_min_ = 0.23;
-    double command_height_max_ = 0.43;
-    double default_command_height_ = 0.23;
     double height_rate_max_ = 0.02;
-    double height_step_ = 0.01;
     bool angular_z_invert_ = false;
     bool height_invert_ = false;
-    bool jump_enabled_ = false;
 
-    bool spinning_forward_ = true;
+    WheelLegModeManager mode_mgr_;
     bool switch_activity_seen_ = false;
-    WheelLegArmSequence arm_sequence_;
     bool reset_active_ = false;
-    double height_ = 0.0;
+    bool last_armed_state_ = false;
     std::optional<Clock::time_point> previous_height_timestamp_;
 };
 
