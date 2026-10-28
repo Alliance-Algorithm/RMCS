@@ -16,7 +16,7 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
 
-#include "controller/chassis/deformable_mode.hpp"
+#include "controller/chassis/deformable/mode.hpp"
 #include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::chassis {

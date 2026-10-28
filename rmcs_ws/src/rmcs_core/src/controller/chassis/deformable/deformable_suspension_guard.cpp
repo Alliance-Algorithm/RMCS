@@ -9,7 +9,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 
-#include "deformable/suspension_guard.hpp"
+#include "controller/chassis/deformable/suspension_guard.hpp"
 
 namespace rmcs_core::controller::chassis {
 
