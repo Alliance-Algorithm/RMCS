@@ -4,6 +4,7 @@
 #include "controller/arm/obstacle/obstacle_types.hpp"
 
 #include <map>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 
@@ -61,7 +62,7 @@ inline auto make_obstacle_parameter_map(const ObstacleCoordinatesMap& coordinate
              .mesh = "exchange",
              .scale = {0.001, 0.001, 0.001},
              .compensation = coordinates.get_pose("exchange_compensation"),
-             .pose = {-1, 0, 0, 0, 0, 0},
+             .pose = {0.236, -0.315, 0.214, -1.964, -0.674, 1.535},
              .initial_operation = CollisionObjectOperation::ADD,
              .touch_links = {"link_6"}}},
         {"pillar",
@@ -69,7 +70,7 @@ inline auto make_obstacle_parameter_map(const ObstacleCoordinatesMap& coordinate
              .mesh = "pillar",
              .scale = {0.001, 0.001, 0.001},
              .compensation = coordinates.get_pose("pillar_compensation"),
-             .pose = {-1, 0, 0, 0, 0, 0},
+             .pose = {0.236, -0.315, 0.214, -1.964, -0.674, 1.535},
              .initial_operation = CollisionObjectOperation::ADD,
              .touch_links = {"link_6"},
              .attach_link = "link_6"}},

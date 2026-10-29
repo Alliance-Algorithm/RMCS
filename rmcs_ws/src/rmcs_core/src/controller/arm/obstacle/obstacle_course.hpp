@@ -45,18 +45,17 @@ public:
                 throw std::invalid_argument("Unknown attach link for obstacle: " + id);
             for (const auto& link : config.touch_links)
                 if (!model_->hasLinkModel(link))
-                    throw std::invalid_argument("Unknown touch link for obstacle: " + id + ": " + link);
+                    throw std::invalid_argument(
+                        "Unknown touch link for obstacle: " + id + ": " + link);
         }
 
         // A dedicated query node avoids spinning the controller's existing executor.
         query_node_ = std::make_shared<rclcpp::Node>(
-            "obstacle_scene_query",
-            move_group->getNode()->get_namespace(),
-            rclcpp::NodeOptions()
-                .use_global_arguments(false)
-                .context(move_group->getNode()->get_node_base_interface()->get_context()));
-        scene_client_ = query_node_->create_client<moveit_msgs::srv::GetPlanningScene>(
-            "get_planning_scene");
+            "obstacle_scene_query", move_group->getNode()->get_namespace(),
+            rclcpp::NodeOptions().use_global_arguments(false).context(
+                move_group->getNode()->get_node_base_interface()->get_context()));
+        scene_client_ =
+            query_node_->create_client<moveit_msgs::srv::GetPlanningScene>("get_planning_scene");
         apply_scene_client_ = query_node_->create_client<moveit_msgs::srv::ApplyPlanningScene>(
             "apply_planning_scene");
 
@@ -86,8 +85,8 @@ public:
                     [&id](const auto& object) { return object.object.id == id; });
                 if (attached == scene.robot_state.attached_collision_objects.end()
                     || !obstacle->attachable() || attached->link_name != obstacle->attach_link()
-                    || std::any_of(scene.world.collision_objects.begin(),
-                        scene.world.collision_objects.end(),
+                    || std::any_of(
+                        scene.world.collision_objects.begin(), scene.world.collision_objects.end(),
                         [&id](const auto& object) { return object.id == id; }))
                     throw std::runtime_error("Unexpected initial attachment for obstacle: " + id);
                 continue;
@@ -138,7 +137,8 @@ public:
         const bool in_world = std::any_of(
             before.world.collision_objects.begin(), before.world.collision_objects.end(),
             [&id](const auto& object) { return object.id == id; });
-        const bool attached = std::any_of(before.robot_state.attached_collision_objects.begin(),
+        const bool attached = std::any_of(
+            before.robot_state.attached_collision_objects.begin(),
             before.robot_state.attached_collision_objects.end(),
             [&id](const auto& object) { return object.object.id == id; });
         if (!in_world && !attached) {
@@ -160,12 +160,56 @@ public:
         for (const auto& link : links) {
             collision_detection::AllowedCollision::Type entry;
             if (!actual.getEntry(id, link, entry)
-                || entry != (allow ? collision_detection::AllowedCollision::ALWAYS
-                                   : collision_detection::AllowedCollision::NEVER)) {
-                RCLCPP_WARN(logger_, "collision entry was not applied: %s: %s",
-                    id.c_str(), link.c_str());
+                || entry
+                       != (allow ? collision_detection::AllowedCollision::ALWAYS
+                                 : collision_detection::AllowedCollision::NEVER)) {
+                RCLCPP_WARN(
+                    logger_, "collision entry was not applied: %s: %s", id.c_str(), link.c_str());
                 return false;
             }
+        }
+        return true;
+    }
+
+    bool set_object_collisions(
+        const std::string& id, const std::string& other_id, bool allow,
+        const std::function<bool()>& can_apply = {}) {
+        if (id.empty() || other_id.empty() || id == other_id) {
+            RCLCPP_WARN(logger_, "object collisions require two distinct nonempty object ids");
+            return false;
+        }
+        const auto before = sync_scene();
+        for (const auto& object_id : {id, other_id}) {
+            const bool in_world = std::any_of(
+                before.world.collision_objects.begin(), before.world.collision_objects.end(),
+                [&object_id](const auto& object) { return object.id == object_id; });
+            const bool attached = std::any_of(
+                before.robot_state.attached_collision_objects.begin(),
+                before.robot_state.attached_collision_objects.end(),
+                [&object_id](const auto& object) { return object.object.id == object_id; });
+            if (!in_world && !attached) {
+                RCLCPP_WARN(logger_, "collision object is not in the scene: %s", object_id.c_str());
+                return false;
+            }
+        }
+        collision_detection::AllowedCollisionMatrix acm(before.allowed_collision_matrix);
+        acm.setEntry(id, other_id, allow);
+        moveit_msgs::msg::PlanningScene diff;
+        diff.is_diff = true;
+        diff.robot_state.is_diff = true;
+        acm.getMessage(diff.allowed_collision_matrix);
+        if (!apply_scene(diff, can_apply))
+            return false;
+        const auto after = sync_scene();
+        const collision_detection::AllowedCollisionMatrix actual(after.allowed_collision_matrix);
+        collision_detection::AllowedCollision::Type entry;
+        if (!actual.getEntry(id, other_id, entry)
+            || entry
+                   != (allow ? collision_detection::AllowedCollision::ALWAYS
+                             : collision_detection::AllowedCollision::NEVER)) {
+            RCLCPP_WARN(
+                logger_, "collision entry was not applied: %s: %s", id.c_str(), other_id.c_str());
+            return false;
         }
         return true;
     }
@@ -181,7 +225,8 @@ public:
             return false;
         }
 
-        if (std::none_of(before.world.collision_objects.begin(), before.world.collision_objects.end(),
+        if (std::none_of(
+                before.world.collision_objects.begin(), before.world.collision_objects.end(),
                 [&id](const auto& object) { return object.id == id; })) {
             RCLCPP_WARN(logger_, "obstacle is not in the world: %s", id.c_str());
             return false;
@@ -194,7 +239,8 @@ public:
         if (!apply_scene(diff, can_apply))
             return false;
         const auto after = sync_scene();
-        const auto attached = std::find_if(after.robot_state.attached_collision_objects.begin(),
+        const auto attached = std::find_if(
+            after.robot_state.attached_collision_objects.begin(),
             after.robot_state.attached_collision_objects.end(),
             [&id](const auto& object) { return object.object.id == id; });
         const bool in_world = std::any_of(
@@ -214,7 +260,8 @@ public:
         if (!obstacle)
             return false;
         const auto before = sync_scene();
-        const auto attached = std::find_if(before.robot_state.attached_collision_objects.begin(),
+        const auto attached = std::find_if(
+            before.robot_state.attached_collision_objects.begin(),
             before.robot_state.attached_collision_objects.end(),
             [&id](const auto& object) { return object.object.id == id; });
         if (attached == before.robot_state.attached_collision_objects.end()
@@ -243,8 +290,7 @@ public:
 
     // Detach, then place the obstacle at a known pose
     bool detach(
-        const std::string& id, Pose place_pose,
-        const std::function<bool()>& can_apply = {}) {
+        const std::string& id, Pose place_pose, const std::function<bool()>& can_apply = {}) {
         if (!detach(id, can_apply))
             return false;
         auto* obstacle = find_unattached(id);
@@ -285,8 +331,7 @@ public:
 
 private:
     bool apply_scene(
-        moveit_msgs::msg::PlanningScene scene,
-        const std::function<bool()>& can_apply = {}) {
+        moveit_msgs::msg::PlanningScene scene, const std::function<bool()>& can_apply = {}) {
         using namespace std::chrono_literals;
         if (scene_uncertain_)
             throw std::runtime_error(
@@ -360,9 +405,9 @@ private:
             throw std::runtime_error("Obstacle planning scene query service unavailable");
         auto request = std::make_shared<moveit_msgs::srv::GetPlanningScene::Request>();
         using Components = moveit_msgs::msg::PlanningSceneComponents;
-        request->components.components = Components::WORLD_OBJECT_GEOMETRY
-            | Components::ROBOT_STATE_ATTACHED_OBJECTS | Components::LINK_PADDING_AND_SCALING
-            | Components::ALLOWED_COLLISION_MATRIX;
+        request->components.components =
+            Components::WORLD_OBJECT_GEOMETRY | Components::ROBOT_STATE_ATTACHED_OBJECTS
+            | Components::LINK_PADDING_AND_SCALING | Components::ALLOWED_COLLISION_MATRIX;
         auto future = scene_client_->async_send_request(request);
         if (rclcpp::spin_until_future_complete(query_node_, future, 5s)
             != rclcpp::FutureReturnCode::SUCCESS) {
@@ -371,7 +416,8 @@ private:
         }
         auto scene = future.get()->scene;
         for (auto& [id, obstacle] : obstacles_) {
-            const auto attached = std::find_if(scene.robot_state.attached_collision_objects.begin(),
+            const auto attached = std::find_if(
+                scene.robot_state.attached_collision_objects.begin(),
                 scene.robot_state.attached_collision_objects.end(),
                 [&id](const auto& object) { return object.object.id == id; });
             const auto world = std::find_if(
@@ -394,10 +440,12 @@ private:
         const bool in_world = std::any_of(
             scene.world.collision_objects.begin(), scene.world.collision_objects.end(),
             [&object](const auto& value) { return value.id == object.id; });
-        const bool attached = std::any_of(scene.robot_state.attached_collision_objects.begin(),
+        const bool attached = std::any_of(
+            scene.robot_state.attached_collision_objects.begin(),
             scene.robot_state.attached_collision_objects.end(),
             [&object](const auto& value) { return value.object.id == object.id; });
-        return !attached && in_world == (object.operation != moveit_msgs::msg::CollisionObject::REMOVE);
+        return !attached
+            && in_world == (object.operation != moveit_msgs::msg::CollisionObject::REMOVE);
     }
 
     bool apply_world(Obstacle& obstacle, const std::function<bool()>& can_apply = {}) {
@@ -417,8 +465,7 @@ private:
 
     void add_collision(const std::string& id, const ObstacleConfig& config) {
         auto [it, inserted] = obstacles_.emplace(
-            id,
-            std::make_unique<Obstacle>(frame_id_, id, config.attach_link, config.touch_links));
+            id, std::make_unique<Obstacle>(frame_id_, id, config.attach_link, config.touch_links));
         if (!inserted) {
             RCLCPP_WARN(logger_, "duplicate obstacle id: %s", id.c_str());
             return;

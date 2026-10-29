@@ -6,8 +6,8 @@
 #include "moveit_msgs/msg/attached_collision_object.hpp"
 #include "moveit_msgs/msg/collision_object.hpp"
 #include "shape_msgs/msg/mesh.hpp"
+#include <Eigen/Geometry>
 #include <ament_index_cpp/get_package_share_directory.hpp>
-#include <cmath>
 #include <filesystem>
 #include <geometric_shapes/mesh_operations.h>
 #include <geometric_shapes/shape_messages.h>
@@ -43,7 +43,7 @@ public:
 
     void set_attached(bool attached) { attached_ = attached; }
 
-    // Pose reported by the planning scene, compensation already included
+    // Operation-point pose reported by the scene; mesh poses keep the compensation.
     void set_world_pose(const geometry_msgs::msg::Pose& pose) { pose_ = pose; }
 
     void sync_world(const moveit_msgs::msg::CollisionObject& object) {
@@ -54,17 +54,21 @@ public:
         attached_ = false;
     }
 
+    // The object frame is the operation point, which sits at -compensation.xyz in raw STL
+    // coordinates. The mesh carries the compensation as its local pose (translation first, then
+    // rotation about the operation point), so every rotation pivots there.
     void set_pose(Pose pose) {
-        pose.x += pose_compensation_.x;
-        pose.y += pose_compensation_.y;
-        pose.z += pose_compensation_.z;
-        pose.roll += pose_compensation_.roll;
-        pose.pitch += pose_compensation_.pitch;
-        pose.yaw += pose_compensation_.yaw;
-        pose_solver(pose);
+        pose_ = to_msg(pose);
+        // A scene snapshot from sync_world may carry stale mesh offsets.
+        for (auto& mesh_pose : collision_object_.mesh_poses)
+            mesh_pose = compensation_msg();
     }
 
-    void set_pose_compensation(Pose pose_compensation) { pose_compensation_ = pose_compensation; }
+    void set_pose_compensation(Pose pose_compensation) {
+        pose_compensation_ = pose_compensation;
+        for (auto& mesh_pose : collision_object_.mesh_poses)
+            mesh_pose = compensation_msg();
+    }
 
     void set_operation(CollisionObjectOperation collision_object_operation) {
         collision_object_operation_ = collision_object_operation;
@@ -90,9 +94,7 @@ public:
         RCLCPP_INFO(logger_, "Construct msg successful!");
 
         collision_object_.meshes.push_back(boost::get<shape_msgs::msg::Mesh>(shape_msg));
-        geometry_msgs::msg::Pose mesh_pose;
-        mesh_pose.orientation.w = 1.0;
-        collision_object_.mesh_poses.push_back(mesh_pose);
+        collision_object_.mesh_poses.push_back(compensation_msg());
     }
 
     auto export_collision() {
@@ -170,29 +172,35 @@ public:
     }
 
 private:
-    void pose_solver(Pose pose) {
-        double half_roll = pose.roll / 2;
-        double half_pitch = pose.pitch / 2;
-        double half_yaw = pose.yaw / 2;
-        double x = pose.x;
-        double y = pose.y;
-        double z = pose.z;
+    static geometry_msgs::msg::Pose to_msg(const Pose& value) {
+        const Eigen::Quaterniond orientation =
+            Eigen::AngleAxisd(value.yaw, Eigen::Vector3d::UnitZ())
+            * Eigen::AngleAxisd(value.pitch, Eigen::Vector3d::UnitY())
+            * Eigen::AngleAxisd(value.roll, Eigen::Vector3d::UnitX());
+        geometry_msgs::msg::Pose pose;
+        pose.position.x = value.x;
+        pose.position.y = value.y;
+        pose.position.z = value.z;
+        pose.orientation.w = orientation.w();
+        pose.orientation.x = orientation.x();
+        pose.orientation.y = orientation.y();
+        pose.orientation.z = orientation.z();
+        return pose;
+    }
 
-        auto cr = cos(half_roll);
-        auto cp = cos(half_pitch);
-        auto cy = cos(half_yaw);
-        auto sr = sin(half_roll);
-        auto sp = sin(half_pitch);
-        auto sy = sin(half_yaw);
-
-        pose_.orientation.set__w(cr * cp * cy + sr * sp * sy);
-        pose_.orientation.set__x(sr * cp * cy - cr * sp * sy);
-        pose_.orientation.set__y(cr * sp * cy + sr * cp * sy);
-        pose_.orientation.set__z(cr * cp * sy - sr * sp * cy);
-
-        pose_.position.set__x(x);
-        pose_.position.set__y(y);
-        pose_.position.set__z(z);
+    // Rot(compensation) * Trans(compensation): move the operation point to the origin, then
+    // rotate about it.
+    geometry_msgs::msg::Pose compensation_msg() const {
+        auto pose = to_msg(pose_compensation_);
+        const Eigen::Quaterniond rotation(
+            pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+        const Eigen::Vector3d position =
+            rotation
+            * Eigen::Vector3d(pose_compensation_.x, pose_compensation_.y, pose_compensation_.z);
+        pose.position.x = position.x();
+        pose.position.y = position.y();
+        pose.position.z = position.z();
+        return pose;
     }
 
     rclcpp::Logger logger_;
