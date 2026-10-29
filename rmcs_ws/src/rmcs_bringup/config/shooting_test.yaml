@@ -5,6 +5,7 @@
 #
 #   ShootingTest                硬件层：3 个 M3508 摩擦轮 + 1 个 M3508 夹爪
 #                                       + 1 个 LK 拨弹电机 + DR16 + 裁判字节管道
+#                                       + 弹速日志（伙伴组件，转发 /shooting/muzzle_speed）
 #   referee::Status             裁判层：解裁判协议，发布弹速、冷却值、热量上限等
 #   FrictionWheelController     摩擦轮：软启停、卡弹检测、踢弹检测
 #   BulletFeederController42mm  拨弹盘：42mm 压缩循环（预压→压缩→发射），角度闭环
@@ -20,8 +21,8 @@
 # 操作方式（每个输入只做一件事，互不重叠）
 #
 #   右拨杆 DOWN（保持）   进入夹爪模式，此时旋钮才有效
-#     旋钮上拨一下       夹爪锁紧到 locked_angle（一步到位，不需要按住）
-#     旋钮下拨一下       夹爪松开到 released_angle
+#     旋钮上拨一下       夹爪以 close_torque 合拢，堵转后自动停（不需要按住）
+#     旋钮下拨一下       夹爪以 open_torque 张开，堵转后自动停
 #   左拨杆 DOWN（拨一下） 打一发（42mm 控制器原生触发方式）
 #   左拨杆 UP（拨一下）   开/关摩擦轮（FrictionWheelController 原生触发方式）
 #   左右都 DOWN           急停
@@ -41,7 +42,6 @@ rmcs_executor:
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::BulletFeederController42mm -> bullet_feeder_42mm
       - rmcs_core::controller::shooting::HeatController -> heat_controller
-      - rmcs_core::controller::shooting::MuzzleSpeedLogger -> muzzle_speed
       - rmcs_core::controller::shooting::GripperKnobController -> gripper_knob
 
       # 速度环
@@ -54,23 +54,16 @@ rmcs_executor:
 
 # -----------------------------------------------------------------------------
 # 硬件参数
-# 注意：下面每一项都必须在场。少了任何一项，组件会用内置默认值悄悄启动，
-#       而默认值不一定是你的硬件（比如电机 ID）。
+# CAN 映射写死在 ShootingTest 里，改接线要改代码：
+#   CAN1  0x201 上摩擦轮  0x202 左摩擦轮（反向）  0x203 右摩擦轮（反向）  0x204 夹爪
+#         均为 M3508，减速比按 1.0（直驱）配置
+#   CAN3  0x142 拨弹电机 MG5010E_i10V3（反向）
+#   UART0 裁判系统，115200（librmcs 的 kUart0，即 DBUS 之后的第一路串口）
 # -----------------------------------------------------------------------------
 shooting_hardware:
   ros__parameters:
     board_serial_lite_board: ""      # 板子序列号；留空表示匹配找到的第一块板
-    dji_can_channel: 1               # 4 个大疆电机所在的 CAN 通道（已用自环验证：CAN1 正常）
-    feeder_can_channel: 3            # 拨弹电机所在的 CAN 通道（已用自环验证：CAN3 正常）
-    dji_motor_ids: [1, 2, 3, 4]      # 顺序固定：上、左、右、夹爪；必须与电调里烧录的 ID 一致
-    dji_reduction_ratios: [1.0, 1.0, 1.0, 1.0]   # 直驱为 1.0；有减速箱就填真实值
-    dji_reversed: [false, true, true, false]     # 顺序 [上, 左, 右, 夹爪]；实测左、右方向反了
-    feeder_can_id: 322               # 0x142 —— ID 扫描实测：拨弹电机的 CAN ID 是 2，不是 1
-    feeder_gear_ratio: 1.0          # 拨盘到电机的额外减速比（型号自带减速比之外再乘）
-    feeder_motor_type: "MG5010E_i10" # 型号填错会导致力矩常数错，可能飞车
-    feeder_reversed: true            # 拨弹方向反了改这里
-    feedback_timeout: 0.1            # 秒；任一电机超过这个时间没报文就断力矩
-    referee_uart: 0                  # 0 或 1，对应板子的 UART 1 / UART 2（UART 0 被 DBUS 占用）
+    muzzle_speed_min_change: 0.05    # 弹速变化超过这个值才打印一行，避免重复帧刷屏
 
 # -----------------------------------------------------------------------------
 # 摩擦轮规划
@@ -132,20 +125,11 @@ heat_controller:
     reserved_heat: 0
 gripper_knob:
   ros__parameters:
-    close_speed: 30.0
-    open_speed: -30.0
-    position_kp: 2.0
-    max_lead_rad: 0.3
-    torque_limit: 0.13
-    clamp_torque: 0.30
-    clamp_time_s: 2.0
-    stall_progress_rad: 0.3
-    stall_confirm_ticks: 150
-    stall_ignore_ticks: 100
-    over_speed_velocity: 300.0
-    edge_lockout_ticks: 300
-    knob_deadzone: 0.7
-    angle_velocity_filter_alpha: 0.1
+    close_torque: 0.13               # 合拢力矩 N·m（转子侧），正负号决定方向
+    open_torque: -0.13               # 张开力矩 N·m
+    stall_angle: 0.3                 # 堵转判据：stall_ticks 个周期内角度变化小于此值 (rad)
+    stall_ticks: 250                 # 1 kHz 下即 0.25 s
+    knob_deadzone: 0.7               # 旋钮模拟量死区，绝对值超过才算拨动
 friction_upper_pid:
   ros__parameters:
     measurement: /shooting/friction_motor/upper/velocity
@@ -179,11 +163,6 @@ friction_right_pid:
     output_min: -0.30
     output_max: 0.30
 
-muzzle_speed:
-  ros__parameters:
-    # 速度变化超过这个值才打印一行，避免重复帧刷屏
-    min_change: 0.05
-
 value_broadcaster:
   ros__parameters:
     forward_list:
@@ -195,7 +174,7 @@ value_broadcaster:
       - /shooting/friction_motor/right/velocity
       - /shooting/friction_motor/right/torque
       # 夹爪：速度 + 角度 + 力矩（调堵转阈值要看这三个）
-      - /shooting/gripper_motor/velocity_filtered
+      - /shooting/gripper_motor/velocity
       - /shooting/gripper_motor/angle
       - /shooting/gripper_motor/torque
       # 拨弹：角度 + 速度 + 力矩（角度看在不在走，力矩看是否卡住）

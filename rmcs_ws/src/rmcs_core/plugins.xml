@@ -89,7 +89,4 @@
   <class type="rmcs_core::controller::shooting::HeatController" base_class_type="rmcs_executor::Component">
     <description>Heat allowance derived from referee cooling and heat limit.</description>
   </class>
-  <class type="rmcs_core::controller::shooting::MuzzleSpeedLogger" base_class_type="rmcs_executor::Component">
-    <description>Forward referee muzzle speed as double</description>
-  </class>
 </library>
