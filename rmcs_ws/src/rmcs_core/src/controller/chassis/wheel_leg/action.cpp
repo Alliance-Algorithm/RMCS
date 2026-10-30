@@ -25,7 +25,7 @@ std::expected<void, std::string> WheelLegController::process_action_(std::span<c
                 std::string{"YAML action scale cannot represent action history"}};
     }
     Vector6 targets = policy_targets_;
-    const bool v6 = policy_profile_.name == kV6PolicyProfile.name;
+    const bool v6 = root_drive_profile(policy_profile_.name);
     std::array<double, 4> desired{}, current{};
     for (int i = 0; i < 4; ++i) {
         desired[i] = nominal_[i] + decoded[i];
@@ -88,8 +88,9 @@ void WheelLegController::compute_motor_torques_() {
     Eigen::Vector4d tau = policy_profile_.leg_kp * (policy_targets_.head<4>() - q_.head<4>())
                         - policy_profile_.leg_kd * dq_.head<4>();
     if (gas_spring_compensation_enabled_) {
-        const auto gas =
-            gas_spring_compensation({q_[0], q_[1], q_[2], q_[3]}, gas_spring_compensation_gain_);
+        const auto gas = gas_spring_compensation(
+            {q_[0], q_[1], q_[2], q_[3]}, gas_spring_compensation_gain_,
+            policy_profile_.name == kFullVehicleV202PolicyProfile.name);
         if (!gas.valid) {
             latch_fault_("invalid gas-spring compensation input");
             return;

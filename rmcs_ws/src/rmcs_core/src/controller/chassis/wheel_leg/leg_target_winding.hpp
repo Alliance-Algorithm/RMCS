@@ -36,7 +36,7 @@ inline LegTargetWinding
         return LegTargetWinding::kIndependentNearest;
     if (version != "paired_common_v1" && version != "paired_branch107_v1")
         throw std::runtime_error("Unknown leg_winding_version: " + std::string{version});
-    if (control_profile != kV6PolicyProfile.name)
+    if (!root_drive_profile(control_profile))
         throw std::runtime_error(
             std::string{version} + " requires the continuous root-drive v6 profile");
     return version == "paired_branch107_v1" ? LegTargetWinding::kPairedBranch107
@@ -44,9 +44,9 @@ inline LegTargetWinding
 }
 
 inline void validate_leg_target_model_spec(
-    LegTargetWinding version, std::string_view model_spec_sha256, std::string_view origin) {
-    if (version == LegTargetWinding::kPairedBranch107
-        && model_spec_sha256 != kBranch107ModelSpecSha256)
+    LegTargetWinding version, std::string_view model_spec_sha256, std::string_view origin,
+    std::string_view expected_spec_sha256 = kBranch107ModelSpecSha256) {
+    if (version == LegTargetWinding::kPairedBranch107 && model_spec_sha256 != expected_spec_sha256)
         throw std::runtime_error(
             std::string{origin} + " model_spec_sha256 must match paired_branch107_v1");
 }

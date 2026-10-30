@@ -5,6 +5,7 @@
 #include <cmath>
 #include <limits>
 
+#include "full_vehicle_v202.hpp"
 #include "gas_spring_model.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -19,7 +20,8 @@ struct GasSpringCompensation {
 // Inputs and efforts are in the four active model coordinates. The knee-drive
 // angle is not the passive knee hinge angle. Calibration/reversal belongs to
 // the caller: tau_api = J_motor_to_model^T * tau_model.
-inline GasSpringCompensation gas_spring_compensation(const std::array<double, 4>& q, double gain) {
+inline GasSpringCompensation gas_spring_compensation(
+    const std::array<double, 4>& q, double gain, bool full_vehicle = false) {
     GasSpringCompensation result;
     if (!std::ranges::all_of(q, [](double value) { return std::isfinite(value); })
         || !std::isfinite(gain) || gain < 0.0 || gain > 1.0) {
@@ -27,7 +29,9 @@ inline GasSpringCompensation gas_spring_compensation(const std::array<double, 4>
         return result;
     }
     for (std::size_t side = 0; side < 2; ++side) {
-        const auto& geometry = side == 0 ? gas_spring_model::kLeft : gas_spring_model::kRight;
+        const auto& geometry =
+            full_vehicle ? (side == 0 ? full_vehicle_v202::kLeft : full_vehicle_v202::kRight)
+                         : (side == 0 ? gas_spring_model::kLeft : gas_spring_model::kRight);
         const double delta = side == 0 ? q[1] - q[0] : q[2] - q[3];
         if (delta < geometry.front().delta_rad || delta > geometry.back().delta_rad) {
             result.beta_deg[side] = std::numeric_limits<double>::quiet_NaN();
@@ -42,7 +46,7 @@ inline GasSpringCompensation gas_spring_compensation(const std::array<double, 4>
         const double u = (delta - low.delta_rad) / (high.delta_rad - low.delta_rad);
         const double beta = std::lerp(low.beta_deg, high.beta_deg, u);
         const double compression = std::lerp(low.compression_m, high.compression_m, u);
-        const auto& curve = gas_spring_model::kForce;
+        const auto& curve = full_vehicle ? full_vehicle_v202::kForce : gas_spring_model::kForce;
         const double s =
             std::clamp(compression, curve.front().compression_m, curve.back().compression_m);
         auto force_upper =
@@ -62,11 +66,13 @@ inline GasSpringCompensation gas_spring_compensation(const std::array<double, 4>
         if (low_extension)
             force = curve.front().force_n
                   * std::exp(
-                        gas_spring_model::kLowCompressionRate
+                        (full_vehicle ? full_vehicle_v202::kLowCompressionRate
+                                      : gas_spring_model::kLowCompressionRate)
                         * (compression - curve.front().compression_m));
         if (high_extension)
             force = curve.back().force_n
-                  + gas_spring_model::kHighCompressionSlope
+                  + (full_vehicle ? full_vehicle_v202::kHighCompressionSlope
+                                  : gas_spring_model::kHighCompressionSlope)
                         * (compression - curve.back().compression_m);
         const double weight = gain;
         result.beta_deg[side] = beta;

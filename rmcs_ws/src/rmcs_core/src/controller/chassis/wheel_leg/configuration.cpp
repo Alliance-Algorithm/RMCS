@@ -147,6 +147,13 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     imu_alignment_ready_ = get_parameter_or("imu_alignment_ready", false);
     auto_enter_rl_ = get_parameter_or("auto_enter_rl", false);
     unified_full_rl_ = get_parameter_or("unified_full_rl", false);
+    const auto observation_version =
+        get_parameter_or<std::string>("observation_version", "standing_reference_v3");
+    if (observation_version == "wheel-leg-prone-motion-v4" && unified_full_rl_)
+        unified_observation_.use_local_standing_v4();
+    else if (observation_version != "standing_reference_v3")
+        throw std::runtime_error(
+            "Unsupported wheel-leg observation_version: " + observation_version);
     gas_spring_compensation_enabled_ = get_parameter_or("gas_spring_compensation_enabled", false);
     gas_spring_compensation_gain_ = get_parameter_or("gas_spring_compensation_gain", 1.0);
     if (!std::isfinite(gas_spring_compensation_gain_) || gas_spring_compensation_gain_ < 0.0
@@ -156,17 +163,22 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         "control_profile", std::string{DeployedPolicyContract::kName});
     if (profile_name == kV6PolicyProfile.name)
         policy_profile_ = kV6PolicyProfile;
+    else if (profile_name == kFullVehicleV202PolicyProfile.name)
+        policy_profile_ = kFullVehicleV202PolicyProfile;
     else if (profile_name == kV5PolicyProfile.name)
         policy_profile_ = kV5PolicyProfile;
     else
         throw std::runtime_error("Unknown wheel-leg control profile: " + profile_name);
 
     policy_profile_.forward_limit = get_parameter_or("vx_max", policy_profile_.forward_limit);
+    policy_profile_.wheel_kp = get_parameter_or("wheel_velocity_kp", policy_profile_.wheel_kp);
+    policy_profile_.height_min = get_parameter_or("height_min", policy_profile_.height_min);
+    policy_profile_.height_max = get_parameter_or("height_max", policy_profile_.height_max);
     policy_profile_.positive_yaw_limit =
         get_parameter_or("yaw_rate_max", policy_profile_.positive_yaw_limit);
     // V6 uses symmetric yaw commands; retain the legacy reverse-spin envelope.
     policy_profile_.negative_yaw_limit =
-        policy_profile_.name == kV6PolicyProfile.name
+        root_drive_profile(policy_profile_.name)
             ? policy_profile_.positive_yaw_limit
             : std::min(policy_profile_.negative_yaw_limit, policy_profile_.positive_yaw_limit);
     leg_target_winding_ = parse_leg_target_winding(
@@ -177,7 +189,7 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     heading_hold_yaw_rate_max_ =
         get_parameter_or("heading_hold_yaw_rate_max", 2.0 * std::numbers::pi);
 
-    strict_feedback_ = policy_profile_.name == kV6PolicyProfile.name;
+    strict_feedback_ = root_drive_profile(policy_profile_.name);
     FeedbackSensorGuardConfig sensor_config;
     sensor_config.motor_age_seconds = get_parameter_or("feedback_motor_age_s", 0.02);
     sensor_config.imu_age_seconds = get_parameter_or("feedback_imu_age_s", 0.02);
@@ -190,6 +202,9 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     pd_frequency_ = get_parameter_or("pd_frequency", DeployedPolicyContract::kControlFrequencyHz);
     const std::array parameters{
         policy_profile_.forward_limit,
+        policy_profile_.wheel_kp,
+        policy_profile_.height_min,
+        policy_profile_.height_max,
         policy_profile_.negative_yaw_limit,
         policy_profile_.positive_yaw_limit,
         pd_frequency_,
@@ -201,6 +216,8 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     };
     if (!std::ranges::all_of(parameters, [](double value) { return std::isfinite(value); })
         || policy_profile_.forward_limit <= 0 || policy_profile_.negative_yaw_limit <= 0
+        || policy_profile_.wheel_kp <= 0 || policy_profile_.height_min <= 0
+        || policy_profile_.height_min > policy_profile_.height_max
         || policy_profile_.positive_yaw_limit <= 0
         || pd_frequency_ < DeployedPolicyContract::kControlFrequencyHz || pd_frequency_ > 1000.0
         || std::fmod(pd_frequency_, DeployedPolicyContract::kControlFrequencyHz) != 0.0

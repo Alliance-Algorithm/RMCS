@@ -1,0 +1,46 @@
+Note: Google Test filter = UnifiedPolicyIntegration.NeutralPrepareDirectInvertedAndSideEntryResetAndStaleFeedback
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from UnifiedPolicyIntegration
+[ RUN      ] UnifiedPolicyIntegration.NeutralPrepareDirectInvertedAndSideEntryResetAndStaleFeedback
+Coherent full-RL frames=63, serialization max=0, applied-history max=0
+[       OK ] UnifiedPolicyIntegration.NeutralPrepareDirectInvertedAndSideEntryResetAndStaleFeedback (891 ms)
+[----------] 1 test from UnifiedPolicyIntegration (891 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (891 ms total)
+[  PASSED  ] 1 test.
+[INFO] [1793362955.182377273] [rl_bridge]: observation layout (obs_size=35):
+[INFO] [1793362955.182428942] [rl_bridge]:   [0:35) frame  scale=1 <- /wheel_leg/rl/input/frame (std::vector<double>)
+[INFO] [1793362955.182434367] [rl_bridge]: action layout (action_size=6):
+[INFO] [1793362955.182437860] [rl_bridge]:   #0 /wheel_leg/rl/target/left_hip_joint -> /wheel_leg/rl/target/left_hip_joint scale=0.25
+[INFO] [1793362955.182440696] [rl_bridge]:   #1 /wheel_leg/rl/target/left_knee_joint -> /wheel_leg/rl/target/left_knee_joint scale=0.25
+[INFO] [1793362955.182443964] [rl_bridge]:   #2 /wheel_leg/rl/target/right_hip_joint -> /wheel_leg/rl/target/right_hip_joint scale=0.25
+[INFO] [1793362955.182446739] [rl_bridge]:   #3 /wheel_leg/rl/target/right_knee_joint -> /wheel_leg/rl/target/right_knee_joint scale=0.25
+[INFO] [1793362955.182449759] [rl_bridge]:   #4 /wheel_leg/rl/target/left_wheel -> /wheel_leg/rl/target/left_wheel scale=10
+[INFO] [1793362955.182452090] [rl_bridge]:   #5 /wheel_leg/rl/target/right_wheel -> /wheel_leg/rl/target/right_wheel scale=10
+[INFO] [1793362955.182453976] [rl_bridge]: contract: obs_size=35 action_size=6 policy_rate=100.000 Hz
+[INFO] [1793362955.182457201] [rl_bridge]: in-process policy worker: model=/workspaces/RMCS/reports/wheel_leg_prone_motion_v4/synthetic_normalization_fixture.onnx, obs=35, action=6
+[INFO] [1793362955.183165466] [rmcs_executor]: Calculating component dependencies
+[INFO] [1793362955.183175090] [rmcs_executor]: - predefined_msg_provider
+[INFO] [1793362955.183178005] [rmcs_executor]: - snapshots
+[INFO] [1793362955.183180386] [rmcs_executor]: -     rl_bridge_actions
+[INFO] [1793362955.183182868] [rmcs_executor]: -         wheel_leg_controller
+[INFO] [1793362955.183184717] [rmcs_executor]: -             rl_bridge
+[INFO] [1793362955.183188156] [rmcs_executor]: -     observe
+[INFO] [1793362955.183190409] [rmcs_executor]: -     value_broadcaster
+[INFO] [1793362955.183217444] [wheel_leg_controller]: Joint PD backend: host torque, Kp 160.0, Kd 2.5
+[INFO] [1793362955.183223902] [wheel_leg_controller]: Gas-spring compensation enabled: gain 1.00, full soft-limit coverage, model 69d9afbbf32f8835214c5a191d32a6576872b3578ed9a4c2b4cdd099f022c9f1
+[INFO] [1793362955.183226910] [wheel_leg_controller]: Heading hold disabled: P 5.00 1/s, correction limit 10.47 rad/s at policy rate
+[INFO] [1793362955.250333223] [rl_bridge]: valid=1 (obs_seq=1 action_age=0.0010 s)
+[WARN] [1793362955.254350374] [rl_bridge]: valid=0: no inference result available
+[INFO] [1793362955.256329843] [rl_bridge]: valid=1 (obs_seq=2 action_age=0.0010 s)
+[WARN] [1793362955.649327156] [rl_bridge]: valid=0: no inference result available
+[INFO] [1793362955.651329570] [rl_bridge]: valid=1 (obs_seq=38 action_age=0.0010 s)
+[WARN] [1793362955.750327025] [rl_bridge]: valid=0: no inference result available
+[INFO] [1793362955.756325240] [rl_bridge]: valid=1 (obs_seq=48 action_age=0.0010 s)
+[ERROR] [1793362955.899331170] [wheel_leg_controller]: RL stopped at /workspaces/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp:318: invalid command, calibration or feedback, state=3 feedback_fresh=1 feedback_valid=0 sensor_valid=0 sensor_issue=3 mask=0x7f age_ms[motor,imu,accel]=[40.039,40.039,40.039] hinge=[1.5500,-0.2500] dq_max[leg,wheel]=[300.000,0.000]
+[WARN] [1793362955.900330674] [rl_bridge]: valid=0: disabled by enable interface
+[INFO] [1793362955.961331054] [rl_bridge]: valid=1 (obs_seq=63 action_age=0.0010 s)
+[WARN] [1793362956.045420764] [rl_bridge]: valid=0: inference result is stale
+[ERROR] [1793362956.045491368] [wheel_leg_controller]: RL stopped at /workspaces/RMCS/rmcs_ws/src/rmcs_core/src/controller/chassis/wheel_leg/wheel_leg_controller.cpp:340: policy action invalid or expired, state=3 feedback_fresh=1 feedback_valid=1 sensor_valid=1 sensor_issue=0 mask=0x00 age_ms[motor,imu,accel]=[0.090,0.090,0.090] hinge=[1.5500,-0.2500] dq_max[leg,wheel]=[300.000,0.000]

@@ -25,9 +25,9 @@ bool WheelLegController::read_model_state_() {
         }
     }
     if (strict_feedback_) {
-        const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                Clock::now().time_since_epoch())
-                                .count();
+        const auto now_ns =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch())
+                .count();
         std::array<FeedbackSampleStamp, 8> samples{};
         for (std::size_t i = 0; i < 6; ++i)
             if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
@@ -38,8 +38,8 @@ bool WheelLegController::read_model_state_() {
             samples[7] = {*acceleration_sequence_, *acceleration_ns_};
         sensor_status_ =
             sensor_guard_.update(now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : 0, samples);
-        const bool awaiting_initial_drives = state_ != State::kRl
-                                          && (!dm_control_ready_.ready() || !*dm_control_ready_);
+        const bool awaiting_initial_drives =
+            state_ != State::kRl && (!dm_control_ready_.ready() || !*dm_control_ready_);
         if (!sensor_status_.valid && !awaiting_initial_drives)
             return feedback_valid_ = false;
     }
@@ -101,11 +101,10 @@ void WheelLegController::update_command_reference_() {
         desired_yaw, -policy_profile_.negative_yaw_limit, policy_profile_.positive_yaw_limit);
     *heading_limited_rate_output_ = desired_yaw;
     // Match training: commands reach the actor on the next policy tick.
-    vx_reference_ = spinning
-                      ? 0.0
-                      : std::clamp(
-                            requested_vx, -policy_profile_.forward_limit,
-                            policy_profile_.forward_limit);
+    vx_reference_ =
+        spinning ? 0.0
+                 : std::clamp(
+                       requested_vx, -policy_profile_.forward_limit, policy_profile_.forward_limit);
     yaw_reference_ = desired_yaw;
 }
 
@@ -114,8 +113,8 @@ bool WheelLegController::assemble_observation_() {
         || !velocity_command_->vector.allFinite())
         return false;
     update_command_reference_();
-    const double requested_height = std::clamp(
-        *height_command_, policy_profile_.height_min, policy_profile_.height_max);
+    const double requested_height =
+        std::clamp(*height_command_, policy_profile_.height_min, policy_profile_.height_max);
     if (height_command_is_reference_) {
         // The chassis integrates the height input. Follow its continuous reference.
         const double max_step = height_reference_rate_max_ / inference_frequency_;
@@ -150,7 +149,7 @@ bool WheelLegController::publish_unified_observation_() {
         velocity[i] = dq_[i];
     }
     if (!policy_targets_valid_)
-        applied_policy_action_ = measured_policy_history(position);
+        applied_policy_action_ = measured_policy_history(position, policy_profile_);
     const Eigen::Vector3d omega = *gyro_;
     const Eigen::Vector3d gravity =
         world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();

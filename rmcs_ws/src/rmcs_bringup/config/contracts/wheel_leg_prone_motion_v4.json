@@ -1,0 +1,174 @@
+{
+  "schema": "rmcs-prone-motion-deployment-code-v1",
+  "training_code_version": "wheel-leg-prone-motion-v4",
+  "training_commit": "fd73050348e0b20a529e7f93b4044582d5d46e1c",
+  "source_sha256": {
+    "contracts/wheel_leg_prone_motion_v4.json": "edf820720e51be460481398befbabf4fede3896e871f8d94d578c729ce0df582",
+    "contracts/wheel_leg_prone_motion_control_100hz_v1.json": "679f972b201ed639e28fa9b8babbd3fecd3fc2fc3206bfc3ca973558a6033ed7",
+    "contracts/standing_geometry107_v1.json": "7b313c807aefe51058567b1b2b8ce5300be85ccc8d9ec091d0aa7ae1708b9216",
+    "src/wheeled_tasks/chassis/standing_local_odometry.py": "844110c2a2a9e29e03e2a662f07e19646ab78abe6951c72da1df9c2e2f1d3ae2",
+    "src/wheeled_tasks/chassis/standing_sensor_uncertainty.py": "37fd7efd29483e20e5de457f106d5c2b48d99be2e01325de781cdd4c695d2cc2",
+    "src/wheeled_algo/encoder_leg_geometry.py": "e20380b4b2a0124d2aa3a256b01b3cafbb454b4881bc6c413825cf16a2386e60",
+    "src/wheeled_algo/standing_displacement.py": "2ea38ea52067b3aef34df7906b0fb5b16d0bb4688535174fa1ad37a11629872c",
+    "src/wheeled_algo/rolling_velocity.py": "dfb4889af2bf73f38b5e9590fcf0ccb16d0c98caffcd777225ba7afc5676e65d",
+    "src/wheeled_tasks/chassis/scut_observation.py": "fbb3980fb75bd947fb4121892fe5a22d8f3c0d002e5ef3e9d637a12921c7e2b5",
+    "src/wheeled_tasks/chassis/v5_control.py": "141e21d88513e5f8cccdb6cdbf19abcd66f433c6e0ccb3cd7e93d5afc0c7c7fe",
+    "scripts/train_prone_motion.py": "2219e25944ca8f07ab0d6d54ce5186539a513ea77a1dcce34111e5b4a8782e80",
+    "src/wheeled_algo/scratch_standing.py": "6b886b410e94e13c9412c531e796beac33ace867ad57194f4b60b72016af145d",
+    "src/wheeled_algo/paired_recovery.py": "3c45173dbe3a90c34434f84a7489368f022b84cc97657dd4decc4d7cc888ae90",
+    "src/wheeled_tasks/chassis/paired_leg_targets.py": "7d711b122cdedfd0c42e384546921a9e181dc99f05c0a039eb441caa2d794ba4",
+    "src/wheeled_tasks/chassis/full_vehicle_training.py": "dd8872308ca31068079260ca116746924e79a2d1f433a0959916517550ecac13",
+    "src/wheeled_tasks/chassis/gas_spring_compensation.py": "337eea09412ca59e3bd256133e7ffc13ee8cb4840d88f952f9671c1ff835b2d9",
+    "model/wheel_leg_v2.0.2/training/encoder_geometry.json": "96d656672cade2cfc07c80f2f427b8f6ff5aae70aa2c0e35fcaab738f9805dd6",
+    "model/wheel_leg_v2.0.2/training/model_spec.json": "7f62e0b47546a047219c078bdaa44fc2d82553af04b36b72ec1a94be29a22e18",
+    "model/wheel_leg_v2.0.2/training/manifest.json": "58e1e3874f1ed21609f61cf28c48d7ee6b9716f76661a73dc337ef2aa0fb3295",
+    "model/wheel_leg_v2.0.2/training/recipe.json": "038ae83a0cdf3b638644bdffdffa0fe652c7dcf26da67f72ef8d9466d5fe127c",
+    "model/wheel_leg_v2.0.2/training/gas_spring_model.json": "69d9afbbf32f8835214c5a191d32a6576872b3578ed9a4c2b4cdd099f022c9f1",
+    "model/wheel_leg_v2.0.2/training/gimbal_motion.json": "04ca3c88e63b7c30061505f790609f75e781378c0aa0c648620a6ff604cd7e6b",
+    "model/wheel_leg_v2.0.2/training/wheel_model.json": "f89af15231f944c15b4b988bd3bf77ad85c42f2fa27c2dfc970c1f8c7246346e",
+    "model/wheel_leg_v2.0.2/training/mechanism.json": "1c8ee2a8b65fc55ad7c4a3f825a6ba281142c59e9d272c8f4003e656ab60aae5",
+    "model/wheel_leg_v2.0.2/training/pose_bank.json": "21b55479e743d2090eb984b7cdad3df56ba41a0982a47a7ad504a28c8363c7ff"
+  },
+  "observation": {
+    "schema": "wheel-leg-local-standing-odometry-v1",
+    "actor_dim": 35,
+    "displacement_slots": [
+      14,
+      15
+    ],
+    "validity_slot": 31,
+    "scale_per_m": 20.0,
+    "limit_m": 1.0,
+    "filter_seconds": 0.05,
+    "capture_seconds": 0.2,
+    "command_threshold": [
+      0.001,
+      0.001,
+      0.001
+    ],
+    "capture_gyro_max_rad_s": 0.5,
+    "capture_leg_speed_max_rad_s": 3.0,
+    "capture_wheel_speed_max_rad_s": 2.5,
+    "minimum_encoder_stance_height_m": 0.2,
+    "upright_gravity_z_max": -0.9659258262890683,
+    "severe_gravity_z": -0.5,
+    "wheel_increment_margin_rad": 0.02,
+    "wheel_increment_speed_allowance": 3.0,
+    "geometry_table_sha256": "96d656672cade2cfc07c80f2f427b8f6ff5aae70aa2c0e35fcaab738f9805dd6",
+    "source": "same_policy_encoder_IMU_stream_after_sensor_delay_and_noise",
+    "wheel_input": "driver_continuous_output_shaft_angles; subtract_float64_request_origin_before_float32",
+    "reference": "capture_once_after_contiguous_sensor_standing; preserve_during_height_change_and_drift",
+    "reset": "episode_or_disabled_or_motion_request_or_severe_tilt",
+    "invalid": "zero_features_and_validity; retain_reference; wheel_jump_fault_until_next_request",
+    "control_outputs": false,
+    "privileged_position_or_contact": false,
+    "geometry_model_spec_sha256": "7f62e0b47546a047219c078bdaa44fc2d82553af04b36b72ec1a94be29a22e18",
+    "geometry_file": "model/wheel_leg_v2.0.2/training/encoder_geometry.json"
+  },
+  "observation_contract_sha256": "6062baf37967d853446a95317aae4a0b315c4267da7387ab7ae020f37a021e35",
+  "timing": {
+    "physics_dt": 0.001,
+    "policy_dt": 0.01,
+    "pc_control_dt": 0.001,
+    "decimation": 10
+  },
+  "model_spec_sha256": "7f62e0b47546a047219c078bdaa44fc2d82553af04b36b72ec1a94be29a22e18",
+  "leg_winding_version": "paired_branch107_v1",
+  "control_profile": "full_vehicle_v202",
+  "nominal_policy_position": [
+    -0.42,
+    0.13722330866417465,
+    0.42,
+    -0.13721605817245947,
+    0.0,
+    0.0
+  ],
+  "full_vehicle": {
+    "recipe": {
+      "file": "model/wheel_leg_v2.0.2/training/recipe.json",
+      "sha256": "038ae83a0cdf3b638644bdffdffa0fe652c7dcf26da67f72ef8d9466d5fe127c"
+    },
+    "asset_manifest_sha256": "58e1e3874f1ed21609f61cf28c48d7ee6b9716f76661a73dc337ef2aa0fb3295",
+    "mass_kg": 21.44174,
+    "gimbal_mode": "independent_servo",
+    "gimbal_policy_outputs": false
+  },
+  "action_order": [
+    "left_hip_joint",
+    "left_knee_joint",
+    "right_hip_joint",
+    "right_knee_joint",
+    "left_wheel",
+    "right_wheel"
+  ],
+  "action_scale": [
+    0.25,
+    0.25,
+    0.25,
+    0.25,
+    10.0,
+    10.0
+  ],
+  "raw_action_limit": [
+    16.0,
+    16.0,
+    16.0,
+    16.0,
+    9.0,
+    9.0
+  ],
+  "actuators": {
+    "leg": {
+      "model": "DM-J8009-2EC",
+      "kp": 160.0,
+      "kd": 2.5,
+      "effort_limit": 40.0,
+      "armature": 0.0,
+      "source_note": "Selected recorded PC PD; MIT gains zero. No identified drive response or torque-speed envelope; engine armature is an explicit unfit prior."
+    },
+    "wheel": {
+      "model": "M3508",
+      "gear_ratio": 15.62,
+      "gearbox_efficiency": 1.0,
+      "kd": 0.5,
+      "armature": 0.0,
+      "effort_limit": 4.5,
+      "curve_side": "wheel_output",
+      "curve_kind": "software_cap_only_not_identified",
+      "torque_reference": "wheel_output",
+      "scope": "new_gearbox_airborne_identified_candidate",
+      "source_note": "Both new-gearbox CSVs use 24V, full ratio15.62, output velocity P0.5 and software cap4.5Nm. Wheel-specific inertia/loss/aggregate delay and measured no-load ceilings are bound by identified_wheel_response. Rolloff shape at high loaded torque remains a prior; no second ratio multiplication."
+    }
+  },
+  "gas_spring": {
+    "enabled": true,
+    "model_file": "model/wheel_leg_v2.0.2/training/gas_spring_model.json",
+    "model_sha256": "69d9afbbf32f8835214c5a191d32a6576872b3578ed9a4c2b4cdd099f022c9f1",
+    "gain": 1.0,
+    "force_extrapolation": "positive_c1_endpoint_trend_v1",
+    "physical_curve_outside_geometry": "hold_geometry_endpoint",
+    "relative_soft_limits": {
+      "minimum": -0.140638855,
+      "maximum": 1.3889088544,
+      "margin": 0.03,
+      "projection": "outward_relative_torque_v1"
+    }
+  },
+  "commands": {
+    "forward_m_s": 2.0,
+    "yaw_rad_s": 10.471975511965978,
+    "height_m": [
+      0.23,
+      0.42
+    ]
+  },
+  "normalization": {
+    "mode": "embedded",
+    "metadata_key": "rmcs_obs_normalization",
+    "frozen_training_statistics": true,
+    "expression": "RSL-RL eval normalizer before MLP; no second external standardization"
+  },
+  "artifact_bound": false,
+  "behavior_qualified": false,
+  "hardware_tested": false
+}
