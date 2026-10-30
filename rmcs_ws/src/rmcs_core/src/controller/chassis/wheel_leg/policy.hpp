@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 
+#include "full_vehicle_v202.hpp"
+
 namespace rmcs_core::controller::chassis {
 
 // V6 observation and actuator conventions shared by compatible ONNX actors.
@@ -75,6 +77,23 @@ inline constexpr PolicyProfile kV5PolicyProfile{
     3.0,
     1.05,
     12.566370614359172 + 1e-3};
+
+inline constexpr PolicyProfile kFullVehicleV202PolicyProfile{
+    "full_vehicle_v202",
+    full_vehicle_v202::kNominalPosition,
+    160.0,
+    2.5,
+    .5,
+    4.5,
+    .23,
+    .42,
+    2.0,
+    10.471975511965978,
+    10.471975511965978};
+
+inline constexpr bool root_drive_profile(std::string_view name) {
+    return name == kV6PolicyProfile.name || name == kFullVehicleV202PolicyProfile.name;
+}
 
 // Six physical actuators; observation shape and actor channel order come from YAML.
 using PolicyAction = std::array<float, 6>;

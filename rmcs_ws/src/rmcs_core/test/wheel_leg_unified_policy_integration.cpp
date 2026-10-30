@@ -278,8 +278,8 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
         return !path.starts_with("/wheel_leg/rl/observation/frame/");
     });
     ASSERT_EQ(forward_list.size(), 4u);
-    ASSERT_TRUE(
-        broadcaster_node->set_parameter(rclcpp::Parameter{"forward_list", forward_list}).successful);
+    ASSERT_TRUE(broadcaster_node->set_parameter(rclcpp::Parameter{"forward_list", forward_list})
+                    .successful);
     {
         rmcs_executor::Executor executor{"rmcs_executor", ros};
         executor.add_component(sensors);
@@ -359,7 +359,11 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
     auto q = kV6PolicyProfile.nominal;
     for (int i = 0; i < 4; ++i)
         q[i] += i < 2 ? .2 : -.3;
-    const auto passive = measured_policy_history(q);
+    const auto& profile = controller->get_parameter("control_profile").as_string()
+                               == kFullVehicleV202PolicyProfile.name
+                            ? kFullVehicleV202PolicyProfile
+                            : kV6PolicyProfile;
+    const auto passive = measured_policy_history(q, profile);
     for (std::size_t i = 0; i < 6; ++i)
         EXPECT_NEAR(observe->first_frame[22 + i], passive[i], 2e-6);
     EXPECT_LT(observe->serialization_error, 1e-9);

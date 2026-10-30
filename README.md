@@ -95,8 +95,11 @@ launch-rmcs
 
 在本机上运行代码。在首次运行代码前，需要调用 `set-robot` 脚本设置机器人类型。
 
-轮腿新自起模型使用 `wheel-leg-infantry-unified-rl` 配置（200 Hz 策略、
-1000 Hz host PD）；原 `wheel-leg-infantry-rl` 配置保留旧模型。
+最新轮腿整车 v2.0.2 训练代码使用 `wheel-leg-infantry-rl` 配置（100 Hz 策略、
+1000 Hz host PD，35 维观测中的 14/15 为轮式静站位移、31 为有效位）。
+该配置要求按最新训练合同导出的模型，保留训练归一化。
+代码同步和离线核对见 [轮腿训练 v4 部署](docs/zh-cn/wheel_leg_prone_motion_v4.md)。
+`wheel-leg-infantry-unified-rl` 保留原 200 Hz 自起候选的配置。
 模型、观测与离线验证说明见 [RL 部署整合](docs/zh-cn/rl_deployment_refactor.md)。
 
 #### 确认设备接入

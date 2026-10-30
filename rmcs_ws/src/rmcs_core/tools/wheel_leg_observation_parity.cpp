@@ -6,9 +6,11 @@
 #include <iostream>
 #include <string>
 
-int main() {
+int main(int argc, char** argv) {
     using namespace rmcs_core::controller::chassis;
-    UnifiedObservation observer;
+    if (argc > 2 || (argc == 2 && std::string{argv[1]} != "--prone-motion-v4"))
+        return 2;
+    UnifiedObservation observer{argc == 2};
     std::uint64_t tick;
     int reset, enabled;
     std::cout << std::setprecision(17);
@@ -46,7 +48,8 @@ int main() {
         std::cout << '1';
         for (double v : *frame)
             std::cout << ' ' << v;
-        for (double v : measured_policy_history(q))
+        for (double v : measured_policy_history(
+                 q, argc == 2 ? kFullVehicleV202PolicyProfile : kV6PolicyProfile))
             std::cout << ' ' << v;
         std::cout << '\n';
     }

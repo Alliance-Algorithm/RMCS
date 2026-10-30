@@ -122,4 +122,141 @@ TEST(UnifiedObservation, PassiveHistoryPreservesTheMeasuredPairedBranch) {
     EXPECT_EQ(history[4], 0);
     EXPECT_EQ(history[5], 0);
 }
+
+class ProneMotionObservation : public testing::Test {
+protected:
+    auto sample(std::uint64_t tick, bool enabled = true) {
+        return observer.sample(tick, q, velocity, gyro, gravity, command, height, zero, enabled);
+    }
+
+    void capture(std::uint64_t tick = 0) {
+        for (std::uint64_t i = 0; i < 20; ++i) {
+            const auto frame = sample(tick + i);
+            ASSERT_TRUE(frame);
+            EXPECT_EQ((*frame)[31], i == 19 ? 1 : 0);
+        }
+    }
+
+    UnifiedObservation observer{true};
+    std::array<double, 6> q = kFullVehicleV202PolicyProfile.nominal, velocity{};
+    std::array<double, 3> gyro{}, gravity = upright, command{};
+    double height = .305;
+};
+
+TEST_F(ProneMotionObservation, CapturesAfterTwentyFramesAndFiltersOnceAt100Hz) {
+    capture();
+    q[4] += .1;
+    q[5] -= .1;
+    velocity[4] = 10;
+    velocity[5] = -10;
+    const auto moved = sample(20);
+    ASSERT_TRUE(moved);
+    EXPECT_EQ((*moved)[31], 1);
+    EXPECT_NEAR((*moved)[14], 20 * .06 * .1 / 6, 3e-6);
+    EXPECT_NEAR((*moved)[15], (*moved)[14], 3e-6);
+    EXPECT_EQ(sample(20), moved);
+}
+
+TEST_F(ProneMotionObservation, DoubleWheelOriginPreservesLongRunningSmallDisplacements) {
+    q[4] = 1e8;
+    q[5] = -1e8;
+    capture();
+    q[4] += .5;
+    q[5] -= .5;
+    velocity[4] = 50;
+    velocity[5] = -50;
+    ASSERT_TRUE(sample(20));
+    velocity = zero;
+    for (std::uint64_t tick = 21; tick <= 100; ++tick)
+        ASSERT_TRUE(sample(tick));
+    EXPECT_NEAR((*sample(100))[14], .6, 4e-5);
+    EXPECT_NEAR((*sample(100))[15], .6, 4e-5);
+}
+
+TEST_F(ProneMotionObservation, JumpFaultLatchesUntilMotionRequestAndDisableClearsReference) {
+    capture();
+    q[4] += 2 * std::numbers::pi / 15.62;
+    for (std::uint64_t tick = 20; tick < 60; ++tick) {
+        const auto frame = sample(tick);
+        ASSERT_TRUE(frame);
+        EXPECT_EQ((*frame)[14], 0);
+        EXPECT_EQ((*frame)[31], 0);
+    }
+    command[1] = .1;
+    ASSERT_TRUE(sample(60));
+    command = {};
+    capture(61);
+    EXPECT_EQ((*sample(81, false))[31], 0);
+    capture(82);
+}
+
+TEST_F(ProneMotionObservation, BadWheelFeedbackDoesNotSilentlyRecapture) {
+    capture();
+    q[4] = std::numeric_limits<double>::quiet_NaN();
+    const auto fault = sample(20);
+    ASSERT_TRUE(fault);
+    EXPECT_EQ((*fault)[31], 0);
+    q[4] = 0;
+    for (std::uint64_t tick = 21; tick < 60; ++tick)
+        EXPECT_EQ((*sample(tick))[31], 0);
+    observer.reset(60);
+    capture(60);
+}
+
+TEST_F(ProneMotionObservation, InvalidImuRetainsReferenceAndSevereTiltRecaptures) {
+    capture();
+    q[4] += .1;
+    velocity[4] = 10;
+    ASSERT_GT((*sample(20))[14], 0);
+    velocity = zero;
+    gravity[0] = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_FALSE(sample(21));
+    gravity = upright;
+    EXPECT_GT((*sample(22))[14], 0);
+    gravity = {0, 0, 1};
+    EXPECT_EQ((*sample(23))[31], 0);
+    gravity = upright;
+    capture(24);
+}
+
+TEST_F(ProneMotionObservation, CaptureRequiresContiguousQuietStanding) {
+    for (std::uint64_t tick = 0; tick < 19; ++tick)
+        EXPECT_EQ((*sample(tick))[31], 0);
+    gyro[2] = .5;
+    EXPECT_EQ((*sample(19))[31], 0);
+    gyro = {};
+    capture(20);
+    observer.reset(40);
+    velocity[0] = 3;
+    for (std::uint64_t tick = 40; tick < 80; ++tick)
+        EXPECT_EQ((*sample(tick))[31], 0);
+    velocity = zero;
+    capture(80);
+}
+
+TEST_F(ProneMotionObservation, PreservesReferenceAcrossHeightCommandsAndOutputSaturation) {
+    capture();
+    velocity[4] = 100;
+    velocity[5] = -100;
+    for (std::uint64_t tick = 20; tick < 320; ++tick) {
+        q[4] += 1;
+        q[5] -= 1;
+        height = tick % 2 ? .23 : .42;
+        ASSERT_EQ((*sample(tick))[31], 1);
+    }
+    EXPECT_NEAR((*sample(320))[14], 20, 2e-5);
+    EXPECT_NEAR((*sample(320))[15], 20, 2e-5);
+    velocity[4] = -100;
+    velocity[5] = 100;
+    for (std::uint64_t tick = 321; tick < 621; ++tick) {
+        q[4] -= 1;
+        q[5] += 1;
+        ASSERT_EQ((*sample(tick))[31], 1);
+    }
+    velocity = zero;
+    for (std::uint64_t tick = 621; tick < 750; ++tick)
+        ASSERT_TRUE(sample(tick));
+    EXPECT_NEAR((*sample(750))[14], 0, 2e-5);
+    EXPECT_NEAR((*sample(750))[15], 0, 2e-5);
+}
 } // namespace
