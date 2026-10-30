@@ -15,6 +15,7 @@
   <class type="rmcs_core::controller::chassis::HeroChassisPowerController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::OmniWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableOmniWheelController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::DeformableSteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::HeroSteeringWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::SteeringWheelStatus" base_class_type="rmcs_executor::Component" />
