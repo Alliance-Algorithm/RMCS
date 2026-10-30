@@ -83,10 +83,13 @@ CLAUDE.md
 # Local wheel-leg documentation, validation and simulation records
 /docs/zh-cn/artifacts/
 /docs/zh-cn/wheel_leg_*.md
+!/docs/zh-cn/wheel_leg_prone_motion_v4.md
 /.script/simulation/
 /.script/tests/
 /.script/identification/test_*.py
 /rmcs_ws/src/rmcs_core/test/*
+!/rmcs_ws/src/rmcs_core/test/fixtures/
+!/rmcs_ws/src/rmcs_core/test/fixtures/wheel_leg_policy_legacy.yaml
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_imu.cpp
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_feedback.cpp
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_gas_spring.cpp

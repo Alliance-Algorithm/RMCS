@@ -38,29 +38,43 @@ void WheelLegController::before_updating() {
         {-action_clip_min_[4], action_clip_max_[4], -action_clip_min_[5], action_clip_max_[5]});
     if (wheel_speed_limit <= 0.0)
         throw std::runtime_error("Wheel action bounds must allow both drive directions");
+    const bool full_vehicle = policy_profile_.name == kFullVehicleV202PolicyProfile.name;
+    const auto expected_spec =
+        full_vehicle ? full_vehicle_v202::kModelSpecSha256 : kBranch107ModelSpecSha256;
     validate_leg_target_model_spec(
-        leg_target_winding_, *policy_model_spec_input_, "Wheel-leg bridge model");
+        leg_target_winding_, *policy_model_spec_input_, "Wheel-leg bridge model", expected_spec);
     if (gas_spring_compensation_enabled_
-        && (policy_profile_.name != kV6PolicyProfile.name
-            || *policy_model_spec_input_ != gas_spring_model::kModelSpecSha256))
+        && (!root_drive_profile(policy_profile_.name)
+            || *policy_model_spec_input_ != expected_spec))
         throw std::runtime_error(
-            "Gas-spring compensation requires the calibrated V7 model specification");
+            "Gas-spring compensation requires its profile's model specification");
     policy_ready_ = true;
     // Executor::start sets /predefined/update_rate AFTER before_updating().
     last_reset_count_ = *reset_count_;
     use_motor_position_pd_ = motor_position_pd_.ready() && *motor_position_pd_;
     if (unified_full_rl_) {
-        if (policy_profile_.name != kV6PolicyProfile.name || heading_hold_enabled_
-            || use_motor_position_pd_ || inference_frequency_ != 200.0 || pd_frequency_ != 1000.0
+        if (!root_drive_profile(policy_profile_.name) || heading_hold_enabled_
+            || full_vehicle != (unified_observation_.policy_hz() == 100.0) || use_motor_position_pd_
+            || inference_frequency_ != unified_observation_.policy_hz() || pd_frequency_ != 1000.0
             || leg_target_winding_ != LegTargetWinding::kPairedBranch107
             || !policy_observation_contract_input_.ready()
-            || *policy_observation_contract_input_ != kStandingObservationContractSha256
+            || *policy_observation_contract_input_ != unified_observation_.contract_sha256()
             || !policy_frame_path_input_.ready()
             || *policy_frame_path_input_ != "/wheel_leg/rl/input/frame"
             || !policy_frame_sequence_path_input_.ready()
             || *policy_frame_sequence_path_input_ != "/wheel_leg/rl/input/frame_sequence")
             throw std::runtime_error(
-                "Unified full RL requires its exact 200Hz observation/frame/host-torque contract");
+                "Unified full RL requires its versioned policy rate, observation/frame and 1000Hz "
+                "host-torque contract");
+        if (unified_observation_.policy_hz() == 100.0
+            && (policy_profile_.wheel_kp != .5 || policy_profile_.height_min != .23
+                || policy_profile_.height_max != .42 || policy_profile_.forward_limit != 2.0
+                || std::abs(
+                       policy_profile_.positive_yaw_limit - 100.0 * 2.0 * std::numbers::pi / 60.0)
+                       > 1e-9
+                || !gas_spring_compensation_enabled_ || gas_spring_compensation_gain_ != 1.0))
+            throw std::runtime_error(
+                "Prone-motion v4 requires its training actuator and command contract");
         for (std::size_t i = 0; i < 6; ++i) {
             const double scale = i < 4 ? .25 : 10.0;
             const double bound = i < 4 ? 4.0 : 90.0;
@@ -69,12 +83,13 @@ void WheelLegController::before_updating() {
                 throw std::runtime_error("Unified full RL requires raw leg16/wheel9 action bounds");
         }
     } else if (
-        policy_observation_contract_input_.ready()
-        && !policy_observation_contract_input_->empty()) {
+        full_vehicle
+        || (policy_observation_contract_input_.ready()
+            && !policy_observation_contract_input_->empty())) {
         throw std::runtime_error("This wheel-leg observation contract requires unified_full_rl");
     }
     if (use_motor_position_pd_) {
-        if (policy_profile_.name != kV6PolicyProfile.name || !motor_position_kp_.ready()
+        if (!root_drive_profile(policy_profile_.name) || !motor_position_kp_.ready()
             || !motor_position_kd_.ready() || *motor_position_kp_ != policy_profile_.leg_kp
             || *motor_position_kd_ != policy_profile_.leg_kd)
             throw std::runtime_error("Motor position PD requires native gains");
@@ -90,7 +105,8 @@ void WheelLegController::before_updating() {
     RCLCPP_INFO(
         get_logger(), "Gas-spring compensation %s: gain %.2f, full soft-limit coverage, model %s",
         gas_spring_compensation_enabled_ ? "enabled" : "disabled", gas_spring_compensation_gain_,
-        gas_spring_model::kModelSha256.data());
+        (full_vehicle ? full_vehicle_v202::kGasModelSha256 : gas_spring_model::kModelSha256)
+            .data());
     if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_)
         RCLCPP_WARN(
             get_logger(),

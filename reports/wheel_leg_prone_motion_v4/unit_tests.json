@@ -1,0 +1,11 @@
+{
+  "cpp_gtest": 51,
+  "python_standing_observer": 18,
+  "status": "passed",
+  "config_selected": "wheel-leg-infantry-rl",
+  "build_command": "build-rmcs --packages-select rmcs_rl rmcs_core rmcs_bringup",
+  "test_command": "colcon test --merge-install --packages-select rmcs_rl rmcs_core --return-code-on-test-failure",
+  "training_source_commit": "fd73050348e0b20a529e7f93b4044582d5d46e1c",
+  "trained_model_tested": false,
+  "hardware_started": false
+}
