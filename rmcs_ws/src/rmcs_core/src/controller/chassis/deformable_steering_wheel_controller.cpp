@@ -59,12 +59,12 @@ public:
         , rod_length_(get_parameter_or("rod_length", 0.140))
         , steering_angle_offset_(get_parameter_or("steering_angle_offset", 0.0))
         , control_acceleration_filter_hz_(get_parameter_or("control_acceleration_filter_hz", 5.0))
-        , radius_rate_limit_(get_parameter_or("radius_rate_limit", 0.25))
+        , energy_clamp_enabled_(get_parameter_or("chassis_energy_clamp", true))
+
         , deform_speed_limit_(get_parameter_or("deform_speed_limit", 0.35))
         , deform_speed_threshold_(get_parameter_or("deform_speed_threshold", 0.004))
         , deform_rate_filter_cutoff_hz_(get_parameter_or("deform_rate_filter_cutoff_hz", 20.0))
-        , steering_angle_velocity_limit_(
-              get_parameter_or("steering_angle_velocity_limit", 10.0))
+        , steering_angle_velocity_limit_(get_parameter_or("steering_angle_velocity_limit", 10.0))
         , steering_aligned_tolerance_(get_parameter_or("steering_aligned_tolerance", 0.06))
         , steering_angle_kp_(get_parameter_or("steering_angle_kp", 12.0))
         , steering_angle_ki_(get_parameter_or("steering_angle_ki", 0.0))
@@ -73,11 +73,12 @@ public:
         , steering_velocity_ki_(get_parameter_or("steering_velocity_ki", 0.0))
         , steering_velocity_kd_(get_parameter_or("steering_velocity_kd", 0.0))
         , steering_torque_limit_(get_parameter_or("steering_torque_limit", 4.0))
-        , translational_velocity_pid_(5.0, 0.0, 1.0)
-        , angular_velocity_pid_(5.0, 0.0, 1.0)
+        , chassis_translational_velocity_pid_(5.0, 0.0, 1.0)
+        , chassis_angular_velocity_pid_(5.0, 0.0, 1.0)
         , wheel_velocity_pid_(0.6, 0.0, 0.0)
         , steering_angle_pid_(steering_angle_kp_, steering_angle_ki_, steering_angle_kd_)
-        , steering_velocity_pid_(steering_velocity_kp_, steering_velocity_ki_, steering_velocity_kd_)
+        , steering_velocity_pid_(
+              steering_velocity_kp_, steering_velocity_ki_, steering_velocity_kd_)
         , control_acceleration_filter_(1.0)
         , module_radial_rate_filter_(1.0)
         , chassis_velocity_expected_(Eigen::Vector3d::Zero())
@@ -114,11 +115,13 @@ public:
         // 变形规划器给出的关节目标角加速度（DeformableSuspension 发布），用于径向加速度前馈。
         // 可选：未就绪或空闲时为 NaN，前馈按 0 处理。
         register_input(
-            "/chassis/left_front_joint/target_physical_acceleration", joint_acceleration_[0], false);
+            "/chassis/left_front_joint/target_physical_acceleration", joint_acceleration_[0],
+            false);
         register_input(
             "/chassis/left_back_joint/target_physical_acceleration", joint_acceleration_[1], false);
         register_input(
-            "/chassis/right_back_joint/target_physical_acceleration", joint_acceleration_[2], false);
+            "/chassis/right_back_joint/target_physical_acceleration", joint_acceleration_[2],
+            false);
         register_input(
             "/chassis/right_front_joint/target_physical_acceleration", joint_acceleration_[3],
             false);
@@ -126,12 +129,15 @@ public:
         register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, false);
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
-        register_input("/chassis/radius", chassis_radius_, false);
 
-        register_output("/chassis/left_front_steering/control_torque", steering_control_torque_[0], 0.0);
-        register_output("/chassis/left_back_steering/control_torque", steering_control_torque_[1], 0.0);
-        register_output("/chassis/right_back_steering/control_torque", steering_control_torque_[2], 0.0);
-        register_output("/chassis/right_front_steering/control_torque", steering_control_torque_[3], 0.0);
+        register_output(
+            "/chassis/left_front_steering/control_torque", steering_control_torque_[0], 0.0);
+        register_output(
+            "/chassis/left_back_steering/control_torque", steering_control_torque_[1], 0.0);
+        register_output(
+            "/chassis/right_back_steering/control_torque", steering_control_torque_[2], 0.0);
+        register_output(
+            "/chassis/right_front_steering/control_torque", steering_control_torque_[3], 0.0);
 
         register_output("/chassis/left_front_wheel/control_torque", wheel_control_torque_[0], 0.0);
         register_output("/chassis/left_back_wheel/control_torque", wheel_control_torque_[1], 0.0);
@@ -139,7 +145,6 @@ public:
         register_output("/chassis/right_front_wheel/control_torque", wheel_control_torque_[3], 0.0);
 
         register_output("/chassis/steering_aligned", steering_aligned_, false);
-        register_output("/chassis/deform/rate", deform_rate_, 0.0);
         register_output("/chassis/deform/active", deform_active_, false);
 
         steering_angle_pid_.output_min.setConstant(-steering_angle_velocity_limit_);
@@ -153,14 +158,11 @@ public:
     void before_updating() override {
         if (!chassis_yaw_velocity_imu_.ready()) {
             chassis_yaw_velocity_imu_.make_and_bind_directly(0.0);
-            RCLCPP_WARN(
-                get_logger(), "Failed to fetch \"/chassis/yaw/velocity_imu\". Set to 0.0.");
+            RCLCPP_WARN(get_logger(), "Failed to fetch \"/chassis/yaw/velocity_imu\". Set to 0.0.");
         }
         for (auto& input : joint_acceleration_)
             if (!input.ready())
                 input.make_and_bind_directly(nan_);
-        if (!chassis_radius_.ready())
-            chassis_radius_.make_and_bind_directly(nan_);
 
         if (!update_rate_.ready() || !std::isfinite(*update_rate_) || *update_rate_ <= 1e-6)
             update_rate_hz_ = 1000.0;
@@ -171,8 +173,8 @@ public:
         module_radial_rate_filter_.set_cutoff(deform_rate_filter_cutoff_hz_, update_rate_hz_);
 
         RCLCPP_INFO(
-            get_logger(), "Deformable steering chassis: mass %.2f kg, wheel radius %.3f m",
-            mass_, wheel_radius_);
+            get_logger(), "Deformable steering chassis: mass %.2f kg, wheel radius %.3f m", mass_,
+            wheel_radius_);
     }
 
     void update() override {
@@ -192,39 +194,42 @@ public:
         }
 
         const auto wheel_velocities = calculate_wheel_velocities();
+        const auto measured_velocity =
+            calculate_chassis_velocity(steering_status, wheel_velocities);
 
         // ---- 规划器：期望速度 → 加速度指令 → 限幅 → 低通 → 积分 ----
         integral_yaw_angle_imu(dt);
-        const auto chassis_status_expected = calculate_chassis_status_expected();
+        const auto chassis_status_expected = calculate_chassis_status_expected(measured_velocity);
 
         auto chassis_control_velocity = chassis_control_velocity_->vector;
-        if (*deform_active_)
+        if (deform_active_state_)
             chassis_control_velocity.head<2>() =
                 clamp_norm(chassis_control_velocity.head<2>(), deform_speed_limit_);
 
         auto chassis_acceleration = calculate_chassis_control_acceleration(
             chassis_status_expected.velocity, chassis_control_velocity);
 
-        double available_power = *power_limit_ - no_load_power_
-                               - k2_ * wheel_velocities.array().pow(2).sum();
+        double available_power =
+            *power_limit_ - no_load_power_ - k2_ * wheel_velocities.array().pow(2).sum();
 
-        const auto wheel_pid_torques = calculate_wheel_pid_torques(
-            steering_status, wheel_velocities, chassis_status_expected);
+        const auto wheel_pid_torques =
+            calculate_wheel_pid_torques(steering_status, wheel_velocities, chassis_status_expected);
 
         const auto constrained_acceleration = constrain_chassis_control_acceleration(
             steering_status, wheel_velocities, chassis_acceleration, wheel_pid_torques,
             available_power);
 
-        const auto filtered_acceleration = odom_to_base_link_vector(control_acceleration_filter_.update(
-            base_link_to_odom_vector(constrained_acceleration)));
+        const auto filtered_acceleration =
+            odom_to_base_link_vector(control_acceleration_filter_.update(
+                base_link_to_odom_vector(constrained_acceleration)));
 
         const auto steering_torques = calculate_steering_control_torques(
             steering_status, chassis_status_expected, filtered_acceleration);
-        const auto wheel_torques =
-            calculate_wheel_control_torques(steering_status, filtered_acceleration, wheel_pid_torques);
+        const auto wheel_torques = calculate_wheel_control_torques(
+            steering_status, filtered_acceleration, wheel_pid_torques);
 
         update_control_torques(steering_torques, wheel_torques);
-        chassis_velocity_expected_ += dt * base_link_to_odom_vector(filtered_acceleration);
+        update_chassis_velocity_expected(filtered_acceleration, dt);
     }
 
 private:
@@ -237,7 +242,6 @@ private:
         bool valid = false;
         Eigen::Vector4d angle, cos_angle, sin_angle;
         Eigen::Vector4d velocity;
-        Eigen::Vector4d error; // 目标角与当前角之差（模 pi 后），供对齐判断与力矩缩放使用
     };
 
     struct ChassisStatus {
@@ -250,11 +254,9 @@ private:
     /// 模块半径：r_i = chassis_radius + rod_length * cos(alpha_i)。
     double module_radius(size_t i) const {
         const double alpha = *joint_angle_[i];
-        if (std::isfinite(alpha))
-            return std::clamp(chassis_radius_base_ + rod_length_ * std::cos(alpha), 1e-3, 1.0);
-        if (std::isfinite(*chassis_radius_))
-            return std::max(*chassis_radius_, 1e-3);
-        return std::max(chassis_radius_base_, 1e-3);
+        if (!std::isfinite(alpha))
+            return chassis_radius_base_ + rod_length_; // 与硬件 kDefaultRadius 一致
+        return std::clamp(chassis_radius_base_ + rod_length_ * std::cos(alpha), 1e-3, 1.0);
     }
 
     double mean_module_radius() const {
@@ -286,9 +288,8 @@ private:
                             ? -rod_length_ * std::sin(alpha) * alpha_dot
                             : 0.0;
 
-            const double alpha_ddot = std::isfinite(*joint_acceleration_[i])
-                                        ? *joint_acceleration_[i]
-                                        : 0.0;
+            const double alpha_ddot =
+                std::isfinite(*joint_acceleration_[i]) ? *joint_acceleration_[i] : 0.0;
             module_radial_acceleration_[i] =
                 (std::isfinite(alpha) && std::isfinite(alpha_dot))
                     ? -rod_length_
@@ -298,13 +299,8 @@ private:
 
         module_radial_rate_ = module_radial_rate_filter_.update(raw_rate);
 
-        filtered_radius_rate_ =
-            std::clamp(module_radial_rate_.mean(), -radius_rate_limit_, radius_rate_limit_);
-        if (std::abs(filtered_radius_rate_) < deform_speed_threshold_)
-            filtered_radius_rate_ = 0.0;
-
-        *deform_rate_ = filtered_radius_rate_;
-        *deform_active_ = std::abs(filtered_radius_rate_) > deform_speed_threshold_;
+        deform_active_state_ = std::abs(module_radial_rate_.mean()) > deform_speed_threshold_;
+        *deform_active_ = deform_active_state_;
     }
 
     // ---------------------------------------------------------------- 状态读取
@@ -330,15 +326,14 @@ private:
         return {*wheel_velocity_[0], *wheel_velocity_[1], *wheel_velocity_[2], *wheel_velocity_[3]};
     }
 
-    /// 由轮速反解底盘速度（带径向补偿），采用与英雄车相同的闭式正解。
+    /// 测速正解（英雄舵轮同款“平均分配”闭式解，另加径向补偿）：
     ///
-    /// 约束：d_i · (v + omega x p_i + r_dot_i e_i) = w_i * wheel_radius
+    ///   b_i   = w_i * wheel_radius - r_dot_i * (d_i · e_i)          [m/s]
+    ///   v     = 1/4       * sum( b_i * d_i )
+    ///   omega = 1/(4 * R) * sum( b_i * sin(theta_i - phi_i) )
     ///
-    /// 闭式形式（四轮朝向一致时精确，朝向不一致时为有界的近似）：
-    ///   v     = wheel_radius / 4 * sum( d_i * w_i' )
-    ///   omega = wheel_radius / (4 * R) * sum( sin(theta_i - phi_i) * w_i' )
-    /// 其中 w_i' 为扣掉径向运动后的等效轮速。全程只有求和，没有矩阵求逆，
-    /// 四轮同向（偏航不可观）时不会像正规方程那样发散。
+    /// 权重固定（不随舵角变化），分母永远不为零，因此不会出现“四轮平行时奇异”，
+    /// 代价是过渡位姿下有界近似。目前只用于能量钳位。
     Eigen::Vector3d calculate_chassis_velocity(
         const SteeringStatus& steering_status, const Eigen::Vector4d& wheel_velocities) const {
 
@@ -360,13 +355,27 @@ private:
         }
 
         Eigen::Vector3d velocity;
-        velocity << wheel_radius_ / 4.0 * vx, wheel_radius_ / 4.0 * vy,
-            wheel_radius_ / (4.0 * mean_radius) * omega;
+        velocity << vx / 4.0, vy / 4.0, omega / (4.0 * mean_radius);
         return velocity;
     }
 
     /// 期望状态：把计划速度从 odom 转回 base，并给出每轮的期望接触点速度分量。
-    ChassisStatus calculate_chassis_status_expected() const {
+    ChassisStatus calculate_chassis_status_expected(const Eigen::Vector3d& measured_velocity) {
+        // 能量钳位（与英雄车一致）：计划动能明显超过实测动能时，按比例把计划速度压回来。
+        // 作用：车顶住墙/被卡住时，防止计划速度一路积分、松开的瞬间窜出去。
+        if (energy_clamp_enabled_) {
+            const auto energy = [this](const Eigen::Vector3d& velocity) {
+                return mass_ * velocity.head<2>().squaredNorm()
+                     + moment_of_inertia_ * velocity.z() * velocity.z();
+            };
+            const double measured_energy = energy(measured_velocity);
+            const double planned_energy = energy(chassis_velocity_expected_);
+            if (planned_energy > measured_energy && planned_energy > 1e-9) {
+                const double scale = std::sqrt(std::max(measured_energy, 0.0) / planned_energy);
+                chassis_velocity_expected_ *= scale;
+            }
+        }
+
         ChassisStatus status;
         status.velocity = odom_to_base_link_vector(chassis_velocity_expected_);
 
@@ -388,10 +397,11 @@ private:
         const Eigen::Vector3d& chassis_velocity_expected,
         const Eigen::Vector3d& chassis_control_velocity) {
 
-        const Eigen::Vector2d translational_acceleration = translational_velocity_pid_.update(
-            chassis_control_velocity.head<2>() - chassis_velocity_expected.head<2>());
-        const double angular_acceleration =
-            angular_velocity_pid_.update(chassis_control_velocity[2] - chassis_velocity_expected[2]);
+        const Eigen::Vector2d translational_acceleration =
+            chassis_translational_velocity_pid_.update(
+                chassis_control_velocity.head<2>() - chassis_velocity_expected.head<2>());
+        const double angular_acceleration = chassis_angular_velocity_pid_.update(
+            chassis_control_velocity[2] - chassis_velocity_expected[2]);
 
         Eigen::Vector3d chassis_acceleration;
         chassis_acceleration << translational_acceleration, angular_acceleration;
@@ -439,7 +449,8 @@ private:
 
         const Eigen::Vector2d best_point = qcp_solver_.solve(
             {1.0, 0.2},
-            {std::max(translational_acceleration_max, 0.0), std::max(angular_acceleration_max, 0.0)},
+            {std::max(translational_acceleration_max, 0.0),
+             std::max(angular_acceleration_max, 0.0)},
             {rhombus_right, rhombus_top}, {a, b, c, d, e, f - available_power});
 
         if (!best_point.array().isFinite().all())
@@ -481,7 +492,8 @@ private:
 
         a = (k1_ * mass_ * mass_ * r2 / 16.0) * cos_alpha_minus_gamma.array().pow(2).sum();
         b = (k1_ * mass_ * moment_of_inertia_ * r2 / 8.0) * angular_acceleration_direction
-          * (cos_alpha_minus_gamma.array() * sin_alpha_minus_varphi.array() * inverse_radius.array())
+          * (cos_alpha_minus_gamma.array() * sin_alpha_minus_varphi.array()
+             * inverse_radius.array())
                 .sum();
         c = (k1_ * moment_of_inertia_ * moment_of_inertia_ * r2 / 16.0)
           * (sin_alpha_minus_varphi.array().pow(2) * inverse_radius_squared.array()).sum();
@@ -489,8 +501,8 @@ private:
           * (double_k1_torque_base_plus_wheel_velocities.array() * cos_alpha_minus_gamma.array())
                 .sum();
         e = (moment_of_inertia_ * wheel_radius_ / 4.0) * angular_acceleration_direction
-          * (double_k1_torque_base_plus_wheel_velocities.array()
-             * sin_alpha_minus_varphi.array() * inverse_radius.array())
+          * (double_k1_torque_base_plus_wheel_velocities.array() * sin_alpha_minus_varphi.array()
+             * inverse_radius.array())
                 .sum();
         f = (wheel_torque_base.array()
              * (k1_ * wheel_torque_base.array() + wheel_velocities.array()))
@@ -589,9 +601,8 @@ private:
         Eigen::Vector4d wheel_torques;
         for (size_t i = 0; i < kWheelCount; ++i) {
             const double radius = std::max(module_radius(i), 1e-3);
-            const double sin_alpha_minus_varphi =
-                cos_varphi_[i] * steering_status.sin_angle[i]
-                - sin_varphi_[i] * steering_status.cos_angle[i];
+            const double sin_alpha_minus_varphi = cos_varphi_[i] * steering_status.sin_angle[i]
+                                                - sin_varphi_[i] * steering_status.cos_angle[i];
 
             const double feedforward =
                 wheel_radius_ / 4.0
@@ -609,11 +620,14 @@ private:
         return wheel_torques;
     }
 
+    void update_chassis_velocity_expected(const Eigen::Vector3d& chassis_acceleration, double dt) {
+        chassis_velocity_expected_ += dt * base_link_to_odom_vector(chassis_acceleration);
+    }
+
     void update_control_torques(
         const Eigen::Vector4d& steering_torques, const Eigen::Vector4d& wheel_torques) {
         for (size_t i = 0; i < kWheelCount; ++i) {
-            *steering_control_torque_[i] = std::clamp(
-                steering_torques[i], -steering_torque_limit_, steering_torque_limit_);
+            *steering_control_torque_[i] = steering_torques[i];
             *wheel_control_torque_[i] = wheel_torques[i];
         }
     }
@@ -625,8 +639,8 @@ private:
             *steering_control_torque_[i] = 0.0;
             *wheel_control_torque_[i] = 0.0;
         }
-        translational_velocity_pid_.reset();
-        angular_velocity_pid_.reset();
+        chassis_translational_velocity_pid_.reset();
+        chassis_angular_velocity_pid_.reset();
         wheel_velocity_pid_.reset();
         steering_angle_pid_.reset();
         steering_velocity_pid_.reset();
@@ -637,27 +651,26 @@ private:
         module_radial_rate_.setZero();
         module_radial_acceleration_.setZero();
         steering_errors_.setConstant(nan_);
-        filtered_radius_rate_ = 0.0;
-        chassis_yaw_angle_ = 0.0;
+        chassis_yaw_angle_imu_ = 0.0;
 
         *steering_aligned_ = false;
-        *deform_rate_ = 0.0;
+        deform_active_state_ = false;
         *deform_active_ = false;
     }
 
     void integral_yaw_angle_imu(double dt) {
         if (std::isfinite(*chassis_yaw_velocity_imu_))
-            chassis_yaw_angle_ += *chassis_yaw_velocity_imu_ * dt;
-        chassis_yaw_angle_ = std::remainder(chassis_yaw_angle_, 2 * std::numbers::pi);
+            chassis_yaw_angle_imu_ += *chassis_yaw_velocity_imu_ * dt;
+        chassis_yaw_angle_imu_ = std::remainder(chassis_yaw_angle_imu_, 2 * std::numbers::pi);
     }
 
     Eigen::Vector3d base_link_to_odom_vector(Eigen::Vector3d vector) const {
-        vector.head<2>() = Eigen::Rotation2Dd(chassis_yaw_angle_) * vector.head<2>();
+        vector.head<2>() = Eigen::Rotation2Dd(chassis_yaw_angle_imu_) * vector.head<2>();
         return vector;
     }
 
     Eigen::Vector3d odom_to_base_link_vector(Eigen::Vector3d vector) const {
-        vector.head<2>() = Eigen::Rotation2Dd(-chassis_yaw_angle_) * vector.head<2>();
+        vector.head<2>() = Eigen::Rotation2Dd(-chassis_yaw_angle_imu_) * vector.head<2>();
         return vector;
     }
 
@@ -686,7 +699,7 @@ private:
     const double rod_length_;
     const double steering_angle_offset_;
     const double control_acceleration_filter_hz_;
-    const double radius_rate_limit_;
+    const bool energy_clamp_enabled_;
     const double deform_speed_limit_;
     const double deform_speed_threshold_;
     const double deform_rate_filter_cutoff_hz_;
@@ -710,18 +723,16 @@ private:
 
     InputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     InputInterface<double> power_limit_;
-    InputInterface<double> chassis_radius_;
 
     std::array<OutputInterface<double>, kWheelCount> steering_control_torque_;
     std::array<OutputInterface<double>, kWheelCount> wheel_control_torque_;
     OutputInterface<bool> steering_aligned_;
-    OutputInterface<double> deform_rate_;
     OutputInterface<bool> deform_active_;
 
     // ---------------------------------------------------------------- 状态
 
-    pid::MatrixPidCalculator<2> translational_velocity_pid_;
-    pid::PidCalculator angular_velocity_pid_;
+    pid::MatrixPidCalculator<2> chassis_translational_velocity_pid_;
+    pid::PidCalculator chassis_angular_velocity_pid_;
     pid::MatrixPidCalculator<4> wheel_velocity_pid_;
     pid::MatrixPidCalculator<4> steering_angle_pid_;
     pid::MatrixPidCalculator<4> steering_velocity_pid_;
@@ -736,9 +747,9 @@ private:
     Eigen::Vector4d module_radial_acceleration_ = Eigen::Vector4d::Zero();
     Eigen::Vector4d steering_errors_ = Eigen::Vector4d::Constant(nan_);
 
-    double filtered_radius_rate_ = 0.0;
-    double chassis_yaw_angle_ = 0.0;
+    double chassis_yaw_angle_imu_ = 0.0;
     double update_rate_hz_ = 1000.0;
+    bool deform_active_state_ = false;
 
     const Eigen::Vector4d cos_varphi_, sin_varphi_;
 };

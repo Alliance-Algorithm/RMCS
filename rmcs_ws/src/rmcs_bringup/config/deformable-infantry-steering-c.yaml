@@ -6,7 +6,7 @@ rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::DeformableInfantryOmniC -> deformable_infantry
+      - rmcs_core::hardware::DeformableInfantrySteering -> deformable_infantry
 
       - rmcs_core::referee::Status -> referee_status
       - rmcs_core::referee::Command -> referee_command
@@ -118,6 +118,13 @@ deformable_infantry:
     serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     chassis_radius: 0.2341741
     rod_length: 0.140
+    # 舵向电机：19.0 是 M3508 内部减速比（直连舵轴）；若还有同步带，填 19.0 * 带速比
+    steering_reduction_ratio: 19.0
+    steering_reversed: false
+    left_front_steering_zero_point: 0
+    left_back_steering_zero_point: 0
+    right_back_steering_zero_point: 0
+    right_front_steering_zero_point: 0
     yaw_motor_zero_point: 38910
     pitch_motor_zero_point: 32214
 
@@ -285,12 +292,22 @@ deformable_chassis_controller:
     # 变形几何：模块半径 r = chassis_radius + rod_length * cos(alpha)
     chassis_radius: 0.2341741
     rod_length: 0.140
+    # 舵向电机：19.0 是 M3508 内部减速比（直连舵轴）；若还有同步带，填 19.0 * 带速比
+    steering_reduction_ratio: 19.0
+    steering_reversed: false
+    left_front_steering_zero_point: 0
+    left_back_steering_zero_point: 0
+    right_back_steering_zero_point: 0
+    right_front_steering_zero_point: 0
 
     # 舵向约定：舵向角 = 电机反馈角 - steering_angle_offset（硬件零位不同就改这里）
     steering_angle_offset: 0.0
 
     # 规划器：期望速度低通截止频率
     control_acceleration_filter_hz: 5.0
+
+    # 能量钳位：车被卡住时防止计划速度积分虚高、松开时窜车
+    chassis_energy_clamp: true
 
     # 转向环：M3508 直驱，输出轴峰值约 5.9 N*m，限幅留余量
     steering_angle_kp: 12.0
@@ -305,7 +322,6 @@ deformable_chassis_controller:
 
     # 变形状态估计
     deform_rate_filter_cutoff_hz: 20.0
-    radius_rate_limit: 0.25
     deform_speed_limit: 0.35
     deform_speed_threshold: 0.004
 
