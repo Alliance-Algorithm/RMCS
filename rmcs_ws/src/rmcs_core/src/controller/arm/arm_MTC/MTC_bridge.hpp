@@ -172,6 +172,11 @@ inline std::string describe_execution_plan(const ExecutionPlan& plan) {
                                                 << configured.object << " links=";
                                     for (const auto& link : configured.links)
                                         description << link << ' ';
+                                } else if constexpr (
+                                    std::is_same_v<Operation, ObjectCollisionsConfig>) {
+                                    description << (configured.allow ? " allow " : " forbid ")
+                                                << configured.object
+                                                << " other_object=" << configured.other_object;
                                 } else {
                                     if constexpr (std::is_same_v<Operation, AttachObjectConfig>)
                                         description << " attach ";

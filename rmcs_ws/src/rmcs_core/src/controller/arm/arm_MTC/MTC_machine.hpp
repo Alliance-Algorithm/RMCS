@@ -4,6 +4,7 @@
 #include "controller/arm/arm_MTC/MTC_dictionary.hpp"
 #include "controller/arm/arm_MTC/MTC_scene.hpp"
 
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <moveit/move_group_interface/move_group_interface.hpp>
 #include <moveit/planning_scene/planning_scene.hpp>
 #include <moveit/robot_model_loader/robot_model_loader.hpp>
@@ -47,6 +48,55 @@ namespace rmcs_core::controller::arm::MTC {
 
 namespace mtc = moveit::task_constructor;
 
+namespace detail {
+
+class RotatingMoveRelative : public mtc::stages::MoveRelative {
+public:
+    RotatingMoveRelative(
+        const std::string& name, const mtc::solvers::PlannerInterfacePtr& solver,
+        RotationDirectionTarget direction, std::string link)
+        : MoveRelative(name, solver)
+        , direction_(std::move(direction))
+        , link_(std::move(link)) {}
+
+protected:
+    bool compute(
+        const mtc::InterfaceState& state, planning_scene::PlanningScenePtr& scene,
+        mtc::SubTrajectory& solution, mtc::Interface::Direction dir) override {
+        const auto& start = state.scene();
+        if (!start->knowsFrameTransform(direction_.frame_id)) {
+            solution.markAsFailure("unknown rotation frame: " + direction_.frame_id);
+            return false;
+        }
+        const auto& reference = start->getFrameTransform(direction_.frame_id);
+        const auto& tool = start->getCurrentState().getGlobalLinkTransform(link_);
+        Eigen::Isometry3d pivot = tool;
+        pivot.translation() = reference * Eigen::Vector3d(
+            direction_.axis_point[0], direction_.axis_point[1], direction_.axis_point[2]);
+        const Eigen::Isometry3d offset = tool.inverse() * pivot;
+        setIKFrame(offset, link_);
+
+        // Resolve the axis once at stage entry, even when its frame is the tool link.
+        const Eigen::Vector3d axis = reference.linear()
+            * Eigen::Vector3d(
+                  direction_.axis_direction[0], direction_.axis_direction[1],
+                  direction_.axis_direction[2]).normalized();
+        geometry_msgs::msg::TwistStamped twist;
+        twist.header.frame_id = start->getRobotModel()->getModelFrame();
+        twist.twist.angular.x = axis.x();
+        twist.twist.angular.y = axis.y();
+        twist.twist.angular.z = axis.z();
+        setDirection(twist);
+        return MoveRelative::compute(state, scene, solution, dir);
+    }
+
+private:
+    RotationDirectionTarget direction_;
+    std::string link_;
+};
+
+} // namespace detail
+
 enum class PlanStatus { Success, NotBuilt, InitializationFailed, PlanningFailed };
 
 struct PlanResult {
@@ -74,8 +124,9 @@ public:
         build(dictionary.helper_build_chunk(composed), std::move(scene));
     }
 
-    void build(const TaskConfig& config, planning_scene::PlanningSceneConstPtr scene = {}) {
+    void build(TaskConfig config, planning_scene::PlanningSceneConstPtr scene = {}) {
         reset_task();
+        bind_task_objects(config);
         validate(config);
         auto task = std::make_unique<mtc::Task>(config.name, false);
         task->setName(config.name);
@@ -299,14 +350,38 @@ private:
                                     if (!model->hasLinkModel(ik_frame))
                                         throw std::invalid_argument(
                                             config.name + ": unknown IK frame " + ik_frame);
-                                    auto move = std::make_unique<mtc::stages::MoveRelative>(
-                                        config.name, solver);
+                                    std::unique_ptr<mtc::stages::MoveRelative> move = std::visit(
+                                        [&](const auto& direction)
+                                            -> std::unique_ptr<mtc::stages::MoveRelative> {
+                                            using Direction = std::decay_t<decltype(direction)>;
+                                            if constexpr (std::is_same_v<
+                                                              Direction, RotationDirectionTarget>) {
+                                                auto rotation = direction;
+                                                if (stage_config.max_distance < 0.0)
+                                                    for (auto& component : rotation.axis_direction)
+                                                        component = -component;
+                                                return std::make_unique<detail::RotatingMoveRelative>(
+                                                    config.name, solver, std::move(rotation), ik_frame);
+                                            } else {
+                                                auto relative =
+                                                    std::make_unique<mtc::stages::MoveRelative>(
+                                                        config.name, solver);
+                                                relative->setDirection(direction);
+                                                return relative;
+                                            }
+                                        },
+                                        stage_config.direction);
                                     move->setGroup(group);
                                     move->setIKFrame(ik_frame);
                                     move->setTimeout(stage_config.motion.timeout);
-                                    move->setDirection(stage_config.direction);
-                                    move->setMinMaxDistance(
-                                        stage_config.min_distance, stage_config.max_distance);
+                                    if (std::holds_alternative<RotationDirectionTarget>(
+                                            stage_config.direction))
+                                        move->setMinMaxDistance(
+                                            std::abs(stage_config.min_distance),
+                                            std::abs(stage_config.max_distance));
+                                    else
+                                        move->setMinMaxDistance(
+                                            stage_config.min_distance, stage_config.max_distance);
                                     move->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
                                     return move;
                                 } else if constexpr (std::is_same_v<Stage, GripperCommandConfig>) {

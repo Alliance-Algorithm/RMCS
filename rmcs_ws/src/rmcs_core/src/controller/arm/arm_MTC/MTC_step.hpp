@@ -7,10 +7,12 @@
 #include <geometry_msgs/msg/vector3_stamped.hpp>
 #include <tf2/LinearMath/Quaternion.hpp>
 
+#include <array>
 #include <cstddef>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -32,6 +34,12 @@ struct DirectionTarget {
     double dir_x = 0.0;
     double dir_y = 0.0;
     double dir_z = 0.0;
+};
+
+struct RotationDirectionTarget {
+    std::string frame_id;
+    std::array<double, 3> axis_point{0.0, 0.0, 0.0};
+    std::array<double, 3> axis_direction{0.0, 0.0, 1.0};
 };
 
 inline geometry_msgs::msg::PoseStamped makePoseGoal(PoseTarget target) {
@@ -62,6 +70,10 @@ inline geometry_msgs::msg::Vector3Stamped makeDirection(DirectionTarget target) 
     direction.header.frame_id = std::move(target.frame_id);
     direction.vector = makeVector3(target.dir_x, target.dir_y, target.dir_z);
     return direction;
+}
+
+inline RotationDirectionTarget makeRotationDirection(RotationDirectionTarget target) {
+    return target;
 }
 
 struct PipelineConfig {
@@ -111,7 +123,7 @@ struct MoveToConfig {
 };
 
 struct MoveRelativeConfig {
-    geometry_msgs::msg::Vector3Stamped direction;
+    std::variant<geometry_msgs::msg::Vector3Stamped, RotationDirectionTarget> direction;
     double min_distance = 0.0;
     double max_distance = 0.1;
     MotionConfig motion{.solver = PipelineConfig{"pilz_industrial_motion_planner", "LIN"}};
@@ -123,24 +135,58 @@ struct AllowCollisionsConfig {
     std::string object;
     std::vector<std::string> links;
     bool allow = true;
+    bool from_registry = false;
+};
+
+struct ObjectCollisionsConfig {
+    std::string object;
+    std::string other_object;
+    bool allow = true;
 };
 
 struct AttachObjectConfig {
     std::string object;
     std::string link;
     std::vector<std::string> touch_links{};
+    bool from_registry = false;
 };
 
 struct DetachObjectConfig {
     std::string object;
     std::string link;
+    bool from_registry = false;
 };
 
-using SceneOperation = std::variant<AllowCollisionsConfig, AttachObjectConfig, DetachObjectConfig>;
+using SceneOperation = std::variant<
+    AllowCollisionsConfig, ObjectCollisionsConfig, AttachObjectConfig, DetachObjectConfig>;
 
 struct ModifyPlanningSceneConfig {
     std::vector<SceneOperation> operations;
 };
+
+inline void resolve_scene_objects(ModifyPlanningSceneConfig& config) {
+    for (auto& operation : config.operations)
+        std::visit(
+            [](auto& options) {
+                using Operation = std::decay_t<decltype(options)>;
+                if constexpr (!std::is_same_v<Operation, ObjectCollisionsConfig>) {
+                    if (!options.from_registry)
+                        return;
+                    const auto& registered = obstacle::get_obstacle_config(options.object);
+                    if constexpr (std::is_same_v<Operation, AllowCollisionsConfig>) {
+                        options.links = registered.touch_links;
+                    } else {
+                        if (registered.attach_link.empty())
+                            throw std::invalid_argument("Obstacle is not attachable: " + options.object);
+                        options.link = registered.attach_link;
+                        if constexpr (std::is_same_v<Operation, AttachObjectConfig>)
+                            options.touch_links = registered.touch_links;
+                    }
+                    options.from_registry = false;
+                }
+            },
+            operation);
+}
 
 enum class GripperAction { Open, Close };
 
@@ -193,12 +239,11 @@ public:
     }
 
     static StageConfig makeAllowCollisions(std::string name, std::string object) {
-        const auto& config = obstacle::get_obstacle_config(object);
         return makeModifyPlanningScene(
             std::move(name),
             ModifyPlanningSceneConfig{
                 .operations = {AllowCollisionsConfig{
-                    .object = std::move(object), .links = config.touch_links, .allow = true}}});
+                    .object = std::move(object), .allow = true, .from_registry = true}}});
     }
 
     static StageConfig makeForbidCollisions(std::string object) {
@@ -207,12 +252,43 @@ public:
     }
 
     static StageConfig makeForbidCollisions(std::string name, std::string object) {
-        const auto& config = obstacle::get_obstacle_config(object);
         return makeModifyPlanningScene(
             std::move(name),
             ModifyPlanningSceneConfig{
                 .operations = {AllowCollisionsConfig{
-                    .object = std::move(object), .links = config.touch_links, .allow = false}}});
+                    .object = std::move(object), .allow = false, .from_registry = true}}});
+    }
+
+    static StageConfig makeAllowObjectCollisions(std::string object, std::string other_object) {
+        auto name = "allow_object_collisions_" + object + "_" + other_object;
+        return makeAllowObjectCollisions(
+            std::move(name), std::move(object), std::move(other_object));
+    }
+
+    static StageConfig makeAllowObjectCollisions(
+        std::string name, std::string object, std::string other_object) {
+        return makeModifyPlanningScene(
+            std::move(name), ModifyPlanningSceneConfig{
+                                 .operations = {ObjectCollisionsConfig{
+                                     .object = std::move(object),
+                                     .other_object = std::move(other_object),
+                                     .allow = true}}});
+    }
+
+    static StageConfig makeForbidObjectCollisions(std::string object, std::string other_object) {
+        auto name = "forbid_object_collisions_" + object + "_" + other_object;
+        return makeForbidObjectCollisions(
+            std::move(name), std::move(object), std::move(other_object));
+    }
+
+    static StageConfig makeForbidObjectCollisions(
+        std::string name, std::string object, std::string other_object) {
+        return makeModifyPlanningScene(
+            std::move(name), ModifyPlanningSceneConfig{
+                                 .operations = {ObjectCollisionsConfig{
+                                     .object = std::move(object),
+                                     .other_object = std::move(other_object),
+                                     .allow = false}}});
     }
 
     static StageConfig makeAttachObject(std::string object) {
@@ -221,15 +297,11 @@ public:
     }
 
     static StageConfig makeAttachObject(std::string name, std::string object) {
-        const auto& config = obstacle::get_obstacle_config(object);
-        if (config.attach_link.empty())
-            throw std::invalid_argument(name + ": obstacle is not attachable: " + object);
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {AttachObjectConfig{
                                      .object = std::move(object),
-                                     .link = config.attach_link,
-                                     .touch_links = config.touch_links}}});
+                                      .from_registry = true}}});
     }
 
     static StageConfig makeDetachObject(std::string object) {
@@ -238,13 +310,10 @@ public:
     }
 
     static StageConfig makeDetachObject(std::string name, std::string object) {
-        const auto& config = obstacle::get_obstacle_config(object);
-        if (config.attach_link.empty())
-            throw std::invalid_argument(name + ": obstacle is not attachable: " + object);
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {DetachObjectConfig{
-                                     .object = std::move(object), .link = config.attach_link}}});
+                                      .object = std::move(object), .from_registry = true}}});
     }
 };
 

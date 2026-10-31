@@ -3,6 +3,7 @@
 #include "controller/arm/arm_MTC/MTC_step.hpp"
 
 #include <cmath>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -100,7 +101,8 @@ inline void validate(const TaskConfig& task) {
                                                     std::is_same_v<
                                                         Operation, AllowCollisionsConfig>) {
                                                     require(
-                                                        !op.object.empty() && !op.links.empty(),
+                                                        !op.object.empty()
+                                                            && (op.from_registry || !op.links.empty()),
                                                         child_path,
                                                         "collision allowance requires object and "
                                                         "links");
@@ -108,9 +110,20 @@ inline void validate(const TaskConfig& task) {
                                                         require(
                                                             !link.empty(), child_path,
                                                             "collision link is empty");
+                                                } else if constexpr (
+                                                    std::is_same_v<
+                                                        Operation, ObjectCollisionsConfig>) {
+                                                    require(
+                                                        !op.object.empty()
+                                                            && !op.other_object.empty()
+                                                            && op.object != op.other_object,
+                                                        child_path,
+                                                        "object collision allowance requires two "
+                                                        "distinct nonempty object ids");
                                                 } else {
                                                     require(
-                                                        !op.object.empty() && !op.link.empty(),
+                                                        !op.object.empty()
+                                                            && (op.from_registry || !op.link.empty()),
                                                         child_path,
                                                         "attach/detach requires object and link");
                                                     if constexpr (
@@ -189,21 +202,56 @@ inline void validate(const TaskConfig& task) {
                                         },
                                         stage.goal);
                                 } else if constexpr (std::is_same_v<Stage, MoveRelativeConfig>) {
-                                    const auto& direction = stage.direction.vector;
-                                    const double length =
-                                        std::hypot(direction.x, direction.y, direction.z);
-                                    require(
-                                        !stage.direction.header.frame_id.empty(), child_path,
-                                        "direction frame is empty");
-                                    require(
-                                        positive(length), child_path,
-                                        "direction must be finite and nonzero");
-                                    require(
-                                        std::isfinite(stage.min_distance)
-                                            && stage.min_distance >= 0.0
-                                            && positive(stage.max_distance)
-                                            && stage.min_distance <= stage.max_distance,
-                                        child_path, "invalid relative distance range");
+                                    std::visit(
+                                        [&](const auto& direction) {
+                                            using Direction = std::decay_t<decltype(direction)>;
+                                            if constexpr (std::is_same_v<
+                                                              Direction, RotationDirectionTarget>) {
+                                                require(
+                                                    !direction.frame_id.empty(), child_path,
+                                                    "rotation frame is empty");
+                                                for (double value : direction.axis_point)
+                                                    require(
+                                                        std::isfinite(value), child_path,
+                                                        "invalid rotation axis point");
+                                                require(
+                                                    positive(std::hypot(
+                                                        direction.axis_direction[0],
+                                                        direction.axis_direction[1],
+                                                        direction.axis_direction[2])),
+                                                    child_path, "rotation axis must be finite and nonzero");
+                                                require(
+                                                      std::isfinite(stage.min_distance)
+                                                          && positive(std::abs(stage.max_distance))
+                                                          && std::abs(stage.max_distance) < std::numbers::pi
+                                                          && std::abs(stage.min_distance)
+                                                              <= std::abs(stage.max_distance)
+                                                          && (stage.min_distance == 0.0
+                                                              || (stage.min_distance > 0.0)
+                                                                  == (stage.max_distance > 0.0)),
+                                                      child_path,
+                                                      "rotation requires same-sign angles with 0 <= abs(min) <= abs(max) < pi and nonzero max");
+                                                require(
+                                                    std::holds_alternative<CartesianPathConfig>(
+                                                        stage.motion.solver),
+                                                    child_path, "rotation requires CartesianPath");
+                                            } else {
+                                                require(
+                                                    std::isfinite(stage.min_distance)
+                                                        && stage.min_distance >= 0.0
+                                                        && positive(stage.max_distance)
+                                                        && stage.min_distance <= stage.max_distance,
+                                                    child_path, "invalid relative distance range");
+                                                const auto& vector = direction.vector;
+                                                require(
+                                                    !direction.header.frame_id.empty(), child_path,
+                                                    "direction frame is empty");
+                                                require(
+                                                    positive(std::hypot(vector.x, vector.y, vector.z)),
+                                                    child_path, "direction must be finite and nonzero");
+                                            }
+                                        },
+                                        stage.direction);
                                     require(
                                         !std::holds_alternative<JointInterpolationConfig>(
                                             stage.motion.solver),
@@ -217,6 +265,35 @@ inline void validate(const TaskConfig& task) {
                 node.config);
         }
     }
+}
+
+using ObjectBindings = std::unordered_map<std::string, std::string>;
+
+inline void bind_task_objects(TaskConfig& task, const ObjectBindings& bindings = {}) {
+    const auto bind = [&](std::string& object) {
+        if (const auto found = bindings.find(object); found != bindings.end())
+            object = found->second;
+    };
+    const auto visit = [&](auto&& self, std::vector<NodeConfig>& children) -> void {
+        for (auto& node : children) {
+            if (auto* container = std::get_if<ContainerConfig>(&node.config)) {
+                self(self, container->children);
+            } else if (auto* scene = std::get_if<ModifyPlanningSceneConfig>(
+                           &std::get<StageConfig>(node.config).config)) {
+                for (auto& operation : scene->operations)
+                    std::visit(
+                        [&](auto& options) {
+                            bind(options.object);
+                            if constexpr (std::is_same_v<
+                                              std::decay_t<decltype(options)>, ObjectCollisionsConfig>)
+                                bind(options.other_object);
+                        },
+                        operation);
+                resolve_scene_objects(*scene);
+            }
+        }
+    };
+    visit(visit, task.children);
 }
 
 // Stores reusable stage blocks (task children without the task shell) and composes them into
@@ -247,7 +324,8 @@ public:
         throw std::out_of_range("Unknown MTC block: " + name);
     }
 
-    TaskConfig helper_build_chunk(const std::vector<std::string>& composed) const {
+    TaskConfig helper_build_chunk(
+        const std::vector<std::string>& composed, const ObjectBindings& bindings = {}) const {
         if (composed.empty())
             throw std::invalid_argument(shell_.name + ": composition is empty");
 
@@ -275,6 +353,7 @@ public:
             }
         }
 
+        bind_task_objects(result, bindings);
         validate(result);
         return result;
     }

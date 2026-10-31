@@ -29,7 +29,7 @@ inline void validate_scene_operation_links(
                 if constexpr (std::is_same_v<Operation, AllowCollisionsConfig>) {
                     for (const auto& link : options.links)
                         check_link(link);
-                } else {
+                } else if constexpr (!std::is_same_v<Operation, ObjectCollisionsConfig>) {
                     check_link(options.link);
                     if constexpr (std::is_same_v<Operation, AttachObjectConfig>)
                         for (const auto& link : options.touch_links)
@@ -40,10 +40,11 @@ inline void validate_scene_operation_links(
 }
 
 inline void apply_scene_operations(
-    const planning_scene::PlanningScenePtr& scene, const ModifyPlanningSceneConfig& config,
+    const planning_scene::PlanningScenePtr& scene, ModifyPlanningSceneConfig config,
     const std::string& stage_name) {
     if (!scene)
         throw std::invalid_argument(stage_name + ": planning scene is null");
+    resolve_scene_objects(config);
     validate_scene_operation_links(config, *scene->getRobotModel(), stage_name);
     for (const auto& operation : config.operations)
         std::visit(
@@ -61,6 +62,18 @@ inline void apply_scene_operations(
                     for (const auto& link : options.links)
                         scene->getAllowedCollisionMatrixNonConst().setEntry(
                             options.object, link, options.allow);
+                } else if constexpr (std::is_same_v<Operation, ObjectCollisionsConfig>) {
+                    if (options.object.empty() || options.other_object.empty()
+                        || options.object == options.other_object)
+                        fail("object collision allowance requires two distinct nonempty object ids");
+                    if (!in_world && !attached)
+                        fail("collision object is absent from the planning scene");
+                    if (!scene->getWorld()->hasObject(options.other_object)
+                        && !scene->getCurrentState().hasAttachedBody(options.other_object))
+                        fail("other collision object is absent from the planning scene: "
+                             + options.other_object);
+                    scene->getAllowedCollisionMatrixNonConst().setEntry(
+                        options.object, options.other_object, options.allow);
                 } else {
                     moveit_msgs::msg::AttachedCollisionObject message;
                     message.link_name = options.link;
