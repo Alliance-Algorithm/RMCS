@@ -107,6 +107,9 @@ public:
 
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
         command_component.register_input(name_prefix + "/control_angle", control_angle_, false);
+        command_component.register_input(name_prefix + "/velocity_control", velocity_control_, false);
+        command_component.register_input(name_prefix + "/control_velocity", control_velocity_, false);
+        command_component.register_input(name_prefix + "/control_velocity_gain", control_velocity_gain_, false);
     }
 
     DmMotor(
@@ -192,6 +195,32 @@ public:
         kd = std::clamp(kd, 0.0, kKdMax);
 
         return encode_mit_frame(p_motor, v_motor, kp, kd, tff_motor);
+    }
+
+    bool velocity_control_requested() const {
+        return velocity_control_.ready() && *velocity_control_;
+    }
+
+    CanPacket8 generate_velocity_command() const {
+        if (!control_velocity_.ready() || !control_velocity_gain_.ready() || !control_torque_.ready())
+            return generate_command(0.);
+        return generate_velocity_command(*control_velocity_,*control_velocity_gain_,*control_torque_);
+    }
+
+    // Kp=0, velocity feedback runs inside the DM drive. V_MAX is the MIT
+    // encoding range, not the recovery speed limit: never change its register
+    // interpretation to implement a mechanical speed restriction.
+    CanPacket8 generate_velocity_command(double velocity, double gain, double feedforward) const {
+        if (!std::isfinite(velocity) || !std::isfinite(gain) || !std::isfinite(feedforward)
+            || std::abs(velocity)>3.14 || gain<=0. || gain>kKdMax)
+            return generate_command(0.);
+        // Quantization may round a negative limit outwards. Reserve one code.
+        const double bound=std::max(0.,std::min(3.14,velocity_max_)-2.*velocity_max_/4095.);
+        velocity=std::clamp(velocity,-bound,bound);
+        const double inner=gain*(velocity-velocity_);
+        const double total=std::clamp(feedforward+inner,-control_torque_max_,control_torque_max_);
+        feedforward=std::clamp(total-inner,-control_torque_max_,control_torque_max_);
+        return generate_command_pd(0.,velocity,0.,gain,feedforward);
     }
 
     // ---- 系统命令 ----
@@ -376,6 +405,8 @@ private:
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
     rmcs_executor::Component::InputInterface<double> control_angle_;
+    rmcs_executor::Component::InputInterface<bool> velocity_control_;
+    rmcs_executor::Component::InputInterface<double> control_velocity_,control_velocity_gain_;
 };
 
 } // namespace rmcs_core::hardware::device

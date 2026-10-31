@@ -50,6 +50,7 @@ public:
         register_input("/wheelleg/state/com_offset", state_com_offset_);
         register_input("/wheelleg/state/leg_length", state_leg_length_);
         register_input("/wheelleg/state/base_height", state_base_height_, false);
+        register_input("/wheelleg/recovery/active", self_righting_active_, false);
         // Outer d-loop correction: a bias added to the hip (leg-angle) reference,
         // used to shift the CoM offset d toward zero (ankle strategy).
         register_input("/wheelleg/task/alpha_bias", alpha_bias_, false);
@@ -121,6 +122,10 @@ public:
     }
 
     void update() override {
+        if (self_righting_active_.ready() && *self_righting_active_) {
+            disable_();
+            return;
+        }
         State state;
         if (!read_state_(state)) {
             disable_();
@@ -956,6 +961,7 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_, switch_right_;
     InputInterface<bool> dr16_fresh_;
     InputInterface<bool> dm_control_ready_;
+    InputInterface<bool> self_righting_active_;
 
     OutputInterface<double> reference_wheel_velocity_;
     OutputInterface<double> reference_pitch_;

@@ -59,6 +59,7 @@ public:
         register_input("/wheelleg/state/pitch", state_pitch_, false);
         register_input("/wheelleg/state/pitch_velocity", state_pitch_velocity_, false);
         register_input("/wheelleg/state/wheel_velocity", state_wheel_velocity_, false);
+        register_input("/wheelleg/recovery/active", recovery_active_, false);
 
         register_output("/wheelleg/stand/armed", armed_out_, false);
         register_output("/wheelleg/stand/phase", phase_out_, std::uint8_t{0});
@@ -88,6 +89,13 @@ public:
             return;
         }
         *armed_out_ = true;
+
+        if (recovery_active_.ready() && *recovery_active_) {
+            *phase_out_=kConverging;
+            *ready_out_=false;
+            stable_elapsed_=0.;
+            return;
+        }
 
         if (!converged_()) {
             *phase_out_ = kConverging;
@@ -156,7 +164,7 @@ private:
     double arm_dwell_s_ = 0.5;
 
     InputInterface<rmcs_msgs::Switch> switch_left_, switch_right_;
-    InputInterface<bool> dr16_fresh_;
+    InputInterface<bool> dr16_fresh_, recovery_active_;
     InputInterface<double> state_leg_length_, state_knee_angle_, state_shank_;
     InputInterface<double> state_pitch_, state_pitch_velocity_, state_wheel_velocity_;
 

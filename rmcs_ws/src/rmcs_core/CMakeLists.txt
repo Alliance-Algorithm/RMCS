@@ -109,4 +109,14 @@ add_executable(wheel_leg_recording_preview tools/wheel_leg_recording_preview.cpp
 target_include_directories(wheel_leg_recording_preview PRIVATE ${PROJECT_SOURCE_DIR}/src)
 install(TARGETS wheel_leg_recording_preview DESTINATION lib/${PROJECT_NAME})
 
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(wheelleg_self_righting_core_test tests/self_righting_core_test.cpp)
+    target_include_directories(wheelleg_self_righting_core_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME wheelleg_self_righting_core COMMAND wheelleg_self_righting_core_test)
+    ament_auto_add_executable(wheelleg_recovery_velocity_packet_test tests/recovery_velocity_packet_test.cpp)
+    target_include_directories(wheelleg_recovery_velocity_packet_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME wheelleg_recovery_velocity_packet COMMAND wheelleg_recovery_velocity_packet_test)
+endif()
+
 ament_auto_package()

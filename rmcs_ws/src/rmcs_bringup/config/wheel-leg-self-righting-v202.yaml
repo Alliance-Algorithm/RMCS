@@ -1,0 +1,42 @@
+# Research parameter fragment. No hardware component is started by this file.
+# Append the new component to the existing traditional graph; see
+# docs/zh-cn/wheel_leg_self_righting_v202.md. The native Isaac runner calls the
+# same C++ core without starting ROS or any vehicle process.
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::controller::wheelleg::WheelLegSelfRightingController -> wheelleg_self_righting
+wheelleg_self_righting:
+  ros__parameters:
+    enabled: false
+    simulation_only: true
+    hardware_mapping_verified: false
+    handoff_enabled: false
+    motor_velocity_servo: true
+    dt: 0.001
+    arm_dwell_seconds: 1.0
+    # q_CAD = sign*q_API + offset. These identity values are for CAD-frame
+    # simulation input only; they are not a measured hardware calibration.
+    cad_axis_sign: [1.0, 1.0, 1.0, 1.0]
+    cad_axis_offset_rad: [0.0, 0.0, 0.0, 0.0]
+    speed_limit_rad_s: 3.14
+    cruise_speed_rad_s: 1.5
+    acceleration_rad_s2: 3.0
+    velocity_gain: 5.0
+    position_gain: 12.0
+    integral_gain: 50.0
+    integral_limit_nm: 30.0
+    torque_limit_nm: 40.0
+    timeout_seconds: 30.0
+    fold_knee_deg: 75.0
+    flip_knee_deg: 105.0
+    flip_orbit_deg: 0.0
+    sweep_orbit_deg: 180.0
+    flip_asymmetry_knee_deg: 0.0
+    pitch_trim_gain: 0.0
+    yaw_rate_gain: 0.6
+    balance_kp: 35.0
+    balance_kd: 5.0
+    balance_kv: 2.0
+    support_gain: 1.0

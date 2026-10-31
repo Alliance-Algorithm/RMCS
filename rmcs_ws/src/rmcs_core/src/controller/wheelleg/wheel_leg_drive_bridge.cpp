@@ -67,11 +67,20 @@ public:
             register_input(prefix + "/velocity", joint_velocity_[i], false);
             register_input(prefix + "/max_torque", joint_max_torque_[i], false);
             register_output(prefix + "/control_torque", joint_torque_[i], 0.0);
+            register_output(prefix + "/velocity_control", joint_velocity_mode_[i], false);
+            register_output(prefix + "/control_velocity", joint_velocity_target_[i], 0.);
+            register_output(prefix + "/control_velocity_gain", joint_velocity_gain_[i], 0.);
             // Calibration pass-through (WheelLegCalibController). Optional; when
             // /wheelleg/calib/active these torques replace the normal chain.
             register_input(
                 std::string{"/wheelleg/calib/"} + kJoints[i] + "/torque", calib_joint_torque_[i],
                 false);
+            register_input(std::string{"/wheelleg/recovery/"}+kJoints[i]+"/torque",
+                recovery_joint_torque_[i], false);
+            register_input(std::string{"/wheelleg/recovery/"}+kJoints[i]+"/servo_rad_s",
+                recovery_joint_velocity_[i], false);
+            register_input(std::string{"/wheelleg/recovery/"}+kJoints[i]+"/servo_feedforward_nm",
+                recovery_joint_feedforward_[i], false);
         }
         register_output("/wheel_leg/left_wheel/control_torque", wheel_torque_[0], 0.0);
         register_output("/wheel_leg/right_wheel/control_torque", wheel_torque_[1], 0.0);
@@ -83,7 +92,14 @@ public:
                     calib_wheel_torque_[i], false);
             register_input("/wheelleg/calib/active", calib_active_, false);
             register_input("/wheelleg/calib/request_enable", calib_request_enable_, false);
+            for (std::size_t i=0; i<kWheels.size(); ++i)
+                register_input(std::string{"/wheelleg/recovery/"}+kWheels[i]+"/torque",
+                    recovery_wheel_torque_[i], false);
         }
+        register_input("/wheelleg/recovery/active", recovery_active_, false);
+        register_input("/wheelleg/recovery/fault", recovery_fault_, false);
+        register_input("/wheelleg/recovery/motor_velocity_servo", recovery_velocity_servo_, false);
+        register_input("/wheelleg/recovery/velocity_gain", recovery_velocity_gain_, false);
 
         register_input("/wheelleg/reference/hip_angle", ref_hip_, false);
         register_input("/wheelleg/reference/knee_angle", ref_knee_, false);
@@ -125,6 +141,7 @@ public:
 
     void update() override {
         using Switch = rmcs_msgs::Switch;
+        clear_velocity_commands_();
         const bool have_switches = switch_left_.ready() && switch_right_.ready();
         // Two-stage stand arming: both MIDDLE = legs only; left MIDDLE + right UP
         // = also enable the wheel balance. With no remote (simulation) the
@@ -142,6 +159,7 @@ public:
                 armed_ = true;
             if (left == Switch::DOWN && right == Switch::DOWN)
                 armed_ = false;
+            if (!fresh) armed_ = false;
             balance_armed = fresh && left == Switch::MIDDLE && right == Switch::UP;
         }
 
@@ -154,7 +172,8 @@ public:
         // Tilt safety cutoff: drop ALL torque (legs + wheels) if |pitch| exceeds
         // max_tilt_deg (0 = disabled). Lets a stand-up test fall or be caught
         // rather than drive into an unrecoverable pose. Cleared when back inside.
-        if (max_tilt_deg_ > 0.0 && state_pitch_.ready() && std::isfinite(*state_pitch_)
+        const bool recovering = recovery_active_.ready() && *recovery_active_;
+        if (!recovering && max_tilt_deg_ > 0.0 && state_pitch_.ready() && std::isfinite(*state_pitch_)
             && std::abs(*state_pitch_) > max_tilt_deg_ * (std::numbers::pi / 180.0)) {
             safe_outputs_();
             return;
@@ -185,6 +204,51 @@ public:
             *wheel_torque_[1] = std::clamp(
                 *calib_wheel_torque_[1], -wheel_torque_limit_, wheel_torque_limit_);
             *enable_request_ = true;
+            return;
+        }
+
+        if (recovering) {
+            turn_valid_ = false;
+            bool valid = recovery_fault_.ready() && *recovery_fault_==0;
+            for (const auto& value:recovery_joint_torque_)
+                valid=valid && value.ready() && std::isfinite(*value);
+            for (const auto& value:recovery_wheel_torque_)
+                valid=valid && value.ready() && std::isfinite(*value);
+            const bool velocity_servo=recovery_velocity_servo_.ready() && *recovery_velocity_servo_;
+            if (velocity_servo) {
+                valid=valid && recovery_velocity_gain_.ready() && std::isfinite(*recovery_velocity_gain_)
+                    && *recovery_velocity_gain_>0. && *recovery_velocity_gain_<=5.;
+                for (std::size_t i=0; i<4; ++i)
+                    valid=valid && recovery_joint_velocity_[i].ready() && recovery_joint_feedforward_[i].ready()
+                        && joint_velocity_[i].ready() && std::isfinite(*joint_velocity_[i])
+                        && std::isfinite(*recovery_joint_velocity_[i]) && std::abs(*recovery_joint_velocity_[i])<=3.14
+                        && std::isfinite(*recovery_joint_feedforward_[i]);
+            }
+            if (!valid) { safe_outputs_(); return; }
+            // Recovery keeps the bridge as the sole writer and preserves the
+            // DM readiness handshake and all physical output torque limits.
+            safe_outputs_();
+            *enable_request_=true;
+            if (!dm_control_ready_.ready() || !*dm_control_ready_) return;
+            for (std::size_t i=0; i<4; ++i) {
+                const double limit=joint_max_torque_[i].ready()
+                    && std::isfinite(*joint_max_torque_[i]) && *joint_max_torque_[i]>0.
+                    ? std::min(leg_torque_limit_, *joint_max_torque_[i]) : leg_torque_limit_;
+                *joint_torque_[i]=std::clamp(*recovery_joint_torque_[i], -limit, limit);
+                if (velocity_servo) {
+                    const double velocity=*recovery_joint_velocity_[i], gain=*recovery_velocity_gain_;
+                    const double inner=gain*(velocity-*joint_velocity_[i]);
+                    const double total=std::clamp(*recovery_joint_feedforward_[i]+inner,-limit,limit);
+                    *joint_torque_[i]=std::clamp(total-inner,-limit,limit);
+                    *joint_velocity_target_[i]=velocity;
+                    *joint_velocity_gain_[i]=gain;
+                    *joint_velocity_mode_[i]=true;
+                }
+            }
+            for (std::size_t i=0; i<2; ++i)
+                *wheel_torque_[i]=balance_armed
+                    ? std::clamp(wheel_torque_sign_[i]**recovery_wheel_torque_[i],
+                                 -wheel_torque_limit_, wheel_torque_limit_) : 0.;
             return;
         }
 
@@ -343,7 +407,14 @@ private:
         return true;
     }
 
+    void clear_velocity_commands_() {
+        for (auto& value:joint_velocity_mode_) *value=false;
+        for (auto& value:joint_velocity_target_) *value=0.;
+        for (auto& value:joint_velocity_gain_) *value=0.;
+    }
+
     void safe_outputs_() {
+        clear_velocity_commands_();
         for (auto& t : joint_torque_)
             *t = 0.0;
         *wheel_torque_[0] = 0.0;
@@ -397,11 +468,20 @@ private:
     std::array<InputInterface<double>, 4> joint_velocity_;
     std::array<InputInterface<double>, 4> joint_max_torque_;
     std::array<OutputInterface<double>, 4> joint_torque_{};
+    std::array<OutputInterface<bool>,4> joint_velocity_mode_;
+    std::array<OutputInterface<double>,4> joint_velocity_target_,joint_velocity_gain_;
     std::array<OutputInterface<double>, 2> wheel_torque_{};
     // Calibration pass-through (WheelLegCalibController).
     std::array<InputInterface<double>, 4> calib_joint_torque_;
     std::array<InputInterface<double>, 2> calib_wheel_torque_;
     InputInterface<bool> calib_active_, calib_request_enable_;
+    std::array<InputInterface<double>,4> recovery_joint_torque_;
+    std::array<InputInterface<double>,4> recovery_joint_velocity_,recovery_joint_feedforward_;
+    InputInterface<bool> recovery_velocity_servo_;
+    InputInterface<double> recovery_velocity_gain_;
+    std::array<InputInterface<double>,2> recovery_wheel_torque_;
+    InputInterface<bool> recovery_active_;
+    InputInterface<std::uint8_t> recovery_fault_;
 
     InputInterface<double> ref_hip_, ref_knee_;
     InputInterface<double> ref_hip_l_, ref_hip_r_, ref_knee_l_, ref_knee_r_;

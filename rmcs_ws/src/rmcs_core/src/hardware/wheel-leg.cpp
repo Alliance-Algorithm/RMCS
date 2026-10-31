@@ -700,6 +700,8 @@ private:
                 return motor.disable_command();
             if (action == Action::kFeedbackPoll)
                 return motor.generate_command(0.0);
+            if (motor.velocity_control_requested())
+                return fresh ? motor.generate_velocity_command() : motor.generate_command(0.);
             if (use_motor_position_pd_)
                 return motor.generate_command_pd(joint_kp_, joint_kd_);
             return motor.generate_command(fresh ? motor.control_torque() : 0.0);
@@ -723,7 +725,7 @@ private:
                     can, {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
                 publish_transmitted_frame(
                     axis, packet, static_cast<std::uint64_t>(now_ns()),
-                    wheel_leg_dm_tx_kind(action, use_motor_position_pd_), motor.send_id(),
+                    wheel_leg_dm_tx_kind(action, use_motor_position_pd_ || motor.velocity_control_requested()), motor.send_id(),
                     axis % 2 == 0 ? 1 : 2);
                 if (action != Action::kMit && action != Action::kFeedbackPoll) {
                     const auto command = static_cast<std::uint8_t>(packet.as_bytes()[7]);
@@ -731,8 +733,10 @@ private:
                     last_system_ns_[axis].store(now_ns(), std::memory_order_relaxed);
                 }
                 if (action == Action::kFeedbackPoll
-                    || (action == Action::kMit && !use_motor_position_pd_))
+                    || (action == Action::kMit && !use_motor_position_pd_ && !motor.velocity_control_requested()))
                     *frame_torque_outputs_[axis] = motor.command_frame_torque(packet);
+                else
+                    *frame_torque_outputs_[axis] = std::numeric_limits<double>::quiet_NaN();
             };
             const auto axis_order =
                 WheelLegDmSideSchedulers::transmit_order(cycle.side_bound, cycle.selected_side);
