@@ -39,6 +39,38 @@ void* wheelleg_recovery_create(const double* rows, int count, const double* para
     } catch (...) { return nullptr; }
 }
 void wheelleg_recovery_destroy(void* handle) { delete static_cast<Core*>(handle); }
+int wheelleg_recovery_configure_capture(void* handle,double value,double distance_gain) {
+    if (!handle) return -1;
+    try { static_cast<Core*>(handle)->configure_capture(value,distance_gain); return 0; }
+    catch (...) { return -1; }
+}
+int wheelleg_recovery_configure_flip_handoff(void* handle,double tilt,double gyro,double dwell) {
+    if (!handle) return -1;
+    try { static_cast<Core*>(handle)->configure_flip_handoff(tilt,gyro,dwell); return 0; }
+    catch (...) { return -1; }
+}
+int wheelleg_recovery_set_flip_fold_first(void* handle,int value) {
+    if (!handle) return -1;
+    try {static_cast<Core*>(handle)->set_flip_fold_first(value!=0);return 0;}
+    catch (...) {return -1;}
+}
+int wheelleg_recovery_configure_flip_completion(void* handle,double orbit_limit,int balance) {
+    if (!handle) return -1;
+    try {static_cast<Core*>(handle)->configure_flip_completion(orbit_limit,balance!=0);return 0;}
+    catch (...) {return -1;}
+}
+int wheelleg_recovery_set_flip_program(void* handle,const double* data,int count,int relative) {
+    if (!handle || count<0 || count>64 || (count && !data)) return -1;
+    try {
+        std::vector<Core::FlipWaypoint> program;
+        for (int i=0;i<count;++i) {
+            const double* p=data+9*i;
+            program.push_back({{p[0],p[1]},{p[2],p[3]},p[4],p[5],p[6],{p[7],p[8]}});
+        }
+        static_cast<Core*>(handle)->set_flip_program(std::move(program),relative!=0);
+        return 0;
+    } catch (...) { return -1; }
+}
 int wheelleg_recovery_step(void* handle, const double* in, double dt, int enabled, int fresh, double* out) {
     if (!handle || !in || !out) return -1;
     Core::Feedback f;

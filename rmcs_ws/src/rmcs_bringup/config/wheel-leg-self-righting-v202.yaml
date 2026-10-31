@@ -34,6 +34,19 @@ wheelleg_self_righting:
     flip_orbit_deg: 0.0
     sweep_orbit_deg: 180.0
     flip_asymmetry_knee_deg: 0.0
+    # Optional rows: knee lower/upper, orbit lower/upper (degrees), speed,
+    # acceleration, hold seconds, physical left/right wheel velocities.
+    # Research candidates are not enabled by default.
+    flip_program: []
+    flip_program_relative_to_side: true
+    balance_wheel_speed_limit_rad_s: 20.0
+    balance_distance_gain: 0.98
+    flip_capture_tilt_deg: 31.788330617
+    flip_capture_gyro_rad_s: 2.0
+    flip_capture_dwell_seconds: 0.0
+    flip_fold_first: false
+    flip_handoff_orbit_limit_deg: 0.0
+    flip_balance_when_upright: false
     pitch_trim_gain: 0.0
     yaw_rate_gain: 0.6
     balance_kp: 35.0

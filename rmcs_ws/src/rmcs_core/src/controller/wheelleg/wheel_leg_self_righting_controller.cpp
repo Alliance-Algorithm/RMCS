@@ -71,6 +71,22 @@ public:
         settings.balance_kv = node::param_or("balance_kv", 2.);
         settings.support_gain = node::param_or("support_gain", 1.);
         core_ = std::make_unique<SelfRightingCore>(recovery_v202::geometry, settings, recovery_v202::support_compensation);
+        const auto program_data=node::param_or("flip_program",std::vector<double>{});
+        if (program_data.size()%9!=0 || program_data.size()>64*9)
+            throw std::invalid_argument("Flip program must contain at most 64 rows of nine numbers");
+        std::vector<SelfRightingCore::FlipWaypoint> program;
+        for (std::size_t i=0;i<program_data.size();i+=9) {
+            const auto* p=program_data.data()+i;
+            program.push_back({{p[0],p[1]},{p[2],p[3]},p[4],p[5],p[6],{p[7],p[8]}});
+        }
+        core_->set_flip_program(std::move(program),node::param_or("flip_program_relative_to_side",true));
+        core_->configure_capture(node::param_or("balance_wheel_speed_limit_rad_s",20.),
+            node::param_or("balance_distance_gain",.98));
+        core_->configure_flip_handoff(node::param_or("flip_capture_tilt_deg",31.788330617),
+            node::param_or("flip_capture_gyro_rad_s",2.),node::param_or("flip_capture_dwell_seconds",0.));
+        core_->set_flip_fold_first(node::param_or("flip_fold_first",false));
+        core_->configure_flip_completion(node::param_or("flip_handoff_orbit_limit_deg",0.),
+            node::param_or("flip_balance_when_upright",false));
 
         constexpr std::array joints{"left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"};
         for (std::size_t i=0; i<4; ++i) {

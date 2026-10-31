@@ -32,6 +32,11 @@ public:
         Phase phase = Disabled;
         int fault = 0;
     };
+    struct FlipWaypoint {
+        std::array<double,2> knee_deg{}, orbit_deg{};
+        double speed=1.5, acceleration=3., hold_seconds=0.;
+        std::array<double,2> wheel_velocity{}; // physical left/right output coordinates
+    };
     struct Settings {
         double speed_limit = 3.14, cruise_speed = 1.5, acceleration = 3.;
         double velocity_gain = 5., position_gain = 12., torque_limit = 40.;
@@ -78,11 +83,55 @@ public:
                 throw std::invalid_argument("Recovery pose lies outside its geometry table");
     }
 
+    // Optional measured-state side recovery program. When relative is true,
+    // pose entries mean lower/upper leg, selected once from initial gravity.
+    void set_flip_program(std::vector<FlipWaypoint> program, bool relative) {
+        if (phase_!=Disabled || program.size()>64)
+            throw std::invalid_argument("Configure a finite flip program while disabled");
+        for (const auto& p:program) {
+            for (double v:{p.knee_deg[0],p.knee_deg[1],p.orbit_deg[0],p.orbit_deg[1],
+                    p.speed,p.acceleration,p.hold_seconds,p.wheel_velocity[0],p.wheel_velocity[1]})
+                if (!std::isfinite(v)) throw std::invalid_argument("Nonfinite flip waypoint");
+            if (p.speed<=0. || p.speed>=settings_.speed_limit || p.acceleration<=0.
+                || p.hold_seconds<0. || p.hold_seconds>5.
+                || std::abs(p.wheel_velocity[0])>55. || std::abs(p.wheel_velocity[1])>55.)
+                throw std::invalid_argument("Flip waypoint exceeds its speed or time envelope");
+            for (double knee:p.knee_deg)
+                if (knee<table_.front()[0] || knee>table_.back()[0])
+                    throw std::invalid_argument("Flip waypoint exceeds knee geometry");
+        }
+        flip_program_=std::move(program); program_relative_=relative;
+    }
+    void configure_capture(double value, double distance_gain) {
+        if (phase_!=Disabled || !std::isfinite(value) || value<10. || value>55. || !std::isfinite(distance_gain) || distance_gain<0. || distance_gain>5.)
+            throw std::invalid_argument("Configure wheel speed limit between 10 and 55 rad/s while disabled");
+        balance_wheel_speed_limit_=value; balance_distance_gain_=distance_gain;
+    }
+    void configure_flip_handoff(double tilt_deg,double gyro,double dwell) {
+        if(phase_!=Disabled || !std::isfinite(tilt_deg) || !std::isfinite(gyro) || !std::isfinite(dwell)
+            || tilt_deg<1. || tilt_deg>60. || gyro<=0. || gyro>3. || dwell<0. || dwell>1.)
+            throw std::invalid_argument("Invalid flip handoff conditions");
+        flip_capture_gravity_z_=-std::cos(tilt_deg*std::numbers::pi/180.);
+        flip_capture_gyro_=gyro;flip_capture_dwell_=dwell;
+    }
+    void set_flip_fold_first(bool value) {
+        if (phase_!=Disabled) throw std::invalid_argument("Configure flip preparation while disabled");
+        flip_fold_first_=value;
+    }
+    void configure_flip_completion(double orbit_limit_deg, bool balance_when_upright) {
+        if (phase_!=Disabled || !std::isfinite(orbit_limit_deg) || orbit_limit_deg<0. || orbit_limit_deg>180.)
+            throw std::invalid_argument("Configure flip handoff orbit limit between zero and 180 degrees while disabled");
+        flip_handoff_orbit_limit_=orbit_limit_deg*std::numbers::pi/180.;
+        flip_balance_when_upright_=balance_when_upright;
+    }
+
     void reset() { phase_ = Disabled; fault_ = 0; elapsed_ = stable_ = segment_time_ = wheel_distance_ = orbit_trim_ = 0.;
                    segment_done_ = true; flip_step_ = 0; arrival_time_ = 0.; completed_once_=false;
                    reference_.fill(0.); reference_velocity_.fill(0.); integral_.fill(0.);
                    from_.fill(0.); to_.fill(0.); initial_orbit_.fill(0.); support_blend_=0.;
-                   distance_=duration_=ramp_=peak_=posture_lost_time_=0.; }
+                   distance_=duration_=ramp_=peak_=posture_lost_time_=program_hold_time_=0.;
+                   program_active_=preparing_program_=false; program_index_=0; lower_side_=0;
+                   tracking_speed_=settings_.cruise_speed; segment_acceleration_=flip_capture_time_=0.; }
 
     Output step(const Feedback& f, double dt, bool enabled, bool fresh = true) {
         Output out;
@@ -123,15 +172,39 @@ public:
             } else if (f.gravity[2] < -.75) enter(Fold, pose(settings_.fold_knee, initial_orbit_), f);
             else {
                 phase_ = Flip; flip_step_ = 0;
-                begin(pose(settings_.fold_knee, initial_orbit_), reference_);
+                program_active_=!flip_program_.empty();
+                lower_side_=f.gravity[1]>0. ? 0 : 1;
+                if (program_active_ && flip_fold_first_) {
+                    preparing_program_=true;
+                    begin(pose(settings_.fold_knee,initial_orbit_),reference_);
+                } else if (program_active_) start_program_waypoint(f);
+                else begin(pose(settings_.fold_knee, initial_orbit_), reference_);
             }
         }
-        if (phase_ == Flip && f.gravity[2] < -.85
-            && std::hypot(f.gyro[0], f.gyro[1]) < 2.) {
+        bool handoff_orbits_ready=true;
+        if (flip_handoff_orbit_limit_>0.)
+            for (std::size_t side=0;side<2;++side)
+                handoff_orbits_ready=handoff_orbits_ready &&
+                    std::abs(std::remainder(orbit(f.position,side),2.*std::numbers::pi))<=flip_handoff_orbit_limit_;
+        const bool flip_quiet=phase_==Flip && handoff_orbits_ready && f.gravity[2]<flip_capture_gravity_z_
+            && std::hypot(f.gyro[0],f.gyro[1])<flip_capture_gyro_;
+        flip_capture_time_=flip_quiet ? flip_capture_time_+dt : 0.;
+        if (flip_quiet && flip_capture_time_>=flip_capture_dwell_) {
             for (std::size_t s = 0; s < 2; ++s) initial_orbit_[s] = orbit(f.position, s);
+            program_active_=false;
             enter(Fold, pose(settings_.fold_knee, initial_orbit_), f);
         }
-        if (segment_done_ && phase_ == Flip) {
+        if (segment_done_ && phase_==Flip && program_active_) {
+            if (preparing_program_) {
+                preparing_program_=false;start_program_waypoint(f);
+            } else {
+                program_hold_time_+=dt;
+                if (program_hold_time_>=flip_program_[program_index_].hold_seconds) {
+                    if (++program_index_<flip_program_.size()) start_program_waypoint(f);
+                    else { program_active_=false; tracking_speed_=settings_.cruise_speed; }
+                }
+            }
+        } else if (segment_done_ && phase_ == Flip) {
             ++flip_step_;
             if (flip_step_>8) { fail(8); out.phase=Fault; out.fault=fault_; return out; }
             std::array<double, 2> angles{};
@@ -172,10 +245,14 @@ public:
         out.position = reference_;
         out.velocity = reference_velocity_;
         out.phase = phase_;
-        if ((phase_ == Plant || phase_ == Rise || phase_ == Capture || phase_ == Complete)
+        if (phase_==Flip && program_active_)
+            for (std::size_t i=0;i<2;++i)
+                out.wheel_torque[i]=std::clamp(.5*(flip_program_[program_index_].wheel_velocity[i]-f.wheel_velocity[i]),-4.5,4.5);
+        if ((phase_ == Plant || phase_ == Rise || phase_ == Capture || phase_ == Complete
+                || (phase_==Flip && flip_balance_when_upright_))
             && f.gravity[2] < -.8) {
             const double pitch = std::atan2(f.gravity[0], -f.gravity[2]);
-            const double trim_rate = (phase_==Capture || phase_==Complete) && std::abs(pitch)<.1
+            const double trim_rate = (phase_==Capture || phase_==Complete) && std::abs(pitch)<.35
                 ? std::clamp(settings_.pitch_trim_gain*pitch, -.4, .4) : 0.;
             orbit_trim_ = std::clamp(orbit_trim_+trim_rate*dt, -.4, .4);
             for (std::size_t i = 0; i < 4; ++i) {
@@ -192,13 +269,15 @@ public:
                 ? settings_.balance_kv : std::min(2.,settings_.balance_kv);
             const double common = std::clamp(settings_.balance_kp*pitch
                 + settings_.balance_kd*f.gyro[1]
-                + velocity_gain*velocity + .98*wheel_distance_, -4.5, 4.5);
+                + velocity_gain*velocity + balance_distance_gain_*wheel_distance_, -4.5, 4.5);
             const double headroom=4.5-std::abs(common);
             const double yaw=std::clamp(settings_.yaw_rate_gain*f.gyro[2],-headroom,headroom);
             out.wheel_torque = {common+yaw, -common+yaw};
-            // A wheel in the air must not run away under positive velocity feedback.
+            // The identified wheel response reaches about 59 rad/s unloaded.
+            // Keep headroom below it without clipping the acceleration needed
+            // to catch a falling body after the wheels first touch the ground.
             for (std::size_t i = 0; i < 2; ++i)
-                if (std::abs(f.wheel_velocity[i]) > 20.
+                if (std::abs(f.wheel_velocity[i]) > balance_wheel_speed_limit_
                     && out.wheel_torque[i]*f.wheel_velocity[i] > 0.)
                     out.wheel_torque[i] = std::clamp(-.15*f.wheel_velocity[i], -4.5, 4.5);
             bool quiet = f.gravity[2] < -.9903 && std::hypot(f.gyro[0],f.gyro[1]) < .35
@@ -219,7 +298,7 @@ public:
         for (std::size_t i = 0; i < 4; ++i) {
             const double desired_velocity = std::clamp(out.velocity[i]
                 + settings_.position_gain*(out.position[i]-f.position[i]),
-                -settings_.cruise_speed, settings_.cruise_speed);
+                -tracking_speed_, tracking_speed_);
             const double error = desired_velocity-f.velocity[i];
             const double previous_integral = integral_[i];
             integral_[i] = std::clamp(integral_[i]+settings_.integral_gain*error*dt,
@@ -293,15 +372,29 @@ private:
                 q[s*2+j] = row[s*2+j+1] - (s == 0 ? 1. : -1.)*angles[s];
         return q;
     }
-    void begin(const Axes& goal, const Axes& measured) {
+    void begin(const Axes& goal, const Axes& measured, double speed=0., double acceleration=0.) {
+        tracking_speed_=speed>0. ? speed : settings_.cruise_speed;
+        const double a=acceleration>0. ? acceleration : settings_.acceleration;
         from_ = measured; to_ = goal; distance_ = 0.;
         for (std::size_t i = 0; i < 4; ++i) distance_ = std::max(distance_, std::abs(to_[i]-from_[i]));
-        ramp_ = std::min(settings_.cruise_speed/settings_.acceleration,
-            std::sqrt(distance_/settings_.acceleration));
-        peak_ = settings_.acceleration*ramp_;
+        segment_acceleration_=a;
+        ramp_ = std::min(tracking_speed_/a,std::sqrt(distance_/a));
+        peak_ = a*ramp_;
         duration_ = peak_ > 1e-9 ? distance_/peak_+ramp_ : 0.;
         segment_time_ = 0.; segment_done_ = distance_ < 1e-8;
         arrival_time_=0.;
+    }
+    void start_program_waypoint(const Feedback& f) {
+        const auto& p=flip_program_[program_index_];
+        Axes goal{};
+        for (std::size_t index=0;index<2;++index) {
+            const std::size_t side=program_relative_ ? (index==0 ? lower_side_ : 1-lower_side_) : index;
+            const double angle=nearest(p.orbit_deg[index]*std::numbers::pi/180.,orbit(f.position,side));
+            const Row row=interpolate(p.knee_deg[index]);
+            for (std::size_t j=0;j<2;++j)
+                goal[side*2+j]=row[side*2+j+1]-(side==0 ? 1. : -1.)*angle;
+        }
+        begin(goal,reference_,p.speed,p.acceleration); program_hold_time_=0.;
     }
     void enter(Phase phase, const Axes& goal, const Feedback& f) {
         (void)f;
@@ -313,13 +406,13 @@ private:
         segment_time_ += dt;
         const double t = std::min(segment_time_, duration_);
         double distance = 0., velocity = 0.;
-        if (t < ramp_) { velocity = settings_.acceleration*t; distance = .5*velocity*t; }
+        if (t < ramp_) { velocity = segment_acceleration_*t; distance = .5*velocity*t; }
         else if (t <= duration_-ramp_) {
             velocity = peak_; distance = .5*peak_*ramp_+peak_*(t-ramp_);
         } else {
             const double remaining = duration_-t;
-            velocity = settings_.acceleration*remaining;
-            distance = distance_-.5*settings_.acceleration*remaining*remaining;
+            velocity = segment_acceleration_*remaining;
+            distance = distance_-.5*segment_acceleration_*remaining*remaining;
         }
         for (std::size_t i = 0; i < 4; ++i) {
             const double direction = distance_ > 0. ? (to_[i]-from_[i])/distance_ : 0.;
@@ -348,6 +441,15 @@ private:
     double arrival_time_=0.;
     double posture_lost_time_=0.;
     bool segment_done_ = true, completed_once_=false;
+    std::vector<FlipWaypoint> flip_program_;
+    bool program_relative_=true, program_active_=false;
+    bool flip_fold_first_=false,preparing_program_=false;
+    std::size_t program_index_=0,lower_side_=0;
+    double program_hold_time_=0.,tracking_speed_=0.,segment_acceleration_=0.;
+    double balance_wheel_speed_limit_=20.,balance_distance_gain_=.98;
+    double flip_capture_gravity_z_=-.85,flip_capture_gyro_=2.,flip_capture_dwell_=0.,flip_capture_time_=0.;
+    double flip_handoff_orbit_limit_=0.;
+    bool flip_balance_when_upright_=false;
     Axes reference_{}, reference_velocity_{}, from_{}, to_{}, integral_{};
     std::array<double, 2> initial_orbit_{};
 };
