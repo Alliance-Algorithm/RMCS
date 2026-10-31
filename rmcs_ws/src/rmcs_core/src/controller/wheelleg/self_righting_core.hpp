@@ -124,6 +124,18 @@ public:
         flip_handoff_orbit_limit_=orbit_limit_deg*std::numbers::pi/180.;
         flip_balance_when_upright_=balance_when_upright;
     }
+    void configure_flip_stall(double dwell_seconds) {
+        if (phase_!=Disabled || !std::isfinite(dwell_seconds) || dwell_seconds<0.
+            || (dwell_seconds>0. && dwell_seconds<.05) || dwell_seconds>2.)
+            throw std::invalid_argument("Configure flip stall dwell as zero or 0.05..2 seconds while disabled");
+        flip_stall_dwell_=dwell_seconds;
+    }
+    int stalled_waypoints() const { return stalled_waypoints_; }
+    void configure_flip_first_orbit_hold(unsigned mask) {
+        if (phase_!=Disabled || mask>3)
+            throw std::invalid_argument("Configure first-waypoint orbit hold mask between zero and three while disabled");
+        flip_first_orbit_hold_mask_=mask;
+    }
 
     void reset() { phase_ = Disabled; fault_ = 0; elapsed_ = stable_ = segment_time_ = wheel_distance_ = orbit_trim_ = 0.;
                    segment_done_ = true; flip_step_ = 0; arrival_time_ = 0.; completed_once_=false;
@@ -131,7 +143,8 @@ public:
                    from_.fill(0.); to_.fill(0.); initial_orbit_.fill(0.); support_blend_=0.;
                    distance_=duration_=ramp_=peak_=posture_lost_time_=program_hold_time_=0.;
                    program_active_=preparing_program_=false; program_index_=0; lower_side_=0;
-                   tracking_speed_=settings_.cruise_speed; segment_acceleration_=flip_capture_time_=0.; }
+                   tracking_speed_=settings_.cruise_speed; segment_acceleration_=flip_capture_time_=flip_stall_time_=0.;
+                   flip_stall_error_=0.;stalled_waypoints_=0; }
 
     Output step(const Feedback& f, double dt, bool enabled, bool fresh = true) {
         Output out;
@@ -382,14 +395,16 @@ private:
         peak_ = a*ramp_;
         duration_ = peak_ > 1e-9 ? distance_/peak_+ramp_ : 0.;
         segment_time_ = 0.; segment_done_ = distance_ < 1e-8;
-        arrival_time_=0.;
+        arrival_time_=flip_stall_time_=flip_stall_error_=0.;
     }
     void start_program_waypoint(const Feedback& f) {
         const auto& p=flip_program_[program_index_];
         Axes goal{};
         for (std::size_t index=0;index<2;++index) {
             const std::size_t side=program_relative_ ? (index==0 ? lower_side_ : 1-lower_side_) : index;
-            const double angle=nearest(p.orbit_deg[index]*std::numbers::pi/180.,orbit(f.position,side));
+            const bool hold_initial=program_index_==0 && (flip_first_orbit_hold_mask_&(1u<<index));
+            const double angle=hold_initial ? initial_orbit_[side]
+                : nearest(p.orbit_deg[index]*std::numbers::pi/180.,orbit(f.position,side));
             const Row row=interpolate(p.knee_deg[index]);
             for (std::size_t j=0;j<2;++j)
                 goal[side*2+j]=row[side*2+j+1]-(side==0 ? 1. : -1.)*angle;
@@ -426,6 +441,25 @@ private:
                 arrived=arrived && std::abs(to_[i]-f.position[i])<.04;
             arrival_time_=arrived ? arrival_time_+dt : 0.;
             segment_done_=arrival_time_>=.04;
+            bool stopped=std::hypot(f.gyro[0],f.gyro[1],f.gyro[2])<.5;
+            for(double value:f.velocity)stopped=stopped && std::abs(value)<.6;
+            double error=0.;
+            for(std::size_t axis=0;axis<4;++axis)error=std::max(error,std::abs(to_[axis]-f.position[axis]));
+            if (phase_==Flip && program_active_ && !preparing_program_ && !arrived && stopped) {
+                // Require lack of net target progress; instantaneous encoder
+                // jitter under load must not keep a blocked motor energized.
+                if(flip_stall_time_==0. || error<flip_stall_error_-.01) {
+                    flip_stall_time_=dt;flip_stall_error_=error;
+                } else flip_stall_time_+=dt;
+            } else flip_stall_time_=0.;
+            if (flip_stall_dwell_>0. && flip_stall_time_>=flip_stall_dwell_) {
+                // A stopped, blocked waypoint is not a successful pose or a
+                // contact sensor. Release the accumulated tracking effort and
+                // try the next finite program target from measured encoders.
+                // This rebases only command state, never the physical state.
+                reference_=from_=to_=f.position;reference_velocity_.fill(0.);integral_.fill(0.);
+                segment_done_=true;++stalled_waypoints_;flip_stall_time_=0.;return;
+            }
             if (segment_time_>duration_+5.) fail(5);
         }
     }
@@ -450,6 +484,9 @@ private:
     double flip_capture_gravity_z_=-.85,flip_capture_gyro_=2.,flip_capture_dwell_=0.,flip_capture_time_=0.;
     double flip_handoff_orbit_limit_=0.;
     bool flip_balance_when_upright_=false;
+    double flip_stall_dwell_=0.,flip_stall_time_=0.,flip_stall_error_=0.;
+    int stalled_waypoints_=0;
+    unsigned flip_first_orbit_hold_mask_=0;
     Axes reference_{}, reference_velocity_{}, from_{}, to_{}, integral_{};
     std::array<double, 2> initial_orbit_{};
 };

@@ -231,5 +231,108 @@ int main() {
         guarded.step(side,.001,true);side.gravity={0.,0.,-1.};
         require(guarded.step(side,.001,true).phase==Core::Flip,"Reset discarded orbit guard configuration");
     }
-    std::cout<<"PASS: independent leg reference paths, speed, torque, faults, reset, invalid configuration\n";
+    {
+        Core blocked(recovery_v202::geometry,settings);
+        blocked.configure_flip_stall(.05);
+        blocked.set_flip_program({{{109.,109.},{0.,0.},1.2,3.,0.,{0.,0.}},
+            {{45.,45.},{90.,90.},1.2,3.,0.,{0.,0.}}},false);
+        Core::Feedback fixed;
+        fixed.gravity={0.,1.,0.};
+        for(std::size_t axis=0;axis<4;++axis)fixed.position[axis]=recovery_v202::geometry[17][axis+1];
+        bool stopped_target=false;Core::Axes blocked_target{};
+        for(int tick=0;tick<5000;++tick) {
+            const auto command=blocked.step(fixed,.001,true);
+            require(command.fault==0,"Stalled flip faulted before its dwell");
+            bool no_reference_motion=true;
+            for(double v:command.velocity)no_reference_motion=no_reference_motion && std::abs(v)<1e-8;
+            if(no_reference_motion) {stopped_target=true;blocked_target=command.position;break;}
+        }
+        require(stopped_target,"Blocked reference did not reach its finite target");
+        for(int tick=0;tick<24;++tick)blocked.step(fixed,.001,true);
+        require(blocked.stalled_waypoints()==0,"Blocked waypoint skipped its continuous dwell");
+        double target_error=0.;
+        for(std::size_t axis=0;axis<4;++axis)target_error=std::max(target_error,std::abs(blocked_target[axis]-fixed.position[axis]));
+        for(std::size_t axis=0;axis<4;++axis)
+            fixed.position[axis]+=.02*(blocked_target[axis]-fixed.position[axis])/target_error;
+        for(int tick=0;tick<24;++tick)blocked.step(fixed,.001,true);
+        require(blocked.stalled_waypoints()==0,"Progressing encoders did not restart stall dwell");
+        fixed.velocity[0]=.7;blocked.step(fixed,.001,true);fixed.velocity.fill(0.);
+        for(int tick=0;tick<48;++tick)blocked.step(fixed,.001,true);
+        require(blocked.stalled_waypoints()==0,"Moving encoder did not restart stall dwell");
+        fixed.gyro[2]=.6;blocked.step(fixed,.001,true);fixed.gyro.fill(0.);
+        for(int tick=0;tick<48;++tick)blocked.step(fixed,.001,true);
+        require(blocked.stalled_waypoints()==0,"Yawing body did not restart stall dwell");
+        Core::Output rebase;
+        for(int tick=0;tick<3 && blocked.stalled_waypoints()==0;++tick)
+            rebase=blocked.step(fixed,.001,true);
+        require(blocked.stalled_waypoints()==1,"Stopped blocked waypoint did not advance");
+        require(rebase.position==fixed.position,"Stall did not rebase command state to measured encoders");
+        for(std::size_t axis=0;axis<4;++axis) {
+            require(rebase.velocity[axis]==0.,"Stall retained reference velocity");
+            require(std::abs(rebase.torque[axis])<1e-12,"Stall retained accumulated tracking effort");
+        }
+        rejected=false;
+        try {blocked.configure_flip_stall(0.);}catch(const std::invalid_argument&){rejected=true;}
+        require(rejected,"Active stall policy reconfiguration accepted");
+        fixed.velocity[0]=3.15;
+        require(blocked.step(fixed,.001,true).fault==3,"Stall policy masked actual overspeed");
+        blocked.reset();
+        require(blocked.stalled_waypoints()==0,"Reset retained stalled waypoint count");
+        for(double bad:{-.1,.01,2.1,std::numeric_limits<double>::quiet_NaN()}) {
+            rejected=false;
+            try {blocked.configure_flip_stall(bad);}catch(const std::invalid_argument&){rejected=true;}
+            require(rejected,"Invalid stall dwell accepted");
+        }
+        blocked.configure_flip_stall(0.);fixed.velocity.fill(0.);
+        Core::Output unchanged;
+        for(int tick=0;tick<12000;++tick) {
+            unchanged=blocked.step(fixed,.001,true);
+            if(unchanged.fault)break;
+        }
+        require(unchanged.fault==5 && blocked.stalled_waypoints()==0,"Disabled stall policy changed legacy tracking fault");
+    }
+    for(bool relative:{false,true})for(double gy:{-1.,1.})
+        for(const auto& angles:std::array<std::array<double,2>,4>{{{90.,90.},{-90.,-90.},{90.,-90.},{-90.,90.}}}) {
+        Core held(recovery_v202::geometry,settings);
+        held.configure_flip_first_orbit_hold(2);
+        held.set_flip_program({{{109.,109.},{-145.,-90.},1.5,3.,.1,{0.,0.}},
+            {{109.,109.},{0.,0.},1.5,3.,.1,{0.,0.}}},relative);
+        Core::Feedback f;f.gravity={0.,gy,0.};Core::Axes expected{};
+        for(std::size_t index=0;index<2;++index) {
+            const std::size_t side=relative ? (index==0 ? (gy>0. ? 0 : 1) : (gy>0. ? 1 : 0)) : index;
+            const double target=(index==1 ? angles[side] : (angles[side]>0. ? 215. : -145.));
+            for(std::size_t joint=0;joint<2;++joint) {
+                const auto axis=side*2+joint;const double sign=side==0 ? -1. : 1.;
+                f.position[axis]=recovery_v202::geometry[17][axis+1]+sign*angles[side]*std::numbers::pi/180.;
+                expected[axis]=recovery_v202::geometry.back()[axis+1]+sign*target*std::numbers::pi/180.;
+            }
+        }
+        const auto initial=f.position;Core::Axes first{};
+        for(int replay=0;replay<2;++replay) {
+            bool reached=false;
+            for(int tick=0;tick<6000;++tick) {
+                const auto out=held.step(f,.001,true);
+                require(out.fault==0 && out.phase==Core::Flip,"Initial independent-orbit hold faulted");
+                if(tick==0) {
+                    if(replay==0)first=out.position;
+                    else require(out.position==first,"Reset discarded first-orbit hold configuration");
+                }
+                double error=0.;
+                for(std::size_t axis=0;axis<4;++axis)error=std::max(error,std::abs(out.position[axis]-expected[axis]));
+                f.position=out.position;f.velocity=out.velocity;
+                if(error<1e-9) {reached=true;break;}
+            }
+            require(reached,"First program waypoint did not preserve the held leg's independent initial orbit");
+            if(replay==0) {
+                rejected=false;
+                try {held.configure_flip_first_orbit_hold(0);}catch(const std::invalid_argument&){rejected=true;}
+                require(rejected,"Active first-orbit hold reconfiguration accepted");
+            }
+            held.reset();f.position=initial;f.velocity.fill(0.);
+        }
+        rejected=false;
+        try {held.configure_flip_first_orbit_hold(4);}catch(const std::invalid_argument&){rejected=true;}
+        require(rejected,"Invalid first-orbit hold mask accepted");
+    }
+    std::cout<<"PASS: independent leg reference paths, speed, torque, faults, reset, invalid configuration, stalled waypoint policy, initial-orbit hold\n";
 }

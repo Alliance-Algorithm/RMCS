@@ -87,6 +87,8 @@ public:
         core_->set_flip_fold_first(node::param_or("flip_fold_first",false));
         core_->configure_flip_completion(node::param_or("flip_handoff_orbit_limit_deg",0.),
             node::param_or("flip_balance_when_upright",false));
+        core_->configure_flip_stall(node::param_or("flip_stall_dwell_seconds",0.));
+        core_->configure_flip_first_orbit_hold(node::param_or("flip_first_orbit_hold_mask",0));
 
         constexpr std::array joints{"left_hip_joint", "left_knee_joint", "right_hip_joint", "right_knee_joint"};
         for (std::size_t i=0; i<4; ++i) {
@@ -122,6 +124,7 @@ public:
         register_output("/wheelleg/recovery/ready", ready_, false);
         register_output("/wheelleg/recovery/phase", phase_, std::uint8_t{0});
         register_output("/wheelleg/recovery/fault", fault_, std::uint8_t{0});
+        register_output("/wheelleg/recovery/stalled_waypoints", stalled_waypoints_, std::uint32_t{0});
     }
 
     void before_updating() override { reset_(); }
@@ -153,6 +156,7 @@ public:
         // its enable handshake without falling back to ordinary references.
         if (!dm_ready_.ready() || !*dm_ready_) {
             clear_torques_(); core_->reset();
+            *stalled_waypoints_=0;
             if (had_ready_) { *fault_=9; *phase_=255; *ready_=false; }
             return;
         }
@@ -177,6 +181,7 @@ public:
         const auto out=core_->step(f,dt_,true,fresh);
         *phase_=static_cast<std::uint8_t>(out.phase);
         *fault_=static_cast<std::uint8_t>(out.fault);
+        *stalled_waypoints_=static_cast<std::uint32_t>(core_->stalled_waypoints());
         *ready_=out.phase==SelfRightingCore::Complete;
         *velocity_servo_out_=motor_velocity_servo_ && out.fault==0;
         for (std::size_t i=0; i<4; ++i) {
@@ -201,6 +206,7 @@ private:
     }
     void clear_outputs_() {
         clear_torques_(); *active_=false; *ready_=false; *phase_=0; *fault_=0;
+        *stalled_waypoints_=0;
         for (auto& value:reference_) *value=0.;
         for (auto& value:reference_velocity_) *value=0.;
     }
@@ -215,6 +221,7 @@ private:
     OutputInterface<bool> active_,ready_,velocity_servo_out_;
     OutputInterface<double> velocity_gain_out_;
     OutputInterface<std::uint8_t> phase_,fault_;
+    OutputInterface<std::uint32_t> stalled_waypoints_;
     std::array<double,4> signs_{},offsets_{};
     std::unique_ptr<SelfRightingCore> core_;
     Arm arm_;

@@ -47,6 +47,12 @@ wheelleg_self_righting:
     flip_fold_first: false
     flip_handoff_orbit_limit_deg: 0.0
     flip_balance_when_upright: false
+    # Optional simulation search: abandon a stopped, blocked Flip waypoint.
+    # This is not contact detection or successful arrival. Zero disables it.
+    flip_stall_dwell_seconds: 0.0
+    # Bits 1/2 keep the first/second program leg at its own initial orbit in row 0.
+    # The knee target still follows the program; leg order follows flip_program_relative_to_side.
+    flip_first_orbit_hold_mask: 0
     pitch_trim_gain: 0.0
     yaw_rate_gain: 0.6
     balance_kp: 35.0

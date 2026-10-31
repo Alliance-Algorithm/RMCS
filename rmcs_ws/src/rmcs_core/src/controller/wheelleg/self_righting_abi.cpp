@@ -59,6 +59,19 @@ int wheelleg_recovery_configure_flip_completion(void* handle,double orbit_limit,
     try {static_cast<Core*>(handle)->configure_flip_completion(orbit_limit,balance!=0);return 0;}
     catch (...) {return -1;}
 }
+int wheelleg_recovery_configure_flip_stall(void* handle,double dwell_seconds) {
+    if (!handle) return -1;
+    try {static_cast<Core*>(handle)->configure_flip_stall(dwell_seconds);return 0;}
+    catch (...) {return -1;}
+}
+int wheelleg_recovery_stalled_waypoints(void* handle) {
+    return handle ? static_cast<Core*>(handle)->stalled_waypoints() : -1;
+}
+int wheelleg_recovery_configure_flip_first_orbit_hold(void* handle,int mask) {
+    if (!handle) return -1;
+    try {static_cast<Core*>(handle)->configure_flip_first_orbit_hold(static_cast<unsigned>(mask));return 0;}
+    catch (...) {return -1;}
+}
 int wheelleg_recovery_set_flip_program(void* handle,const double* data,int count,int relative) {
     if (!handle || count<0 || count>64 || (count && !data)) return -1;
     try {
