@@ -133,6 +133,7 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
     side_direction_.setZero();
     side_fold_.setZero();
     side_lower_leg_ = 0;
+    side_capture_tilt_rad_ = radians(65.0);
 }
 
 void JointReferenceRecoveryController::reset(
@@ -334,14 +335,21 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         tilt < radians(70.0) ? JointReferenceRecoveryRoute::kPlant
         : pitch >= 0.0f      ? JointReferenceRecoveryRoute::kOrbitPositive
                              : JointReferenceRecoveryRoute::kOrbitNegative;
-    if (tilt >= radians(70.0) && std::abs(gravity.y()) > 0.7f)
+    // Overturned and rearward-dominant falls need bilateral motion; a side
+    // stroke can pitch the body farther onto its back.
+    const float lateral_gravity = std::abs(gravity.y());
+    const bool side_gravity = config_.dynamic_takeover
+                                ? gravity.z() < 0.25f && lateral_gravity > 0.35f
+                                      && lateral_gravity > std::abs(gravity.z())
+                                      && gravity.x() > -0.7f * lateral_gravity
+                                : tilt >= radians(70.0) && lateral_gravity > 0.7f;
+    if (side_gravity)
         selected = JointReferenceRecoveryRoute::kSide;
     if (near_upright)
         selected = JointReferenceRecoveryRoute::kUpright;
     if (phase_ == JointReferenceRecoveryPhase::kSelect) {
         route_ = selected;
-        push_off_required_ = config_.dynamic_takeover
-                          && tilt < radians(15.0)
+        push_off_required_ = config_.dynamic_takeover && tilt < radians(15.0)
                           && (route_ == JointReferenceRecoveryRoute::kUpright
                               || route_ == JointReferenceRecoveryRoute::kPlant)
                           && height < body_geometry::support_depth(gravity) + kPushOffClearance;
@@ -553,6 +561,11 @@ void JointReferenceRecoveryController::update_transitions_(
             enter_(JointReferenceRecoveryPhase::kOrbit);
         } else if (route_ == JointReferenceRecoveryRoute::kSide) {
             side_start_ = reference;
+            // Require measured correction before retracting the grounded leg.
+            side_capture_tilt_rad_ =
+                config_.dynamic_takeover
+                    ? std::clamp(step.tilt - radians(10.0), radians(20.0), radians(65.0))
+                    : radians(65.0);
             enter_(JointReferenceRecoveryPhase::kSide);
         } else {
             if (push_off_required_) {
@@ -569,7 +582,7 @@ void JointReferenceRecoveryController::update_transitions_(
             enter_(JointReferenceRecoveryPhase::kPlant);
         }
     }
-    const bool side_upright = side && tilt < radians(65.0);
+    const bool side_upright = side && tilt < side_capture_tilt_rad_;
     if (side_upright)
         enter_(JointReferenceRecoveryPhase::kCapture);
     if (side && !side_upright && phase_reached_(step, 2.5))
@@ -601,10 +614,9 @@ void JointReferenceRecoveryController::update_transitions_(
         push_off_required_ = false;
         enter_(JointReferenceRecoveryPhase::kCapture);
     }
-    const bool captured =
-        (orbiting && tilt < radians(30.0) && height > 0.22f && feedback.support)
-        || (thrusting && !push_off_required_ && tilt < radians(65.0) && height > 0.24f
-            && gyro.norm() < 8.0f && feedback.support);
+    const bool captured = (orbiting && tilt < radians(30.0) && height > 0.22f && feedback.support)
+                       || (thrusting && !push_off_required_ && tilt < radians(65.0)
+                           && height > 0.24f && gyro.norm() < 8.0f && feedback.support);
     if (captured)
         enter_(JointReferenceRecoveryPhase::kCapture);
     if (orbiting && !orbit_contact && !captured
@@ -677,8 +689,7 @@ void JointReferenceRecoveryController::update_wheels_(const StepContext& step, b
     // recomputes once; subsequent BLEND ticks retain that velocity reference.
     const bool is_capture = phase_ == JointReferenceRecoveryPhase::kCapture;
     const bool is_prepare = phase_ == JointReferenceRecoveryPhase::kPrepare;
-    const bool is_push_off =
-        phase_ == JointReferenceRecoveryPhase::kThrust && push_off_required_;
+    const bool is_push_off = phase_ == JointReferenceRecoveryPhase::kThrust && push_off_required_;
     const bool is_insertion = phase_ == JointReferenceRecoveryPhase::kPlant && push_off_required_;
     const bool is_blend = enabled_ && phase_ == JointReferenceRecoveryPhase::kBlend;
     const float balance_limit =

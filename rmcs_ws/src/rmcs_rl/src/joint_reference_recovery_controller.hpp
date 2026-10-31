@@ -215,6 +215,7 @@ private:
     Vector4f side_direction_ = Vector4f::Zero();
     Vector4f side_fold_ = Vector4f::Zero();
     int side_lower_leg_ = 0;
+    float side_capture_tilt_rad_ = 65.0f * std::numbers::pi_v<float> / 180.0f;
     JointReferenceRecoveryPhase phase_ = JointReferenceRecoveryPhase::kRl;
     JointReferenceRecoveryRoute route_ = JointReferenceRecoveryRoute::kUpright;
     std::uint64_t age_ticks_ = 0, phase_ticks_ = 0, ready_ticks_ = 0;
