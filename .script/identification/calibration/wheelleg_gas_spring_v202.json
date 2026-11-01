@@ -1,0 +1,37 @@
+{
+  "schema": "wheelleg-gas-spring-v202-binding/v1",
+  "source_repository": "/home/noir/Documents/workspace/isaac_wheeled_rl_train",
+  "source_commit": "0b5f71c92dc43a49c62af5eb735d2f2ddd73ef21",
+  "source_sha256": {
+    "model/wheel_leg_v2.0.2/isaac/gas_spring_model.json": "5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41",
+    "src/wheeled_tasks/chassis/leg_motor_friction.py": "09473ff4559826416685ba09495af758a3288afd2e4bc90879feeb58be2e12d6",
+    "src/wheeled_tasks/chassis/gas_spring_compensation.py": "47fe59b4dd385c74702ef0d52ae5d81ddaeecaa57eb4d7f3f0d00c259c50e14b",
+    "model/dm_leg_friction_20261031/model.json": "90d299995f24ba38e6c1ed67e32dd40b9b2fa26e041f2f814db1e177ac040b52",
+    "model/dm_leg_friction_20261031/parameters.json": "87e8f191c8fd18787a7b435c66b5e292b1b287f6b62a8ac80ab1d7791b236a57",
+    "model/dm_leg_friction_20261031/README.md": "7bc6138fd690a93ad757ebd4afe6d26c2e10de8a92c43cf371d98147a70c8568",
+    "model/dm_leg_friction_20261031/friction.png": "f02d3922b33aced13edfb0322a673192e549d15e0bf9aa37bbdcac82d523cdda"
+  },
+  "mechanical_limits_deg": [
+    40.0,
+    110.0
+  ],
+  "zero_inner_deg": 110.0,
+  "scope": "component parity only; historical behavior receipts are not requalified",
+  "model_spec_sha256": "388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29",
+  "gas_model_sha256": "5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41",
+  "cad_axis_sign": [
+    -1.0,
+    -1.0,
+    -1.0,
+    -1.0
+  ],
+  "cad_axis_offset_rad": [
+    1.6,
+    3.0282761689185116,
+    -1.6,
+    -3.0283102010168577
+  ],
+  "mapping_scope": "110 degree knee zero; retained hip reference and wiring; no motor zero command",
+  "right_leg_independently_measured": false,
+  "direction_friction_compensated": false
+}

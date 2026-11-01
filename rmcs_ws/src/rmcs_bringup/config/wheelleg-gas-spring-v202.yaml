@@ -1,0 +1,17 @@
+# V202 hardware-frame overlay; merge with compose-wheelleg-gas-spring.py.
+# Calibration/recovery own their feedforward and are not modified by this overlay.
+wheelleg_drive_bridge:
+  ros__parameters:
+    gas_spring_enabled: true
+    gas_spring_gain: 1.0
+    gas_spring_model_sha256: 5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41
+    gas_spring_cad_axis_sign:
+    - -1.0
+    - -1.0
+    - -1.0
+    - -1.0
+    gas_spring_cad_axis_offset_rad:
+    - 1.6
+    - 3.0282761689185116
+    - -1.6
+    - -3.0283102010168577

@@ -18,6 +18,7 @@
 
 #include "controller/wheelleg/leg_transmission.hpp"
 #include "controller/wheelleg/wheelleg_leg_model.hpp"
+#include "controller/wheelleg/wheelleg_gas_spring_v202.hpp"
 #include "identification/wheel_leg_arm_dwell.hpp"
 
 namespace rmcs_core::controller::wheelleg {
@@ -70,6 +71,8 @@ public:
             register_output(prefix + "/velocity_control", joint_velocity_mode_[i], false);
             register_output(prefix + "/control_velocity", joint_velocity_target_[i], 0.);
             register_output(prefix + "/control_velocity_gain", joint_velocity_gain_[i], 0.);
+            register_output(std::string{"/wheelleg/gas_spring/"}+kJoints[i]+"/holding_torque_nm",
+                gas_holding_[i], 0.);
             // Calibration pass-through (WheelLegCalibController). Optional; when
             // /wheelleg/calib/active these torques replace the normal chain.
             register_input(
@@ -130,6 +133,7 @@ public:
         register_input("/wheel_leg/dm_control_ready", dm_control_ready_, false);
 
         register_output("/wheel_leg/enable_request", enable_request_, false);
+        register_output("/wheelleg/gas_spring/geometry_valid", gas_geometry_valid_, false);
     }
 
     void before_updating() override {
@@ -142,6 +146,7 @@ public:
     void update() override {
         using Switch = rmcs_msgs::Switch;
         clear_velocity_commands_();
+        clear_gas_diagnostics_();
         const bool have_switches = switch_left_.ready() && switch_right_.ready();
         // Two-stage stand arming: both MIDDLE = legs only; left MIDDLE + right UP
         // = also enable the wheel balance. With no remote (simulation) the
@@ -334,23 +339,52 @@ public:
         }
 
         std::array<double, 4> aligned{};
+        std::array<double, 4> api_position{}, gas_api{}, requested{};
+        double shared_limit = leg_torque_limit_;
+        std::array<double, 4> cad_position{};
+        if (gas_spring_enabled_) {
+            for (std::size_t i = 0; i < 4; ++i) api_position[i] = *joint_angle_[i];
+            cad_position = rmcs_core::wheelleg::gas_spring_v202::from_encoders(
+                api_position, gas_cad_sign_, gas_cad_offset_);
+            const auto holding = rmcs_core::wheelleg::gas_spring_v202::evaluate(cad_position, gas_spring_gain_);
+            if (!holding.finite) {
+                safe_outputs_();
+                return;
+            }
+            *gas_geometry_valid_ = holding.geometry_valid[0] && holding.geometry_valid[1];
+            for (std::size_t i = 0; i < 4; ++i) {
+                gas_api[i] = gas_cad_sign_[i]*holding.torque[i];
+                *gas_holding_[i] = gas_api[i];
+            }
+        }
         for (std::size_t i = 0; i < target.size(); ++i) {
             const double kp = leg_kp_, kd = leg_kd_;
             aligned[i] = target[i] + 2.0 * std::numbers::pi * turn_[i];
             const double measured = *joint_angle_[i];
             const double control = kp * (aligned[i] - measured)
-                                 - kd * *joint_velocity_[i] + ff[i];
+                                 - kd * *joint_velocity_[i] + ff[i] + gas_api[i];
             const double limit = std::min(
                 leg_torque_limit_,
                 joint_max_torque_[i].ready() && std::isfinite(*joint_max_torque_[i])
                     ? *joint_max_torque_[i]
                     : leg_torque_limit_);
-            if (!std::isfinite(aligned[i]) || !std::isfinite(control)) {
+            if (!std::isfinite(aligned[i]) || !std::isfinite(control) || !std::isfinite(limit) || limit<=0.) {
                 safe_outputs_();
                 return;
             }
-            *joint_torque_[i] = std::clamp(control, -limit, limit);
+            requested[i] = std::clamp(control, -limit, limit);
+            shared_limit = std::min(shared_limit, limit);
         }
+        if (gas_spring_enabled_) {
+            // Protect the TOTAL electrical effort in CAD coordinates after
+            // PD and elastic holding have been combined. No passive friction
+            // is sent to hardware. The recovery/calibration paths return above
+            // and retain their existing ownership of feedforward.
+            for (std::size_t i = 0; i < 4; ++i) requested[i] *= gas_cad_sign_[i];
+            requested = rmcs_core::wheelleg::gas_spring_v202::protect(requested, cad_position, shared_limit);
+            for (std::size_t i = 0; i < 4; ++i) requested[i] *= gas_cad_sign_[i];
+        }
+        for (std::size_t i = 0; i < 4; ++i) *joint_torque_[i] = requested[i];
 
         if (dbg_count_++ % 500 == 0)
             info(
@@ -415,11 +449,17 @@ private:
 
     void safe_outputs_() {
         clear_velocity_commands_();
+        clear_gas_diagnostics_();
         for (auto& t : joint_torque_)
             *t = 0.0;
         *wheel_torque_[0] = 0.0;
         *wheel_torque_[1] = 0.0;
         *enable_request_ = false;
+    }
+
+    void clear_gas_diagnostics_() {
+        for (auto& value : gas_holding_) *value = 0.;
+        *gas_geometry_valid_ = false;
     }
 
     void load_config_() {
@@ -448,6 +488,23 @@ private:
         wheel_torque_limit_ = get_parameter_or("wheel_torque_limit", 4.88);
         arm_dwell_s_ = get_parameter_or("arm_dwell_s", 0.5);
         max_tilt_deg_ = get_parameter_or("max_tilt_deg", 0.0);
+        gas_spring_enabled_ = get_parameter_or("gas_spring_enabled", false);
+        gas_spring_gain_ = get_parameter_or("gas_spring_gain", 1.);
+        if (gas_spring_enabled_) {
+            const auto signs = get_parameter("gas_spring_cad_axis_sign").as_double_array();
+            const auto offsets = get_parameter("gas_spring_cad_axis_offset_rad").as_double_array();
+            const auto model = get_parameter("gas_spring_model_sha256").as_string();
+            if (signs.size()!=4 || offsets.size()!=4 || !std::isfinite(gas_spring_gain_)
+                || gas_spring_gain_<0. || gas_spring_gain_>1. || leg_torque_limit_>40.
+                || model != rmcs_core::wheelleg::gas_spring_v202::model_sha256)
+                throw std::invalid_argument("Invalid v202 gas-spring model, gain or axis binding");
+            for (std::size_t i = 0; i < 4; ++i) {
+                if ((signs[i]!=1. && signs[i]!=-1.) || !std::isfinite(offsets[i]))
+                    throw std::invalid_argument("Invalid v202 gas-spring encoder calibration");
+                gas_cad_sign_[i] = signs[i];
+                gas_cad_offset_[i] = offsets[i];
+            }
+        }
     }
 
     LegLinkage linkage_;
@@ -463,11 +520,16 @@ private:
     double wheel_torque_limit_ = 4.88;
     double arm_dwell_s_ = 0.5;
     double max_tilt_deg_ = 0.0;
+    bool gas_spring_enabled_ = false;
+    double gas_spring_gain_ = 1.;
+    std::array<double, 4> gas_cad_sign_{}, gas_cad_offset_{};
 
     std::array<InputInterface<double>, 4> joint_angle_;
     std::array<InputInterface<double>, 4> joint_velocity_;
     std::array<InputInterface<double>, 4> joint_max_torque_;
     std::array<OutputInterface<double>, 4> joint_torque_{};
+    std::array<OutputInterface<double>, 4> gas_holding_;
+    OutputInterface<bool> gas_geometry_valid_;
     std::array<OutputInterface<bool>,4> joint_velocity_mode_;
     std::array<OutputInterface<double>,4> joint_velocity_target_,joint_velocity_gain_;
     std::array<OutputInterface<double>, 2> wheel_torque_{};
