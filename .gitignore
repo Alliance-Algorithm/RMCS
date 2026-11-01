@@ -96,3 +96,6 @@ CLAUDE.md
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_mode.cpp
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_observation.cpp
 !/rmcs_ws/src/rmcs_core/test/wheel_leg_unified_policy_integration.cpp
+
+# Local validation/report artifacts (kept on disk, never committed)
+/reports/
