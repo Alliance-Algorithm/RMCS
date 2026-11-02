@@ -124,8 +124,7 @@ TEST(UnifiedObservation, PassiveHistoryPreservesTheMeasuredPairedBranch) {
 }
 
 TEST(UnifiedObservation, WheelbipeRetainsRawAnglesReordersJointsAndClipsBeforeScaling) {
-    UnifiedObservation observer;
-    observer.use_wheelbipe();
+    UnifiedObservation observer{UnifiedObservation::Version::kWheelbipeV202};
     auto q = kWheelbipePolicyProfile.nominal;
     q[0] += 7.;
     q[1] += .2;
@@ -166,8 +165,7 @@ TEST(UnifiedObservation, WheelbipeTargetsUseTheFullPerSide110DegreeBranch) {
 }
 
 TEST(UnifiedObservation, ProneV2CapturesAt50MsDuringBalanceAndKeepsItsPhysicalScale) {
-    UnifiedObservation observer;
-    observer.use_local_standing_v2();
+    UnifiedObservation observer{UnifiedObservation::Version::kProneV4OdomV2};
     auto q = kProne200PolicyProfile.nominal;
     const std::array<double, 6> dq{0., 0., 0., 0., 10., -10.};
     for (std::uint64_t tick = 0; tick < 5; ++tick) {
@@ -188,6 +186,25 @@ TEST(UnifiedObservation, ProneV2CapturesAt50MsDuringBalanceAndKeepsItsPhysicalSc
     EXPECT_EQ((*reset)[31], 0.);
 }
 
+TEST(UnifiedObservation, ChangingVersionDiscardsThePreviousCaptureRulesAndReference) {
+    using Version = UnifiedObservation::Version;
+    UnifiedObservation observer{Version::kProneV4OdomV2};
+    const auto q = kFullVehicleV202PolicyProfile.nominal;
+    for (std::uint64_t tick = 0; tick < 5; ++tick)
+        ASSERT_TRUE(observer.sample(tick, q, zero, {}, upright, {}, .305, zero, true));
+    ASSERT_EQ((*observer.sample(5, q, zero, {}, upright, {}, .305, zero, true))[31], 1.);
+    observer.select_version(Version::kWheelbipeV202);
+    EXPECT_EQ(observer.policy_hz(), 50.);
+    EXPECT_EQ(observer.contract_sha256(), kWheelbipeObservationContractSha256);
+    observer.select_version(Version::kProneV4);
+    for (std::uint64_t tick = 0; tick < 20; ++tick) {
+        const auto frame = observer.sample(tick, q, zero, {}, upright, {}, .305, zero, true);
+        ASSERT_TRUE(frame);
+        EXPECT_EQ((*frame)[31], tick == 19 ? 1. : 0.);
+        EXPECT_EQ((*frame)[14], 0.);
+    }
+}
+
 class ProneMotionObservation : public testing::Test {
 protected:
     auto sample(std::uint64_t tick, bool enabled = true) {
@@ -202,7 +219,7 @@ protected:
         }
     }
 
-    UnifiedObservation observer{true};
+    UnifiedObservation observer{UnifiedObservation::Version::kProneV4};
     std::array<double, 6> q = kFullVehicleV202PolicyProfile.nominal, velocity{};
     std::array<double, 3> gyro{}, gravity = upright, command{};
     double height = .305;

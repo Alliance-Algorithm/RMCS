@@ -75,6 +75,11 @@ if(BUILD_TESTING)
     target_compile_definitions(wheel_leg_unified_policy_integration PRIVATE
         RMCS_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml")
     target_link_libraries(wheel_leg_unified_policy_integration ${PROJECT_NAME})
+    foreach(profile prone-v4 wheelbipe)
+        ament_add_gtest_test(wheel_leg_unified_policy_integration
+            TEST_NAME wheel_leg_${profile}_policy_integration
+            ENV RMCS_UNIFIED_TEST_PROFILE=${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-${profile}.yaml)
+    endforeach()
     ament_add_gtest(wheel_leg_policy_integration test/wheel_leg_policy_integration.cpp)
     target_include_directories(wheel_leg_policy_integration PRIVATE
         src ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)

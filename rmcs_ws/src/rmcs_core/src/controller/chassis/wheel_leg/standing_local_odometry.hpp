@@ -34,8 +34,8 @@ struct LocalStandingState {
 // high-rate unwrap, after hardware ratio/sign conversion, still in float64.
 class LocalStandingOdometry {
 public:
-    void use_v2() {
-        v2_ = true;
+    void use_v2(bool enabled) {
+        v2_ = enabled;
         reset();
     }
     void reset() { state_ = {}; }

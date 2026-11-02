@@ -9,114 +9,14 @@
 #include <pluginlib/class_list_macros.hpp>
 
 #include "full_vehicle_calibration110.hpp"
-#include "gas_spring_model.hpp"
 
 namespace rmcs_core::controller::chassis {
-namespace {
-bool almost_integer(double value) {
-    return std::isfinite(value) && value >= 1.0 && std::abs(value - std::round(value)) < 1e-6;
-}
-} // namespace
-
 WheelLegController::~WheelLegController() = default;
 
 void WheelLegController::before_updating() {
-    inference_frequency_ = *policy_rate_input_;
-    if (!std::isfinite(inference_frequency_) || inference_frequency_ <= 0.0
-        || !almost_integer(pd_frequency_ / inference_frequency_))
-        throw std::runtime_error("Bridge policy rate must divide the feedback PD frequency");
-    for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
-        action_scales_[i] = *policy_scale_inputs_[i];
-        action_clip_min_[i] = *policy_clip_min_inputs_[i];
-        action_clip_max_[i] = *policy_clip_max_inputs_[i];
-        if (!std::isfinite(action_scales_[i]) || action_scales_[i] == 0.0
-            || !std::isfinite(action_clip_min_[i]) || !std::isfinite(action_clip_max_[i])
-            || action_clip_min_[i] > 0.0 || action_clip_max_[i] < 0.0
-            || action_clip_min_[i] >= action_clip_max_[i])
-            throw std::runtime_error("Invalid wheel-leg bridge action contract");
-    }
-    const double wheel_speed_limit = std::min(
-        {-action_clip_min_[4], action_clip_max_[4], -action_clip_min_[5], action_clip_max_[5]});
-    if (wheel_speed_limit <= 0.0)
-        throw std::runtime_error("Wheel action bounds must allow both drive directions");
+    configure_policy_bridge_();
+    const auto& contract = deployment_contract(policy_profile_.name);
     const bool full_vehicle = full_vehicle_profile(policy_profile_.name);
-    const bool prone_200 = policy_profile_.name == kProne200PolicyProfile.name;
-    const bool wheelbipe = policy_profile_.name == kWheelbipePolicyProfile.name;
-    const auto expected_spec = prone_200 || wheelbipe ? kFrictionV202ModelSpecSha256
-                             : full_vehicle           ? full_vehicle_v202::kModelSpecSha256
-                                                      : kBranch107ModelSpecSha256;
-    validate_leg_target_model_spec(
-        leg_target_winding_, *policy_model_spec_input_, "Wheel-leg bridge model", expected_spec);
-    if (gas_spring_compensation_enabled_
-        && (!root_drive_profile(policy_profile_.name)
-            || *policy_model_spec_input_ != expected_spec))
-        throw std::runtime_error(
-            "Gas-spring compensation requires its profile's model specification");
-    policy_ready_ = true;
-    // Executor::start sets /predefined/update_rate AFTER before_updating().
-    last_reset_count_ = *reset_count_;
-    use_motor_position_pd_ = motor_position_pd_.ready() && *motor_position_pd_;
-    if (unified_full_rl_) {
-        if (!root_drive_profile(policy_profile_.name) || heading_hold_enabled_
-            || full_vehicle != (unified_observation_.policy_hz() != 200.0) || use_motor_position_pd_
-            || prone_200 != unified_observation_.prone_200hz()
-            || wheelbipe != unified_observation_.wheelbipe()
-            || inference_frequency_ != unified_observation_.policy_hz()
-            || pd_frequency_ != (prone_200 || wheelbipe ? 200.0 : 1000.0)
-            || leg_target_winding_
-                   != (wheelbipe ? LegTargetWinding::kPairedFullVehicle110
-                                 : LegTargetWinding::kPairedBranch107)
-            || !policy_observation_contract_input_.ready()
-            || *policy_observation_contract_input_ != unified_observation_.contract_sha256()
-            || !policy_frame_path_input_.ready()
-            || *policy_frame_path_input_ != "/wheel_leg/rl/input/frame"
-            || !policy_frame_sequence_path_input_.ready()
-            || *policy_frame_sequence_path_input_ != "/wheel_leg/rl/input/frame_sequence")
-            throw std::runtime_error(
-                "Unified full RL requires its versioned policy rate, observation/frame and "
-                "feedback PD "
-                "host-torque contract");
-        if (unified_observation_.policy_hz() == 100.0
-            && (policy_profile_.wheel_kp != .5 || policy_profile_.height_min != .23
-                || policy_profile_.height_max != .42 || policy_profile_.forward_limit != 2.0
-                || std::abs(
-                       policy_profile_.positive_yaw_limit - 100.0 * 2.0 * std::numbers::pi / 60.0)
-                       > 1e-9
-                || !gas_spring_compensation_enabled_ || gas_spring_compensation_gain_ != 1.0))
-            throw std::runtime_error(
-                "Prone-motion v4 requires its training actuator and command contract");
-        if (wheelbipe
-            && (gas_spring_compensation_enabled_ || policy_profile_.wheel_kp != .5
-                || policy_profile_.height_min != .23 || policy_profile_.height_max != .42
-                || policy_profile_.forward_limit > kWheelbipePolicyProfile.forward_limit
-                || policy_profile_.positive_yaw_limit > kWheelbipePolicyProfile.positive_yaw_limit))
-            throw std::runtime_error(
-                "Wheelbipe requires PD60/2, physical springs and disabled cancellation "
-                "feedforward");
-        for (std::size_t i = 0; i < 6; ++i) {
-            const double scale = i < 4 ? (wheelbipe ? .5 : .25) : 10.0;
-            // 1e100 exceeds every finite float32 model output. V14 does not
-            // clip the policy action; its physical wheels saturate downstream.
-            const double bound = wheelbipe ? 1e100 : i < 4 ? 4.0 : 90.0;
-            if (action_scales_[i] != scale || action_clip_min_[i] != -bound
-                || action_clip_max_[i] != bound)
-                throw std::runtime_error("Unified full RL requires raw leg16/wheel9 action bounds");
-        }
-    } else if (
-        full_vehicle
-        || (policy_observation_contract_input_.ready()
-            && !policy_observation_contract_input_->empty())) {
-        throw std::runtime_error("This wheel-leg observation contract requires unified_full_rl");
-    }
-    if (use_motor_position_pd_) {
-        if (!root_drive_profile(policy_profile_.name) || !motor_position_kp_.ready()
-            || !motor_position_kd_.ready() || *motor_position_kp_ != policy_profile_.leg_kp
-            || *motor_position_kd_ != policy_profile_.leg_kd)
-            throw std::runtime_error("Motor position PD requires native gains");
-        if ((leg_jacobian_.array().abs() - Eigen::Matrix4d::Identity().array()).abs().maxCoeff()
-            > 1e-9)
-            throw std::runtime_error("Motor position PD requires independent signed 1:1 axes");
-    }
     RCLCPP_INFO(
         get_logger(), "Joint PD backend: %s, Kp %.1f, Kd %.1f",
         use_motor_position_pd_ && !gas_spring_compensation_enabled_ ? "DM internal MIT"
@@ -125,10 +25,7 @@ void WheelLegController::before_updating() {
     RCLCPP_INFO(
         get_logger(), "Gas-spring compensation %s: gain %.2f, full soft-limit coverage, model %s",
         gas_spring_compensation_enabled_ ? "enabled" : "disabled", gas_spring_compensation_gain_,
-        (prone_200 || wheelbipe ? kFrictionV202GasModelSha256
-         : full_vehicle         ? full_vehicle_v202::kGasModelSha256
-                                : gas_spring_model::kModelSha256)
-            .data());
+        contract.gas_model_sha256.data());
     if (full_vehicle)
         RCLCPP_INFO(
             get_logger(),
@@ -298,20 +195,23 @@ bool WheelLegController::policy_action_fresh_() const {
                    <= std::chrono::duration<double>{inference_timeout_});
 }
 
+void WheelLegController::configure_control_schedule_() {
+    const double rate = *update_rate_;
+    if (unified_full_rl_ && rate != 1000.0)
+        throw std::runtime_error("Unified full RL requires a 1000Hz executor");
+    if (!valid_frequency_ratio_(rate / inference_frequency_)
+        || !valid_frequency_ratio_(rate / pd_frequency_))
+        throw std::runtime_error(
+            "RMCS update_rate must be an integer multiple of PD and policy frequencies");
+    schedule_.policy_divisor = static_cast<std::size_t>(std::llround(rate / inference_frequency_));
+    schedule_.pd_divisor = static_cast<std::size_t>(std::llround(rate / pd_frequency_));
+    schedule_.ready = true;
+}
+
 void WheelLegController::update() {
     *policy_enable_output_ = false;
-    if (!schedule_.ready) {
-        const double rate = *update_rate_;
-        if (unified_full_rl_ && rate != 1000.0)
-            throw std::runtime_error("Unified full RL requires a 1000Hz executor");
-        if (!almost_integer(rate / inference_frequency_) || !almost_integer(rate / pd_frequency_))
-            throw std::runtime_error(
-                "RMCS update_rate must be an integer multiple of PD and policy frequencies");
-        schedule_.policy_divisor =
-            static_cast<std::size_t>(std::llround(rate / inference_frequency_));
-        schedule_.pd_divisor = static_cast<std::size_t>(std::llround(rate / pd_frequency_));
-        schedule_.ready = true;
-    }
+    if (!schedule_.ready)
+        configure_control_schedule_();
     const int requested = *state_command_;
     const bool reset = last_reset_count_ != *reset_count_;
     last_reset_count_ = *reset_count_;
