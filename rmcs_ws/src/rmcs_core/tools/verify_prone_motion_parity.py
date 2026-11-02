@@ -41,6 +41,8 @@ def check_config():
     cfg = yaml.safe_load(file.read_text())
     contract_file = file.parent / "contracts/wheel_leg_prone_motion_v4.json"
     contract = json.loads(contract_file.read_text())
+    calibration_file = file.parent / "contracts/wheel_leg_calibration110.json"
+    calibration = json.loads(calibration_file.read_text())
     bridge, controller, hardware, chassis = [cfg[name]["ros__parameters"] for name in
         ("rl_bridge", "wheel_leg_controller", "wheel_leg", "wheel_leg_chassis_controller")]
     require(bridge["policy_rate"] == 100. and controller["pd_frequency"] == 1000.
@@ -73,11 +75,25 @@ def check_config():
                 "Motion command limits differ")
     require(controller["height_min"] == chassis["command_height_min"] == .23
             and controller["height_max"] == chassis["command_height_max"] == .42, "Height bounds differ")
+    require(calibration["model_spec_sha256"] == contract["model_spec_sha256"]
+            and calibration["encoder_zero_inner_knee_deg"] == 110.
+            and calibration["mechanical_inner_knee_domain_deg"] == [40., 110.],
+            "Need the corrected 110-degree zero and 40--110 mechanical stops")
+    require(controller["leg_model_offsets"] == calibration["model_offset_rad"]
+            and controller["hinge_min"] == calibration["hinge_min"]
+            and controller["hinge_max"] == calibration["hinge_max"]
+            and controller["hinge_margin"] == calibration["hinge_margin_rad"],
+            "Deployment encoder offsets or mechanical limits differ from CAD calibration")
+    require(controller["leg_motor_to_model"] == (-np.eye(4)).ravel().tolist()
+            and controller["hinge_coefficients"] == [-1., 1., 1., -1.]
+            and controller["hinge_bias"] == [0., 0.] and not hardware["allow_set_zero"],
+            "Corrected zeros need the existing signed API mapping without re-zeroing drives")
     for i, name in enumerate(contract["action_order"]):
         scale, bound = (.25, 4) if i < 4 else (10., 90)
         require(bridge["action_terms"][i] == f"index={i} output=/wheel_leg/rl/target/{name} scale={scale} clip=-{bound}:{bound}",
                 "Action scale/bounds differ")
-    return dict(config_sha256=sha(file), contract_sha256=sha(contract_file))
+    return dict(config_sha256=sha(file), contract_sha256=sha(contract_file),
+                calibration_sha256=sha(calibration_file))
 
 
 def sensor_records(training, observer):
@@ -263,6 +279,9 @@ def main():
     from sync_prone_motion_contract import generate
     for path, expected in generate(training, args.training_revision).items():
         require(path.read_text() == expected, "Frozen training contract changed: " + str(path))
+    from sync_wheel_leg_calibration import generate as generate_calibration
+    for path, expected in generate_calibration(training).items():
+        require(path.read_text() == expected, "Frozen deployment calibration changed: " + str(path))
     config = check_config()
     contract = json.loads((ROOT / "rmcs_ws/src/rmcs_bringup/config/contracts/wheel_leg_prone_motion_v4.json").read_text())
 
@@ -331,9 +350,10 @@ def main():
     require(max(action_error, torch_error) <= 1e-5, "Normalized inference differs")
     # The full CAD model changed both gas-spring geometry and Jacobians.
     # Compare each side against the exact training implementation in double,
-    # including both unmeasured force tails and out-of-domain zero effort.
+    # including both unmeasured force tails. Stay inside the inherited upper
+    # geometry: deployment deliberately appends CAD geometry for the 110 stop.
     gas = GasSpringCompensation(contract["gas_spring"], root=source_root, device="cpu", dtype=torch.float64)
-    deltas = np.linspace(-.16, 1.41, 1201)
+    deltas = np.linspace(-.16, 1.398, 1201)
     angles = np.linspace(-6., 6., len(deltas))
     gas_q = np.c_[angles, angles+deltas, -angles, -angles-deltas]
     gas_input = "\n".join(" ".join(map(str, row)) for row in gas_q)+"\n"
@@ -348,6 +368,33 @@ def main():
     require(np.array_equal(np.isnan(beta), np.isnan(cpp_gas[:, 4:])), "Gas geometry validity differs")
     beta_error = float(np.nanmax(np.abs(beta-cpp_gas[:, 4:])))
     require(gas_error < 1e-9 and beta_error < 1e-9, "Full-vehicle spring compensation differs")
+    # Reuse the same Python force/interpolation implementation with only the
+    # independently CAD-solved deployment geometry appended. This range is a
+    # deployment correction, not a claim of new training or measured force data.
+    calibration = json.loads((ROOT / "rmcs_ws/src/rmcs_bringup/config/contracts/wheel_leg_calibration110.json").read_text())
+    for name, side in zip(("left", "right"), gas.sides):
+        extra = np.asarray(calibration["gas_geometry_extension"][name])
+        for key, values in (("delta_rad", extra[:, 0]), ("beta_deg", extra[:, 1]),
+                            ("compression_m", extra[:, 2]), ("length_jacobian_m_per_rad", extra[:, 3:])):
+            side[key] = torch.cat((side[key], torch.from_numpy(values)))
+    compression_ends = torch.stack([side["compression_m"][[0, -1]] for side in gas.sides])
+    gas.geometry_compression_min, gas.geometry_compression_max = compression_ends.min(), compression_ends.max()
+    extension_delta = np.linspace(1.398, 1.45, 401)
+    extension_q = np.c_[np.zeros(401), extension_delta, np.zeros(401), -extension_delta]
+    extension_input = "\n".join(" ".join(map(str, row)) for row in extension_q) + "\n"
+    extension_rows = output / "deployment_extended_gas_records.txt"
+    extension_rows.write_text(extension_input)
+    extended_result = run("rmcs_core/wheel_leg_gas_spring_parity", ["--full-vehicle-v202"], extension_input)
+    require(extended_result.returncode == 0, extended_result.stderr)
+    cpp_extended = np.loadtxt(extended_result.stdout.splitlines())
+    python_extended, extended_diagnostics = gas.evaluate(torch.from_numpy(extension_q))
+    extension_error = float(np.abs(cpp_extended[:, :4] - python_extended.numpy()).max())
+    extension_beta = extended_diagnostics["beta_deg"].numpy()
+    require(np.array_equal(np.isnan(extension_beta), np.isnan(cpp_extended[:, 4:])),
+            "Deployment extended gas geometry validity differs")
+    extension_beta_error = float(np.nanmax(np.abs(extension_beta - cpp_extended[:, 4:])))
+    require(extension_error < 1e-9 and extension_beta_error < 1e-9,
+            "Deployment 110-degree spring compensation differs")
     negative = {}
     for key, value in (("policy_hz", "200"), ("rmcs_observation_version", "wheel-leg-prone-motion-v3"),
                        ("rmcs_observation_contract_sha256", "0"*64), ("rmcs_obs_normalization", ""),
@@ -387,6 +434,11 @@ def main():
         measured_entry_history_max_abs_error=history_worst,
         gas_records=len(gas_q), gas_torque_max_abs_error_nm=gas_error,
         gas_beta_max_abs_error_deg=beta_error, gas_records_sha256=sha(gas_rows),
+        deployment_extended_gas_records=len(extension_q),
+        deployment_extended_gas_torque_max_abs_error_nm=extension_error,
+        deployment_extended_gas_beta_max_abs_error_deg=extension_beta_error,
+        deployment_extended_gas_records_sha256=sha(extension_rows),
+        encoder_zero_inner_knee_deg=110., mechanical_inner_knee_domain_deg=[40., 110.],
         production_controller_bridge_executor_100hz="passed_with_synthetic_normalized_graph",
         integration_log_sha256=sha(output / "integration.log"),
         sensor_records_sha256=sha(sensors), inference_fixture_sha256=sha(fixture),

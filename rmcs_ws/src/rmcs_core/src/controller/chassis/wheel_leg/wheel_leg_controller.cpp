@@ -9,6 +9,7 @@
 #include <pluginlib/class_list_macros.hpp>
 
 #include "gas_spring_model.hpp"
+#include "full_vehicle_calibration110.hpp"
 
 namespace rmcs_core::controller::chassis {
 namespace {
@@ -107,6 +108,10 @@ void WheelLegController::before_updating() {
         gas_spring_compensation_enabled_ ? "enabled" : "disabled", gas_spring_compensation_gain_,
         (full_vehicle ? full_vehicle_v202::kGasModelSha256 : gas_spring_model::kModelSha256)
             .data());
+    if (full_vehicle)
+        RCLCPP_INFO(
+            get_logger(), "Encoder reference: 110 deg, mechanical stops: 40--110 deg, calibration %s",
+            full_vehicle_calibration110::kCalibrationSha256.data());
     if (!calibration_ready_ || !soft_limits_ready_ || !imu_alignment_ready_ || !policy_ready_)
         RCLCPP_WARN(
             get_logger(),

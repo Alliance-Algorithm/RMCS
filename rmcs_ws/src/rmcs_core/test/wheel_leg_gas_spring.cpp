@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "controller/chassis/wheel_leg/gas_spring_compensation.hpp"
+#include "controller/chassis/wheel_leg/leg_target_winding.hpp"
 
 namespace {
 using namespace rmcs_core::controller::chassis;
@@ -76,5 +77,56 @@ TEST(GasSpringCompensation, RejectsNonFiniteAnglesAndInvalidSettings) {
     EXPECT_FALSE(gas_spring_compensation(q, 1.0).valid);
     EXPECT_FALSE(gas_spring_compensation(pose(142), 1.01).valid);
     EXPECT_FALSE(gas_spring_compensation(pose(142), -1.0).valid);
+}
+
+TEST(GasSpringCompensation, FullVehicleEncoderZeroIs110DegreesAcrossFeedbackTurns) {
+    const auto zero = full_vehicle_calibration110::kLegModelOffsets;
+    for (double rotation : {-6 * std::numbers::pi, 0., 6 * std::numbers::pi}) {
+        auto measured = zero;
+        for (double& q : measured)
+            q += rotation;
+        // Independent encoder wrapping must restore feedback without clamping
+        // the real 110-degree pose to the actor's 107-degree target boundary.
+        measured[1] += 2 * std::numbers::pi;
+        measured[3] -= 2 * std::numbers::pi;
+        const auto restored = wind_leg_feedback(measured, zero, LegTargetWinding::kPairedBranch107);
+        const auto value = gas_spring_compensation(restored, 1., true);
+        ASSERT_TRUE(value.valid);
+        for (int side = 0; side < 2; ++side) {
+            EXPECT_NEAR(value.beta_deg[side], 110., 1e-9);
+            EXPECT_DOUBLE_EQ(value.weight[side], 1.);
+            EXPECT_GT(std::abs(value.torque[2 * side]), 0.);
+            EXPECT_TRUE(value.extrapolated[side]);
+        }
+    }
+}
+
+TEST(GasSpringCompensation, FullVehicleGeometryCoversBoth40And110DegreeMechanicalStops) {
+    for (const auto& stops : {full_vehicle_calibration110::kHingeMin,
+                              full_vehicle_calibration110::kHingeMax}) {
+        const double expected = stops == full_vehicle_calibration110::kHingeMin ? 40. : 110.;
+        const auto value = gas_spring_compensation({0., stops[0], 0., -stops[1]}, 1., true);
+        ASSERT_TRUE(value.valid);
+        for (int side = 0; side < 2; ++side) {
+            EXPECT_NEAR(value.beta_deg[side], expected, 1e-9);
+            EXPECT_DOUBLE_EQ(value.weight[side], 1.);
+            EXPECT_GT(std::abs(value.torque[2 * side]), 0.);
+        }
+    }
+    // Every inherited knot is copied verbatim; the added range has no missing
+    // compensation or discontinuity at the old geometry endpoint.
+    for (int i = 0; i <= 80; ++i) {
+        const double u = i / 80.;
+        const double left = std::lerp(full_vehicle_v202::kLeft.back().delta_rad,
+                                      full_vehicle_calibration110::kHingeMax[0], u);
+        const double right = std::lerp(full_vehicle_v202::kRight.back().delta_rad,
+                                       full_vehicle_calibration110::kHingeMax[1], u);
+        const auto value = gas_spring_compensation({0., left, 0., -right}, 1., true);
+        for (int side = 0; side < 2; ++side) {
+            EXPECT_DOUBLE_EQ(value.weight[side], 1.);
+            EXPECT_TRUE(std::isfinite(value.beta_deg[side]));
+            EXPECT_GT(std::abs(value.torque[2 * side]), 0.);
+        }
+    }
 }
 } // namespace

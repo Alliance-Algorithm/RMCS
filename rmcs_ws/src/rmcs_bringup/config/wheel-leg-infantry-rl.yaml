@@ -3,7 +3,7 @@
 # Export the selected checkpoint with its frozen training normalizer before use.
 # Fresh double DOWN arms; double MIDDLE starts the policy after drive readiness.
 # The policy owns all six axes; self-righting has no separate scripted controller.
-# Wiring, zeros and the 107..108-degree leg stop follow the confirmed dev/rmcs_rl set.
+# Encoder zero: 110-degree inner knee angle. Mechanical stops: 40--110 degrees.
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
@@ -40,7 +40,7 @@ wheel_leg:
     require_enable_request: true
     # Only an armed RL session may keep control at left-MIDDLE/right-DOWN.
     allow_spin_switch: true
-    # The DM drives were already internally zeroed at the 105-degree reference.
+    # The DM drives were already internally zeroed at the 110-degree reference.
     allow_set_zero: false
     # 电机反馈 Master ID，按左髋/右髋/左膝/右膝顺序。
     dm_master_ids: [1, 2, 1, 2]
@@ -137,7 +137,7 @@ wheel_leg_controller:
     height_command_is_reference: true
     height_reference_rate_max: 0.6666666666666666
 
-    # The four DM drives were zeroed at a 105-degree mechanical pose; their
+    # The four DM drives were zeroed at a 110-degree mechanical pose; their
     # motor zero is neither the URDF assembly zero nor the policy nominal pose.
     # The independent 1:1 chain drives need four API-to-model signs and offsets;
     # do not add a hip/knee differential term or repeat the DM reversed sign.
@@ -146,24 +146,28 @@ wheel_leg_controller:
     # tau_motor = leg_motor_to_model^T * tau_model.
     # Use only with the matching assembly calibration.
     calibration_ready: true
-    # Calibration: .script/identification/calibration/v6_pair_from_dev_rmcs_rl.json.
+    # Calibration: contracts/wheel_leg_calibration110.json, v2.0.2 CAD closure.
+    # Retain the absolute hip reference; solve each auxiliary zero at beta=110.
+    # The passive knee's five degrees are not five active motor degrees.
     # Driver API already applies reversed with bias=0. V2.0.2 keeps the V7 active
     # axis convention, hence q_model = -q_api + offset. Never reverse the raw angle twice.
     leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
                          0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
-    leg_model_offsets: [1.6, 2.93, -1.6, -2.93]
+    leg_model_offsets: [1.6, 3.0282761689183353, -1.6, -3.0283102010168]
     # DjiMotor applies the hardware reduction ratio to wheel-side feedback/torque.
     # The policy target is already a wheel-output speed: do not multiply it again.
     # Preserve the verified wheel-axis scaling; individual hardware signs await measurement.
     wheel_model_scale: [1.0, 1.0]
 
     # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
+    # Per-side CAD conversion of passive inner knee limits 40--110 degrees.
+    # The trained paired-107 target projection remains part of the policy contract.
     # Relative hip/knee soft limits project outward effort without stopping RL.
     soft_limits_ready: true
     hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
     hinge_bias: [0.0, 0.0]
-    hinge_min: [-0.140638855, -0.140638855]
-    hinge_max: [1.3889088544, 1.3889088544]
+    hinge_min: [-0.14089326779459427, -0.14084732125908661]
+    hinge_max: [1.4282761689183354, 1.4283102010167998]
     hinge_margin: 0.03
 
     # The full vehicle uses base_link/control_frame X-forward, Y-left,
