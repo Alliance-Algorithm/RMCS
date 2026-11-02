@@ -149,15 +149,10 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     unified_full_rl_ = get_parameter_or("unified_full_rl", false);
     const auto observation_version =
         get_parameter_or<std::string>("observation_version", "standing_reference_v3");
-    if (observation_version == "wheel-leg-prone-motion-v4" && unified_full_rl_)
-        unified_observation_.use_local_standing_v4();
-    else if (observation_version == "wheel-leg-prone-motion-v4-odom-v2" && unified_full_rl_)
-        unified_observation_.use_local_standing_v2();
-    else if (observation_version == "wheelbipe-v202-foundation-v2" && unified_full_rl_)
-        unified_observation_.use_wheelbipe();
-    else if (observation_version != "standing_reference_v3")
-        throw std::runtime_error(
-            "Unsupported wheel-leg observation_version: " + observation_version);
+    const auto version = parse_observation_version(observation_version);
+    if (!unified_full_rl_ && version != UnifiedObservation::Version::kStandingV3)
+        throw std::runtime_error("This wheel-leg observation contract requires unified_full_rl");
+    unified_observation_.select_version(version);
     gas_spring_compensation_enabled_ = get_parameter_or("gas_spring_compensation_enabled", false);
     gas_spring_compensation_gain_ = get_parameter_or("gas_spring_compensation_gain", 1.0);
     if (!std::isfinite(gas_spring_compensation_gain_) || gas_spring_compensation_gain_ < 0.0
@@ -283,6 +278,104 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         return result;
     });
     clear_outputs_();
+}
+
+bool WheelLegController::valid_frequency_ratio_(double value) {
+    return std::isfinite(value) && value >= 1.0 && std::abs(value - std::round(value)) < 1e-6;
+}
+
+void WheelLegController::configure_policy_bridge_() {
+    inference_frequency_ = *policy_rate_input_;
+    if (!std::isfinite(inference_frequency_) || inference_frequency_ <= 0.0
+        || !valid_frequency_ratio_(pd_frequency_ / inference_frequency_))
+        throw std::runtime_error("Bridge policy rate must divide the feedback PD frequency");
+    for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
+        action_scales_[i] = *policy_scale_inputs_[i];
+        action_clip_min_[i] = *policy_clip_min_inputs_[i];
+        action_clip_max_[i] = *policy_clip_max_inputs_[i];
+        if (!std::isfinite(action_scales_[i]) || action_scales_[i] == 0.0
+            || !std::isfinite(action_clip_min_[i]) || !std::isfinite(action_clip_max_[i])
+            || action_clip_min_[i] > 0.0 || action_clip_max_[i] < 0.0
+            || action_clip_min_[i] >= action_clip_max_[i])
+            throw std::runtime_error("Invalid wheel-leg bridge action contract");
+    }
+    const double wheel_speed_limit = std::min(
+        {-action_clip_min_[4], action_clip_max_[4], -action_clip_min_[5], action_clip_max_[5]});
+    if (wheel_speed_limit <= 0.0)
+        throw std::runtime_error("Wheel action bounds must allow both drive directions");
+    const auto& contract = deployment_contract(policy_profile_.name);
+    validate_leg_target_model_spec(
+        leg_target_winding_, *policy_model_spec_input_, "Wheel-leg bridge model",
+        contract.model_spec_sha256);
+    if (gas_spring_compensation_enabled_
+        && (!root_drive_profile(policy_profile_.name)
+            || *policy_model_spec_input_ != contract.model_spec_sha256))
+        throw std::runtime_error(
+            "Gas-spring compensation requires its profile's model specification");
+    policy_ready_ = true;
+    // Executor::start sets /predefined/update_rate AFTER before_updating().
+    last_reset_count_ = *reset_count_;
+    use_motor_position_pd_ = motor_position_pd_.ready() && *motor_position_pd_;
+    if (unified_full_rl_) {
+        if (!root_drive_profile(policy_profile_.name) || heading_hold_enabled_
+            || use_motor_position_pd_ || unified_observation_.version() != contract.observation
+            || inference_frequency_ != unified_observation_.policy_hz()
+            || pd_frequency_ != contract.pd_hz || leg_target_winding_ != contract.winding
+            || !policy_observation_contract_input_.ready()
+            || *policy_observation_contract_input_ != unified_observation_.contract_sha256()
+            || !policy_frame_path_input_.ready()
+            || *policy_frame_path_input_ != "/wheel_leg/rl/input/frame"
+            || !policy_frame_sequence_path_input_.ready()
+            || *policy_frame_sequence_path_input_ != "/wheel_leg/rl/input/frame_sequence")
+            throw std::runtime_error(
+                "Unified full RL requires its versioned policy rate, observation/frame and "
+                "feedback PD host-torque contract");
+        const bool require_gas =
+            contract.gas_feedforward == DeploymentContract::GasFeedforward::kRequired;
+        const bool disable_gas =
+            contract.gas_feedforward == DeploymentContract::GasFeedforward::kDisabled;
+        if ((require_gas
+             && (!gas_spring_compensation_enabled_ || gas_spring_compensation_gain_ != 1.0))
+            || (disable_gas && gas_spring_compensation_enabled_))
+            throw std::runtime_error("Gas-spring feedforward does not match the training contract");
+        if (contract.fixed_command_limits
+            && (policy_profile_.wheel_kp != .5 || policy_profile_.height_min != .23
+                || policy_profile_.height_max != .42 || policy_profile_.forward_limit != 2.0
+                || std::abs(
+                       policy_profile_.positive_yaw_limit - 100.0 * 2.0 * std::numbers::pi / 60.0)
+                       > 1e-9))
+            throw std::runtime_error(
+                "Prone-motion v4 requires its training actuator and command contract");
+        if (unified_observation_.wheelbipe()
+            && (policy_profile_.wheel_kp != .5 || policy_profile_.height_min != .23
+                || policy_profile_.height_max != .42
+                || policy_profile_.forward_limit > kWheelbipePolicyProfile.forward_limit
+                || policy_profile_.positive_yaw_limit > kWheelbipePolicyProfile.positive_yaw_limit))
+            throw std::runtime_error(
+                "Wheelbipe requires its training actuator and command envelope");
+        for (std::size_t i = 0; i < kMotorNames.size(); ++i) {
+            const double scale = i < 4 ? contract.leg_scale : 10.0;
+            const double bound = i < 4 ? contract.leg_bound : contract.wheel_bound;
+            if (action_scales_[i] != scale || action_clip_min_[i] != -bound
+                || action_clip_max_[i] != bound)
+                throw std::runtime_error(
+                    "Action scale or limits do not match the wheel-leg deployment contract");
+        }
+    } else if (
+        full_vehicle_profile(policy_profile_.name)
+        || (policy_observation_contract_input_.ready()
+            && !policy_observation_contract_input_->empty())) {
+        throw std::runtime_error("This wheel-leg observation contract requires unified_full_rl");
+    }
+    if (use_motor_position_pd_) {
+        if (!root_drive_profile(policy_profile_.name) || !motor_position_kp_.ready()
+            || !motor_position_kd_.ready() || *motor_position_kp_ != policy_profile_.leg_kp
+            || *motor_position_kd_ != policy_profile_.leg_kd)
+            throw std::runtime_error("Motor position PD requires native gains");
+        if ((leg_jacobian_.array().abs() - Eigen::Matrix4d::Identity().array()).abs().maxCoeff()
+            > 1e-9)
+            throw std::runtime_error("Motor position PD requires independent signed 1:1 axes");
+    }
 }
 
 } // namespace rmcs_core::controller::chassis

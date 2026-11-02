@@ -71,16 +71,6 @@ rl_bridge:
     rl_feature_size: 35
     rl_action_size: 6
     obs_clip: 100.0
-    joint_names: [left_hip_joint, right_hip_joint, left_knee_joint, right_knee_joint, left_wheel, right_wheel]
-    # These sources are calibrated model coordinates, after leg_motor_to_model / IMU alignment.
-    joint_base_path: "/wheel_leg/rl/model"
-    default_joint_pos:
-      left_hip_joint: -0.42
-      left_knee_joint: 0.13722330866417465
-      right_hip_joint: 0.42
-      right_knee_joint: -0.13721605817245947
-      left_wheel: 0.0
-      right_wheel: 0.0
     observation_frame_sequence_interface: "/wheel_leg/rl/input/frame_sequence"
     expected_observation_contract_sha256: "bd8397a8cb057c5d7859ba79ffbc1310c7c75d2a9ddcfdb7ea844d02db001e69"
     expected_observation_version: "wheelbipe-v202-foundation-v2"

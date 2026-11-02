@@ -2,9 +2,7 @@
 
 #include <array>
 #include <cstddef>
-#include <memory>
 #include <numbers>
-#include <string>
 #include <string_view>
 
 #include "full_vehicle_v202.hpp"
@@ -19,8 +17,6 @@ struct DeployedPolicyContract {
     static constexpr double kPolicyFrequencyHz = 50.0;
     // Minimum feedback cadence; the deployed PD period is configured separately.
     static constexpr double kControlFrequencyHz = 200.0;
-    static constexpr double kPolicyPeriodSeconds = 1.0 / kPolicyFrequencyHz;
-    static constexpr double kControlPeriodSeconds = 1.0 / kControlFrequencyHz;
     static constexpr double kNominalHeight = 0.305;
     static constexpr double kLegKp = 160.0;
     static constexpr double kLegKd = 2.5;
@@ -121,8 +117,5 @@ inline constexpr bool full_vehicle_profile(std::string_view name) {
 inline constexpr bool root_drive_profile(std::string_view name) {
     return name == kV6PolicyProfile.name || full_vehicle_profile(name);
 }
-
-// Six physical actuators; observation shape and actor channel order come from YAML.
-using PolicyAction = std::array<float, 6>;
 
 } // namespace rmcs_core::controller::chassis

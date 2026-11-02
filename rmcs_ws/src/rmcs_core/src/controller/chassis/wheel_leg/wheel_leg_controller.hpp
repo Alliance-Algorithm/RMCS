@@ -19,10 +19,8 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
+#include "deployment_contract.hpp"
 #include "feedback_sensor_guard.hpp"
-#include "leg_target_winding.hpp"
-#include "policy.hpp"
-#include "unified_observation.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -30,7 +28,6 @@ namespace rmcs_core::controller::chassis {
 inline constexpr std::array<const char*, 6> kMotorNames{"left_hip_joint",  "left_knee_joint",
                                                         "right_hip_joint", "right_knee_joint",
                                                         "left_wheel",      "right_wheel"};
-static_assert(kMotorNames.size() == PolicyAction{}.size());
 
 // PREPARE only waits for drive readiness and the first policy action.
 enum class State : int { kInit = 0, kIdle = 1, kPrepare = 2, kRl = 3 };
@@ -60,6 +57,9 @@ private:
     };
 
     void enter_(State next, bool force_reset = false);
+    static bool valid_frequency_ratio_(double value);
+    void configure_policy_bridge_();
+    void configure_control_schedule_();
     void latch_fault_(
         const char* reason = "control validation failed",
         std::source_location location = std::source_location::current());
@@ -113,7 +113,7 @@ private:
     std::array<OutputInterface<double>, 4> gas_compensation_torque_outputs_;
     std::array<OutputInterface<double>, 2> gas_beta_outputs_, gas_force_outputs_,
         gas_weight_outputs_, gas_extrapolated_outputs_;
-    std::array<OutputInterface<double>, PolicyAction{}.size()> action_outputs_;
+    std::array<OutputInterface<double>, kMotorNames.size()> action_outputs_;
     std::array<OutputInterface<double>, 6> effective_action_outputs_;
     std::array<OutputInterface<double>, 6> model_angle_outputs_, model_velocity_outputs_;
     OutputInterface<Eigen::Vector3d> policy_command_output_, policy_gyro_output_;

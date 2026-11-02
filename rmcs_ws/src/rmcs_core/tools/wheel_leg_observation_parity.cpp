@@ -13,11 +13,12 @@ int main(int argc, char** argv) {
         || (!mode.empty() && mode != "--prone-motion-v4" && mode != "--prone-motion-v4-odom-v2"
             && mode != "--wheelbipe-v202"))
         return 2;
-    UnifiedObservation observer{mode == "--prone-motion-v4"};
-    if (mode == "--prone-motion-v4-odom-v2")
-        observer.use_local_standing_v2();
-    if (mode == "--wheelbipe-v202")
-        observer.use_wheelbipe();
+    using Version = UnifiedObservation::Version;
+    const auto version = mode == "--prone-motion-v4"         ? Version::kProneV4
+                       : mode == "--prone-motion-v4-odom-v2" ? Version::kProneV4OdomV2
+                       : mode == "--wheelbipe-v202"          ? Version::kWheelbipeV202
+                                                             : Version::kStandingV3;
+    UnifiedObservation observer{version};
     std::uint64_t tick;
     int reset, enabled;
     std::cout << std::setprecision(17);

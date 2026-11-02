@@ -50,42 +50,35 @@ inline std::array<double, 6> measured_policy_history(
 
 class UnifiedObservation {
 public:
-    explicit UnifiedObservation(bool local_standing_v4 = false)
-        : standing_(standing_reference::frozen_geometry107())
-        , local_standing_v4_(local_standing_v4) {}
+    enum class Version { kStandingV3, kProneV4, kProneV4OdomV2, kWheelbipeV202 };
+
+    explicit UnifiedObservation(Version version = Version::kStandingV3)
+        : standing_(standing_reference::frozen_geometry107()) {
+        select_version(version);
+    }
 
     void reset(std::uint64_t policy_tick = 0) {
         standing_.reset(policy_tick);
         local_standing_.reset();
     }
 
-    double policy_hz() const { return wheelbipe_ ? 50.0 : local_standing_v4_ ? 100.0 : 200.0; }
-    bool prone_200hz() const { return local_standing_v2_; }
-    bool wheelbipe() const { return wheelbipe_; }
+    Version version() const { return version_; }
+    double policy_hz() const { return wheelbipe() ? 50.0 : uses_local_standing_() ? 100.0 : 200.0; }
+    bool wheelbipe() const { return version_ == Version::kWheelbipeV202; }
 
-    void use_local_standing_v4() {
-        local_standing_v4_ = true;
-        reset();
-    }
-
-    void use_local_standing_v2() {
-        local_standing_v4_ = local_standing_v2_ = true;
-        local_standing_.use_v2();
-        reset();
-    }
-
-    void use_wheelbipe() {
-        wheelbipe_ = true;
+    void select_version(Version version) {
+        version_ = version;
+        local_standing_.use_v2(version == Version::kProneV4OdomV2);
         reset();
     }
 
     std::string_view contract_sha256() const {
-        if (wheelbipe_)
+        if (wheelbipe())
             return kWheelbipeObservationContractSha256;
-        if (local_standing_v2_)
+        if (version_ == Version::kProneV4OdomV2)
             return kProne200ObservationContractSha256;
-        return local_standing_v4_ ? kLocalStandingObservationContractSha256
-                                  : kStandingObservationContractSha256;
+        return uses_local_standing_() ? kLocalStandingObservationContractSha256
+                                      : kStandingObservationContractSha256;
     }
 
     std::optional<std::array<double, 35>> sample(
@@ -93,12 +86,13 @@ public:
         const std::array<double, 6>& velocity, const std::array<double, 3>& gyro,
         const std::array<double, 3>& gravity, const std::array<double, 3>& command, double height,
         const std::array<double, 6>& applied_action, bool active) {
-        if (wheelbipe_)
+        if (wheelbipe())
             return sample_wheelbipe_(
                 position, velocity, gyro, gravity, command, height, applied_action);
+        const bool local_standing = uses_local_standing_();
         std::array<float, 35> frame{};
         std::array<float, 6> q{};
-        const auto& profile = local_standing_v4_ ? kFullVehicleV202PolicyProfile : kV6PolicyProfile;
+        const auto& profile = local_standing ? kFullVehicleV202PolicyProfile : kV6PolicyProfile;
         for (std::size_t i = 0; i < 3; ++i) {
             frame[i] = static_cast<float>(command[i]);
             frame[4 + i] = .5F * static_cast<float>(gyro[i]);
@@ -108,7 +102,7 @@ public:
         for (std::size_t i = 0; i < 6; ++i) {
             // V4 subtracts float64 wheel origins in LocalStandingOdometry;
             // never round the cumulative wheel angles into this float frame.
-            q[i] = i < 4 || !local_standing_v4_ ? static_cast<float>(position[i]) : 0.F;
+            q[i] = i < 4 || !local_standing ? static_cast<float>(position[i]) : 0.F;
             frame[16 + i] = .1F * static_cast<float>(velocity[i]);
             frame[22 + i] = static_cast<float>(applied_action[i]);
             if (i < 4) {
@@ -121,13 +115,13 @@ public:
             std::all_of(
                 frame.begin(), frame.end(), [](float value) { return std::isfinite(value); })
             && std::all_of(q.begin(), q.end(), [](float value) { return std::isfinite(value); });
-        if (!local_standing_v4_ && !finite_inputs)
+        if (!local_standing && !finite_inputs)
             return std::nullopt;
         // Training reconstructs geometry legs from the wrapped actor channels;
         // only the wheel angles retain their continuous encoder turns.
         for (std::size_t i = 0; i < 4; ++i)
             q[i] = frame[10 + i] + static_cast<float>(profile.nominal[i]);
-        if (local_standing_v4_) {
+        if (local_standing) {
             // ChassisEnv builds/clips the float32 sensor frame before odometry.
             for (auto& value : frame)
                 value = std::clamp(value, -100.F, 100.F);
@@ -151,6 +145,10 @@ public:
     }
 
 private:
+    bool uses_local_standing_() const {
+        return version_ == Version::kProneV4 || version_ == Version::kProneV4OdomV2;
+    }
+
     static std::optional<std::array<double, 35>> sample_wheelbipe_(
         const std::array<double, 6>& position, const std::array<double, 6>& velocity,
         const std::array<double, 3>& gyro, const std::array<double, 3>& gravity,
@@ -192,9 +190,7 @@ private:
 
     standing_reference::StandingReferenceV3 standing_;
     LocalStandingOdometry local_standing_;
-    bool local_standing_v4_;
-    bool local_standing_v2_ = false;
-    bool wheelbipe_ = false;
+    Version version_ = Version::kStandingV3;
 };
 
 } // namespace rmcs_core::controller::chassis
