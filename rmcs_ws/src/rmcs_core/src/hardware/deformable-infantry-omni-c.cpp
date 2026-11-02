@@ -12,7 +12,7 @@
 #include <span>
 #include <string>
 #include <tuple>
-
+   
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
 #include <std_srvs/srv/trigger.hpp>
@@ -336,7 +336,7 @@ private:
             };
 
             gimbal_yaw_motor_.configure(
-                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
+                device::LkMotor::Config{device::LkMotor::Type::kMG5010Ei10}.set_encoder_zero_point(
                     static_cast<int>(status.get_parameter("yaw_motor_zero_point").as_int())));
 
             for (auto& motor : chassis_wheel_motors_)
