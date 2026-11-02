@@ -123,6 +123,71 @@ TEST(UnifiedObservation, PassiveHistoryPreservesTheMeasuredPairedBranch) {
     EXPECT_EQ(history[5], 0);
 }
 
+TEST(UnifiedObservation, WheelbipeRetainsRawAnglesReordersJointsAndClipsBeforeScaling) {
+    UnifiedObservation observer;
+    observer.use_wheelbipe();
+    auto q = kWheelbipePolicyProfile.nominal;
+    q[0] += 7.;
+    q[1] += .2;
+    q[2] -= .3;
+    q[3] -= .4;
+    q[4] = 1e8;
+    const auto frame = observer.sample(
+        1, q, {1, 2, 3, 4, 500, -500}, {200, -200, 1}, upright, {}, .305, {1, 2, 3, 4, 12, -14},
+        true);
+    ASSERT_TRUE(frame);
+    EXPECT_NEAR((*frame)[10], 7., 1e-6);
+    EXPECT_NEAR((*frame)[11], -.3, 1e-7);
+    EXPECT_NEAR((*frame)[12], .2, 1e-7);
+    EXPECT_EQ((*frame)[14], 0.);
+    EXPECT_EQ((*frame)[15], 0.);
+    EXPECT_EQ((*frame)[4], 50.);
+    EXPECT_EQ((*frame)[5], -50.);
+    EXPECT_EQ((*frame)[20], 20.);
+    EXPECT_EQ((*frame)[21], -20.);
+    EXPECT_EQ((*frame)[23], 3.);
+    EXPECT_EQ((*frame)[24], 2.);
+    EXPECT_EQ((*frame)[26], 12.); // Raw history survives the physical wheel speed cap.
+    EXPECT_EQ((*frame)[28], 1.);
+    EXPECT_EQ((*frame)[31], 0.);
+    EXPECT_EQ(observer.policy_hz(), 50.);
+    q[1] = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_FALSE(observer.sample(2, q, zero, {}, upright, {}, .305, zero, true));
+}
+
+TEST(UnifiedObservation, WheelbipeTargetsUseTheFullPerSide110DegreeBranch) {
+    const std::array<double, 4> desired{0., 1.42, 0., -1.42};
+    const auto actual = wind_leg_targets(desired, desired, LegTargetWinding::kPairedFullVehicle110);
+    const auto legacy = wind_leg_targets(desired, desired, LegTargetWinding::kPairedBranch107);
+    for (std::size_t i = 0; i < 4; ++i)
+        EXPECT_DOUBLE_EQ(actual[i], desired[i]);
+    EXPECT_LT(legacy[1] - legacy[0], 1.4);
+    EXPECT_THROW(parse_leg_target_winding("paired_full_vehicle110_v1", "v6"), std::runtime_error);
+}
+
+TEST(UnifiedObservation, ProneV2CapturesAt50MsDuringBalanceAndKeepsItsPhysicalScale) {
+    UnifiedObservation observer;
+    observer.use_local_standing_v2();
+    auto q = kProne200PolicyProfile.nominal;
+    const std::array<double, 6> dq{0., 0., 0., 0., 10., -10.};
+    for (std::uint64_t tick = 0; tick < 5; ++tick) {
+        const auto frame =
+            observer.sample(tick, q, dq, {0., .7, 0.}, upright, {}, .305, zero, true);
+        ASSERT_TRUE(frame);
+        EXPECT_EQ((*frame)[31], tick == 4 ? 1. : 0.);
+    }
+    q[4] += .1;
+    q[5] -= .1;
+    const auto moved = observer.sample(5, q, dq, {}, upright, {}, .305, zero, true);
+    ASSERT_TRUE(moved);
+    EXPECT_NEAR((*moved)[14], 5. * .06 * .1 / 6., 3e-6);
+    EXPECT_EQ(observer.sample(5, q, dq, {}, upright, {}, .305, zero, true), moved);
+    observer.reset();
+    const auto reset = observer.sample(0, q, dq, {}, upright, {}, .305, zero, true);
+    ASSERT_TRUE(reset);
+    EXPECT_EQ((*reset)[31], 0.);
+}
+
 class ProneMotionObservation : public testing::Test {
 protected:
     auto sample(std::uint64_t tick, bool enabled = true) {
