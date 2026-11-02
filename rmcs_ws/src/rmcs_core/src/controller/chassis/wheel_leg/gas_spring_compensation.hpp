@@ -4,8 +4,9 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <span>
 
-#include "full_vehicle_v202.hpp"
+#include "full_vehicle_calibration110.hpp"
 #include "gas_spring_model.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -29,9 +30,16 @@ inline GasSpringCompensation gas_spring_compensation(
         return result;
     }
     for (std::size_t side = 0; side < 2; ++side) {
-        const auto& geometry =
-            full_vehicle ? (side == 0 ? full_vehicle_v202::kLeft : full_vehicle_v202::kRight)
-                         : (side == 0 ? gas_spring_model::kLeft : gas_spring_model::kRight);
+        // Deployment's 110-degree zero lies beyond the trained table's 108.5
+        // endpoint. Append CAD-solved geometry while keeping the measured
+        // force curve and all inherited knots unchanged.
+        const auto geometry =
+            full_vehicle
+                ? std::span<const gas_spring_model::GeometryKnot>{
+                      side == 0 ? full_vehicle_calibration110::kLeft
+                                : full_vehicle_calibration110::kRight}
+                : std::span<const gas_spring_model::GeometryKnot>{
+                      side == 0 ? gas_spring_model::kLeft : gas_spring_model::kRight};
         const double delta = side == 0 ? q[1] - q[0] : q[2] - q[3];
         if (delta < geometry.front().delta_rad || delta > geometry.back().delta_rad) {
             result.beta_deg[side] = std::numeric_limits<double>::quiet_NaN();
