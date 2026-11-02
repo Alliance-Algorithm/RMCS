@@ -10,6 +10,7 @@
 #include <memory>
 #include <numbers>
 #include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include <pluginlib/class_loader.hpp>
@@ -25,13 +26,13 @@ using Component = rmcs_executor::Component;
 
 class UnifiedSnapshots final : public Component {
 public:
-    explicit UnifiedSnapshots(std::atomic<int>& phase)
+    UnifiedSnapshots(std::atomic<int>& phase, const std::vector<double>& offsets)
         : phase_(phase) {
-        constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
+        std::copy_n(offsets.begin(), 4, offsets_.begin());
         for (std::size_t i = 0; i < 6; ++i) {
             const auto path = std::string{"/wheel_leg/"} + kMotorNames[i];
             const double q = i < 4 ? kV6PolicyProfile.nominal[i] + (i < 2 ? .2 : -.3) : 0.0;
-            register_output(path + "/angle", q_[i], i < 4 ? offsets[i] - q : 0.0);
+            register_output(path + "/angle", q_[i], i < 4 ? offsets_[i] - q : 0.0);
             register_output(path + "/velocity", dq_[i], 0.0);
             register_output(path + "/torque", torque_[i], 0.0);
             register_output(path + "/max_torque", limit_[i], i < 4 ? 40.0 : 4.5);
@@ -80,12 +81,23 @@ public:
         *orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{roll, Eigen::Vector3d::UnitX()}};
         if (phase >= 9) {
             const std::array<double, 4> model_q{1.0, 2.55, -1.0, -.75};
-            constexpr std::array offsets{1.6, 2.93, -1.6, -2.93};
             for (std::size_t i = 0; i < 4; ++i) {
-                *q_[i] = offsets[i] - model_q[i] - 4 * std::numbers::pi;
+                *q_[i] = offsets_[i] - model_q[i] - 4 * std::numbers::pi;
                 *torque_[i] = 100.0;
                 *limit_[i] = i == 1 ? 10.0 : 40.0;
                 *dq_[i] = phase == 9 ? -300.0 : i % 2 == 0 ? 300.0 : -300.0;
+            }
+        }
+        if (phase == 13 || phase == 14) {
+            for (std::size_t i = 0; i < 4; ++i) {
+                *q_[i] = 0.; // All four drive APIs read zero at the 110-degree fixture.
+                *dq_[i] = 0.;
+            }
+            if (phase == 14) {
+                // Independent sensor values for the CAD-solved 40-degree pose,
+                // retaining the same absolute thigh reference on both sides.
+                *q_[1] = 1.5691694367129296;
+                *q_[3] = -1.5691575222758865;
             }
         }
         if (phase == 6)
@@ -108,6 +120,7 @@ public:
 
 private:
     std::atomic<int>& phase_;
+    std::array<double, 4> offsets_;
     std::array<OutputInterface<double>, 6> q_, dq_, torque_, limit_;
     std::array<OutputInterface<std::uint64_t>, 6> sequence_, stamp_;
     std::array<OutputInterface<int>, 4> fault_;
@@ -125,7 +138,11 @@ private:
 
 class UnifiedObserve final : public Component {
 public:
-    UnifiedObserve() {
+    UnifiedObserve(const std::vector<double>& minimum, const std::vector<double>& maximum,
+                   double margin)
+        : hinge_margin_(margin) {
+        std::copy_n(minimum.begin(), 2, hinge_min_.begin());
+        std::copy_n(maximum.begin(), 2, hinge_max_.begin());
         for (std::size_t i = 0; i < 6; ++i) {
             register_input(
                 std::string{"/wheel_leg/"} + kMotorNames[i] + "/control_torque", torque_[i]);
@@ -146,6 +163,8 @@ public:
         register_input("/wheel_leg/enable_request", enabled_);
         register_input("/wheel_leg/rl/action_seq", action_sequence_);
         register_input("/wheel_leg/rl/fault_latched", fault_);
+        register_input("/wheel_leg/rl/gas_spring/left/beta_deg", beta_[0]);
+        register_input("/wheel_leg/rl/gas_spring/right/beta_deg", beta_[1]);
     }
 
     void update() override {
@@ -162,14 +181,18 @@ public:
                 const double sign = side == 0 ? 1.0 : -1.0;
                 const double relative = sign * (*angles_[knee] - *angles_[hip]);
                 const double outward = sign * (*torque_[hip] - *torque_[knee]);
-                if ((relative >= 1.3889088544 - .03 && outward > 1e-9)
-                    || (relative <= -.140638855 + .03 && outward < -1e-9))
+                if ((relative >= hinge_max_[side] - hinge_margin_ && outward > 1e-9)
+                    || (relative <= hinge_min_[side] + hinge_margin_ && outward < -1e-9))
                     invalid_soft_limit = true;
-                if ((relative >= 1.3889088544 && outward < -1.0)
-                    || (relative <= -.140638855 && outward > 1.0))
+                if ((relative >= hinge_max_[side] && outward < -1.0)
+                    || (relative <= hinge_min_[side] && outward > 1.0))
                     inward_effort = true;
             }
         }
+        knee_at_110 = *state_ == 3 && std::abs(*beta_[0] - 110.) < 1e-8
+                   && std::abs(*beta_[1] - 110.) < 1e-8;
+        knee_at_40 = *state_ == 3 && std::abs(*beta_[0] - 40.) < 1e-8
+                  && std::abs(*beta_[1] - 40.) < 1e-8;
         all_zero = zero;
         valid = *valid_ > .5;
         state = *state_;
@@ -200,7 +223,8 @@ public:
 
     std::atomic<int> state{0};
     std::atomic<bool> all_zero{true}, valid{false}, enabled{false}, invalid_effort{false},
-        fault{false}, effort_before_policy{false}, invalid_soft_limit{false}, inward_effort{false};
+        fault{false}, effort_before_policy{false}, invalid_soft_limit{false}, inward_effort{false},
+        knee_at_110{false}, knee_at_40{false};
     std::atomic<std::size_t> action_sequence{0}, frames{0};
     // Read after executor thread shutdown.
     std::array<double, 35> first_frame{};
@@ -210,6 +234,9 @@ private:
     std::array<InputInterface<double>, 6> torque_, applied_;
     std::array<InputInterface<double>, 6> limits_;
     std::array<InputInterface<double>, 4> angles_;
+    std::array<InputInterface<double>, 2> beta_;
+    std::array<double, 2> hinge_min_, hinge_max_;
+    double hinge_margin_;
     std::array<InputInterface<double>, 35> serialized_;
     InputInterface<std::vector<double>> frame_;
     InputInterface<std::size_t> frame_sequence_, action_sequence_;
@@ -241,11 +268,12 @@ TEST(UnifiedPolicyIntegration, RejectsLegacyPreprocessingHeadingHoldAndSlowPd) {
         rclcpp::executors::SingleThreadedExecutor ros;
         pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
         std::atomic<int> phase{0};
-        Component::initializing_component_name = "snapshots";
-        auto sensors = std::make_shared<UnifiedSnapshots>(phase);
         Component::initializing_component_name = "wheel_leg_controller";
         auto options = rmcs_utility::NodeMixin::options().parameter_overrides({parameter});
         auto controller = std::make_shared<WheelLegController>(options);
+        Component::initializing_component_name = "snapshots";
+        auto sensors = std::make_shared<UnifiedSnapshots>(
+            phase, controller->get_parameter("leg_model_offsets").as_double_array());
         Component::initializing_component_name = "rl_bridge";
         auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
         rmcs_executor::Executor executor{"rmcs_executor", ros};
@@ -260,14 +288,18 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
     rclcpp::executors::SingleThreadedExecutor ros;
     pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
     std::atomic<int> phase{0};
-    Component::initializing_component_name = "snapshots";
-    auto sensors = std::make_shared<UnifiedSnapshots>(phase);
     Component::initializing_component_name = "wheel_leg_controller";
     auto controller = std::make_shared<WheelLegController>();
+    Component::initializing_component_name = "snapshots";
+    auto sensors = std::make_shared<UnifiedSnapshots>(
+        phase, controller->get_parameter("leg_model_offsets").as_double_array());
     Component::initializing_component_name = "rl_bridge";
     auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
     Component::initializing_component_name = "observe";
-    auto observe = std::make_shared<UnifiedObserve>();
+    auto observe = std::make_shared<UnifiedObserve>(
+        controller->get_parameter("hinge_min").as_double_array(),
+        controller->get_parameter("hinge_max").as_double_array(),
+        controller->get_parameter("hinge_margin").as_double());
     Component::initializing_component_name = "value_broadcaster";
     auto broadcaster = loader.createSharedInstance("rmcs_core::broadcaster::ValueBroadcaster");
     auto broadcaster_node = std::dynamic_pointer_cast<rclcpp::Node>(broadcaster);
@@ -347,6 +379,17 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
         EXPECT_FALSE(observe->invalid_effort);
         EXPECT_FALSE(observe->effort_before_policy);
         EXPECT_GT(observe->frames.load(), 50u);
+        if (controller->get_parameter("control_profile").as_string()
+            == kFullVehicleV202PolicyProfile.name) {
+            phase = 13;
+            EXPECT_TRUE(await([&] { return observe->knee_at_110.load(); }));
+            EXPECT_FALSE(observe->fault);
+            EXPECT_FALSE(observe->invalid_soft_limit);
+            phase = 14;
+            EXPECT_TRUE(await([&] { return observe->knee_at_40.load(); }));
+            EXPECT_FALSE(observe->fault);
+            EXPECT_FALSE(observe->invalid_soft_limit);
+        }
         // Refresh every sensor after the gap: only the policy action is expired.
         phase = 12;
         EXPECT_TRUE(await([&] { return sensors->inference_gap_complete.load(); }));
