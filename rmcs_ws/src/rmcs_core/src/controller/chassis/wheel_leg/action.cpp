@@ -47,8 +47,11 @@ std::expected<void, std::string> WheelLegController::process_action_(std::span<c
         }
     }
     // The last two actions command wheel speeds, not torques.
-    targets[4] = decoded[4];
-    targets[5] = decoded[5];
+    const bool wheelbipe = policy_profile_.name == kWheelbipePolicyProfile.name;
+    // V14 history contains raw policy actions, including requests beyond the
+    // wheel speed cap. Saturate only the physical targets in that profile.
+    targets[4] = wheelbipe ? std::clamp(decoded[4], -90., 90.) : decoded[4];
+    targets[5] = wheelbipe ? std::clamp(decoded[5], -90., 90.) : decoded[5];
     if (!targets.allFinite())
         return std::unexpected{
             std::string{"Policy action or soft-limit mapping generated a non-finite target"}};
@@ -90,7 +93,7 @@ void WheelLegController::compute_motor_torques_() {
     if (gas_spring_compensation_enabled_) {
         const auto gas = gas_spring_compensation(
             {q_[0], q_[1], q_[2], q_[3]}, gas_spring_compensation_gain_,
-            policy_profile_.name == kFullVehicleV202PolicyProfile.name);
+            full_vehicle_profile(policy_profile_.name));
         if (!gas.valid) {
             latch_fault_("invalid gas-spring compensation input");
             return;

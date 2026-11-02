@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <numbers>
 #include <string>
 #include <string_view>
 
@@ -91,8 +92,34 @@ inline constexpr PolicyProfile kFullVehicleV202PolicyProfile{
     10.471975511965978,
     10.471975511965978};
 
+// Frozen 2026-11-03 training interfaces. Geometry is numerically identical to
+// full_vehicle_v202; the friction asset has its own authenticated file identity.
+inline constexpr std::string_view kFrictionV202ModelSpecSha256 =
+    "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812";
+inline constexpr std::string_view kFrictionV202GasModelSha256 =
+    "698f67ccc7d6364b73f1b426ed3e6386ffc9e11912ef95a89d716eb7ee0e06b9";
+inline constexpr PolicyProfile kProne200PolicyProfile = [] {
+    auto profile = kFullVehicleV202PolicyProfile;
+    profile.name = "prone_motion_v4_200hz";
+    return profile;
+}();
+inline constexpr PolicyProfile kWheelbipePolicyProfile = [] {
+    auto profile = kFullVehicleV202PolicyProfile;
+    profile.name = "wheelbipe_v202";
+    profile.leg_kp = 60.0;
+    profile.leg_kd = 2.0;
+    profile.forward_limit = 2.7;
+    profile.negative_yaw_limit = profile.positive_yaw_limit = 2.0 * std::numbers::pi;
+    return profile;
+}();
+
+inline constexpr bool full_vehicle_profile(std::string_view name) {
+    return name == kFullVehicleV202PolicyProfile.name || name == kProne200PolicyProfile.name
+        || name == kWheelbipePolicyProfile.name;
+}
+
 inline constexpr bool root_drive_profile(std::string_view name) {
-    return name == kV6PolicyProfile.name || name == kFullVehicleV202PolicyProfile.name;
+    return name == kV6PolicyProfile.name || full_vehicle_profile(name);
 }
 
 // Six physical actuators; observation shape and actor channel order come from YAML.

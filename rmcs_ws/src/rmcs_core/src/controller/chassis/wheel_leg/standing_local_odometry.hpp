@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "full_vehicle_v202.hpp"
+#include "standing_friction_geometry.hpp"
 #include "standing_local_geometry.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -33,6 +34,10 @@ struct LocalStandingState {
 // high-rate unwrap, after hardware ratio/sign conversion, still in float64.
 class LocalStandingOdometry {
 public:
+    void use_v2() {
+        v2_ = true;
+        reset();
+    }
     void reset() { state_ = {}; }
 
     void sample(
@@ -57,7 +62,8 @@ public:
                             && standing_reference::finite(gyro) && magnitude > .5F
                             && magnitude < 1.5F;
         const float gz = gravity[2] / std::max(magnitude, 1e-9F);
-        const auto& table = standing_reference::local_geometry107();
+        const auto& table = v2_ ? standing_reference::friction_geometry110()
+                                : standing_reference::local_geometry107();
         auto projected = q;
         bool projection_valid = true;
         bool standing = imu_valid && gz < static_cast<float>(-.9659258262890683);
@@ -93,11 +99,14 @@ public:
                                return std::isfinite(value);
                            });
         const bool active_request = requested && state_.source_active;
-        const bool eligible = active_request && valid && standing_reference::norm(gyro) < .5F
-                           && std::all_of(
-                                  velocity.begin(), velocity.begin() + 4,
-                                  [](float value) { return std::abs(value) < 3.F; })
-                           && std::abs(velocity[4]) < 2.5F && std::abs(velocity[5]) < 2.5F;
+        const bool eligible =
+            active_request && valid
+            && (v2_
+                || (standing_reference::norm(gyro) < .5F
+                    && std::all_of(
+                        velocity.begin(), velocity.begin() + 4,
+                        [](float value) { return std::abs(value) < 3.F; })
+                    && std::abs(velocity[4]) < 2.5F && std::abs(velocity[5]) < 2.5F));
         const bool fresh = !state_.last_tick || *state_.last_tick != tick;
         const bool reset_reference = !active_request || (imu_valid && gz > -.5F);
         if (reset_reference) {
@@ -107,7 +116,7 @@ public:
         }
         if (fresh && !state_.reference_active && !reset_reference) {
             state_.capture_age_s = eligible ? state_.capture_age_s + .01F : 0.F;
-            if (eligible && state_.capture_age_s + 1e-7F >= .2F) {
+            if (eligible && state_.capture_age_s + 1e-7F >= (v2_ ? .05F : .2F)) {
                 state_.anchor_m = coordinate.coordinate_m;
                 state_.reference_active = true;
                 state_.filtered_m = {};
@@ -117,21 +126,23 @@ public:
         if (state_.valid && fresh) {
             constexpr float alpha = static_cast<float>(.01 / (.05 + .01));
             for (std::size_t side = 0; side < 2; ++side) {
-                const float delta =
-                    std::clamp(coordinate.coordinate_m[side] - state_.anchor_m[side], -1.F, 1.F);
+                const float limit = v2_ ? .2F : 1.F;
+                const float delta = std::clamp(
+                    coordinate.coordinate_m[side] - state_.anchor_m[side], -limit, limit);
                 state_.filtered_m[side] += alpha * (delta - state_.filtered_m[side]);
             }
         }
         state_.displacement_m = state_.valid ? state_.filtered_m : std::array<float, 2>{};
         state_.last_tick = tick;
-        frame[14] = 20.F * state_.displacement_m[0];
-        frame[15] = 20.F * state_.displacement_m[1];
+        frame[14] = (v2_ ? 5.F : 20.F) * state_.displacement_m[0];
+        frame[15] = (v2_ ? 5.F : 20.F) * state_.displacement_m[1];
         frame[31] = state_.valid ? 1.F : 0.F;
     }
 
     const LocalStandingState& state() const { return state_; }
 
 private:
+    bool v2_ = false;
     std::array<float, 2> local_wheel_angles_(
         std::uint64_t tick, const std::array<double, 2>& wheel, const std::array<float, 35>& frame,
         bool requested) {

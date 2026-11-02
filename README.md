@@ -95,10 +95,14 @@ launch-rmcs
 
 在本机上运行代码。在首次运行代码前，需要调用 `set-robot` 脚本设置机器人类型。
 
-最新轮腿整车 v2.0.2 训练代码使用 `wheel-leg-infantry-rl` 配置（100 Hz 策略、
-1000 Hz host PD，35 维观测中的 14/15 为轮式静站位移、31 为有效位）。
-该配置要求按最新训练合同导出的模型，保留训练归一化。
-代码同步和离线核对见 [轮腿训练 v4 部署](docs/zh-cn/wheel_leg_prone_motion_v4.md)。
+2026-11-03 的两路训练分别使用 `wheel-leg-infantry-prone-v4`（本机自起，
+100 Hz 策略、200 Hz host PD、开启气簧补偿）和 `wheel-leg-infantry-wheelbipe`
+（Kaiser WheelBipe，50 Hz 策略、200 Hz host PD、关闭气簧补偿）。
+模型、配置和启动说明见 [两路训练部署](docs/zh-cn/rl_training_pair_20261103.md)。
+两路机械模型都包含实体气簧；各自的观测、动作顺序和模型不能混用。
+
+`wheel-leg-infantry-rl` 保留旧 100 Hz 策略、1000 Hz host PD 的 v4 配置。
+对应历史说明见 [轮腿训练 v4 部署](docs/zh-cn/wheel_leg_prone_motion_v4.md)。
 `wheel-leg-infantry-unified-rl` 保留原 200 Hz 自起候选的配置。
 模型、观测与离线验证说明见 [RL 部署整合](docs/zh-cn/rl_deployment_refactor.md)。
 

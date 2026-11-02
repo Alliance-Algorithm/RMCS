@@ -26,8 +26,11 @@ using Component = rmcs_executor::Component;
 
 class UnifiedSnapshots final : public Component {
 public:
-    UnifiedSnapshots(std::atomic<int>& phase, const std::vector<double>& offsets)
-        : phase_(phase) {
+    UnifiedSnapshots(
+        std::atomic<int>& phase, const std::vector<double>& offsets,
+        std::chrono::milliseconds gap = 41ms)
+        : phase_(phase)
+        , gap_(gap) {
         std::copy_n(offsets.begin(), 4, offsets_.begin());
         for (std::size_t i = 0; i < 6; ++i) {
             const auto path = std::string{"/wheel_leg/"} + kMotorNames[i];
@@ -67,7 +70,7 @@ public:
     void update() override {
         const int phase = phase_.load();
         if (phase == 11 && !gap_complete.load()) {
-            std::this_thread::sleep_for(41ms);
+            std::this_thread::sleep_for(gap_);
             gap_complete = true;
         }
         if (phase == 12 && !inference_gap_complete.load()) {
@@ -120,6 +123,7 @@ public:
 
 private:
     std::atomic<int>& phase_;
+    std::chrono::milliseconds gap_;
     std::array<double, 4> offsets_;
     std::array<OutputInterface<double>, 6> q_, dq_, torque_, limit_;
     std::array<OutputInterface<std::uint64_t>, 6> sequence_, stamp_;
@@ -138,9 +142,12 @@ private:
 
 class UnifiedObserve final : public Component {
 public:
-    UnifiedObserve(const std::vector<double>& minimum, const std::vector<double>& maximum,
-                   double margin)
-        : hinge_margin_(margin) {
+    UnifiedObserve(
+        const std::vector<double>& minimum, const std::vector<double>& maximum, double margin,
+        bool wheelbipe = false, std::size_t pd_ticks = 1)
+        : hinge_margin_(margin)
+        , wheelbipe_(wheelbipe)
+        , pd_ticks_(pd_ticks) {
         std::copy_n(minimum.begin(), 2, hinge_min_.begin());
         std::copy_n(maximum.begin(), 2, hinge_max_.begin());
         for (std::size_t i = 0; i < 6; ++i) {
@@ -175,7 +182,15 @@ public:
             if (!std::isfinite(value) || std::abs(value) > *limits_[i] + 1e-9)
                 invalid_effort = true;
         }
-        if (*state_ == 3) {
+        bool unchanged_angles = true;
+        for (std::size_t i = 0; i < previous_angles_.size(); ++i) {
+            unchanged_angles &= previous_angles_[i] == *angles_[i];
+            previous_angles_[i] = *angles_[i];
+        }
+        stable_angle_ticks_ = unchanged_angles ? stable_angle_ticks_ + 1 : 0;
+        // Abrupt fixture poses may change during a feedback-PD hold. Check
+        // the new boundary once the next feedback update has occurred.
+        if (*state_ == 3 && stable_angle_ticks_ >= pd_ticks_) {
             for (int side = 0; side < 2; ++side) {
                 const int hip = side * 2, knee = hip + 1;
                 const double sign = side == 0 ? 1.0 : -1.0;
@@ -189,10 +204,10 @@ public:
                     inward_effort = true;
             }
         }
-        knee_at_110 = *state_ == 3 && std::abs(*beta_[0] - 110.) < 1e-8
-                   && std::abs(*beta_[1] - 110.) < 1e-8;
-        knee_at_40 = *state_ == 3 && std::abs(*beta_[0] - 40.) < 1e-8
-                  && std::abs(*beta_[1] - 40.) < 1e-8;
+        knee_at_110 =
+            *state_ == 3 && std::abs(*beta_[0] - 110.) < 1e-8 && std::abs(*beta_[1] - 110.) < 1e-8;
+        knee_at_40 =
+            *state_ == 3 && std::abs(*beta_[0] - 40.) < 1e-8 && std::abs(*beta_[1] - 40.) < 1e-8;
         all_zero = zero;
         valid = *valid_ > .5;
         state = *state_;
@@ -212,8 +227,11 @@ public:
                     std::max(serialization_error, std::abs((*frame_)[i] - *serialized_[i]));
             if (previous_state_ == 3)
                 for (std::size_t i = 0; i < 6; ++i)
-                    history_error =
-                        std::max(history_error, std::abs((*frame_)[22 + i] - previous_applied_[i]));
+                    history_error = std::max(
+                        history_error,
+                        std::abs(
+                            (*frame_)[22 + i]
+                            - previous_applied_[wheelbipe_ ? std::array{0, 2, 1, 3, 4, 5}[i] : i]));
             last_frame_sequence_ = *frame_sequence_;
         }
         for (std::size_t i = 0; i < 6; ++i)
@@ -237,6 +255,9 @@ private:
     std::array<InputInterface<double>, 2> beta_;
     std::array<double, 2> hinge_min_, hinge_max_;
     double hinge_margin_;
+    bool wheelbipe_;
+    std::size_t pd_ticks_, stable_angle_ticks_ = 0;
+    std::array<double, 4> previous_angles_{};
     std::array<InputInterface<double>, 35> serialized_;
     InputInterface<std::vector<double>> frame_;
     InputInterface<std::size_t> frame_sequence_, action_sequence_;
@@ -263,24 +284,27 @@ TEST(UnifiedPolicyIntegration, RejectsLegacyPreprocessingHeadingHoldAndSlowPd) {
     for (const auto& parameter :
          {rclcpp::Parameter{"unified_full_rl", false},
           rclcpp::Parameter{"heading_hold_enabled", true},
-          rclcpp::Parameter{"pd_frequency", 200.0}}) {
+          rclcpp::Parameter{"pd_frequency", 400.0}}) {
         SCOPED_TRACE(parameter.get_name());
-        rclcpp::executors::SingleThreadedExecutor ros;
-        pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
-        std::atomic<int> phase{0};
-        Component::initializing_component_name = "wheel_leg_controller";
-        auto options = rmcs_utility::NodeMixin::options().parameter_overrides({parameter});
-        auto controller = std::make_shared<WheelLegController>(options);
-        Component::initializing_component_name = "snapshots";
-        auto sensors = std::make_shared<UnifiedSnapshots>(
-            phase, controller->get_parameter("leg_model_offsets").as_double_array());
-        Component::initializing_component_name = "rl_bridge";
-        auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
-        rmcs_executor::Executor executor{"rmcs_executor", ros};
-        executor.add_component(sensors);
-        executor.add_component(controller);
-        executor.add_component(bridge);
-        EXPECT_THROW(executor.start(), std::runtime_error);
+        const auto start = [&] {
+            rclcpp::executors::SingleThreadedExecutor ros;
+            pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
+            std::atomic<int> phase{0};
+            Component::initializing_component_name = "wheel_leg_controller";
+            auto options = rmcs_utility::NodeMixin::options().parameter_overrides({parameter});
+            auto controller = std::make_shared<WheelLegController>(options);
+            Component::initializing_component_name = "snapshots";
+            auto sensors = std::make_shared<UnifiedSnapshots>(
+                phase, controller->get_parameter("leg_model_offsets").as_double_array());
+            Component::initializing_component_name = "rl_bridge";
+            auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
+            rmcs_executor::Executor executor{"rmcs_executor", ros};
+            executor.add_component(sensors);
+            executor.add_component(controller);
+            executor.add_component(bridge);
+            executor.start();
+        };
+        EXPECT_THROW(start(), std::runtime_error);
     }
 }
 
@@ -290,16 +314,20 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
     std::atomic<int> phase{0};
     Component::initializing_component_name = "wheel_leg_controller";
     auto controller = std::make_shared<WheelLegController>();
+    const auto profile_name = controller->get_parameter("control_profile").as_string();
+    const bool wheelbipe = profile_name == kWheelbipePolicyProfile.name;
     Component::initializing_component_name = "snapshots";
     auto sensors = std::make_shared<UnifiedSnapshots>(
-        phase, controller->get_parameter("leg_model_offsets").as_double_array());
+        phase, controller->get_parameter("leg_model_offsets").as_double_array(),
+        wheelbipe ? 31ms : 41ms);
     Component::initializing_component_name = "rl_bridge";
     auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
     Component::initializing_component_name = "observe";
     auto observe = std::make_shared<UnifiedObserve>(
         controller->get_parameter("hinge_min").as_double_array(),
         controller->get_parameter("hinge_max").as_double_array(),
-        controller->get_parameter("hinge_margin").as_double());
+        controller->get_parameter("hinge_margin").as_double(), wheelbipe,
+        static_cast<std::size_t>(1000. / controller->get_parameter("pd_frequency").as_double()));
     Component::initializing_component_name = "value_broadcaster";
     auto broadcaster = loader.createSharedInstance("rmcs_core::broadcaster::ValueBroadcaster");
     auto broadcaster_node = std::dynamic_pointer_cast<rclcpp::Node>(broadcaster);
@@ -378,9 +406,11 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
         EXPECT_TRUE(await([&] { return observe->state == 3 && observe->valid; }));
         EXPECT_FALSE(observe->invalid_effort);
         EXPECT_FALSE(observe->effort_before_policy);
-        EXPECT_GT(observe->frames.load(), 50u);
-        if (controller->get_parameter("control_profile").as_string()
-            == kFullVehicleV202PolicyProfile.name) {
+        EXPECT_GT(
+            observe->frames.load(), wheelbipe                            ? 12u
+                                    : full_vehicle_profile(profile_name) ? 25u
+                                                                         : 50u);
+        if (full_vehicle_profile(profile_name) && !wheelbipe) {
             phase = 13;
             EXPECT_TRUE(await([&] { return observe->knee_at_110.load(); }));
             EXPECT_FALSE(observe->fault);
@@ -402,11 +432,9 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
     auto q = kV6PolicyProfile.nominal;
     for (int i = 0; i < 4; ++i)
         q[i] += i < 2 ? .2 : -.3;
-    const auto& profile = controller->get_parameter("control_profile").as_string()
-                               == kFullVehicleV202PolicyProfile.name
-                            ? kFullVehicleV202PolicyProfile
-                            : kV6PolicyProfile;
-    const auto passive = measured_policy_history(q, profile);
+    const auto& profile =
+        full_vehicle_profile(profile_name) ? kFullVehicleV202PolicyProfile : kV6PolicyProfile;
+    const auto passive = wheelbipe ? std::array<double, 6>{} : measured_policy_history(q, profile);
     for (std::size_t i = 0; i < 6; ++i)
         EXPECT_NEAR(observe->first_frame[22 + i], passive[i], 2e-6);
     EXPECT_LT(observe->serialization_error, 1e-9);

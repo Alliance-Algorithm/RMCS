@@ -149,7 +149,9 @@ bool WheelLegController::publish_unified_observation_() {
         velocity[i] = dq_[i];
     }
     if (!policy_targets_valid_)
-        applied_policy_action_ = measured_policy_history(position, policy_profile_);
+        applied_policy_action_ = unified_observation_.wheelbipe()
+                                   ? std::array<double, 6>{}
+                                   : measured_policy_history(position, policy_profile_);
     const Eigen::Vector3d omega = *gyro_;
     const Eigen::Vector3d gravity =
         world_base_orientation_().conjugate() * -Eigen::Vector3d::UnitZ();

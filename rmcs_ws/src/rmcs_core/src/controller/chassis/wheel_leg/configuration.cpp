@@ -151,6 +151,10 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         get_parameter_or<std::string>("observation_version", "standing_reference_v3");
     if (observation_version == "wheel-leg-prone-motion-v4" && unified_full_rl_)
         unified_observation_.use_local_standing_v4();
+    else if (observation_version == "wheel-leg-prone-motion-v4-odom-v2" && unified_full_rl_)
+        unified_observation_.use_local_standing_v2();
+    else if (observation_version == "wheelbipe-v202-foundation-v2" && unified_full_rl_)
+        unified_observation_.use_wheelbipe();
     else if (observation_version != "standing_reference_v3")
         throw std::runtime_error(
             "Unsupported wheel-leg observation_version: " + observation_version);
@@ -165,6 +169,10 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
         policy_profile_ = kV6PolicyProfile;
     else if (profile_name == kFullVehicleV202PolicyProfile.name)
         policy_profile_ = kFullVehicleV202PolicyProfile;
+    else if (profile_name == kProne200PolicyProfile.name)
+        policy_profile_ = kProne200PolicyProfile;
+    else if (profile_name == kWheelbipePolicyProfile.name)
+        policy_profile_ = kWheelbipePolicyProfile;
     else if (profile_name == kV5PolicyProfile.name)
         policy_profile_ = kV5PolicyProfile;
     else

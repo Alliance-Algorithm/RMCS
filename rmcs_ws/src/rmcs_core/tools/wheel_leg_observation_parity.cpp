@@ -8,9 +8,16 @@
 
 int main(int argc, char** argv) {
     using namespace rmcs_core::controller::chassis;
-    if (argc > 2 || (argc == 2 && std::string{argv[1]} != "--prone-motion-v4"))
+    const std::string mode = argc == 2 ? argv[1] : "";
+    if (argc > 2
+        || (!mode.empty() && mode != "--prone-motion-v4" && mode != "--prone-motion-v4-odom-v2"
+            && mode != "--wheelbipe-v202"))
         return 2;
-    UnifiedObservation observer{argc == 2};
+    UnifiedObservation observer{mode == "--prone-motion-v4"};
+    if (mode == "--prone-motion-v4-odom-v2")
+        observer.use_local_standing_v2();
+    if (mode == "--wheelbipe-v202")
+        observer.use_wheelbipe();
     std::uint64_t tick;
     int reset, enabled;
     std::cout << std::setprecision(17);

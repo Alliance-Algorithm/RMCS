@@ -12,7 +12,12 @@
 
 namespace rmcs_core::controller::chassis {
 
-enum class LegTargetWinding { kIndependentNearest, kPairedCommon, kPairedBranch107 };
+enum class LegTargetWinding {
+    kIndependentNearest,
+    kPairedCommon,
+    kPairedBranch107,
+    kPairedFullVehicle110
+};
 
 inline constexpr std::string_view kBranch107ModelSpecSha256 =
     "0ac82045ab584f20091538aa782d93ea545382dc701faca1f8ae92aeb7cd1997";
@@ -24,6 +29,8 @@ inline constexpr std::array<std::array<double, 2>, 2> kBranch107SignedDeltaBound
 }};
 
 inline constexpr std::string_view leg_target_winding_name(LegTargetWinding version) {
+    if (version == LegTargetWinding::kPairedFullVehicle110)
+        return "paired_full_vehicle110_v1";
     if (version == LegTargetWinding::kPairedBranch107)
         return "paired_branch107_v1";
     return version == LegTargetWinding::kPairedCommon ? "paired_common_v1"
@@ -34,11 +41,17 @@ inline LegTargetWinding
     parse_leg_target_winding(std::string_view version, std::string_view control_profile) {
     if (version == "independent_nearest_v1")
         return LegTargetWinding::kIndependentNearest;
-    if (version != "paired_common_v1" && version != "paired_branch107_v1")
+    if (version != "paired_common_v1" && version != "paired_branch107_v1"
+        && version != "paired_full_vehicle110_v1")
         throw std::runtime_error("Unknown leg_winding_version: " + std::string{version});
     if (!root_drive_profile(control_profile))
         throw std::runtime_error(
             std::string{version} + " requires the continuous root-drive v6 profile");
+    if (version == "paired_full_vehicle110_v1") {
+        if (control_profile != kWheelbipePolicyProfile.name)
+            throw std::runtime_error("Full-vehicle110 target projection requires wheelbipe_v202");
+        return LegTargetWinding::kPairedFullVehicle110;
+    }
     return version == "paired_branch107_v1" ? LegTargetWinding::kPairedBranch107
                                             : LegTargetWinding::kPairedCommon;
 }
@@ -46,9 +59,19 @@ inline LegTargetWinding
 inline void validate_leg_target_model_spec(
     LegTargetWinding version, std::string_view model_spec_sha256, std::string_view origin,
     std::string_view expected_spec_sha256 = kBranch107ModelSpecSha256) {
-    if (version == LegTargetWinding::kPairedBranch107 && model_spec_sha256 != expected_spec_sha256)
+    if ((version == LegTargetWinding::kPairedBranch107
+         || version == LegTargetWinding::kPairedFullVehicle110)
+        && model_spec_sha256 != expected_spec_sha256)
         throw std::runtime_error(
-            std::string{origin} + " model_spec_sha256 must match paired_branch107_v1");
+            std::string{origin} + " model_spec_sha256 must match "
+            + std::string{leg_target_winding_name(version)});
+}
+
+inline constexpr std::array<double, 2> leg_target_delta_bounds(LegTargetWinding version, int side) {
+    if (version == LegTargetWinding::kPairedFullVehicle110)
+        return side == 0 ? std::array<double, 2>{-.1408932677945942, 1.4282761689185115}
+                         : std::array<double, 2>{-.14084732125908495, 1.4283102010168576};
+    return kBranch107SignedDeltaBoundsRad[side];
 }
 
 // An encoder's whole-turn choice is not a mechanism hinge angle. Restore the
@@ -57,14 +80,15 @@ inline void validate_leg_target_model_spec(
 inline std::array<double, 4> wind_leg_feedback(
     const std::array<double, 4>& measured, const std::array<double, 4>& previous,
     LegTargetWinding version) {
-    if (version != LegTargetWinding::kPairedBranch107)
+    if (version != LegTargetWinding::kPairedBranch107
+        && version != LegTargetWinding::kPairedFullVehicle110)
         return measured;
     constexpr double tau = 2 * std::numbers::pi;
     auto result = measured;
     for (int side = 0; side < 2; ++side) {
         const int hip = 2 * side, aux = hip + 1;
         const double sign = side == 0 ? 1.0 : -1.0;
-        const auto bounds = kBranch107SignedDeltaBoundsRad[side];
+        const auto bounds = leg_target_delta_bounds(version, side);
         const double midpoint = (bounds[0] + bounds[1]) / 2;
         const double delta = sign * (measured[aux] - measured[hip]);
         const double relative = delta + tau * std::nearbyint((midpoint - delta) / tau);
@@ -79,11 +103,12 @@ inline std::array<double, 4> wind_leg_targets(
     LegTargetWinding version) {
     constexpr double tau = 2 * std::numbers::pi;
     std::array<double, 4> targets;
-    if (version == LegTargetWinding::kPairedBranch107) {
+    if (version == LegTargetWinding::kPairedBranch107
+        || version == LegTargetWinding::kPairedFullVehicle110) {
         for (int side = 0; side < 2; ++side) {
             const int hip = 2 * side, aux = hip + 1;
             const double sign = side == 0 ? 1.0 : -1.0;
-            const auto bounds = kBranch107SignedDeltaBoundsRad[side];
+            const auto bounds = leg_target_delta_bounds(version, side);
             const double mean = (desired[hip] + desired[aux]) / 2;
             const double delta =
                 std::clamp(sign * (desired[aux] - desired[hip]), bounds[0], bounds[1]);
