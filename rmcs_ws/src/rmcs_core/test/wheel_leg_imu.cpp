@@ -223,18 +223,33 @@ protected:
     static void TearDownTestSuite() { rclcpp::shutdown(); }
 };
 
-TEST_F(WheelLegImuConfig, BothVehicleProfilesConfigureMountOnlyInHardware) {
-    for (const char* profile : {RMCS_PROFILE, RMCS_UNIFIED_PROFILE}) {
+TEST_F(WheelLegImuConfig, AllVehicleProfilesMapRawAxesBeforeEkf) {
+    for (const char* profile :
+         {RMCS_PROFILE, RMCS_UNIFIED_PROFILE, RMCS_PRONE_PROFILE, RMCS_WHEELBIPE_PROFILE,
+          RMCS_RECOVERY_PROFILE}) {
         SCOPED_TRACE(profile);
         const auto options =
             rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true).arguments(
                 {"--ros-args", "--params-file", profile});
         rclcpp::Node hardware{"wheel_leg", options}, controller{"wheel_leg_controller", options};
         const auto config = load_wheel_leg_imu_config(hardware);
-        EXPECT_TRUE(config.body_to_sensor.isIdentity());
         EXPECT_TRUE(config.sensor_position_body_m.isZero());
         EXPECT_DOUBLE_EQ(config.angular_acceleration_filter_tau_s, .01);
-        EXPECT_NO_THROW(Bmi088Ekf{config});
+        Bmi088Ekf imu{config};
+        ASSERT_TRUE(accel(imu, Vec3{0, 0, -kGravity}, 0us));
+        ASSERT_TRUE(imu.snapshot());
+        EXPECT_TRUE((imu.snapshot()->orientation.conjugate() * -Vec3::UnitZ())
+                        .isApprox(-Vec3::UnitZ(), 1e-12));
+        ASSERT_TRUE(accel(imu, Vec3{1, -2, -kGravity}, 500us));
+        ASSERT_TRUE(imu.acceleration_snapshot());
+        EXPECT_LT(
+            (imu.acceleration_snapshot()->specific_force_body_mps2 - Vec3{-1, -2, kGravity}).norm(),
+            .002);
+        const auto state = gyro(imu, Vec3{1, -2, 3}, 1000us);
+        ASSERT_TRUE(state);
+        EXPECT_NEAR(state->gyro_body.x(), -1, .001);
+        EXPECT_NEAR(state->gyro_body.y(), -2, .001);
+        EXPECT_NEAR(state->gyro_body.z(), -3, .001);
         const auto frozen = rmcs_core::hardware::freeze_wheel_leg_imu_parameters(hardware);
         EXPECT_FALSE(
             hardware

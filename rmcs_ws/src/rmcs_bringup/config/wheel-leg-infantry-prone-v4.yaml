@@ -28,8 +28,9 @@ wheel_leg:
   ros__parameters:
     board_serial: ""
     # Mount relative to the training/URDF base_link: X forward, Y left, Z up.
-    # R_base_imu, row-major. CAD export rotation is already in the asset.
-    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    # R_base_imu, row-major. Raw BMI088 xyz -> base_link xyz is (-x, y, -z),
+    # equivalent to a 180-degree rotation about the base Y axis.
+    imu_to_base: [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
     # base_link origin -> BMI088 accelerometer centre, in base_link axes, metres.
     # Placeholder until measured; zero disables lever-arm compensation.
     imu_position: [0.0, 0.0, 0.0]
@@ -417,27 +418,12 @@ value_broadcaster:
       - /wheel_leg/right_knee_joint/angle
       - /wheel_leg/right_knee_joint/velocity
       - /wheel_leg/right_knee_joint/torque
-      - /wheel_leg/right_wheel/angle
       - /wheel_leg/right_wheel/velocity
-      - /wheel_leg/right_wheel/torque
 
-      - /wheel_leg/feedback_fresh
-      - /wheel_leg/dr16_fresh
-      - /remote/rotary_knob
-      - /chassis/control_height
-      - /wheel_leg/dm_control_ready
-      - /wheel_leg/enable_request
-      - /wheel_leg/joint_position_pd
-      - /wheel_leg/joint_position_kp
-      - /wheel_leg/joint_position_kd
       - /wheel_leg/left_hip_joint/control_angle
       - /wheel_leg/left_knee_joint/control_angle
       - /wheel_leg/right_hip_joint/control_angle
       - /wheel_leg/right_knee_joint/control_angle
-      - /wheel_leg/left_hip_joint/tx_kind
-      - /wheel_leg/left_knee_joint/tx_kind
-      - /wheel_leg/right_hip_joint/tx_kind
-      - /wheel_leg/right_knee_joint/tx_kind
       - /wheel_leg/imu/sensor_gravity/x
       - /wheel_leg/imu/sensor_gravity/y
       - /wheel_leg/imu/sensor_gravity/z
@@ -448,8 +434,6 @@ value_broadcaster:
       - /wheel_leg/left_knee_joint/control_torque
       - /wheel_leg/right_hip_joint/control_torque
       - /wheel_leg/right_knee_joint/control_torque
-      - /wheel_leg/left_wheel/control_torque
-      - /wheel_leg/right_wheel/control_torque
 
       # 左腿（髋/膝/轮）
       - /wheel_leg/left_hip_joint/angle
@@ -458,60 +442,11 @@ value_broadcaster:
       - /wheel_leg/left_knee_joint/angle
       - /wheel_leg/left_knee_joint/velocity
       - /wheel_leg/left_knee_joint/torque
-      - /wheel_leg/left_wheel/angle
       - /wheel_leg/left_wheel/velocity
-      - /wheel_leg/left_wheel/torque
 
-      - /wheel_leg/rl/state
-      - /wheel_leg/rl/fault_latched
-      - /wheel_leg/rl/feedback/sensors_valid
-      - /wheel_leg/rl/feedback/sensor_issue
-      - /wheel_leg/rl/feedback/sensor_invalid_mask
-      - /wheel_leg/rl/feedback/motor_age_ms
-      - /wheel_leg/rl/feedback/imu_age_ms
-      - /wheel_leg/rl/feedback/acceleration_age_ms
-      - /wheel_leg/rl/performance/inference_us
-      - /wheel_leg/rl/performance/pd_us
-      - /wheel_leg/rl/observation/frame/element_0
-      - /wheel_leg/rl/observation/frame/element_2
-      - /wheel_leg/rl/heading/active
-      - /wheel_leg/rl/heading/yaw
-      - /wheel_leg/rl/heading/target
-      - /wheel_leg/rl/heading/error
-      - /wheel_leg/rl/heading/raw_yaw_rate
-      - /wheel_leg/rl/heading/limited_yaw_rate
-      - /wheel_leg/rl/observation/frame/element_3
-      - /wheel_leg/rl/observation/frame/element_9
       - /wheel_leg/rl/action/left_hip_joint
       - /wheel_leg/rl/action/left_knee_joint
       - /wheel_leg/rl/action/right_hip_joint
       - /wheel_leg/rl/action/right_knee_joint
       - /wheel_leg/rl/action/left_wheel
       - /wheel_leg/rl/action/right_wheel
-      # Foxglove: these scalar plots follow the side selected below. The typed
-      # /wheel_leg/identification/sample is the 1 kHz bag source.
-      - /wheel_leg/identification/selected/hip/angle_api
-      - /wheel_leg/identification/selected/hip/velocity_api
-      - /wheel_leg/identification/selected/hip/torque_feedback_api
-      - /wheel_leg/identification/selected/hip/torque_command_api
-      - /wheel_leg/identification/selected/hip/torque_frame_api
-      - /wheel_leg/identification/selected/hip/reference_api
-      - /wheel_leg/identification/selected/hip/velocity_target_api
-      - /wheel_leg/identification/selected/hip/reference_model
-      - /wheel_leg/identification/selected/hip/velocity_target_model
-      - /wheel_leg/identification/selected/hip/position_error_model
-      - /wheel_leg/identification/selected/hip/speed_error_model
-      - /wheel_leg/identification/selected/hip/torque_preclip_model
-      - /wheel_leg/identification/selected/knee/angle_api
-      - /wheel_leg/identification/selected/knee/velocity_api
-      - /wheel_leg/identification/selected/knee/torque_feedback_api
-      - /wheel_leg/identification/selected/knee/torque_command_api
-      - /wheel_leg/identification/selected/knee/torque_frame_api
-      - /wheel_leg/identification/selected/knee/reference_api
-      - /wheel_leg/identification/selected/knee/velocity_target_api
-      - /wheel_leg/identification/selected/knee/reference_model
-      - /wheel_leg/identification/selected/knee/velocity_target_model
-      - /wheel_leg/identification/selected/knee/position_error_model
-      - /wheel_leg/identification/selected/knee/speed_error_model
-      - /wheel_leg/identification/selected/knee/torque_preclip_model
-      - /wheel_leg/identification/actuation_scope

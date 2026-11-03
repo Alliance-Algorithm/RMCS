@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
@@ -79,6 +80,36 @@ void WheelLegController::log_fault_(const char* reason, std::source_location loc
         static_cast<unsigned>(sensor_status_.invalid_mask), sensor_status_.maximum_motor_age_ms,
         sensor_status_.imu_age_ms, sensor_status_.acceleration_age_ms, hinge[0], hinge[1],
         dq_.head<4>().cwiseAbs().maxCoeff(), dq_.tail<2>().cwiseAbs().maxCoeff());
+
+    // Per-channel arrival ages: the aggregate line cannot say which axis stopped,
+    // and every "missing" state renders as the same reset defaults.
+    const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            Clock::now().time_since_epoch())
+                            .count();
+    const auto now = now_ns > 0 ? static_cast<std::uint64_t>(now_ns) : std::uint64_t{0};
+    std::array<FeedbackSampleStamp, 8> samples{};
+    for (std::size_t i = 0; i < 6; ++i)
+        if (motor_feedback_sequences_[i].ready() && motor_feedback_ns_[i].ready())
+            samples[i] = {*motor_feedback_sequences_[i], *motor_feedback_ns_[i]};
+    if (imu_sequence_.ready() && imu_ns_.ready())
+        samples[6] = {*imu_sequence_, *imu_ns_};
+    if (acceleration_sequence_.ready() && acceleration_ns_.ready())
+        samples[7] = {*acceleration_sequence_, *acceleration_ns_};
+    const auto age_ms = [now](const FeedbackSampleStamp& sample) {
+        return sample.steady_ns > 0 && sample.steady_ns <= now
+            ? static_cast<double>(now - sample.steady_ns) * 1e-6
+            : -1.0;
+    };
+    const auto flagged = [this](std::size_t index) {
+        return strict_feedback_ && ((sensor_status_.invalid_mask >> index) & 1u) != 0;
+    };
+    auto detail = std::ostringstream{};
+    detail << "Feedback ages ms (guard " << (sensor_status_.valid ? "ok" : "invalid") << "):";
+    for (std::size_t i = 0; i < 6; ++i)
+        detail << ' ' << kMotorNames[i] << '=' << age_ms(samples[i]) << (flagged(i) ? "!" : "");
+    detail << " imu=" << age_ms(samples[6]) << (flagged(6) ? "!" : "");
+    detail << " accel=" << age_ms(samples[7]);
+    RCLCPP_ERROR(get_logger(), "%s", detail.str().c_str());
 }
 
 void WheelLegController::latch_fault_(const char* reason, std::source_location location) {
