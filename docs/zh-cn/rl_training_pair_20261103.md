@@ -33,8 +33,8 @@
 模型元数据校验和当前几何表；部署时应一起构建，不能只把 YAML 拷入旧二进制。
 接口校验会拒绝不同观测合同、频率、目标绕组或归一化方式的模型。
 
-部署代码的职责整理、删减范围及回归结果见
-[`rl_deployment_refactor_20261103.md`](rl_deployment_refactor_20261103.md)。
+当前部署代码的职责、删减范围及本次回归见
+[轮腿重构说明](wheel_leg_refactor.md)。2026-11-03 的导出来源和评测结果保留原口径。
 
 ## 构建和选择入口
 
@@ -59,6 +59,7 @@ ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-infantry-wheelbipe
 
 也可用 `set-robot wheel-leg-infantry-prone-v4` 或 `set-robot wheel-leg-infantry-wheelbipe`
 选择后再运行 `launch-rmcs`。本次没有修改默认机器人选择或启动硬件。
+两路正式入口默认不启用脚本自起；可选脚本使用共享核心并保留仿真限制。
 两路均要求遥控器先双 DOWN 复位/准备，再双 MIDDLE 请求进入策略，并等待驱动就绪；
 双 DOWN、遥控器断开、CAN/IMU 超时及推理失败的处理继续生效。WheelBipe 当前配置
 按训练早期命令范围限制至 ±0.5 m/s、±0.5 rad/s；更高课程阶段须连同被评测模型重新选定范围。
@@ -84,11 +85,12 @@ SHA-256 `03508ceb13805ce7bdb167d01fa548779027a993c5633652164f11b6c4240be3`
 
 ```sh
 python rmcs_ws/src/rmcs_core/tools/verify_wheel_leg_training_pair.py \
-  --training-root /home/noir/Documents/workspace/isaac_wheeled_rl_train
+  --training-root /home/noir/Documents/workspace/isaac_wheeled_rl_train \
+  --output rmcs_ws/build/refactor_validation/training_pair
 ```
 
 它覆盖 4778 帧自起观测、256 帧 WheelBipe 观测、1201 组气簧力矩，以及生产 C++ ONNX
-推理路径；本地回执在 `reports/wheel_leg_training_pair_20261103/parity.json`。
+推理路径；本次回执在 `rmcs_ws/build/refactor_validation/training_pair/parity.json`。
 两路 YAML 还经过实际组件调度、内存传感器及线程推理集成检查，包括复位和超时故障。
 这些验证只确认配置和部署代码匹配训练接口。车辆轮向、IMU 安装矩阵和杆臂仍需实车核对，
 气簧实测区间外的曲线及右侧对称继续属于模型假设；本次没有进行 CAN 驱动或实车动作验收。

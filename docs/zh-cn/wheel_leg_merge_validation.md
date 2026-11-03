@@ -1,5 +1,7 @@
 # Wheel-leg integration validation
 
+> 本文保留当时的实现与验证记录。当前接口、入口及源码结构以[轮腿重构说明](wheel_leg_refactor.md)为准；文中的退役入口不再可用。
+
 The official profile is `rmcs_bringup/config/wheel-leg-infantry-rl.yaml`.
 Its components are `rmcs_core::controller::chassis::WheelLegController`,
 `rmcs_rl::RlBridge` and the existing hardware, command and telemetry components.

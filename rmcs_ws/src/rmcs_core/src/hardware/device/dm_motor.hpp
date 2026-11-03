@@ -42,8 +42,7 @@ namespace rmcs_core::hardware::device {
 /// 系统命令（帧 ID = 电机 CAN ID，D[0..6]=0xFF，D[7]=命令字节；来自达妙驱动控制协议）：
 ///   0xFC 使能 / 0xFD 失能 / 0xFE 设零位 / 0xFB 清错
 ///
-/// 用法（模式 A，与训练合同一致）：PC 侧做 PD，本驱动只下发 kp=kd=0 的纯扭矩
-/// （t_ff = control_torque）；模式 B（可选）：直接下发 p_des/v_des/kp/kd 让电机内环 PD。
+/// PC 侧做 PD，本驱动只下发 kp=kd=0 的纯力矩（t_ff = control_torque）。
 class DmMotor {
 public:
     enum class Type : uint8_t { kDM8009 }; // 如需其他型号在此扩展
@@ -84,13 +83,9 @@ public:
         double control_torque_max = 40.0;
     };
 
-    static constexpr double kKpMax = 500.0;
-    static constexpr double kKdMax = 5.0;
-
     // ---- 系统命令字节（达妙驱动控制协议；说明书 V1.0 未列出，装车前用调试助手确认）----
     static constexpr std::uint8_t kCommandEnable = 0xFC;
     static constexpr std::uint8_t kCommandDisable = 0xFD;
-    static constexpr std::uint8_t kCommandSetZero = 0xFE;
     static constexpr std::uint8_t kCommandClearError = 0xFB;
 
     DmMotor(
@@ -107,8 +102,7 @@ public:
         status_component.register_output(name_prefix + "/fault_code", fault_code_output_, 0);
         status_component.register_output(name_prefix + "/status_code", status_code_output_, 0);
 
-        command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
-        command_component.register_input(name_prefix + "/control_angle", control_angle_, false);
+        command_component.register_input(name_prefix + "/control_torque", control_torque_);
     }
 
     DmMotor(
@@ -150,7 +144,7 @@ public:
 
     // ---- 命令帧生成 ----
 
-    /// 模式 A：纯扭矩（kp=kd=0, p_des=v_des=0, t_ff=τ）
+    /// 纯力矩（kp=kd=0, p_des=v_des=0, t_ff=τ）
     CanPacket8 generate_command() const { return generate_command(control_torque()); }
 
     CanPacket8 generate_command(double torque) const {
@@ -158,68 +152,22 @@ public:
             torque = 0.0;
         torque = std::clamp(torque, -control_torque_max_, control_torque_max_);
         const double sign = reversed_ ? -1.0 : 1.0;
-        auto packet = encode_mit_frame(0.0, 0.0, 0.0, 0.0, sign * torque);
+        auto packet = encode_torque_frame(sign * torque);
         // Rounding a 12-bit torque can put the encoded value outside the bound.
         if (control_torque_max_ > torque_max_ / 4095.0
             && std::abs(command_frame_torque(packet)) > control_torque_max_)
-            packet = encode_mit_frame(
-                0.0, 0.0, 0.0, 0.0,
+            packet = encode_torque_frame(
                 sign * std::copysign(control_torque_max_ - 2.0 * torque_max_ / 4095.0, torque));
         return packet;
     }
 
     /// Feed-forward torque actually encoded in a MIT frame, in API coordinates.
-    /// Only meaningful for pure-torque frames; position-PD adds motor-internal effort.
     double command_frame_torque(CanPacket8 packet) const {
         const auto bytes = packet.as_bytes();
         const auto encoded = static_cast<std::uint16_t>(
             ((static_cast<std::uint8_t>(bytes[6]) & 0x0F) << 8)
             | static_cast<std::uint8_t>(bytes[7]));
         return (reversed_ ? -1.0 : 1.0) * uint_to_float(encoded, -torque_max_, torque_max_, 12);
-    }
-
-    /// 模式 B：电机内环 PD（p_des/v_des 单位 rad/rad/s；kp/kd 为物理增益）
-    CanPacket8 generate_command_pd(double kp, double kd) const {
-        if (!control_angle_.ready())
-            return generate_command(0.0);
-        return generate_command_pd(*control_angle_, 0.0, kp, kd, 0.0);
-    }
-
-    CanPacket8
-        generate_command_pd(double p_des, double v_des, double kp, double kd, double t_ff) const {
-        if (!std::isfinite(p_des) || !std::isfinite(v_des) || !std::isfinite(kp)
-            || !std::isfinite(kd) || !std::isfinite(t_ff))
-            return generate_command(0.0);
-        if (!std::isfinite(angle_) || !std::isfinite(velocity_))
-            return generate_command(0.0);
-        const double sign = reversed_ ? -1.0 : 1.0;
-        const double p_motor =
-            std::clamp(angle_bias_ + sign * p_des, -position_max_, position_max_);
-        const double v_motor = std::clamp(sign * v_des, -velocity_max_, velocity_max_);
-        const double tff_motor = std::clamp(sign * t_ff, -control_torque_max_, control_torque_max_);
-        kp = std::clamp(kp, 0.0, kKpMax);
-        kd = std::clamp(kd, 0.0, kKdMax);
-
-        // P_MAX describes the MIT encoding, not an absolute mechanical stop.
-        // A continuous position outside that range still produces bounded
-        // host PD effort instead of dropping this command to zero.
-        if (!position_target_valid(p_des))
-            return generate_command(
-                kp * (p_des - angle_) + kd * (sign * v_motor - velocity_) + sign * tff_motor);
-
-        const auto packet = encode_mit_frame(p_motor, v_motor, kp, kd, tff_motor);
-        // MIT has no per-frame total-effort limit. Saturated samples use a
-        // zero-gain torque frame, rather than adding host PD as feed-forward.
-        // Decode the wire gains and targets: even zero velocity/feed-forward
-        // have a quantization residual. This bounds the sampled prediction,
-        // not motor-local feedback changes before the next CAN command.
-        const double predicted = command_frame_effort(packet, angle_, velocity_);
-        if (!std::isfinite(predicted))
-            return generate_command(0.0);
-        if (std::abs(predicted) > control_torque_max_)
-            return generate_command(
-                kp * (p_des - angle_) + kd * (sign * v_motor - velocity_) + sign * tff_motor);
-        return packet;
     }
 
     static bool command_frame_uses_pd(CanPacket8 packet) {
@@ -229,27 +177,10 @@ public:
             || (static_cast<std::uint8_t>(bytes[6]) & 0xF0) != 0;
     }
 
-    double command_frame_effort(CanPacket8 packet, double position, double velocity) const {
-        const auto bytes = packet.as_bytes();
-        const auto byte = [&](std::size_t i) { return static_cast<std::uint8_t>(bytes[i]); };
-        const auto p = static_cast<std::uint16_t>((byte(0) << 8) | byte(1));
-        const auto v = static_cast<std::uint16_t>((byte(2) << 4) | (byte(3) >> 4));
-        const auto kp = static_cast<std::uint16_t>(((byte(3) & 0x0F) << 8) | byte(4));
-        const auto kd = static_cast<std::uint16_t>((byte(5) << 4) | (byte(6) >> 4));
-        const double sign = reversed_ ? -1.0 : 1.0;
-        const double target =
-            sign * (uint_to_float(p, -position_max_, position_max_, 16) - angle_bias_);
-        const double speed = sign * uint_to_float(v, -velocity_max_, velocity_max_, 12);
-        return uint_to_float(kp, 0.0, kKpMax, 12) * (target - position)
-             + uint_to_float(kd, 0.0, kKdMax, 12) * (speed - velocity)
-             + command_frame_torque(packet);
-    }
-
     // ---- 系统命令 ----
 
     CanPacket8 enable_command() const { return system_command(kCommandEnable); }
     CanPacket8 disable_command() const { return system_command(kCommandDisable); }
-    CanPacket8 set_zero_command() const { return system_command(kCommandSetZero); }
     CanPacket8 clear_error_command() const { return system_command(kCommandClearError); }
 
     // ---- 反馈接收与状态更新 ----
@@ -316,22 +247,8 @@ public:
 
     // ---- 查询 ----
 
-    double control_torque() const {
-        if (control_torque_.ready())
-            return *control_torque_;
-        return 0.0;
-    }
+    double control_torque() const { return *control_torque_; }
 
-    bool control_angle_ready() const noexcept { return control_angle_.ready(); }
-    bool position_target_valid(double position) const {
-        const double sign = reversed_ ? -1.0 : 1.0;
-        return std::isfinite(position) && std::abs(angle_bias_ + sign * position) <= position_max_;
-    }
-    double control_angle() const {
-        if (control_angle_.ready())
-            return *control_angle_;
-        return 0.0;
-    }
     std::uint8_t id() const noexcept { return id_; }
     /// MIT 命令帧 ID == 电机 CAN ID
     std::uint32_t send_id() const noexcept { return id_; }
@@ -388,14 +305,11 @@ public:
     }
 
 private:
-    CanPacket8 encode_mit_frame(
-        double p_motor, double v_motor, double kp, double kd, double tff_motor) const {
-        const auto pos_u = float_to_uint(p_motor, -position_max_, position_max_, 16);
-        const auto vel_u = float_to_uint(v_motor, -velocity_max_, velocity_max_, 12);
-        const auto kp_u = float_to_uint(kp, 0.0, kKpMax, 12);
-        const auto kd_u = float_to_uint(kd, 0.0, kKdMax, 12);
-        const auto tff_u = float_to_uint(tff_motor, -torque_max_, torque_max_, 12);
-        return pack_mit(pos_u, vel_u, kp_u, kd_u, tff_u);
+    CanPacket8 encode_torque_frame(double torque) const {
+        return pack_mit(
+            float_to_uint(0., -position_max_, position_max_, 16),
+            float_to_uint(0., -velocity_max_, velocity_max_, 12), 0, 0,
+            float_to_uint(torque, -torque_max_, torque_max_, 12));
     }
 
     Type type_ = Type::kDM8009;
@@ -430,7 +344,6 @@ private:
     rmcs_executor::Component::OutputInterface<int> status_code_output_;
 
     rmcs_executor::Component::InputInterface<double> control_torque_;
-    rmcs_executor::Component::InputInterface<double> control_angle_;
 };
 
 } // namespace rmcs_core::hardware::device
