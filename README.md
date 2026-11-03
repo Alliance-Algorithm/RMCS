@@ -95,16 +95,16 @@ launch-rmcs
 
 在本机上运行代码。在首次运行代码前，需要调用 `set-robot` 脚本设置机器人类型。
 
-2026-11-03 的两路训练分别使用 `wheel-leg-infantry-prone-v4`（本机自起，
-100 Hz 策略、200 Hz host PD、开启气簧补偿）和 `wheel-leg-infantry-wheelbipe`
-（Kaiser WheelBipe，50 Hz 策略、200 Hz host PD、关闭气簧补偿）。
-模型、配置和启动说明见 [两路训练部署](docs/zh-cn/rl_training_pair_20261103.md)。
-两路机械模型都包含实体气簧；各自的观测、动作顺序和模型不能混用。
+轮腿使用三个独立启动入口：`wheel-leg-infantry-traditional`（传统控制）、
+`wheel-leg-infantry-prone-v4`（ProneMotion，100 Hz 策略）和
+`wheel-leg-infantry-wheelbipe`（WheelBipe，50 Hz 策略）。它们共用
+`hardware::WheelLeg`，RL 均采用 200 Hz PC 侧 PD；每次只加载一个主控制器。
 
-`wheel-leg-infantry-rl` 保留旧 100 Hz 策略、1000 Hz host PD 的 v4 配置。
-对应历史说明见 [轮腿训练 v4 部署](docs/zh-cn/wheel_leg_prone_motion_v4.md)。
-`wheel-leg-infantry-unified-rl` 保留原 200 Hz 自起候选的配置。
-模型、观测与离线验证说明见 [RL 部署整合](docs/zh-cn/rl_deployment_refactor.md)。
+结构、数据流、参数归属、删除内容和验证边界见
+[轮腿重构说明](docs/zh-cn/wheel_leg_refactor.md)。模型来源见
+[两路训练部署](docs/zh-cn/rl_training_pair_20261103.md)。当前策略快照尚未完成行为和实车验收；
+脚本自起默认关闭，启用限制仍保留。旧 `wheel-leg-infantry-rl` 和
+`wheel-leg-infantry-unified-rl` 入口已删除。
 
 #### 确认设备接入
 

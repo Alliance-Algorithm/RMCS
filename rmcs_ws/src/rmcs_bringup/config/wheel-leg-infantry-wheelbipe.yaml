@@ -1,68 +1,97 @@
-# WheelBipe V14 port, foundation-v2, 50 Hz policy / 200 Hz host feedback PD.
-# Contract: contracts/wheel_leg_training_pair_20261103.json (wheelbipe).
-# Candidate snapshot only: unfinished training; hardware_tested=false.
-# Physical measured gas springs remain installed; motor cancellation feedforward is OFF.
-# Start supported/upright. No self-righting controller or fallen-start qualification.
-# Fresh double DOWN -> double MIDDLE; retain normal enable/reset/feedback interlocks.
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
-      - rmcs_core::hardware::WheelLeg -> wheel_leg
-      - rmcs_core::controller::chassis::WheelLegController -> wheel_leg_controller
-      - rmcs_rl::RlBridge -> rl_bridge
-      - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
-      - rmcs_core::controller::identification::WheelLegIdentificationRecorder -> wheel_leg_identification_recorder
-
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs_core::debug::ValueCollector -> value_collector
-
-wheel_leg_identification_recorder:
-  ros__parameters:
-    # Recording/plot selection only; the active motor side is set by the
-    # experiment controller, not by this passive recorder.
-    side: "left"
-
+    - rmcs_core::hardware::WheelLeg -> wheel_leg
+    - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
+    - rmcs_core::controller::chassis::WheelLegStateEstimator -> wheel_leg_state_estimator
+    - rmcs_core::controller::chassis::WheelLegRlController -> wheel_leg_rl_controller
+    - rmcs_core::controller::chassis::WheelLegObservation -> wheel_leg_observation
+    - rmcs_rl::RlBridge -> rl_bridge
+    - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 wheel_leg:
   ros__parameters:
-    board_serial: ""
-    # Mount relative to the training/URDF base_link: X forward, Y left, Z up.
-    # R_base_imu, row-major. Raw BMI088 xyz -> base_link xyz is (-x, y, -z),
-    # equivalent to a 180-degree rotation about the base Y axis.
-    imu_to_base: [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
-    # base_link origin -> BMI088 accelerometer centre, in base_link axes, metres.
-    # Placeholder until measured; zero disables lever-arm compensation.
-    imu_position: [0.0, 0.0, 0.0]
+    board_serial: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    imu_to_base:
+    - -1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - -1.0
+    imu_position:
+    - 0.0
+    - 0.0
+    - 0.0
     imu_angular_acceleration_filter_tau_s: 0.01
-    # Host torque PD is recomputed at 200 Hz; the 1 kHz executor holds each effort.
-    joint_control_mode: "torque"
-    joint_position_kp: 60.0
-    joint_position_kd: 2.0
-    require_enable_request: true
-    # Only an armed RL session may keep control at left-MIDDLE/right-DOWN.
-    allow_spin_switch: true
-    # The DM drives were already internally zeroed at the 110-degree reference.
-    allow_set_zero: false
-    # 电机反馈 Master ID，按左髋/右髋/左膝/右膝顺序。
-    dm_master_ids: [1, 2, 1, 2]
-    # Reuse the user-confirmed dev/rmcs_rl hardware configuration @ 8149afda:
-    # its DM8009 driver uses P_MAX=12.5, V_MAX=45, T_MAX=54.
-    # Rated/peak torque and the MIT feedback quantization range are distinct.
-    # 顺序同 dm_master_ids；实际命令限幅会取 min(dm_control_torque_max, dm_mit_torque_max)。
-    dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
-    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
-    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
-    dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
-
-    # This configuration uses zero-Kp/Kd MIT pure-torque commands.
-    # All six drive loops run on the PC (not DM internal position control).
-
+    dm_master_ids:
+    - 1
+    - 2
+    - 1
+    - 2
+    dm_mit_position_max:
+    - 12.5
+    - 12.5
+    - 12.5
+    - 12.5
+    dm_mit_velocity_max:
+    - 45.0
+    - 45.0
+    - 45.0
+    - 45.0
+    dm_mit_torque_max:
+    - 54.0
+    - 54.0
+    - 54.0
+    - 54.0
+    dm_control_torque_max:
+    - 40.0
+    - 40.0
+    - 40.0
+    - 40.0
+    feedback_timeout_s: 0.04
+    allow_balance_switch: false
+wheel_leg_chassis_controller:
+  ros__parameters:
+    vx_max: 0.5
+    vy_max: 0.0
+    yaw_rate_max: 0.5
+    spin_yaw_rate: 0.5
+    deadzone: 0.05
+    command_height_min: 0.23
+    command_height_max: 0.42
+    default_command_height: 0.305
+    height_rate_max: 0.6666666666666666
+    height_step: 0.01
+    angular_z_invert: false
+    height_invert: false
+    balance_switch: false
+    arm_dwell_seconds: 0.0
+wheel_leg_state_estimator:
+  ros__parameters:
+    policy: wheelbipe
+    dt: 0.001
+    velocity_sign: -1.0
+wheel_leg_rl_controller:
+  ros__parameters:
+    policy: wheelbipe
+    inference_timeout: 0.06
+    heading_hold_enabled: false
+    height_reference_rate_max: 0.6666666666666666
+    self_righting.enabled: false
+    self_righting.simulation_only: true
+    self_righting.hardware_mapping_verified: false
+wheel_leg_observation:
+  ros__parameters:
+    policy: wheelbipe
 rl_bridge:
   ros__parameters:
-    # Controller produces a coherent 35D frame; the bridge routes it and decodes actions.
-    rl_base: "/wheel_leg/rl"
-    enable_interface: "/wheel_leg/rl/input/enable"
-    reset_interface: "/chassis/reset_count"
+    rl_base: /wheel_leg/rl
+    enable_interface: /wheel_leg/rl/input/enable
+    reset_interface: /chassis/reset_count
     enable_default: false
     invalid_value: "nan"
     max_action_age: 0.06
@@ -72,379 +101,42 @@ rl_bridge:
     rl_feature_size: 35
     rl_action_size: 6
     obs_clip: 100.0
-    observation_frame_sequence_interface: "/wheel_leg/rl/input/frame_sequence"
-    expected_observation_contract_sha256: "bd8397a8cb057c5d7859ba79ffbc1310c7c75d2a9ddcfdb7ea844d02db001e69"
-    expected_observation_version: "wheelbipe-v202-foundation-v2"
-    expected_obs_normalization: "none"
+    observation_frame_sequence_interface: /wheel_leg/rl/input/frame_sequence
+    expected_observation_contract_sha256: bd8397a8cb057c5d7859ba79ffbc1310c7c75d2a9ddcfdb7ea844d02db001e69
+    expected_observation_version: wheelbipe-v202-foundation-v2
+    expected_obs_normalization: none
     normalization_from_metadata: false
-    # V14 order: LH,RH,LK,RK,LW,RW. Slots 14/15 are zero; tail is [1,0,0,0,0,0,0].
-    # Raw relative leg positions; no standing odometry or empirical normalization.
     observation_terms:
-      - index=0 path=/wheel_leg/rl/input/frame take=array type=double_array dim=35 name=frame
-    # V14 policy actions are unbounded. 1e100 leaves every finite float32 output intact.
-    # Controller caps physical wheels at +/-90 rad/s and retains RAW action history.
-    # Legs output position offsets (rad); wheels output wheel-side speed (rad/s).
+    - index=0 path=/wheel_leg/rl/input/frame take=array type=double_array dim=35 name=frame
     action_terms:
-      - index=0 output=/wheel_leg/rl/target/left_hip_joint scale=0.5 clip=-1e100:1e100
-      - index=1 output=/wheel_leg/rl/target/right_hip_joint scale=0.5 clip=-1e100:1e100
-      - index=2 output=/wheel_leg/rl/target/left_knee_joint scale=0.5 clip=-1e100:1e100
-      - index=3 output=/wheel_leg/rl/target/right_knee_joint scale=0.5 clip=-1e100:1e100
-      - index=4 output=/wheel_leg/rl/target/left_wheel scale=10.0 clip=-1e100:1e100
-      - index=5 output=/wheel_leg/rl/target/right_wheel scale=10.0 clip=-1e100:1e100
-    # Snapshot provenance is in the adjacent .deployment.json; keep this profile's contract.
-    rl_model_path: "models/wheel_leg/wheelbipe_v202_50hz.onnx"
-    model_type: "wheel_leg_v202"
-    leg_winding_version: "paired_full_vehicle110_v1"
-    expected_model_spec_sha256: "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812"
+    - index=0 output=/wheel_leg/rl/raw/left_hip_joint scale=1.0
+    - index=1 output=/wheel_leg/rl/raw/right_hip_joint scale=1.0
+    - index=2 output=/wheel_leg/rl/raw/left_knee_joint scale=1.0
+    - index=3 output=/wheel_leg/rl/raw/right_knee_joint scale=1.0
+    - index=4 output=/wheel_leg/rl/raw/left_wheel scale=1.0
+    - index=5 output=/wheel_leg/rl/raw/right_wheel scale=1.0
+    rl_model_path: models/wheel_leg/wheelbipe_v202_50hz.onnx
+    model_type: mlp
+    expected_metadata.leg_winding_version: paired_full_vehicle110_v1
+    expected_metadata.leg_target_model_spec_sha256: 8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812
+    expected_model_spec_sha256: 8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812
     inference_timeout: 0.06
-
-wheel_leg_controller:
-  ros__parameters:
-    # Calibration, paired winding, feedback PD and actuator limits belong to RMCS.
-    control_profile: wheelbipe_v202
-    unified_full_rl: true
-    observation_version: "wheelbipe-v202-foundation-v2"
-    wheel_velocity_kp: 0.5
-    height_min: 0.23
-    height_max: 0.42
-    leg_winding_version: "paired_full_vehicle110_v1"
-    nominal_model_pos: [-0.42, 0.13722330866417465, 0.42, -0.13721605817245947, 0.0, 0.0]
-    inference_timeout: 0.06
-    heading_hold_enabled: false
-    heading_hold_gain: 5.0
-    heading_hold_yaw_rate_max: 0.5
-    vx_max: 0.5
-    yaw_rate_max: 0.5
-    # Feedback PD runs every 5 ms; coherent policy frames update every 20 ms.
-    pd_frequency: 200.0
-    # Match foundation-v2: physical measured springs, no motor cancellation torque.
-    gas_spring_compensation_enabled: false
-    gas_spring_compensation_gain: 0.0
-    # Retain CAN/IMU receive timeouts; motion envelopes never disarm RL.
-    feedback_motor_age_s: 0.04
-    feedback_imu_age_s: 0.04
-    height_transition_seconds: 6.0
-    # The chassis supplies a continuous height reference; do not restart a step curve.
-    height_command_is_reference: true
-    height_reference_rate_max: 0.6666666666666666
-
-    # The four DM drives were zeroed at a 110-degree mechanical pose; their
-    # motor zero is neither the URDF assembly zero nor the policy nominal pose.
-    # The independent 1:1 chain drives need four API-to-model signs and offsets;
-    # do not add a hip/knee differential term or repeat the DM reversed sign.
-    # Leg P order: left_hip, left_knee-drive, right_hip, right_knee-drive.
-    # q_model = leg_motor_to_model(4x4 row-major) * q_api + leg_model_offsets;
-    # tau_motor = leg_motor_to_model^T * tau_model.
-    # Use only with the matching assembly calibration.
-    calibration_ready: true
-    # Calibration: contracts/wheel_leg_calibration110.json, v2.0.2 CAD closure.
-    # Retain the absolute hip reference; solve each auxiliary zero at beta=110.
-    # The passive knee's five degrees are not five active motor degrees.
-    # Driver API already applies reversed with bias=0. V2.0.2 keeps the V7 active
-    # axis convention, hence q_model = -q_api + offset. Never reverse the raw angle twice.
-    leg_motor_to_model: [-1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
-                         0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0]
-    leg_model_offsets: [1.6, 3.0282761689183353, -1.6, -3.0283102010168]
-    # DjiMotor applies the hardware reduction ratio to wheel-side feedback/torque.
-    # The policy target is already a wheel-output speed: do not multiply it again.
-    # Preserve the verified wheel-axis scaling; individual hardware signs await measurement.
-    wheel_model_scale: [1.0, 1.0]
-
-    # Continuous active motor differences: d_left=q_LK-q_LH, d_right=q_RH-q_RK.
-    # Per-side CAD conversion of passive inner knee limits 40--110 degrees.
-    # Full per-side 40--110 degree target projection matches PairedTargets in the port.
-    # Relative hip/knee soft limits project outward effort without stopping RL.
-    soft_limits_ready: true
-    hinge_coefficients: [-1.0, 1.0, 1.0, -1.0]
-    hinge_bias: [0.0, 0.0]
-    hinge_min: [-0.14089326779459427, -0.14084732125908661]
-    hinge_max: [1.4282761689183354, 1.4283102010167998]
-    hinge_margin: 0.03
-
-    # The full vehicle uses base_link/control_frame X-forward, Y-left,
-    # Z-up. The URDF's +90 deg rotation is on imported CAD visual/collision
-    # meshes (CAD front = -Y); it has ALREADY been applied before training.
-    # Do not add that CAD rotation again to commands or policy actions.
-    # Installation R/xyz are configured once in wheel_leg and applied before the EKF.
-    imu_alignment_ready: true
-
-    auto_enter_rl: false
-
-wheel_leg_chassis_controller:
-  ros__parameters:
-    vx_max: 0.5
-    vy_max: 0.0
-    yaw_rate_max: 0.5
-    spin_yaw_rate: 0.5
-    deadzone: 0.05
-    # Match the policy nominal height; the left stick holds changes on release.
-    command_height_min: 0.23
-    command_height_max: 0.42
-    default_command_height: 0.305
-    height_rate_max: 0.6666666666666666
-    height_step: 0.01
-    angular_z_invert: false
-    # The left stick's longitudinal axis is positive when pushed UP.
-    height_invert: false
-    jump_enabled: false
-
-value_collector:
-  ros__parameters:
-    # 抽样率 = executor 1 kHz / write_interval（5 -> 200 Hz）；flush_interval 按行数
-    csv_path: "/tmp/wheel_leg_wheelbipe_<timestamp>.csv"
-    write_interval: 5
-    flush_interval: 1000
-    # 向量/四元数会展开为多列：<name>/x,y,z 或 <name>/w,x,y,z
-    signals:
-      - /wheel_leg/rl/input/frame_sequence
-      # ===== 策略观测（35 维，顺序与 observation_terms 一致）=====
-      - /wheel_leg/rl/observation/frame/element_0
-      - /wheel_leg/rl/observation/frame/element_1
-      - /wheel_leg/rl/observation/frame/element_2
-      - /wheel_leg/rl/observation/frame/element_3
-      - /wheel_leg/rl/observation/frame/element_4
-      - /wheel_leg/rl/observation/frame/element_5
-      - /wheel_leg/rl/observation/frame/element_6
-      - /wheel_leg/rl/observation/frame/element_7
-      - /wheel_leg/rl/observation/frame/element_8
-      - /wheel_leg/rl/observation/frame/element_9
-      - /wheel_leg/rl/observation/frame/element_10
-      - /wheel_leg/rl/observation/frame/element_11
-      - /wheel_leg/rl/observation/frame/element_12
-      - /wheel_leg/rl/observation/frame/element_13
-      - /wheel_leg/rl/observation/frame/element_14
-      - /wheel_leg/rl/observation/frame/element_15
-      - /wheel_leg/rl/observation/frame/element_16
-      - /wheel_leg/rl/observation/frame/element_17
-      - /wheel_leg/rl/observation/frame/element_18
-      - /wheel_leg/rl/observation/frame/element_19
-      - /wheel_leg/rl/observation/frame/element_20
-      - /wheel_leg/rl/observation/frame/element_21
-      - /wheel_leg/rl/observation/frame/element_22
-      - /wheel_leg/rl/observation/frame/element_23
-      - /wheel_leg/rl/observation/frame/element_24
-      - /wheel_leg/rl/observation/frame/element_25
-      - /wheel_leg/rl/observation/frame/element_26
-      - /wheel_leg/rl/observation/frame/element_27
-      - /wheel_leg/rl/observation/frame/element_28
-      - /wheel_leg/rl/observation/frame/element_29
-      - /wheel_leg/rl/observation/frame/element_30
-      - /wheel_leg/rl/observation/frame/element_31
-      - /wheel_leg/rl/observation/frame/element_32
-      - /wheel_leg/rl/observation/frame/element_33
-      - /wheel_leg/rl/observation/frame/element_34
-      # ===== 策略动作（腿=相对名义位的角度偏移 rad，轮=轮端角速度 rad/s）=====
-      - /wheel_leg/rl/target/left_hip_joint
-      - /wheel_leg/rl/target/left_knee_joint
-      - /wheel_leg/rl/target/right_hip_joint
-      - /wheel_leg/rl/target/right_knee_joint
-      - /wheel_leg/rl/target/left_wheel
-      - /wheel_leg/rl/target/right_wheel
-      - /wheel_leg/rl/action/left_hip_joint
-      - /wheel_leg/rl/action/left_knee_joint
-      - /wheel_leg/rl/action/right_hip_joint
-      - /wheel_leg/rl/action/right_knee_joint
-      - /wheel_leg/rl/action/left_wheel
-      - /wheel_leg/rl/action/right_wheel
-      - /wheel_leg/rl/effective_action/left_hip_joint
-      - /wheel_leg/rl/effective_action/left_knee_joint
-      - /wheel_leg/rl/effective_action/right_hip_joint
-      - /wheel_leg/rl/effective_action/right_knee_joint
-      - /wheel_leg/rl/effective_action/left_wheel
-      - /wheel_leg/rl/effective_action/right_wheel
-      # ===== 指令、姿态、航向 =====
-      - /wheel_leg/rl/input/command
-      - /wheel_leg/rl/input/height
-      - /wheel_leg/rl/input/angular_velocity
-      - /wheel_leg/rl/input/projected_gravity
-      - /wheel_leg/imu/quaternion
-      - /wheel_leg/imu/angular_velocity
-      - /wheel_leg/imu/acceleration
-      - /wheel_leg/imu/sensor_gravity/x
-      - /wheel_leg/imu/sensor_gravity/y
-      - /wheel_leg/imu/sensor_gravity/z
-      - /wheel_leg/imu/sensor_gyro/x
-      - /wheel_leg/imu/sensor_gyro/y
-      - /wheel_leg/imu/sensor_gyro/z
-      - /wheel_leg/rl/heading/yaw
-      - /wheel_leg/rl/heading/target
-      - /wheel_leg/rl/heading/error
-      - /wheel_leg/rl/heading/raw_yaw_rate
-      - /wheel_leg/rl/heading/limited_yaw_rate
-      - /chassis/control_height
-      # ===== 电机反馈（DM 四关节 + M3508 两轮）=====
-      - /wheel_leg/left_hip_joint/angle
-      - /wheel_leg/left_hip_joint/velocity
-      - /wheel_leg/left_hip_joint/torque
-      - /wheel_leg/left_hip_joint/gas_spring_compensation_torque
-      - /wheel_leg/left_knee_joint/gas_spring_compensation_torque
-      - /wheel_leg/right_hip_joint/gas_spring_compensation_torque
-      - /wheel_leg/right_knee_joint/gas_spring_compensation_torque
-      - /wheel_leg/rl/gas_spring/left/beta_deg
-      - /wheel_leg/rl/gas_spring/right/beta_deg
-      - /wheel_leg/rl/gas_spring/left/force_n
-      - /wheel_leg/rl/gas_spring/right/force_n
-      - /wheel_leg/rl/gas_spring/left/weight
-      - /wheel_leg/rl/gas_spring/right/weight
-      - /wheel_leg/rl/gas_spring/left/extrapolated
-      - /wheel_leg/rl/gas_spring/right/extrapolated
-      - /wheel_leg/left_hip_joint/max_torque
-      - /wheel_leg/left_knee_joint/angle
-      - /wheel_leg/left_knee_joint/velocity
-      - /wheel_leg/left_knee_joint/torque
-      - /wheel_leg/left_knee_joint/max_torque
-      - /wheel_leg/right_hip_joint/angle
-      - /wheel_leg/right_hip_joint/velocity
-      - /wheel_leg/right_hip_joint/torque
-      - /wheel_leg/right_hip_joint/max_torque
-      - /wheel_leg/right_knee_joint/angle
-      - /wheel_leg/right_knee_joint/velocity
-      - /wheel_leg/right_knee_joint/torque
-      - /wheel_leg/right_knee_joint/max_torque
-      - /wheel_leg/left_wheel/angle
-      - /wheel_leg/left_wheel/velocity
-      - /wheel_leg/left_wheel/torque
-      - /wheel_leg/left_wheel/max_torque
-      - /wheel_leg/right_wheel/angle
-      - /wheel_leg/right_wheel/velocity
-      - /wheel_leg/right_wheel/torque
-      - /wheel_leg/right_wheel/max_torque
-      - /wheel_leg/left_hip_joint/temperature_mos
-      - /wheel_leg/left_hip_joint/temperature_rotor
-      - /wheel_leg/left_knee_joint/temperature_mos
-      - /wheel_leg/left_knee_joint/temperature_rotor
-      - /wheel_leg/right_hip_joint/temperature_mos
-      - /wheel_leg/right_hip_joint/temperature_rotor
-      - /wheel_leg/right_knee_joint/temperature_mos
-      - /wheel_leg/right_knee_joint/temperature_rotor
-      - /wheel_leg/left_wheel/temperature_c
-      - /wheel_leg/right_wheel/temperature_c
-      # ===== 模型坐标下的关节反馈（喂给观测前的换算值）=====
-      - /wheel_leg/rl/model/left_hip_joint/angle
-      - /wheel_leg/rl/model/left_hip_joint/velocity
-      - /wheel_leg/rl/model/left_knee_joint/angle
-      - /wheel_leg/rl/model/left_knee_joint/velocity
-      - /wheel_leg/rl/model/right_hip_joint/angle
-      - /wheel_leg/rl/model/right_hip_joint/velocity
-      - /wheel_leg/rl/model/right_knee_joint/angle
-      - /wheel_leg/rl/model/right_knee_joint/velocity
-      - /wheel_leg/rl/model/left_wheel/angle
-      - /wheel_leg/rl/model/left_wheel/velocity
-      - /wheel_leg/rl/model/right_wheel/angle
-      - /wheel_leg/rl/model/right_wheel/velocity
-      # ===== 控制量（下发驱动前）=====
-      - /wheel_leg/left_hip_joint/control_torque
-      - /wheel_leg/left_knee_joint/control_torque
-      - /wheel_leg/right_hip_joint/control_torque
-      - /wheel_leg/right_knee_joint/control_torque
-      - /wheel_leg/left_wheel/control_torque
-      - /wheel_leg/right_wheel/control_torque
-      - /wheel_leg/left_hip_joint/control_angle
-      - /wheel_leg/left_knee_joint/control_angle
-      - /wheel_leg/right_hip_joint/control_angle
-      - /wheel_leg/right_knee_joint/control_angle
-      # ===== RL / 反馈状态 =====
-      - /wheel_leg/rl/state
-      - /wheel_leg/rl/fault_latched
-      - /wheel_leg/rl/valid
-      - /wheel_leg/rl/healthy
-      - /wheel_leg/rl/action_age
-      - /wheel_leg/rl/policy_rate
-      - /wheel_leg/rl/performance/inference_us
-      - /wheel_leg/rl/performance/pd_us
-      - /wheel_leg/rl/feedback/sensor_issue
-      - /wheel_leg/rl/feedback/sensor_invalid_mask
-      - /wheel_leg/rl/feedback/sensors_valid
-      - /wheel_leg/rl/feedback/motor_age_ms
-      - /wheel_leg/rl/feedback/imu_age_ms
-      - /wheel_leg/rl/feedback/acceleration_age_ms
-      - /wheel_leg/enable_request
-      - /wheel_leg/feedback_fresh
-      - /wheel_leg/dm_feedback_fresh
-      - /wheel_leg/dm_control_ready
-      - /wheel_leg/dr16_fresh
-      - /wheel_leg/joint_position_pd
-      - /wheel_leg/joint_position_kp
-      - /wheel_leg/joint_position_kd
-      - /wheel_leg/rl/input/enable
-      # ===== CAN 收发诊断（逐轴）=====
-      - /wheel_leg/left_hip_joint/tau_frame_api
-      - /wheel_leg/left_hip_joint/tx_kind
-      - /wheel_leg/left_hip_joint/tx_can_id
-      - /wheel_leg/left_hip_joint/tx_can_bus
-      - /wheel_leg/left_hip_joint/feedback_sequence
-      - /wheel_leg/left_hip_joint/feedback_steady_ns
-      - /wheel_leg/left_knee_joint/tau_frame_api
-      - /wheel_leg/left_knee_joint/tx_kind
-      - /wheel_leg/left_knee_joint/tx_can_id
-      - /wheel_leg/left_knee_joint/tx_can_bus
-      - /wheel_leg/left_knee_joint/feedback_sequence
-      - /wheel_leg/left_knee_joint/feedback_steady_ns
-      - /wheel_leg/right_hip_joint/tau_frame_api
-      - /wheel_leg/right_hip_joint/tx_kind
-      - /wheel_leg/right_hip_joint/tx_can_id
-      - /wheel_leg/right_hip_joint/tx_can_bus
-      - /wheel_leg/right_hip_joint/feedback_sequence
-      - /wheel_leg/right_hip_joint/feedback_steady_ns
-      - /wheel_leg/right_knee_joint/tau_frame_api
-      - /wheel_leg/right_knee_joint/tx_kind
-      - /wheel_leg/right_knee_joint/tx_can_id
-      - /wheel_leg/right_knee_joint/tx_can_bus
-      - /wheel_leg/right_knee_joint/feedback_sequence
-      - /wheel_leg/right_knee_joint/feedback_steady_ns
-      - /wheel_leg/left_wheel/tau_frame_api
-      - /wheel_leg/left_wheel/tx_kind
-      - /wheel_leg/left_wheel/tx_can_id
-      - /wheel_leg/left_wheel/tx_can_bus
-      - /wheel_leg/left_wheel/feedback_sequence
-      - /wheel_leg/left_wheel/feedback_steady_ns
-      - /wheel_leg/right_wheel/tau_frame_api
-      - /wheel_leg/right_wheel/tx_kind
-      - /wheel_leg/right_wheel/tx_can_id
-      - /wheel_leg/right_wheel/tx_can_bus
-      - /wheel_leg/right_wheel/feedback_sequence
-      - /wheel_leg/right_wheel/feedback_steady_ns
-
 value_broadcaster:
   ros__parameters:
     update_rate: 50.0
     forward_list:
-      # 右腿（髋/膝/轮）
-      - /wheel_leg/right_hip_joint/angle
-      - /wheel_leg/right_hip_joint/velocity
-      - /wheel_leg/right_hip_joint/torque
-      - /wheel_leg/right_knee_joint/angle
-      - /wheel_leg/right_knee_joint/velocity
-      - /wheel_leg/right_knee_joint/torque
-      - /wheel_leg/right_wheel/velocity
-
-      - /wheel_leg/left_hip_joint/control_angle
-      - /wheel_leg/left_knee_joint/control_angle
-      - /wheel_leg/right_hip_joint/control_angle
-      - /wheel_leg/right_knee_joint/control_angle
-      - /wheel_leg/imu/sensor_gravity/x
-      - /wheel_leg/imu/sensor_gravity/y
-      - /wheel_leg/imu/sensor_gravity/z
-      - /wheel_leg/imu/sensor_gyro/x
-      - /wheel_leg/imu/sensor_gyro/y
-      - /wheel_leg/imu/sensor_gyro/z
-      - /wheel_leg/left_hip_joint/control_torque
-      - /wheel_leg/left_knee_joint/control_torque
-      - /wheel_leg/right_hip_joint/control_torque
-      - /wheel_leg/right_knee_joint/control_torque
-
-      # 左腿（髋/膝/轮）
-      - /wheel_leg/left_hip_joint/angle
-      - /wheel_leg/left_hip_joint/velocity
-      - /wheel_leg/left_hip_joint/torque
-      - /wheel_leg/left_knee_joint/angle
-      - /wheel_leg/left_knee_joint/velocity
-      - /wheel_leg/left_knee_joint/torque
-      - /wheel_leg/left_wheel/velocity
-
-      - /wheel_leg/rl/action/left_hip_joint
-      - /wheel_leg/rl/action/left_knee_joint
-      - /wheel_leg/rl/action/right_hip_joint
-      - /wheel_leg/rl/action/right_knee_joint
-      - /wheel_leg/rl/action/left_wheel
-      - /wheel_leg/rl/action/right_wheel
+    - /wheel_leg/rl/state
+    - /wheel_leg/rl/fault_latched
+    - /wheel_leg/feedback_fresh
+    - /wheel_leg/dm_control_ready
+    - /wheel_leg/rl/input/frame_sequence
+    - /wheel_leg/recovery/phase
+    - /wheel_leg/recovery/fault
+    - /wheel_leg/left_hip_joint/status_code
+    - /wheel_leg/left_hip_joint/fault_code
+    - /wheel_leg/left_knee_joint/status_code
+    - /wheel_leg/left_knee_joint/fault_code
+    - /wheel_leg/right_hip_joint/status_code
+    - /wheel_leg/right_hip_joint/fault_code
+    - /wheel_leg/right_knee_joint/status_code
+    - /wheel_leg/right_knee_joint/fault_code

@@ -1,0 +1,144 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+    - rmcs_core::hardware::WheelLeg -> wheel_leg
+    - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
+    - rmcs_core::controller::chassis::WheelLegStateEstimator -> wheel_leg_state_estimator
+    - rmcs_core::controller::chassis::WheelLegController -> wheel_leg_controller
+    - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+wheel_leg:
+  ros__parameters:
+    board_serial: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    imu_to_base:
+    - -1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - -1.0
+    imu_position:
+    - 0.0
+    - 0.0
+    - 0.0
+    imu_angular_acceleration_filter_tau_s: 0.01
+    dm_master_ids:
+    - 1
+    - 2
+    - 1
+    - 2
+    dm_mit_position_max:
+    - 12.5
+    - 12.5
+    - 12.5
+    - 12.5
+    dm_mit_velocity_max:
+    - 45.0
+    - 45.0
+    - 45.0
+    - 45.0
+    dm_mit_torque_max:
+    - 54.0
+    - 54.0
+    - 54.0
+    - 54.0
+    dm_control_torque_max:
+    - 40.0
+    - 40.0
+    - 40.0
+    - 40.0
+    feedback_timeout_s: 0.04
+    allow_balance_switch: true
+wheel_leg_chassis_controller:
+  ros__parameters:
+    vx_max: 0.5
+    yaw_rate_max: 1.0
+    spin_yaw_rate: 1.0
+    command_height_min: 0.23
+    command_height_max: 0.42
+    default_command_height: 0.334
+    height_rate_max: 0.02
+    balance_switch: true
+    arm_dwell_seconds: 0.5
+    vy_max: 0.0
+    deadzone: 0.05
+    height_step: 0.01
+    angular_z_invert: false
+    height_invert: false
+wheel_leg_state_estimator:
+  ros__parameters:
+    policy: traditional
+    dt: 0.001
+    velocity_sign: -1.0
+wheel_leg_controller:
+  ros__parameters:
+    dt: 0.001
+    leg_kp: 160.0
+    leg_kd: 2.5
+    gas_spring_gain: 1.0
+    max_tilt_deg: 60.0
+    self_righting.enabled: false
+    self_righting.simulation_only: true
+    self_righting.hardware_mapping_verified: false
+    motion.max_velocity: 5.0
+    motion.max_yaw_rate: 12.0
+    motion.channel_kp: 10.0
+    motion.velocity_accel: 1.5
+    motion.velocity_jerk: 4.0
+    motion.yaw_accel: 6.28
+    motion.yaw_jerk: 40.0
+    motion.velocity_sign: -1.0
+    motion.gravity: 9.81
+    motion.bank_to_roll_bias: 1.06
+    motion.friction_mu: 2.0
+    motion.track_width: 0.3966
+    motion.com_height: 0.26
+    motion.lat_accel_safety: 0.7
+    balance.pitch_cutoff_hz: 30.0
+    balance.pitch_gain: -17.6
+    balance.pitch_rate_gain: -3.6
+    balance.velocity_gain: -3.0
+    balance.distance_gain: 0.0
+    balance.balance_limit: 3.69
+    balance.yaw_gain: -10.8
+    balance.yaw_rate_gain: -4.3
+    balance.yaw_limit: 8.0
+    balance.yaw_sign: -1.0
+    balance.wheel_limit: 4.88
+    balance.roll_kp: -1.0
+    balance.roll_kd: -50.0
+    balance.roll_limit: 0.5
+    balance.yaw_enabled: false
+    balance.trim_enabled: false
+    balance.trim_sign: 1.0
+    balance.trim_ki: 0.02
+    balance.trim_tau: 2.0
+    balance.trim_deadband: 0.01
+    balance.trim_limit: 0.4
+    balance.trim_pitch_limit: 1.0471975511965976
+    balance.trim_velocity_limit: 0.5
+    trajectory.startup_settle_s: 0.0
+    trajectory.command_vloop_kp: 10.0
+    trajectory.command_vloop_kd: 2.0
+    trajectory.outer_kx: 0.5
+    trajectory.outer_kv: 0.5
+    trajectory.com_height: 0.26
+    trajectory.accel_leg_ff: 0.0
+    trajectory.accel_d_kp: 0.0
+    trajectory.accel_theta_ff: 0.0
+    trajectory.accel_kv: 0.0
+    trajectory.accel_gate_min: 0.1
+    trajectory.d_max: 100.0
+value_broadcaster:
+  ros__parameters:
+    update_rate: 50.0
+    forward_list:
+    - /wheel_leg/control/state
+    - /wheel_leg/control/fault
+    - /wheel_leg/feedback_fresh
+    - /wheel_leg/dm_control_ready
+    - /wheel_leg/recovery/phase
+    - /wheel_leg/recovery/fault
