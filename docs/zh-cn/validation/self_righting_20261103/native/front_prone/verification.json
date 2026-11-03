@@ -1,0 +1,43 @@
+{
+  "schema": "traditional-self-righting-trace-audit/v1",
+  "receipt": "receipt.json",
+  "checks": {
+    "recovery_complete": true,
+    "handoff_completed": true,
+    "ten_seconds_after_handoff": true,
+    "finite": true,
+    "recovery_measured_speed_below_3p14": true,
+    "closed_chains_below_3mm": true,
+    "motor_commands_within_limits": true,
+    "standing_tilt": true,
+    "standing_height": true,
+    "standing_both_wheels_loaded": true
+  },
+  "all_passed": true,
+  "handoff_time_s": 10.041,
+  "standing_window_s": 10.0,
+  "recovery_peak_axis_speed_rad_s": [
+    1.7278692722320557,
+    1.9852763414382935,
+    1.7416844367980957,
+    2.0763492584228516
+  ],
+  "peak_loop_gap_m": 2.5560197933518726e-05,
+  "knee_inner_range_deg": [
+    41.75714261685553,
+    109.0
+  ],
+  "qualification_scope": "one native v2.0.2 initial condition; no hardware or full ROS graph qualification",
+  "collision_scope": "existing traditional plant; inter-link self collisions disabled",
+  "standing": {
+    "peak_abs_pitch_deg": 1.3881218014109304,
+    "peak_abs_roll_deg": 0.26515387174191013,
+    "min_height_m": 0.30464988946914673,
+    "min_wheel_force_n": [
+      93.26168823242188,
+      90.64469909667969
+    ],
+    "mean_abs_speed_m_s": 0.012859767045370432,
+    "traveled_distance_m": 0.12859767045370432
+  }
+}

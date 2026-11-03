@@ -1,0 +1,32 @@
+{
+  "schema": "traditional-self-righting-trace-audit/v1",
+  "receipt": "receipt.json",
+  "checks": {
+    "recovery_complete": false,
+    "handoff_completed": false,
+    "ten_seconds_after_handoff": false,
+    "finite": true,
+    "recovery_measured_speed_below_3p14": false,
+    "closed_chains_below_3mm": true,
+    "motor_commands_within_limits": true,
+    "standing_tilt": false,
+    "standing_height": false,
+    "standing_both_wheels_loaded": false
+  },
+  "all_passed": false,
+  "handoff_time_s": null,
+  "standing_window_s": 0.0,
+  "recovery_peak_axis_speed_rad_s": [
+    1.7152659893035889,
+    6.321879863739014,
+    1.7369663715362549,
+    6.309452056884766
+  ],
+  "peak_loop_gap_m": 2.4440030957873356e-05,
+  "knee_inner_range_deg": [
+    44.12873339882496,
+    108.40470289618621
+  ],
+  "qualification_scope": "one native v2.0.2 initial condition; no hardware or full ROS graph qualification",
+  "collision_scope": "existing traditional plant; inter-link self collisions disabled"
+}

@@ -1,0 +1,108 @@
+Starting >>> fast_tf
+Starting >>> rmcs_utility
+Starting >>> rmcs_msgs
+Starting >>> rmcs_bringup
+--- stderr: rmcs_utility
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_utility` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_utility [0.60s]
+Starting >>> rmcs_executor
+--- stderr: rmcs_bringup
+[0mCMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_bringup [0.62s]
+--- stderr: fast_tf
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/fast_tf` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< fast_tf [1.15s]
+Starting >>> rmcs_description
+--- stderr: rmcs_executor
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_executor` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_executor [0.84s]
+Finished <<< rmcs_description [1.05s]
+--- stderr: rmcs_description
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_description` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+--- stderr: rmcs_msgs
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_msgs` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_msgs [2.81s]
+Starting >>> rmcs_core
+--- stderr: rmcs_core
+[0mCMake Deprecation Warning at /opt/ros/jazzy/src/gtest_vendor/CMakeLists.txt:2 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+[0m
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_core` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+In file included from /usr/include/string.h:548,
+                 from /usr/include/c++/14/cstring:43,
+                 from /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core/src/referee/status.cpp:3:
+In function ‘void* memcpy(void*, const void*, size_t)’,
+    inlined from ‘void rmcs_core::referee::Status::update_robot_interaction_data()’ at /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core/src/referee/status.cpp:353:20:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:29:33: warning: ‘void* __builtin_memcpy(void*, const void*, long unsigned int)’ forming offset [118, 123] is out of the bounds [0, 118] of object ‘data’ with type ‘rmcs_core::referee::status::RobotInteractionData’ [-Warray-bounds=]
+   29 |   return __builtin___memcpy_chk (__dest, __src, __len,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
+   30 |                                  __glibc_objsize0 (__dest));
+      |                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core/src/referee/status.cpp: In member function ‘void rmcs_core::referee::Status::update_robot_interaction_data()’:
+/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core/src/referee/status.cpp:344:30: note: ‘data’ declared here
+  344 |         RobotInteractionData data;
+      |                              ^~~~
+---
+[Processing: rmcs_core]
+[Processing: rmcs_core]
+[Processing: rmcs_core]
+Finished <<< rmcs_core [1min 56s]
+
+Summary: 7 packages finished [1min 59s]
+  7 packages had stderr output: fast_tf rmcs_bringup rmcs_core rmcs_description rmcs_executor rmcs_msgs rmcs_utility

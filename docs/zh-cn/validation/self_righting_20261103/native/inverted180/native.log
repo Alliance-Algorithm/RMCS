@@ -1,0 +1,49 @@
+Loading user config located at: '/home/noir/miniconda3/envs/isaacsim6/lib/python3.12/site-packages/isaacsim/kit/data/Kit/IsaacLab/3.0/user.config.json'
+2026-11-03T01:47:56Z [0ms] [Warning] [omni.ext.plugin] [ext: isaaclab_visualizers] Extensions config 'extension.toml' doesn't exist '/home/noir/IsaacLab-3.0-beta2/source/isaaclab_visualizers' or '/home/noir/IsaacLab-3.0-beta2/source/isaaclab_visualizers/config'
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1793670476.749130 3124971 descriptor_database.cc:633] File already exists in database: grpc/health/v1/health.proto
+W0000 00:00:1793670476.749155 3124971 message.cc:301] Protobuf GeneratedMessageFactory: File is already registered: grpc/health/v1/health.proto
+2026-11-03T01:47:56Z [269ms] [Warning] [omni.usd_config.extension] Enable omni.materialx.libs extension to use MaterialX
+2026-11-03T01:47:57Z [909ms] [Warning] [isaacsim.core.simulation_manager.plugin] USD stage is not available; stage-opened subscription is deferred
+2026-11-03T01:47:57Z [909ms] [Warning] [isaacsim.core.simulation_manager.plugin] USD stage is not available; stage-opened subscription is deferred
+[ISAACLAB] AppLauncher initialization complete
+[INFO]: Registered backend 'physx' for factory Articulation.
+2026-11-03T01:47:59Z [3,101ms] [Warning] [usdrt.population.plugin] Last global time was not created. Did you call setEnableUsdNoticeHandling?
+2026-11-03T01:47:59Z [3,103ms] [Warning] [omni.physx.plugin] Detected an articulation at /World/Robot/base_link with more than 4 velocity iterations being added to a TGS scene.The related behavior changed recently, please consult the changelog. This warning will only print once.
+[INFO]: Simulation parameters for joints in /World/Robot:
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+|                                                          Simulation Joint Information (Prim path: /World/Robot)                                                         |
++-------+----------------+-----------+---------+----------+-----------------+------------------+------------------+---------------------+-----------------+---------------+
+| Index | Name           | Stiffness | Damping | Armature | Static Friction | Dynamic Friction | Viscous Friction |   Position Limits   | Velocity Limits | Effort Limits |
++-------+----------------+-----------+---------+----------+-----------------+------------------+------------------+---------------------+-----------------+---------------+
+|   0   | L_joint1       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   1   | R_joint1       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   2   | LL_joint1      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   3   | RR_joint1      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   4   | L_joint2       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-0.086, 1.136]   |     100.000     |    100.000    |
+|   5   | R_jonit2       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-1.136, 0.086]   |     100.000     |    100.000    |
+|   6   | LL_joint2      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   7   | RR_joint2      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   8   | L_joint3       |   0.000   |  0.000  |  0.004   |      0.190      |      0.041       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     4.780     |
+|   9   | LLL_joint2     |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   10  | R_joint3       |   0.000   |  0.000  |  0.004   |      0.375      |      0.133       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     4.780     |
+|   11  | RRR_joint2     |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   12  | LL_joint3      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   13  | RR_joint3      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   14  | L_spring_slide |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-0.010, 0.070]   |     100.000     |    1.5e+03    |
+|   15  | R_spring_slide |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-0.010, 0.070]   |     100.000     |    1.5e+03    |
+|   16  | LL_link4       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   17  | RR_joint4      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
++-------+----------------+-----------+---------+----------+-----------------+------------------+------------------+---------------------+-----------------+---------------+
+SETTLED {"packet": [0.9678762555122375, 2.364423990249634, -0.6035912036895752, -2.0319089889526367, -0.03688324987888336, -0.03460656479001045, 0.010731277987360954, 0.032516948878765106, -0.006557615473866463, -0.005269136279821396, 6.656628102064133e-07, -1.2405180314090103e-06, 0.19886973299902344, 0.001657741976240752, 2.73785326605382, 0.011949247181842806, 9.644090994845424], "pitch": 0.19886973299902344, "roll": 2.390151539241555, "base_height": 0.2249121218919754, "loop_gap_m": 3.800621506357112e-07, "position": [-0.13886050879955292, -0.2080611139535904, 0.2249121218919754], "wheel_force_n": [0.0, 0.0]}
+EVENT {"time_s": 0.0, "phase": "tuck", "route": 5, "waypoint": 0, "pitch_rad": 0.19886973299902344, "height_m": 0.2249121218919754, "actual_q": [0.9678762555122375, 2.364423990249634, -0.6035912036895752, -2.0319089889526367], "reference_q": [0.9678777221089621, 2.364422523602108, -0.6035927036676133, -2.0319074889526365]}
+PROGRESS {"time_s": 1.0, "phase": 8, "pitch_rad": 0.712749425173496, "height_m": 0.23087291419506073, "wheel_contact_n": [0.0, 0.0]}
+EVENT {"time_s": 1.416, "phase": "clearance", "route": 5, "waypoint": 1, "pitch_rad": 0.7367351867270524, "height_m": 0.2336123287677765, "actual_q": [1.669510006904602, 1.6650816202163696, -1.2873764038085938, -1.3156533241271973], "reference_q": [1.6653553943126551, 1.6669231437419345, -1.316945961354184, -1.3185467867250484]}
+PROGRESS {"time_s": 2.0, "phase": 9, "pitch_rad": 1.0400927488643328, "height_m": 0.25930312275886536, "wheel_contact_n": [0.0, 0.0]}
+PROGRESS {"time_s": 3.0, "phase": 9, "pitch_rad": 1.1271471790753282, "height_m": 0.25811767578125, "wheel_contact_n": [0.0, 0.0]}
+EVENT {"time_s": 3.227, "phase": "thrust", "route": 5, "waypoint": 2, "pitch_rad": 1.1291940812572832, "height_m": 0.2578659951686859, "actual_q": [3.2268753051757812, 3.2303531169891357, -3.226196765899658, -3.230404853820801], "reference_q": [3.224933991515734, 3.226504740762348, -3.224935748178256, -3.226539573335176]}
+EVENT {"time_s": 3.681, "phase": "sweep", "route": 5, "waypoint": 3, "pitch_rad": 1.1292085415762352, "height_m": 0.25786492228507996, "actual_q": [3.0993235111236572, 3.358398675918579, -3.099637508392334, -3.358678102493286], "reference_q": [3.096257229723635, 3.3551994120058346, -3.0962581940718312, -3.355230768692464]}
+PROGRESS {"time_s": 4.0, "phase": 10, "pitch_rad": 1.1292081079511043, "height_m": 0.2578650414943695, "wheel_contact_n": [0.0, 0.0]}
+PROGRESS {"time_s": 5.0, "phase": 10, "pitch_rad": 1.094651075703947, "height_m": 0.31948795914649963, "wheel_contact_n": [19.387714385986328, 16.342681884765625]}
+EVENT {"time_s": 5.206, "phase": "fault", "route": 5, "waypoint": 3, "pitch_rad": 0.3343279338216869, "height_m": 0.23808571696281433, "actual_q": [4.020647048950195, 5.242160797119141, -4.021942138671875, -5.2428765296936035], "reference_q": [0.0, 0.0, 0.0, 0.0]}
+RESULT {"failure": "recovery_fault_3", "recovery_success": false, "traditional_handoff_success": false, "traditional_window_s": 0.0, "peak_loop_gap_m": 8.979556739160267e-05}

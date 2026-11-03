@@ -12,10 +12,22 @@ wheelleg_self_righting:
     enabled: false
     simulation_only: true
     hardware_mapping_verified: false
-    handoff_enabled: false
+    handoff_enabled: true
     motor_velocity_servo: true
     dt: 0.001
     arm_dwell_seconds: 1.0
+    # Select a measured-pose route. Requires MIDDLE/UP wheel permission;
+    # both-MIDDLE holds recovery ownership at zero effort until then.
+    pose_routes_enabled: true
+    route_tuck_knee_deg: 45.0
+    route_support_knee_deg: 105.0
+    route_landing_knee_deg: 48.0
+    route_landing_orbit_deg: 20.0
+    route_support_orbit_deg: 95.0
+    route_side_stroke_deg: 80.0
+    route_upright_dwell_seconds: 0.08
+    route_upright_gyro_rad_s: 2.0
+    route_plant_wheel_assist_nm: 0.6
     # q_CAD = sign*q_API + offset. These identity values are for CAD-frame
     # simulation input only; they are not a measured hardware calibration.
     cad_axis_sign: [1.0, 1.0, 1.0, 1.0]
@@ -30,16 +42,16 @@ wheelleg_self_righting:
     torque_limit_nm: 40.0
     timeout_seconds: 30.0
     fold_knee_deg: 75.0
-    flip_knee_deg: 105.0
+    flip_knee_deg: 55.0
     flip_orbit_deg: 0.0
     sweep_orbit_deg: 180.0
     flip_asymmetry_knee_deg: 0.0
     # Optional rows: knee lower/upper, orbit lower/upper (degrees), speed,
     # acceleration, hold seconds, physical left/right wheel velocities.
-    # Research candidates are not enabled by default.
-    flip_program: []
+    # Used when pose_routes_enabled is false (legacy research comparison).
+    # Omit flip_program when unused: ROS cannot infer the type of an empty array.
     flip_program_relative_to_side: true
-    balance_wheel_speed_limit_rad_s: 20.0
+    balance_wheel_speed_limit_rad_s: 40.0
     balance_distance_gain: 0.98
     flip_capture_tilt_deg: 31.788330617
     flip_capture_gyro_rad_s: 2.0
@@ -57,5 +69,5 @@ wheelleg_self_righting:
     yaw_rate_gain: 0.6
     balance_kp: 35.0
     balance_kd: 5.0
-    balance_kv: 2.0
+    balance_kv: 5.2
     support_gain: 1.0

@@ -1,0 +1,7 @@
+{
+  "core_prefix": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install",
+  "executor_prefix": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install",
+  "bringup_profile": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install/share/rmcs_bringup/config/wheel-leg-traditional-v202.yaml",
+  "source": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_bringup/config/wheel-leg-traditional-v202.yaml",
+  "profile_sha256": "04ab3cba5ccb0b009ca71eed48ee75b71b52f9606aea0a416e6a06aa9d5e656c"
+}

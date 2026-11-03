@@ -1,0 +1,18 @@
+{
+  "schema": "traditional-commissioning-profile-source/v1",
+  "date": "2026-11-04",
+  "profile": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_bringup/config/wheel-leg-traditional-v202.yaml",
+  "hardware_source": "/home/noir/Documents/workspace/RMCS/rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-prone-v4.yaml",
+  "hardware_source_sha256": "aad7a762ea2a33f659698b6d653851304492e5277199a139be56174ab48117b7",
+  "model_spec_sha256": "388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29",
+  "gas_spring_model_sha256": "5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41",
+  "posture_sha256": "042b705a27ba3c8a508a7ed6e82b7f382f272e885a05f8b066dd5075634562a0",
+  "configuration_sha256": "fc5ac175fe85743227361cde359ec0d850f5a5da82425930a4fb40bd56f3fe67",
+  "native_standing_parameter_count": 28,
+  "native_standing_posture_count": 7,
+  "native_standing_spring_force_count": 2065,
+  "hardware_mapping_verified": false,
+  "hardware_motion_performed": false,
+  "hardware_commissioning_enabled": true,
+  "profile_sha256": "04ab3cba5ccb0b009ca71eed48ee75b71b52f9606aea0a416e6a06aa9d5e656c"
+}

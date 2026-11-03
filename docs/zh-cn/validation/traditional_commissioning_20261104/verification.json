@@ -1,0 +1,89 @@
+{
+  "schema": "traditional-commissioning-validation/v1",
+  "date": "2026-11-04",
+  "root": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy",
+  "branch": "dev/wheel_leg_tradition",
+  "head": "2e883162762f0d658a7cc2e066ccbd00698c1d01",
+  "changes_committed": false,
+  "changes_pushed": false,
+  "hardware_deployed": false,
+  "profile": "rmcs_ws/src/rmcs_bringup/config/wheel-leg-traditional-v202.yaml",
+  "profile_sha256": "04ab3cba5ccb0b009ca71eed48ee75b71b52f9606aea0a416e6a06aa9d5e656c",
+  "build": {
+    "entrypoint": ".script/build-rmcs",
+    "packages_up_to": [
+      "rmcs_core",
+      "rmcs_bringup"
+    ],
+    "dependency_package_count": 7,
+    "success": true,
+    "logs": [
+      "build2.log",
+      "build_full.log",
+      "build_final.log"
+    ],
+    "cmake_clean_cache": true,
+    "target_dependency_paths": "dependency_paths.json",
+    "installed_profile_check": "install_check.json",
+    "initialized_submodule": {
+      "path": "rmcs_ws/src/fast_tf",
+      "gitlink": "713e2a40f18acae36dfd2f87e67c1c813405b37a"
+    }
+  },
+  "tests": {
+    "ctest_targets": 9,
+    "ctest_failed": 0,
+    "colcon_results": 20,
+    "colcon_failed": 0,
+    "imu_gtest_cases": 11,
+    "log": "finaltests.log",
+    "plugin_integration": "Actual YAML and production plugins with in-memory sensors; no hardware instantiated"
+  },
+  "offline_parity": "offline_parity.json",
+  "profile_sources": "profile_source.json",
+  "source_sha256": {
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/traditional_control_core.hpp": "50b08f07bbdf2d768e749313f74e6534dc319f1cc1a94c2105bb29560e5c8a6d",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/traditional_control_abi.cpp": "760a5db66d6fd1fdbd7af133e40e42a22d3b1111efd43c0a0010d92170ce6a37",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/traditional_hardware_guard.hpp": "a2198741b2635b0643dd8990e3e7b0f687610a705cd809a250033eb1bcc4c881",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/wheelleg_traditional_controller.cpp": "b8300027ada5fb231563245d987a475a8e66cfad5501b7472a42e967b8cdaa83",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/referee_power_gate.hpp": "000bf20c1e9f4d817071b7871e79e3f99aab09a573d2052b46e7cd5529e0ccd7",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/wheel_leg_self_righting_controller.cpp": "490074635b487ed83dfe49f2141d7c084fd672d15f902ce751ae5fe69c483999",
+    "rmcs_ws/src/rmcs_core/src/hardware/wheel-leg.cpp": "7ef164f137d5fef4a16f6450c0e5af5b1f7eb090a73dab89d955b6fa528dc2b7",
+    "rmcs_ws/src/rmcs_core/src/hardware/device/bmi088_ekf.hpp": "492415f126bf85b171ae11f68683647e5bea496023282f034235b02371ef708b",
+    "rmcs_ws/src/rmcs_core/src/hardware/device/imu_lever_arm.hpp": "629829af1429b084de38206e183c12d30aa23d7ccdca86b48337fccb916533b9",
+    "rmcs_ws/src/rmcs_core/src/hardware/wheel_leg_imu.hpp": "265548bc14c5f9c05f1bf6797a83c3db8c5e26ecdceddfda4927f1f5bfa892b0",
+    "rmcs_ws/src/rmcs_core/tests/traditional_commissioning_test.cpp": "a55c2466f87f4ce0a8219f94bfdeb69df39a566b2dbe1f30d4b02c10bd44fdcc",
+    "rmcs_ws/src/rmcs_core/tests/wheel_leg_imu_test.cpp": "9faeb843bde909cac0e744a9b22a69d86af3c84d9de1aa48bb96731e8c259cf4"
+  },
+  "scope": {
+    "hardware_motion_performed": false,
+    "can_opened": false,
+    "new_native_physics_run": false,
+    "new_ppo_updates": 0,
+    "hardware_mapping_verified": false,
+    "hardware_commissioning_enabled": true
+  },
+  "existing_native_evidence": "/home/noir/Documents/workspace/wheelleg_controller_tuning/docs/SELF_RIGHTING_RETEST_20261103.md",
+  "unresolved": [
+    "Fully inverted recovery impact triggers measured-axis overspeed fault 3",
+    "Current combined side-lying recovery lacks dynamic qualification",
+    "Physical hardware calibration and wheel directions reused, not newly verified",
+    "Prior native plant disables inter-link self collisions and fixes gimbal",
+    "Local 150 W power estimate is not a calibrated referee limit"
+  ],
+  "checks": {
+    "git_diff_check": true,
+    "new_implementation_clang_format": true
+  },
+  "evidence_sha256": {
+    "build2.log": "e7075739546e9435859fbca76a543b80495e238a05bc46c99063aaace351a818",
+    "build_full.log": "e3ad33ca6e75c3dbd18b51e126cc1179d3852d6db04fdff62e35e49ae0230382",
+    "finaltests.log": "b92750b9482f74b67eedc363e1559ae5129636789a4464bed8c5e164be038d30",
+    "offline_parity.json": "97ae354573f69aff789019fa32629815490902aab6cbfb6255c16f539bc2410c",
+    "replay_profile.py": "18e65183142b0f99a29fef9a7fdd23f5dc4fd3afde8941d09e9f1cdb32698afd",
+    "profile_source.json": "6303973c74b9bacdd3a5214f628d1e0093ef88350cd377fb1b0d9dbb97b5a7bd",
+    "build_final.log": "525ed66e5406e652405b085c27b07fc619f3c8bd6da9242f38ecc403da92aae5",
+    "install_check.json": "601db165d2aae255f6beb5d703678a1e06f8f1dd96ac3aff1419a4ff7cc7c4c5",
+    "dependency_paths.json": "ef235c835b8829b84a132c8834abe84ded3a69d9f3570e9a280fb8fa73b545ae"
+  }
+}

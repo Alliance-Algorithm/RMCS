@@ -222,7 +222,7 @@ wheelleg_state:
     hardware_crank_sign: [-1.0, 1.0]
     knee_limit_min: 0.6981317007977318
     knee_limit_max: 1.9198621771937625
-    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    # Simulation publishes base_link IMU values; no mounting transform here.
     state_pitch_sign: 1.0
     state_roll_sign: 1.0
     state_yaw_sign: 1.0

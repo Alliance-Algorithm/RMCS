@@ -1,0 +1,84 @@
+Starting >>> rmcs_core
+[0.154s] WARNING:colcon.colcon_core.shell:The following packages are in the workspace but haven't been built:
+- rmcs_description
+- rmcs_msgs
+- rmcs_utility
+- rmcs_executor
+They are being used from the following locations instead:
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+To suppress this warning ignore these packages in the workspace:
+--packages-ignore rmcs_description rmcs_msgs rmcs_utility rmcs_executor
+SetCTestConfiguration:BuildDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+UpdateCTestConfiguration  from :/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/src/rmcs_core"
+SetCMakeVariable:CTEST_TEST_TIMEOUT:10000000
+UpdateCTestConfiguration  from :/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/src/rmcs_core"
+SetCTestConfiguration:BuildDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+SetCTestConfiguration:SourceDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/src/rmcs_core
+Test project /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: wheelleg_traditional_core
+
+1: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/wheelleg_traditional_core_test
+1: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+1: Test timeout computed to be: 10000000
+1/4 Test #1: wheelleg_traditional_core ................   Passed    0.00 sec
+test 2
+    Start 2: wheelleg_traditional_hardware_guard
+
+2: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/wheelleg_traditional_hardware_guard_test
+2: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+2: Test timeout computed to be: 10000000
+2/4 Test #2: wheelleg_traditional_hardware_guard ......   Passed    0.00 sec
+test 3
+    Start 3: wheelleg_v202_traditional_config
+
+3: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/wheelleg_traditional_config_check "--ros-args" "--params-file" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/src/rmcs_core/../rmcs_bringup/config/wheelleg_v202_traditional.yaml"
+3: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+3: Test timeout computed to be: 10000000
+3: [INFO] [1793670139.602032872] [wheelleg_traditional]: Traditional model=388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29 postures=042b705a27ba3c8a508a7ed6e82b7f382f272e885a05f8b066dd5075634562a0 gas-spring=5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41
+3: [INFO] [1793670139.602133262] [wheelleg_traditional]: Traditional hardware admission=false calibration=5801aecde0a3a49c3a922807a14c7167d5224007012bf376afd455d2ef1d1526 max_gap=2.5ms
+3: Controller plugin and ABI tables loaded; hardware not opened.
+3: hardware_mapping_verified=0
+3: simulation_only=0
+3: model=388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29
+3/4 Test #3: wheelleg_v202_traditional_config .........   Passed    0.13 sec
+test 4
+    Start 4: wheelleg_v202_traditional_bench_config
+
+4: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/wheelleg_traditional_config_check "--ros-args" "--params-file" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/src/rmcs_core/../rmcs_bringup/config/wheelleg_v202_traditional_bench.yaml"
+4: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core
+4: Test timeout computed to be: 10000000
+4: [INFO] [1793670139.728609258] [wheelleg_traditional]: Traditional model=388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29 postures=042b705a27ba3c8a508a7ed6e82b7f382f272e885a05f8b066dd5075634562a0 gas-spring=5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41
+4: [INFO] [1793670139.728695853] [wheelleg_traditional]: Traditional hardware admission=false calibration=5801aecde0a3a49c3a922807a14c7167d5224007012bf376afd455d2ef1d1526 max_gap=2.5ms
+4: Controller plugin and ABI tables loaded; hardware not opened.
+4: hardware_mapping_verified=0
+4: simulation_only=0
+4: model=388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29
+4/4 Test #4: wheelleg_v202_traditional_bench_config ...   Passed    0.13 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   0.26 sec
+Finished <<< rmcs_core [0.27s]
+
+Summary: 1 package finished [0.37s]
+Summary: 4 tests, 0 errors, 0 failures, 0 skipped

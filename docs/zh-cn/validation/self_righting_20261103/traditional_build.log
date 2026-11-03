@@ -1,0 +1,16 @@
+Starting >>> rmcs_core
+[0.123s] WARNING:colcon.colcon_core.shell:The following packages are in the workspace but haven't been built:
+- rmcs_description
+- rmcs_msgs
+- rmcs_utility
+- rmcs_executor
+They are being used from the following locations instead:
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+To suppress this warning ignore these packages in the workspace:
+--packages-ignore rmcs_description rmcs_msgs rmcs_utility rmcs_executor
+Finished <<< rmcs_core [5.86s]
+
+Summary: 1 package finished [5.93s]

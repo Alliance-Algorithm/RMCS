@@ -111,6 +111,32 @@ install(TARGETS wheel_leg_recording_preview DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
     enable_testing()
+    find_package(ament_cmake_gtest REQUIRED)
+    ament_add_gtest(wheelleg_imu tests/wheel_leg_imu_test.cpp)
+    target_include_directories(wheelleg_imu PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(wheelleg_imu ${PROJECT_NAME})
+    target_compile_definitions(wheelleg_imu PRIVATE
+        RMCS_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-rl.yaml"
+        RMCS_RECOVERY_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-recovery.yaml"
+        RMCS_REFERENCE_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-reference.yaml"
+        RMCS_TRADITIONAL_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-traditional-v202.yaml")
+    ament_auto_add_executable(wheelleg_traditional_commissioning_test tests/traditional_commissioning_test.cpp)
+    target_include_directories(wheelleg_traditional_commissioning_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)
+    target_link_libraries(wheelleg_traditional_commissioning_test ${PROJECT_NAME})
+    add_test(NAME wheelleg_traditional_commissioning COMMAND wheelleg_traditional_commissioning_test
+        --ros-args --params-file
+        ${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-traditional-v202.yaml)
+    set_tests_properties(wheelleg_traditional_commissioning PROPERTIES TIMEOUT 30)
+    add_library(wheelleg_traditional_native SHARED src/controller/wheelleg/traditional_control_abi.cpp)
+    foreach(test_name traditional_control_core traditional_hardware_guard)
+        add_executable(wheelleg_${test_name}_test tools/test_${test_name}.cpp)
+        target_include_directories(wheelleg_${test_name}_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+        target_compile_options(wheelleg_${test_name}_test PRIVATE -UNDEBUG)
+        add_test(NAME wheelleg_${test_name} COMMAND wheelleg_${test_name}_test)
+    endforeach()
+    # Native Isaac tests load the production core without a ROS executor.
+    add_library(wheelleg_recovery_native SHARED src/controller/wheelleg/self_righting_abi.cpp)
     add_executable(wheelleg_gas_spring_v202_test tests/gas_spring_v202_test.cpp)
     target_include_directories(wheelleg_gas_spring_v202_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     target_compile_options(wheelleg_gas_spring_v202_test PRIVATE -UNDEBUG)
@@ -118,6 +144,13 @@ if(BUILD_TESTING)
     add_executable(wheelleg_self_righting_core_test tests/self_righting_core_test.cpp)
     target_include_directories(wheelleg_self_righting_core_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     add_test(NAME wheelleg_self_righting_core COMMAND wheelleg_self_righting_core_test)
+    add_executable(wheelleg_self_righting_pose_routes_test tests/self_righting_pose_routes_test.cpp)
+    target_include_directories(wheelleg_self_righting_pose_routes_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME wheelleg_self_righting_pose_routes COMMAND wheelleg_self_righting_pose_routes_test)
+    add_executable(wheelleg_self_righting_abi_test tests/self_righting_abi_test.cpp
+        src/controller/wheelleg/self_righting_abi.cpp)
+    target_include_directories(wheelleg_self_righting_abi_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME wheelleg_self_righting_abi COMMAND wheelleg_self_righting_abi_test)
     ament_auto_add_executable(wheelleg_recovery_velocity_packet_test tests/recovery_velocity_packet_test.cpp)
     target_include_directories(wheelleg_recovery_velocity_packet_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     add_test(NAME wheelleg_recovery_velocity_packet COMMAND wheelleg_recovery_velocity_packet_test)

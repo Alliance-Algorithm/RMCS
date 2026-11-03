@@ -1,0 +1,11 @@
+{
+  "cmake_package_paths": {
+    "fast_tf": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install/share/fast_tf/cmake",
+    "rmcs_description": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install/share/rmcs_description/cmake",
+    "rmcs_executor": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install/share/rmcs_executor/cmake",
+    "rmcs_msgs": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install/share/rmcs_msgs/cmake",
+    "rmcs_utility": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/install/share/rmcs_utility/cmake"
+  },
+  "fast_tf_gitlink": "713e2a40f18acae36dfd2f87e67c1c813405b37a",
+  "packages_resolved_in_target_worktree": true
+}

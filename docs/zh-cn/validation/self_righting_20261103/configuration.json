@@ -1,0 +1,13 @@
+{
+  "parameter_keys": 51,
+  "unused_parameters": [],
+  "missing_parameters": [],
+  "plugin_export_matches": true,
+  "composition_passed": true,
+  "recovery_instances": 1,
+  "enabled": false,
+  "simulation_only": true,
+  "hardware_mapping_verified": false,
+  "handoff_enabled": true,
+  "note": "Static composition only; the inherited MuJoCo/V5 ROS graph was not run."
+}

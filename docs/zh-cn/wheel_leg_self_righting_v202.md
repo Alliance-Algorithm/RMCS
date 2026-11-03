@@ -1,6 +1,10 @@
 # v2.0.2 传统自起候选
 
-本实现位于独立工作树 `/home/noir/.codex/worktrees/rmcs-traditional-recovery/RMCS`、分支 `dev/wheel_leg_tradition`。它已接入传统控制的组件图和 DM 速度伺服路径，尚未完成全部倒地姿态的自起验证。默认 `enabled: false`、`simulation_only: true`、`hardware_mapping_verified: false`、`handoff_enabled: false`。没有启动实车、CAN 控制或修改正在训练的 RL 工程。
+2026-11-04 新增独立真机 YAML、硬件层 IMU 映射和共享传统内核接管，见 [上车配置、遥控时序与验证范围](traditional_commissioning_20261104.md)。下文合成片段及旧驱动桥说明属于原研究路径；新文件使用 `WheelLegTraditionalController` 作为唯一电机命令写入者。
+
+当前实现位于独立工作树 `/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy`、分支 `dev/wheel_leg_tradition`。2026-11-03 增加按姿态与两腿状态选路、落轮末段缩膝及传统控制交接，详见[当前路线、原生测试及验证边界](traditional_self_righting_20261103.md)。当前片段为 `enabled: false`、`simulation_only: true`、`hardware_mapping_verified: false`、`handoff_enabled: true`；显式启用仿真自起后，达到接稳门才允许交接。
+
+**下文是 2026-10-31 旧研究记录。** 其中的默认值、原生 2.8 rad/s 限速及未交接结论属于旧有限 `flip_program`，需 `pose_routes_enabled: false` 才运行。当前测试使用新的实测姿态路线，数据以以上链接为准；仍未完成全部姿态资格验证。
 
 ## 轨迹与控制链
 

@@ -72,17 +72,51 @@ int wheelleg_recovery_configure_flip_first_orbit_hold(void* handle,int mask) {
     try {static_cast<Core*>(handle)->configure_flip_first_orbit_hold(static_cast<unsigned>(mask));return 0;}
     catch (...) {return -1;}
 }
-int wheelleg_recovery_set_flip_program(void* handle,const double* data,int count,int relative) {
-    if (!handle || count<0 || count>64 || (count && !data)) return -1;
+// Additive ABI v6 extension; existing 20-input/24-output callers are unchanged.
+int wheelleg_recovery_configure_pose_routes(
+    void* handle, int enabled, const double* data, int size) {
+    if (!handle || !data || (size != 7 && size != 9))
+        return -1;
+    try {
+        Core::PoseRouteSettings settings;
+        settings.enabled = enabled != 0;
+        settings.tuck_knee_deg = data[0];
+        settings.support_knee_deg = data[1];
+        settings.support_orbit_deg = data[2];
+        settings.side_stroke_deg = data[3];
+        settings.upright_dwell_seconds = data[4];
+        settings.upright_gyro_rad_s = data[5];
+        settings.plant_wheel_assist_nm = data[6];
+        if (size >= 9) {
+            settings.landing_knee_deg = data[7];
+            settings.landing_orbit_deg = data[8];
+        }
+        static_cast<Core*>(handle)->configure_pose_routes(settings);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+int wheelleg_recovery_route(void* handle) {
+    return handle ? static_cast<int>(static_cast<Core*>(handle)->route()) : -1;
+}
+int wheelleg_recovery_route_waypoint(void* handle) {
+    return handle ? static_cast<int>(static_cast<Core*>(handle)->route_waypoint()) : -1;
+}
+int wheelleg_recovery_set_flip_program(void* handle, const double* data, int count, int relative) {
+    if (!handle || count < 0 || count > 64 || (count && !data))
+        return -1;
     try {
         std::vector<Core::FlipWaypoint> program;
-        for (int i=0;i<count;++i) {
-            const double* p=data+9*i;
-            program.push_back({{p[0],p[1]},{p[2],p[3]},p[4],p[5],p[6],{p[7],p[8]}});
+        for (int i = 0; i < count; ++i) {
+            const double* p = data + 9 * i;
+            program.push_back({{p[0], p[1]}, {p[2], p[3]}, p[4], p[5], p[6], {p[7], p[8]}});
         }
-        static_cast<Core*>(handle)->set_flip_program(std::move(program),relative!=0);
+        static_cast<Core*>(handle)->set_flip_program(std::move(program), relative != 0);
         return 0;
-    } catch (...) { return -1; }
+    } catch (...) {
+        return -1;
+    }
 }
 int wheelleg_recovery_step(void* handle, const double* in, double dt, int enabled, int fresh, double* out) {
     if (!handle || !in || !out) return -1;

@@ -90,4 +90,5 @@
   <class type="rmcs_core::controller::identification::WheelLegPassiveRecorderGate" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::identification::WheelLegIdentificationRecorder" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::wheelleg::WheelLegTraditionalController" base_class_type="rmcs_executor::Component" />
 </library>

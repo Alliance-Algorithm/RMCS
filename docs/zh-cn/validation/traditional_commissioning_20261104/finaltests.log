@@ -1,0 +1,161 @@
+Starting >>> rmcs_core
+--- output: rmcs_core
+SetCTestConfiguration:BuildDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+UpdateCTestConfiguration  from :/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core"
+SetCMakeVariable:CTEST_TEST_TIMEOUT:10000000
+UpdateCTestConfiguration  from :/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core"
+SetCTestConfiguration:BuildDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+SetCTestConfiguration:SourceDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core
+Test project /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: wheelleg_imu
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheelleg_imu.gtest.xml" "--package-name" "rmcs_core" "--output-file" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/ament_cmake_gtest/wheelleg_imu.txt" "--command" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_imu" "--gtest_output=xml:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheelleg_imu.gtest.xml"
+1: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core':
+1:  - /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_imu --gtest_output=xml:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheelleg_imu.gtest.xml
+1: Running main() from /opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc
+1: [==========] Running 11 tests from 3 test suites.
+1: [----------] Global test environment set-up.
+1: [----------] 4 tests from ImuLeverArm
+1: [ RUN      ] ImuLeverArm.RemovesTangentialAndCentripetalForceAtAccelerometerTime
+1: [       OK ] ImuLeverArm.RemovesTangentialAndCentripetalForceAtAccelerometerTime (0 ms)
+1: [ RUN      ] ImuLeverArm.KeepsOriginTranslationAndGravity
+1: [       OK ] ImuLeverArm.KeepsOriginTranslationAndGravity (0 ms)
+1: [ RUN      ] ImuLeverArm.FiltersGyroDifferentiationNoise
+1: [       OK ] ImuLeverArm.FiltersGyroDifferentiationNoise (0 ms)
+1: [ RUN      ] ImuLeverArm.RejectsReorderedSamplesAndRequiresNewHistoryAfterGapOrReset
+1: [       OK ] ImuLeverArm.RejectsReorderedSamplesAndRequiresNewHistoryAfterGapOrReset (0 ms)
+1: [----------] 4 tests from ImuLeverArm (0 ms total)
+1: 
+1: [----------] 5 tests from Bmi088Mount
+1: [ RUN      ] Bmi088Mount.ZeroOffsetPreservesImmediateSpecificForceAndGyro
+1: [       OK ] Bmi088Mount.ZeroOffsetPreservesImmediateSpecificForceAndGyro (0 ms)
+1: [ RUN      ] Bmi088Mount.OffsetCorrectionReachesEkfAndTelemetryForRotatedInstallation
+1: [       OK ] Bmi088Mount.OffsetCorrectionReachesEkfAndTelemetryForRotatedInstallation (1 ms)
+1: [ RUN      ] Bmi088Mount.RotationAlsoAlignsNonVerticalAngularVelocity
+1: [       OK ] Bmi088Mount.RotationAlsoAlignsNonVerticalAngularVelocity (0 ms)
+1: [ RUN      ] Bmi088Mount.OffsetAndMountRotationPreserveGravityForTiltedAndInvertedBodies
+1: [       OK ] Bmi088Mount.OffsetAndMountRotationPreserveGravityForTiltedAndInvertedBodies (0 ms)
+1: [ RUN      ] Bmi088Mount.ResetGapAndSaturationDoNotPublishUncompensatedOrStaleAcceleration
+1: [       OK ] Bmi088Mount.ResetGapAndSaturationDoNotPublishUncompensatedOrStaleAcceleration (0 ms)
+1: [----------] 5 tests from Bmi088Mount (1 ms total)
+1: 
+1: [----------] 2 tests from WheelLegImuConfig
+1: [ RUN      ] WheelLegImuConfig.AllVehicleProfilesMapRawAxesBeforeEkf
+1: [       OK ] WheelLegImuConfig.AllVehicleProfilesMapRawAxesBeforeEkf (26 ms)
+1: [ RUN      ] WheelLegImuConfig.ParsesBodyPositionAndRejectsMalformedMounts
+1: [WARN] [1793738708.466372103] [rcl.logging_rosout]: Publisher already registered for node name: 'imu_config_test'. If this is due to multiple nodes with the same name then all logs for the logger named 'imu_config_test' will go out over the existing publisher. As soon as any node with that name is destructed it will unregister the publisher, preventing any further logs for that name from being published on the rosout topic.
+1: [       OK ] WheelLegImuConfig.ParsesBodyPositionAndRejectsMalformedMounts (11 ms)
+1: [----------] 2 tests from WheelLegImuConfig (37 ms total)
+1: 
+1: [----------] Global test environment tear-down
+1: [==========] 11 tests from 3 test suites ran. (57 ms total)
+1: [  PASSED  ] 11 tests.
+1: -- run_test.py: return code 0
+1: -- run_test.py: inject classname prefix into gtest result file '/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheelleg_imu.gtest.xml'
+1: -- run_test.py: verify result file '/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/test_results/rmcs_core/wheelleg_imu.gtest.xml'
+1/9 Test #1: wheelleg_imu ..........................   Passed    0.22 sec
+test 2
+    Start 2: wheelleg_traditional_commissioning
+
+2: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_traditional_commissioning_test "--ros-args" "--params-file" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core/../rmcs_bringup/config/wheel-leg-traditional-v202.yaml"
+2: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+2: Test timeout computed to be: 30
+2: [INFO] [1793738708.616576013] [wheelleg_traditional]: Traditional model=388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29 postures=042b705a27ba3c8a508a7ed6e82b7f382f272e885a05f8b066dd5075634562a0 gas-spring=5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41
+2: [INFO] [1793738708.616657106] [wheelleg_traditional]: Traditional hardware admission=true calibration=rmcs-dual-deploy-7add701a-v202-calibration110-reused-20261104 max_gap=10ms
+2: [INFO] [1793738708.623116111] [rmcs_executor]: Calculating component dependencies
+2: [INFO] [1793738708.623132699] [rmcs_executor]: - predefined_msg_provider
+2: [INFO] [1793738708.623135757] [rmcs_executor]: - mock_hardware
+2: [INFO] [1793738708.623137935] [rmcs_executor]: -     wheelleg_self_righting
+2: [INFO] [1793738708.623139972] [rmcs_executor]: -     wheelleg_traditional
+2: [INFO] [1793738708.623142038] [rmcs_executor]: -         observe
+2: [INFO] [1793738708.623144772] [rmcs_executor]: -     value_broadcaster
+2: [INFO] [1793738708.623388829] [wheelleg_traditional]: Traditional status=0 armed=false enable=false fault=false period=0ms feedback_age=0.009621ms
+2: [INFO] [1793738710.505321114] [wheelleg_traditional]: Traditional status=12 armed=false enable=false fault=true period=0.9986299999999999ms feedback_age=20.99532ms
+2: [INFO] [1793738710.538292990] [wheelleg_traditional]: Traditional status=0 armed=false enable=false fault=false period=0.989761ms feedback_age=0.000539ms
+2: [INFO] [1793738711.640296486] [wheelleg_traditional]: Traditional status=19 armed=false enable=false fault=true period=1.0007599999999999ms feedback_age=0.0023539999999999998ms
+2: PASS: mounted IMU, plugin/YAML pairing, DM readiness, quiet capture, multi-turn handoff, zero commands, stale/overspeed/reset/remote interlocks; no hardware opened.
+2/9 Test #2: wheelleg_traditional_commissioning ....   Passed    3.17 sec
+test 3
+    Start 3: wheelleg_traditional_control_core
+
+3: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_traditional_control_core_test
+3: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+3: Test timeout computed to be: 10000000
+3/9 Test #3: wheelleg_traditional_control_core .....   Passed    0.00 sec
+test 4
+    Start 4: wheelleg_traditional_hardware_guard
+
+4: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_traditional_hardware_guard_test
+4: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+4: Test timeout computed to be: 10000000
+4/9 Test #4: wheelleg_traditional_hardware_guard ...   Passed    0.00 sec
+test 5
+    Start 5: wheelleg_gas_spring_v202
+
+5: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_gas_spring_v202_test
+5: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+5: Test timeout computed to be: 10000000
+5/9 Test #5: wheelleg_gas_spring_v202 ..............   Passed    0.00 sec
+test 6
+    Start 6: wheelleg_self_righting_core
+
+6: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_self_righting_core_test
+6: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+6: Test timeout computed to be: 10000000
+6: PASS: independent leg reference paths, speed, torque, faults, reset, invalid configuration, stalled waypoint policy, initial-orbit hold
+6/9 Test #6: wheelleg_self_righting_core ...........   Passed    0.01 sec
+test 7
+    Start 7: wheelleg_self_righting_pose_routes
+
+7: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_self_righting_pose_routes_test
+7: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+7: Test timeout computed to be: 10000000
+7: PASS: 16 prone path replays, mixed support, finite inverted/side strokes, measured reselection, stable capture, reset and faults
+7/9 Test #7: wheelleg_self_righting_pose_routes ....   Passed    0.03 sec
+test 8
+    Start 8: wheelleg_self_righting_abi
+
+8: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_self_righting_abi_test
+8: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+8: Test timeout computed to be: 10000000
+8: PASS: additive pose-route ABI, existing layouts, selection, reset and rejection
+8/9 Test #8: wheelleg_self_righting_abi ............   Passed    0.00 sec
+test 9
+    Start 9: wheelleg_recovery_velocity_packet
+
+9: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_recovery_velocity_packet_test
+9: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+9: Test timeout computed to be: 10000000
+9: PASS: MIT velocity packet bounds, reversal, gains, effort and invalid-input rejection
+9/9 Test #9: wheelleg_recovery_velocity_packet .....   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Label Time Summary:
+gtest    =   0.22 sec*proc (1 test)
+
+Total Test time (real) =   3.43 sec
+---
+Finished <<< rmcs_core [3.49s]
+
+Summary: 1 package finished [3.68s]
+Summary: 20 tests, 0 errors, 0 failures, 0 skipped

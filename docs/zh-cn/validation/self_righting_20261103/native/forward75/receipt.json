@@ -1,0 +1,921 @@
+{
+  "schema": "traditional-self-righting-native/v1",
+  "status": "finished",
+  "settings": {
+    "enabled": false,
+    "simulation_only": true,
+    "hardware_mapping_verified": false,
+    "handoff_enabled": true,
+    "motor_velocity_servo": true,
+    "dt": 0.001,
+    "arm_dwell_seconds": 1.0,
+    "pose_routes_enabled": true,
+    "route_tuck_knee_deg": 45.0,
+    "route_support_knee_deg": 105.0,
+    "route_landing_knee_deg": 48.0,
+    "route_landing_orbit_deg": 20.0,
+    "route_support_orbit_deg": 95.0,
+    "route_side_stroke_deg": 80.0,
+    "route_upright_dwell_seconds": 0.08,
+    "route_upright_gyro_rad_s": 2.0,
+    "route_plant_wheel_assist_nm": 0.6,
+    "cad_axis_sign": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "cad_axis_offset_rad": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "speed_limit_rad_s": 3.14,
+    "cruise_speed_rad_s": 1.5,
+    "acceleration_rad_s2": 3.0,
+    "velocity_gain": 5.0,
+    "position_gain": 12.0,
+    "integral_gain": 50.0,
+    "integral_limit_nm": 30.0,
+    "torque_limit_nm": 40.0,
+    "timeout_seconds": 30.0,
+    "fold_knee_deg": 75.0,
+    "flip_knee_deg": 55.0,
+    "flip_orbit_deg": 0.0,
+    "sweep_orbit_deg": 180.0,
+    "flip_asymmetry_knee_deg": 0.0,
+    "flip_program": [],
+    "flip_program_relative_to_side": true,
+    "balance_wheel_speed_limit_rad_s": 40.0,
+    "balance_distance_gain": 0.98,
+    "flip_capture_tilt_deg": 31.788330617,
+    "flip_capture_gyro_rad_s": 2.0,
+    "flip_capture_dwell_seconds": 0.0,
+    "flip_fold_first": false,
+    "flip_handoff_orbit_limit_deg": 0.0,
+    "flip_balance_when_upright": false,
+    "flip_stall_dwell_seconds": 0.0,
+    "flip_first_orbit_hold_mask": 0,
+    "pitch_trim_gain": 0.0,
+    "yaw_rate_gain": 0.6,
+    "balance_kp": 35.0,
+    "balance_kd": 5.0,
+    "balance_kv": 5.2,
+    "support_gain": 1.0
+  },
+  "settings_sha256": "5390d2d9d92ff26d7c0dd405497c58b4188e3cec87544bca3fd949fcb3376b99",
+  "new_PPO": 0,
+  "hardware_motion": false,
+  "source_sha256": {
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/self_righting_core.hpp": "9557af845687d22acc50b39af5abe997ff3347346768522eef1db1a660a73718",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/self_righting_abi.cpp": "f70003e09bbd87f0e01589dc972db07acf0400204c6c64fa85488985917a70ac",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/recovery_geometry_v202.hpp": "16b80db1112cde7fda88f01c5a8e2a0cd473b89e1da393d7863766cf63adbf65"
+  },
+  "library_sha256": "9115f3a7da1bdc013ec1a1f6efee8cb3b51c13b83079235ea07489cfa4128409",
+  "baseline_build": {
+    "library": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/libwheelleg_traditional_native.so",
+    "library_sha256": "9d56720ba602d2327309ba9249798e28bd0e4354256d9442679ff155615db765",
+    "source_sha256": {
+      "rmcs_ws/src/rmcs_core/src/controller/wheelleg/traditional_control_core.hpp": "50b08f07bbdf2d768e749313f74e6534dc319f1cc1a94c2105bb29560e5c8a6d",
+      "rmcs_ws/src/rmcs_core/src/controller/wheelleg/traditional_control_abi.cpp": "760a5db66d6fd1fdbd7af133e40e42a22d3b1111efd43c0a0010d92170ce6a37",
+      "rmcs_ws/src/rmcs_core/src/controller/wheelleg/wheelleg_gas_spring_v202.hpp": "f27b2b7daecc765ef1847bfeb9e4ef15b1b0961f43cd1cc1244505a76c209dc0"
+    },
+    "gas_spring_model_sha256": "5682982f82c35c3864771d4822e6d6d3932cea2800464b255a1de6d4bd7fec41",
+    "model_spec_sha256": "388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29"
+  },
+  "plant_source_sha256": "3a701a1fe484a55d586b73b9c3f6ebb52a0af9ff8157a4e6c1dcde19463bcb09",
+  "probe_sha256": "8e977629ccc6c22fc0d215363066e67ee8405f36ebb4d1028152c0f686f92f93",
+  "initial_placement_only": true,
+  "controller_observations": "motor encoders, IMU, wheel encoders",
+  "collision_scope": "existing traditional plant; inter-link self collisions disabled",
+  "recovery_success": false,
+  "traditional_handoff_success": false,
+  "plant": {
+    "plant": "full_robot_v202_gas_spring_closedchain",
+    "body_count": 21,
+    "asset_manifest_sha256": "717995b0ff4fce47132ec5d57abd1c21b29db4748782977c44ac6011e117a36e",
+    "control_frame": "Xforward_Yleft_Zup",
+    "additional_root_rotation": false,
+    "tree_joint_count": 18,
+    "external_loop_count": 6,
+    "mass_kg": 21.441740036010742,
+    "mass_scale": 1.0,
+    "contact_materials": {
+      "/World/Ground/CollisionPlane": {
+        "material": "/World/Ground/Material",
+        "static_friction": 1.0,
+        "dynamic_friction": 1.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_000": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_001": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_002": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_003": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_004": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_005": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_006": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/base_link/Collision_007": {
+        "material": "/World/Robot/roller_contact_material",
+        "static_friction": 0.0,
+        "dynamic_friction": 0.0,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/L_link1/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/L_link2/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/L_link2/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/L_link2/Collision_002": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/L_link2/Collision_003": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/L_link2/Collision_004": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/L_link3/Collision_000": {
+        "material": "/World/Robot/wheel_contact_material",
+        "static_friction": 0.30000001192092896,
+        "dynamic_friction": 0.30000001192092896,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LLL_link2/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LLL_link2/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LLL_link1/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LLL_link1/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/R_link1/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/R_link2/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/R_link2/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/R_link2/Collision_002": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/R_link2/Collision_003": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/R_link2/Collision_004": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/R_link3/Collision_000": {
+        "material": "/World/Robot/wheel_contact_material",
+        "static_friction": 0.30000001192092896,
+        "dynamic_friction": 0.30000001192092896,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RRR_link2/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RRR_link2/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RRR_link1/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RRR_link1/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LL_link1/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LL_link2/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LL_link3/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/LL_link4/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RR_link1/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RR_link2/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RR_link3/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/RR_link4/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link1/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link1/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link1/Collision_002": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link1/Collision_003": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link2/Collision_000": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link2/Collision_001": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link2/Collision_002": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      },
+      "/World/Robot/M_link2/Collision_003": {
+        "material": "/World/Robot/contact_material",
+        "static_friction": 0.800000011920929,
+        "dynamic_friction": 0.800000011920929,
+        "combine_mode": "multiply"
+      }
+    },
+    "contact_domain": {
+      "wheel_ground_friction_range": [
+        0.2,
+        0.4
+      ],
+      "seed": 42,
+      "distribution": "uniform per episode reset; same sample for left/right wheels",
+      "candidate_comparison": "same case index uses the same draw for every candidate",
+      "ground_coefficient": 1.0,
+      "combine_mode": "multiply",
+      "body_roller_coefficient": 0.0,
+      "body_roller_scope": "all base_link collision hulls including bottom, front and rear",
+      "other_body_coefficient": 0.8,
+      "static_dynamic_relation": "equal; effective coefficient is robot times ground"
+    },
+    "physics_dt_s": 0.001,
+    "control_dt_s": 0.001,
+    "action_hold_ticks": 1,
+    "wheel_response": {
+      "enabled": true,
+      "config": {
+        "enabled": true,
+        "model_path": "/home/noir/Documents/workspace/.worktrees/isaac-wheelleg-v202-traditional/model/wheel_leg_v2.0.2/isaac/wheel_model.json",
+        "model_sha256": "22e02a731dbe3c00cb89f04ea695d1d80a3f11cb2a9574f3dac6eb680b1f7657",
+        "apply_aggregate_delay": true
+      },
+      "coordinate": "wheel_output",
+      "joint_names": [
+        "L_joint3",
+        "R_joint3"
+      ],
+      "native_parameters": {
+        "armature": {
+          "L_joint3": 0.0036863212557487436,
+          "R_joint3": 0.0037835241664603133
+        },
+        "frictionloss": {
+          "L_joint3": 0.19,
+          "R_joint3": 0.375
+        },
+        "dynamic_friction": {
+          "L_joint3": 0.04104708505270765,
+          "R_joint3": 0.13316527015278645
+        },
+        "damping": {
+          "L_joint3": 0.0,
+          "R_joint3": 0.0
+        }
+      },
+      "physics_dt_s": 0.001,
+      "passive_effort_separate_from_motor_current": true,
+      "aggregate_delay_applied": true,
+      "limitations": [
+        "Airborne data identifies effective output inertia/losses, not tire-ground contact or traction.",
+        "Torque is nominal C620 current conversion, not a shaft torque sensor; inertia is relative to that scale.",
+        "Aggregate command-to-reported-RPM delay must replace overlapping transport/feedback delays, not be added twice.",
+        "No-load maximum speeds are measured. High-speed rolloff width and loaded torque-speed capacity are explicit priors.",
+        "Static breakaway is bounded by these records; position-dependent cogging/presliding is not uniquely identified."
+      ]
+    },
+    "wheel_armature_readback": [
+      0.0036863212008029222,
+      0.0037835242692381144
+    ],
+    "leg_motor_friction": {
+      "config": {
+        "enabled": true,
+        "model_path": "model/dm_leg_friction_20261031/model.json",
+        "model_sha256": "90d299995f24ba38e6c1ed67e32dd40b9b2fa26e041f2f814db1e177ac040b52"
+      },
+      "joint_names": [
+        "L_joint1",
+        "LL_joint1",
+        "R_joint1",
+        "RR_joint1"
+      ],
+      "coulomb_nm": [
+        2.019506006848738,
+        2.047246309400147,
+        2.019506006848738,
+        2.047246309400147
+      ],
+      "numerical_regularization": {
+        "kind": "linear_velocity_band",
+        "velocity_rad_s": 0.05,
+        "identified": false
+      },
+      "physical_static_model_enabled": false,
+      "viscous_identified": false,
+      "stribeck_identified": false,
+      "bias_applied": false,
+      "right_symmetry_assumed": true,
+      "source_domain": "local common-angle moving test; all other poses/speeds are an explicit prior",
+      "motor_torque_cap_nm": 40.0,
+      "passive_loss_separate_from_motor": true,
+      "native_effort_limit_nm": 42.047246309400144
+    },
+    "native_leg_friction_readback": [
+      [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    ],
+    "native_leg_effort_limit_nm": [
+      [
+        42.047245025634766,
+        42.047245025634766,
+        42.047245025634766,
+        42.047245025634766
+      ]
+    ],
+    "gimbal_control": "supplied v2.0.2 fixed-zero joints; full CAD masses retained",
+    "gas_spring": "v2.0.2 bound force curve and declared C1 endpoint trend; right symmetry accepted by user",
+    "knee_inner_limits_deg": [
+      40.0,
+      110.0
+    ],
+    "closedchain_source": "supplied v2.0.2 USD loop joints; no pin regeneration",
+    "native_mechanical_limits": [
+      [
+        -0.08616095279208813,
+        1.1355695236039427
+      ],
+      [
+        -1.1355975995855245,
+        0.08613287681050608
+      ],
+      [
+        -0.010272337431645837,
+        0.06972766256835417
+      ],
+      [
+        -0.01027105315710046,
+        0.06972894684289954
+      ]
+    ],
+    "native_com_max_error_m": 3.5868431974561688e-09,
+    "native_inertia_max_error_kg_m2": 7.753372188723517e-08,
+    "ground_representation": "native infinite Plane at z=0; finite display-only quad",
+    "fixed_base": false,
+    "hardware_deployment_ready": false
+  },
+  "placement": {
+    "root_position_m": [
+      0.0,
+      0.0,
+      0.31666695675055856
+    ],
+    "root_quaternion_xyzw": [
+      0.0,
+      0.6087614290087207,
+      0.0,
+      0.7933533402912352
+    ],
+    "full_joint_positions": {
+      "L_joint1": -0.5416558838053935,
+      "R_joint1": 0.5416559317360367,
+      "LL_joint1": 0.17170476307417762,
+      "RR_joint1": -0.17173258088231363,
+      "M_joint1": 0.0,
+      "L_joint2": 0.5247039245866317,
+      "R_jonit2": -0.5247327153559196,
+      "LL_joint2": -0.524583142690844,
+      "RR_joint2": 0.5246004789505921,
+      "M_joint2": 0.0,
+      "L_joint3": 0.0,
+      "LLL_joint2": -0.5907035360792354,
+      "R_joint3": 0.0,
+      "RRR_joint2": 0.5907386807626197,
+      "LL_joint3": 0.3358539660091877,
+      "RR_joint3": -0.33587222653394244,
+      "L_spring_slide": 0.023839034136077384,
+      "R_spring_slide": 0.023840276993831552,
+      "LL_link4": -0.5245914716785185,
+      "RR_joint4": 0.5246202616804806
+    },
+    "requested_knee_deg": 75.0,
+    "requested_orbit_deg": 0.0,
+    "requested_pitch_deg": 75.0
+  },
+  "settled": {
+    "packet": [
+      -0.9667052030563354,
+      0.42810142040252686,
+      0.9701111912727356,
+      -0.4267224669456482,
+      -0.020354898646473885,
+      -0.06265310198068619,
+      -0.02272268570959568,
+      -0.036027248948812485,
+      0.03800125792622566,
+      0.0007309963693842292,
+      -4.3881445890292525e-05,
+      -5.155532562639564e-06,
+      1.1292084103156843,
+      -0.0008159427744543926,
+      3.136873002603439,
+      0.002486514070168075,
+      9.85846796664454
+    ],
+    "pitch": 1.1292084103156843,
+    "roll": -3.1415909063603564,
+    "base_height": 0.2578646242618561,
+    "loop_gap_m": 1.1693519367289607e-06,
+    "position": [
+      0.0009240917861461639,
+      0.002071005990728736,
+      0.2578646242618561
+    ],
+    "wheel_force_n": [
+      0.0,
+      0.0
+    ]
+  },
+  "fault_feedback": {
+    "packet": [
+      -1.7164273262023926,
+      -0.7753414511680603,
+      1.7193292379379272,
+      0.774768054485321,
+      1.3179702758789062,
+      -1.324933648109436,
+      1.7152659893035889,
+      6.321879863739014,
+      -1.7369663715362549,
+      -6.309452056884766,
+      -0.9999755620956421,
+      0.5780311822891235,
+      0.13311047514875418,
+      -5.5687414941597035,
+      -0.02087382052414771,
+      0.036098348389084635,
+      869.9679138026441
+    ],
+    "output": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      255.0,
+      3.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "base_position_m": [
+      -0.2156415432691574,
+      0.007390439976006746,
+      0.2486114352941513
+    ]
+  },
+  "failure": "recovery_fault_3",
+  "events": [
+    {
+      "time_s": 0.0,
+      "phase": "tuck",
+      "route": 5,
+      "waypoint": 0,
+      "pitch_rad": 1.1292084103156843,
+      "height_m": 0.2578646242618561,
+      "actual_q": [
+        -0.9667052030563354,
+        0.42810142040252686,
+        0.9701111912727356,
+        -0.4267224669456482
+      ],
+      "reference_q": [
+        -0.9667037052375975,
+        0.42809992253176304,
+        0.9701096912958991,
+        -0.4267209669456482
+      ]
+    },
+    {
+      "time_s": 1.004,
+      "phase": "clearance",
+      "route": 5,
+      "waypoint": 1,
+      "pitch_rad": 1.1292082618505304,
+      "height_m": 0.25786495208740234,
+      "actual_q": [
+        -0.26630938053131104,
+        -0.2710491120815277,
+        0.2687651216983795,
+        0.27355676889419556
+      ],
+      "reference_q": [
+        -0.27009936418671365,
+        -0.26853161475743414,
+        0.2725016594309827,
+        0.27090083406011845
+      ]
+    },
+    {
+      "time_s": 2.829,
+      "phase": "thrust",
+      "route": 5,
+      "waypoint": 2,
+      "pitch_rad": 1.1292090237813777,
+      "height_m": 0.25786474347114563,
+      "actual_q": [
+        -2.2001984119415283,
+        -2.199004888534546,
+        2.2001736164093018,
+        2.198596954345703
+      ],
+      "reference_q": [
+        -2.1981589958256897,
+        -2.1965882465790756,
+        2.1981572391631676,
+        2.1965534140062477
+      ]
+    },
+    {
+      "time_s": 3.501,
+      "phase": "sweep",
+      "route": 5,
+      "waypoint": 3,
+      "pitch_rad": 1.2122333857067304,
+      "height_m": 0.26840299367904663,
+      "actual_q": [
+        -2.3000590801239014,
+        -2.0853569507598877,
+        2.298753499984741,
+        2.084608554840088
+      ],
+      "reference_q": [
+        -2.326835757617789,
+        -2.067893575335589,
+        2.3268347932695925,
+        2.0678622186489597
+      ]
+    },
+    {
+      "time_s": 4.649,
+      "phase": "fault",
+      "route": 5,
+      "waypoint": 3,
+      "pitch_rad": 0.13311047514875418,
+      "height_m": 0.2486114352941513,
+      "actual_q": [
+        -1.7164273262023926,
+        -0.7753414511680603,
+        1.7193292379379272,
+        0.774768054485321
+      ],
+      "reference_q": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "handoff_time_s": null,
+  "simulated_control_s": 4.649,
+  "passive_settle_s": 3.0,
+  "traditional_window_s": 0.0,
+  "joint_names": [
+    "L_joint1",
+    "R_joint1",
+    "LL_joint1",
+    "RR_joint1",
+    "L_joint2",
+    "R_jonit2",
+    "LL_joint2",
+    "RR_joint2",
+    "L_joint3",
+    "LLL_joint2",
+    "R_joint3",
+    "RRR_joint2",
+    "LL_joint3",
+    "RR_joint3",
+    "L_spring_slide",
+    "R_spring_slide",
+    "LL_link4",
+    "RR_joint4"
+  ],
+  "native_diagnostics": {
+    "max_fk_position_error_m": 1.6896048817433163e-07,
+    "joint_positions": {
+      "L_joint1": -1.7164273262023926,
+      "R_joint1": 1.7193292379379272,
+      "LL_joint1": -0.7753414511680603,
+      "RR_joint1": 0.774768054485321,
+      "L_joint2": 0.713445782661438,
+      "R_jonit2": -0.7163801789283752,
+      "LL_joint2": -0.7131989598274231,
+      "RR_joint2": 0.7161330580711365,
+      "L_joint3": 1.3179702758789062,
+      "LLL_joint2": -0.7823787927627563,
+      "R_joint3": -1.324933648109436,
+      "RRR_joint2": 0.7852897644042969,
+      "LL_joint3": 0.4853638708591461,
+      "RR_joint3": -0.48776140809059143,
+      "L_spring_slide": 0.03343477472662926,
+      "R_spring_slide": 0.033584114164114,
+      "LL_link4": -0.7132129669189453,
+      "RR_joint4": 0.7161530256271362
+    },
+    "motor_effort_asset_nm": [
+      [
+        17.93515968322754,
+        -10.948333740234375,
+        0.0,
+        -17.85575294494629,
+        10.465760231018066,
+        0.0
+      ]
+    ],
+    "leg_actual_velocity_rad_s": [
+      [
+        0.32433590292930603,
+        2.4679293632507324,
+        -0.30855897068977356,
+        -2.485546827316284
+      ]
+    ],
+    "leg_passive_friction_nm": [
+      [
+        -2.0195059776306152,
+        -2.047246217727661,
+        2.0195059776306152,
+        2.047246217727661
+      ]
+    ],
+    "leg_net_effort_nm": [
+      [
+        15.915653228759766,
+        -12.995579719543457,
+        -15.836246490478516,
+        12.513006210327148
+      ]
+    ],
+    "gas_spring_force_n": [
+      [
+        387.7388916015625,
+        386.9327087402344
+      ]
+    ],
+    "wheel_contact_force_n": [
+      [
+        0.0001086331030819565,
+        0.0,
+        911.2806396484375
+      ],
+      [
+        0.00010165730054723099,
+        0.0,
+        852.7633666992188
+      ]
+    ],
+    "ground_bounds": [
+      [
+        -50.0,
+        -10.0,
+        0.0
+      ],
+      [
+        50.0,
+        10.0,
+        0.0
+      ]
+    ],
+    "wheel_quaternions": {
+      "L_link3": [
+        0.41466405987739563,
+        0.572770357131958,
+        0.5812838077545166,
+        -0.40261295437812805
+      ],
+      "R_link3": [
+        -0.10935625433921814,
+        0.6986081600189209,
+        0.6961575150489807,
+        0.12390603125095367
+      ]
+    },
+    "wheel_world_positions": {
+      "L_link3": [
+        0.04016794636845589,
+        0.2008923441171646,
+        0.06000054255127907
+      ],
+      "R_link3": [
+        0.03249822556972504,
+        -0.19563765823841095,
+        0.05999957025051117
+      ]
+    }
+  },
+  "peak_loop_gap_m": 2.4440030957873356e-05,
+  "peak_motor_torque_nm": [
+    23.845146712671436,
+    20.192345816656314,
+    23.368110354696547,
+    20.256329956732582,
+    1.5704119205474854,
+    1.4608805179595947
+  ]
+}

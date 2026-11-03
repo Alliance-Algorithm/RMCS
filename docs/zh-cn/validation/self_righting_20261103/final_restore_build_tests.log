@@ -1,0 +1,99 @@
+Starting >>> rmcs_core
+[0.116s] WARNING:colcon.colcon_core.shell:The following packages are in the workspace but haven't been built:
+- rmcs_description
+- rmcs_msgs
+- rmcs_utility
+- rmcs_executor
+They are being used from the following locations instead:
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+To suppress this warning ignore these packages in the workspace:
+--packages-ignore rmcs_description rmcs_msgs rmcs_utility rmcs_executor
+Finished <<< rmcs_core [6.47s]
+
+Summary: 1 package finished [6.53s]
+Starting >>> rmcs_core
+[0.149s] WARNING:colcon.colcon_core.shell:The following packages are in the workspace but haven't been built:
+- rmcs_description
+- rmcs_msgs
+- rmcs_utility
+- rmcs_executor
+They are being used from the following locations instead:
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+- /workspaces/RMCS/rmcs_ws/install
+To suppress this warning ignore these packages in the workspace:
+--packages-ignore rmcs_description rmcs_msgs rmcs_utility rmcs_executor
+SetCTestConfiguration:BuildDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+UpdateCTestConfiguration  from :/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core"
+SetCMakeVariable:CTEST_TEST_TIMEOUT:10000000
+UpdateCTestConfiguration  from :/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+Parse Config file:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/CTestConfiguration.ini
+SetCMakeVariable:CTEST_SITE:ZGZ
+SetCMakeVariable:CTEST_SOURCE_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core
+SetCMakeVariable:CTEST_BINARY_DIRECTORY:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+SetCMakeVariable:CTEST_CONFIGURE_COMMAND:"/opt/cmake/bin/cmake" "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core"
+SetCTestConfiguration:BuildDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+SetCTestConfiguration:SourceDirectory:/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_core
+Test project /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: wheelleg_gas_spring_v202
+
+1: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_gas_spring_v202_test
+1: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+1: Test timeout computed to be: 10000000
+1/5 Test #1: wheelleg_gas_spring_v202 .............   Passed    0.00 sec
+test 2
+    Start 2: wheelleg_self_righting_core
+
+2: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_self_righting_core_test
+2: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+2: Test timeout computed to be: 10000000
+2: PASS: independent leg reference paths, speed, torque, faults, reset, invalid configuration, stalled waypoint policy, initial-orbit hold
+2/5 Test #2: wheelleg_self_righting_core ..........   Passed    0.01 sec
+test 3
+    Start 3: wheelleg_self_righting_pose_routes
+
+3: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_self_righting_pose_routes_test
+3: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+3: Test timeout computed to be: 10000000
+3: PASS: 16 prone path replays, mixed support, finite inverted/side strokes, measured reselection, stable capture, reset and faults
+3/5 Test #3: wheelleg_self_righting_pose_routes ...   Passed    0.03 sec
+test 4
+    Start 4: wheelleg_self_righting_abi
+
+4: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_self_righting_abi_test
+4: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+4: Test timeout computed to be: 10000000
+4: PASS: additive pose-route ABI, existing layouts, selection, reset and rejection
+4/5 Test #4: wheelleg_self_righting_abi ...........   Passed    0.00 sec
+test 5
+    Start 5: wheelleg_recovery_velocity_packet
+
+5: Test command: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/wheelleg_recovery_velocity_packet_test
+5: Working Directory: /home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core
+5: Test timeout computed to be: 10000000
+5: PASS: MIT velocity packet bounds, reversal, gains, effort and invalid-input rejection
+5/5 Test #5: wheelleg_recovery_velocity_packet ....   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   0.04 sec
+Finished <<< rmcs_core [0.05s]
+
+Summary: 1 package finished [0.15s]
+Summary: 5 tests, 0 errors, 0 failures, 0 skipped

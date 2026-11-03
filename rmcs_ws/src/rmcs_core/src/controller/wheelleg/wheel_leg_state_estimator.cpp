@@ -32,7 +32,7 @@ using LegCalibration = rmcs_core::wheelleg::LegCalibration;
 // reduced-model state from the hardware feedback:
 //
 //   * attitude (pitch/roll/yaw + rates): IMU quaternion / gravity / gyro,
-//     rotated into base_link by `imu_to_base`.
+//     already expressed in base_link by the hardware EKF.
 //   * leg shape (knee beta, shank, leg length/angle): the four DM joint encoder
 //     angles, through the LegLinkage relative-crank LUT and the reduced
 //     thigh/shank geometry.
@@ -135,9 +135,8 @@ public:
         // TODO(verify on bench): the exact axis order and sign of these
         // extractions must be checked against the real robot before use.
         // ------------------------------------------------------------------
-        const Eigen::Matrix3d r_base_imu = imu_to_base_;
         const Eigen::Vector3d gravity_base =
-            r_base_imu * Eigen::Vector3d{*gravity_[0], *gravity_[1], *gravity_[2]};
+            Eigen::Vector3d{*gravity_[0], *gravity_[1], *gravity_[2]};
         const double gx = gravity_base.x(), gy = gravity_base.y(), gz = gravity_base.z();
 
         // Convention (same as the sim's body_pitch_ and the doc): nose-down /
@@ -147,7 +146,7 @@ public:
         const Eigen::Quaterniond q{
             imu_quaternion_->w(), imu_quaternion_->x(), imu_quaternion_->y(),
             imu_quaternion_->z()};
-        const Eigen::Vector3d gyro_base = r_base_imu * Eigen::Vector3d{
+        const Eigen::Vector3d gyro_base{
             gyro_[0].ready() ? *gyro_[0] : 0.0, gyro_[1].ready() ? *gyro_[1] : 0.0,
             gyro_[2].ready() ? *gyro_[2] : 0.0};
         const double yaw_wrapped = std::atan2(
@@ -386,12 +385,16 @@ private:
             || hardware_crank_sign_.size() != 2)
             throw std::invalid_argument(
                 "hardware_hip_sign/zero/crank_sign require two values");
-        const auto imu = get_parameter("imu_to_base").as_double_array();
-        if (imu.size() != 9)
-            throw std::invalid_argument("imu_to_base requires nine values");
-        for (std::size_t i = 0; i < 3; ++i)
-            for (std::size_t j = 0; j < 3; ++j)
-                imu_to_base_(i, j) = imu[3 * i + j];
+        // Older identity-only configs remain compatible. A second mounting
+        // rotation would disagree with the already mapped quaternion/yaw.
+        if (has_parameter("imu_to_base")) {
+            const auto imu = get_parameter("imu_to_base").as_double_array();
+            if (imu.size() != 9
+                || !Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>{imu.data()}
+                        .isIdentity(1e-12))
+                throw std::invalid_argument(
+                    "Set imu_to_base on wheel_leg hardware, not wheelleg_state");
+        }
         state_pitch_sign_ = param_or("state_pitch_sign", 1.0);
         state_roll_sign_ = param_or("state_roll_sign", 1.0);
         state_yaw_sign_ = param_or("state_yaw_sign", 1.0);
@@ -440,7 +443,6 @@ private:
     std::vector<double> hardware_hip_sign_{1.0, 1.0};
     std::vector<double> hardware_hip_zero_{0.0, 0.0};
     std::vector<double> hardware_crank_sign_{1.0, 1.0};
-    Eigen::Matrix3d imu_to_base_ = Eigen::Matrix3d::Identity();
     double state_pitch_sign_ = 1.0, state_roll_sign_ = 1.0, state_yaw_sign_ = 1.0;
     double state_knee_sign_ = -1.0, state_shank_sign_ = 1.0, state_hip_sign_ = 1.0;
     double state_wheel_sign_ = 1.0;

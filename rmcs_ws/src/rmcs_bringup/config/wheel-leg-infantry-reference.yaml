@@ -9,6 +9,11 @@ rmcs_executor:
 wheel_leg:
   ros__parameters:
     board_serial: ""
+    # Raw BMI088 -> base_link (-x, y, -z), applied before the EKF.
+    imu_to_base: [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
+    # Sensor lever arm is unmeasured; zero disables that correction.
+    imu_position: [0.0, 0.0, 0.0]
+    imu_angular_acceleration_filter_tau_s: 0.01
     require_enable_request: true
     joint_control_mode: "torque"
     allow_set_zero: false

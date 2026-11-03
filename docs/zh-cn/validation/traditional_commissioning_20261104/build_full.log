@@ -1,0 +1,51 @@
+Starting >>> rmcs_utility
+Starting >>> rmcs_description
+Starting >>> rmcs_msgs
+Starting >>> rmcs_bringup
+Finished <<< rmcs_bringup [0.03s]
+--- stderr: rmcs_utility
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_utility` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_utility [0.59s]
+Starting >>> rmcs_executor
+--- stderr: rmcs_description
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_description` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_description [1.25s]
+--- stderr: rmcs_msgs
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_msgs` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_msgs [8.47s]
+--- stderr: rmcs_executor
+[0mIn this package, headers install destination is set to `include` by ament_auto_package. It is recommended to install `include/rmcs_executor` instead and will be the default behavior of ament_auto_package from ROS 2 Kilted Kaiju. On distributions before Kilted, ament_auto_package behaves the same way when you use USE_SCOPED_HEADER_INSTALL_DIR option.[0m
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    RMCS_ENABLE_MUJOCO_SIM
+
+[0m
+---
+Finished <<< rmcs_executor [10.4s]
+Starting >>> rmcs_core
+Finished <<< rmcs_core [0.29s]
+
+Summary: 6 packages finished [11.3s]
+  4 packages had stderr output: rmcs_description rmcs_executor rmcs_msgs rmcs_utility

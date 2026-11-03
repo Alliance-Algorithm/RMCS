@@ -127,6 +127,11 @@ wheel_leg_identification_recorder:
 wheel_leg:
   ros__parameters:
     board_serial: ""
+    # Raw BMI088 -> base_link (-x, y, -z), applied before the EKF.
+    imu_to_base: [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
+    # Sensor lever arm is unmeasured; zero disables that correction.
+    imu_position: [0.0, 0.0, 0.0]
+    imu_angular_acceleration_filter_tau_s: 0.01
     joint_control_mode: "torque"
     require_enable_request: true
     # Only an armed RL session may keep control at left-MIDDLE/right-DOWN.
@@ -246,13 +251,8 @@ rl_controller:
     # Z-up. The URDF's +90 deg rotation is on imported CAD visual/collision
     # meshes (CAD front = -Y); it has ALREADY been applied before training.
     # Do not add that CAD rotation again to commands or policy actions.
-    # imu_to_base is only the independently measured sensor-to-base rotation:
-    # Frozen policy base_link is X-forward/Y-left/Z-up. Source CAD -Y forward
-    # was already rotated +90deg during URDF export; do not rotate again here.
-    # Installed BMI088: +X forward, +Z up, right-handed => +Y left. Thus the
-    # sensor and policy base_link axis orders agree; no extra 90-degree yaw.
-    # User-confirmed installation; same identity mount as dev/rmcs_rl @ 8149afda.
-    # gyro_base = R_base_imu * gyro_imu; q_world_base = q_world_imu * R_base_imu^T.
+    # Hardware publishes base_link IMU after the mounting transform/EKF.
+    # Keep the legacy controller's downstream transform at identity.
     imu_alignment_ready: true
     imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 

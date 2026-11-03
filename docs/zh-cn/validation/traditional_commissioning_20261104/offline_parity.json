@@ -1,0 +1,89 @@
+{
+  "schema": "traditional-commissioning-offline-parity/v1",
+  "date": "2026-11-04",
+  "scope": "Archived sensor-packet replay through two native ABIs; no new physics or hardware",
+  "profile": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/src/rmcs_bringup/config/wheel-leg-traditional-v202.yaml",
+  "profile_sha256": "04ab3cba5ccb0b009ca71eed48ee75b71b52f9606aea0a416e6a06aa9d5e656c",
+  "standing_parameters_exact": true,
+  "tested_sources_identical": true,
+  "tested_source_sha256": {
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/traditional_control_core.hpp": "50b08f07bbdf2d768e749313f74e6534dc319f1cc1a94c2105bb29560e5c8a6d",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/traditional_control_abi.cpp": "760a5db66d6fd1fdbd7af133e40e42a22d3b1111efd43c0a0010d92170ce6a37",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/wheelleg_gas_spring_v202.hpp": "f27b2b7daecc765ef1847bfeb9e4ef15b1b0961f43cd1cc1244505a76c209dc0",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/self_righting_core.hpp": "9557af845687d22acc50b39af5abe997ff3347346768522eef1db1a660a73718",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/self_righting_abi.cpp": "f70003e09bbd87f0e01589dc972db07acf0400204c6c64fa85488985917a70ac",
+    "rmcs_ws/src/rmcs_core/src/controller/wheelleg/recovery_geometry_v202.hpp": "16b80db1112cde7fda88f01c5a8e2a0cd473b89e1da393d7863766cf63adbf65"
+  },
+  "recovery_profile_changes": {
+    "hardware_calibration_id": [
+      null,
+      "rmcs-dual-deploy-7add701a-v202-calibration110-reused-20261104"
+    ],
+    "enabled": [
+      false,
+      true
+    ],
+    "cad_axis_offset_rad": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.6,
+        3.0282761689183353,
+        -1.6,
+        -3.0283102010168
+      ]
+    ],
+    "flip_program": [
+      [],
+      null
+    ],
+    "simulation_only": [
+      true,
+      false
+    ],
+    "cad_axis_sign": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ]
+    ],
+    "hardware_commissioning_enabled": [
+      null,
+      true
+    ]
+  },
+  "old_library": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-traditional-tuning/rmcs_ws/build/rmcs_core/libwheelleg_traditional_native.so",
+  "old_library_sha256": "9d56720ba602d2327309ba9249798e28bd0e4354256d9442679ff155615db765",
+  "new_library": "/home/noir/Documents/workspace/.worktrees/rmcs-wheelleg-tradition-deploy/rmcs_ws/build/rmcs_core/libwheelleg_traditional_native.so",
+  "new_library_sha256": "9d56720ba602d2327309ba9249798e28bd0e4354256d9442679ff155615db765",
+  "cases": [
+    {
+      "case": "forward30",
+      "samples": 20000,
+      "trace_sha256": "a47239ac62b30e95d97d4ef0964d18e1527c2a48a3ebdf4a117216caa1b2e128",
+      "maximum_output_difference": 0.0,
+      "faults": 0
+    },
+    {
+      "case": "standing_forward30",
+      "samples": 20000,
+      "trace_sha256": "ae1bdd8256c1850a3cff33a41f82b629008dc178a53ff881bafd10c1803896e0",
+      "maximum_output_difference": 0.0,
+      "faults": 0
+    }
+  ],
+  "hardware_motion_performed": false,
+  "new_native_physics_run": false
+}

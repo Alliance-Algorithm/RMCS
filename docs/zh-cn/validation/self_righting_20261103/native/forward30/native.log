@@ -1,0 +1,69 @@
+Loading user config located at: '/home/noir/miniconda3/envs/isaacsim6/lib/python3.12/site-packages/isaacsim/kit/data/Kit/IsaacLab/3.0/user.config.json'
+2026-11-03T01:43:47Z [0ms] [Warning] [omni.ext.plugin] [ext: isaaclab_visualizers] Extensions config 'extension.toml' doesn't exist '/home/noir/IsaacLab-3.0-beta2/source/isaaclab_visualizers' or '/home/noir/IsaacLab-3.0-beta2/source/isaaclab_visualizers/config'
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1793670227.642221 3118387 descriptor_database.cc:633] File already exists in database: grpc/health/v1/health.proto
+W0000 00:00:1793670227.642245 3118387 message.cc:301] Protobuf GeneratedMessageFactory: File is already registered: grpc/health/v1/health.proto
+2026-11-03T01:43:47Z [198ms] [Warning] [omni.usd_config.extension] Enable omni.materialx.libs extension to use MaterialX
+2026-11-03T01:43:48Z [756ms] [Warning] [isaacsim.core.simulation_manager.plugin] USD stage is not available; stage-opened subscription is deferred
+2026-11-03T01:43:48Z [756ms] [Warning] [isaacsim.core.simulation_manager.plugin] USD stage is not available; stage-opened subscription is deferred
+[ISAACLAB] AppLauncher initialization complete
+[INFO]: Registered backend 'physx' for factory Articulation.
+2026-11-03T01:43:50Z [2,904ms] [Warning] [usdrt.population.plugin] Last global time was not created. Did you call setEnableUsdNoticeHandling?
+2026-11-03T01:43:50Z [2,905ms] [Warning] [omni.physx.plugin] Detected an articulation at /World/Robot/base_link with more than 4 velocity iterations being added to a TGS scene.The related behavior changed recently, please consult the changelog. This warning will only print once.
+[INFO]: Simulation parameters for joints in /World/Robot:
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+|                                                          Simulation Joint Information (Prim path: /World/Robot)                                                         |
++-------+----------------+-----------+---------+----------+-----------------+------------------+------------------+---------------------+-----------------+---------------+
+| Index | Name           | Stiffness | Damping | Armature | Static Friction | Dynamic Friction | Viscous Friction |   Position Limits   | Velocity Limits | Effort Limits |
++-------+----------------+-----------+---------+----------+-----------------+------------------+------------------+---------------------+-----------------+---------------+
+|   0   | L_joint1       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   1   | R_joint1       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   2   | LL_joint1      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   3   | RR_joint1      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     42.047    |
+|   4   | L_joint2       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-0.086, 1.136]   |     100.000     |    100.000    |
+|   5   | R_jonit2       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-1.136, 0.086]   |     100.000     |    100.000    |
+|   6   | LL_joint2      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   7   | RR_joint2      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   8   | L_joint3       |   0.000   |  0.000  |  0.004   |      0.190      |      0.041       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     4.780     |
+|   9   | LLL_joint2     |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   10  | R_joint3       |   0.000   |  0.000  |  0.004   |      0.375      |      0.133       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |     4.780     |
+|   11  | RRR_joint2     |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   12  | LL_joint3      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   13  | RR_joint3      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   14  | L_spring_slide |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-0.010, 0.070]   |     100.000     |    1.5e+03    |
+|   15  | R_spring_slide |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       |   [-0.010, 0.070]   |     100.000     |    1.5e+03    |
+|   16  | LL_link4       |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
+|   17  | RR_joint4      |   0.000   |  0.000  |  0.000   |      0.000      |      0.000       |      0.000       | [-3.4e+38, 3.4e+38] |     100.000     |    100.000    |
++-------+----------------+-----------+---------+----------+-----------------+------------------+------------------+---------------------+-----------------+---------------+
+SETTLED {"packet": [0.3456210196018219, 1.7738975286483765, -0.3624795377254486, -1.7439755201339722, 0.6903640627861023, -0.12679189443588257, -0.000258877407759428, 0.0004971949383616447, 0.009053252637386322, -0.008372213691473007, -8.218921720981598e-08, 1.2246891856193542e-07, 0.0009617379821325045, 0.00012994262309936973, 0.01054783852541022, 0.004991051951882889, 9.834651948591167], "pitch": 0.0009617379821325045, "roll": 0.0032992871605186593, "base_height": 0.18086853623390198, "loop_gap_m": 3.7387967263939736e-07, "position": [0.000547266099601984, 0.010587530210614204, 0.18086853623390198], "wheel_force_n": [6.849781036376953, 7.123382091522217]}
+EVENT {"time_s": 0.0, "phase": "tuck", "route": 2, "waypoint": 0, "pitch_rad": 0.0009617379821325045, "height_m": 0.18086853623390198, "actual_q": [0.3456210196018219, 1.7738975286483765, -0.3624795377254486, -1.7439755201339722], "reference_q": [0.3456225195515488, 1.7738960286483765, -0.36248098847090315, -1.7439740693649644]}
+PROGRESS {"time_s": 1.0, "phase": 8, "pitch_rad": 0.0009617782608566383, "height_m": 0.18086862564086914, "wheel_contact_n": [0.0, 0.0]}
+EVENT {"time_s": 1.0150000000000001, "phase": "clearance", "route": 2, "waypoint": 1, "pitch_rad": 0.0009617322315895738, "height_m": 0.18086858093738556, "actual_q": [1.0622676610946655, 1.058579683303833, -1.0555959939956665, -1.0520027875900269], "reference_q": [1.058964939885548, 1.0605326893148275, -1.0524230155391565, -1.0540238409100207]}
+PROGRESS {"time_s": 2.0, "phase": 9, "pitch_rad": 0.0009616892995820692, "height_m": 0.18086859583854675, "wheel_contact_n": [0.0, 0.0]}
+EVENT {"time_s": 2.823, "phase": "sweep", "route": 2, "waypoint": 2, "pitch_rad": 0.0009616720905709641, "height_m": 0.18086856603622437, "actual_q": [2.9586267471313477, 2.960153818130493, -2.958737850189209, -2.960057258605957], "reference_q": [2.955820900854957, 2.9573886502842366, -2.955822657526714, -2.9574234828975783]}
+PROGRESS {"time_s": 3.0, "phase": 10, "pitch_rad": 0.0009618139569964601, "height_m": 0.18086853623390198, "wheel_contact_n": [0.0, 0.0]}
+PROGRESS {"time_s": 4.0, "phase": 10, "pitch_rad": -0.18603199867852016, "height_m": 0.22260887920856476, "wheel_contact_n": [0.0, 0.0]}
+EVENT {"time_s": 4.352, "phase": "thrust", "route": 2, "waypoint": 3, "pitch_rad": -0.31475909578486827, "height_m": 0.24705937504768372, "actual_q": [4.447197437286377, 4.449622631072998, -4.4470534324646, -4.449786186218262], "reference_q": [4.439347765107697, 4.440918514479416, -4.439349521772905, -4.4409533470701295]}
+PROGRESS {"time_s": 5.0, "phase": 11, "pitch_rad": -0.013009286580914159, "height_m": 0.18405500054359436, "wheel_contact_n": [0.0, 0.0]}
+EVENT {"time_s": 5.42, "phase": "plant", "route": 2, "waypoint": 4, "pitch_rad": 0.0009618056075755277, "height_m": 0.18086864054203033, "actual_q": [3.805887460708618, 5.105048179626465, -3.8051700592041016, -5.104782581329346], "reference_q": [3.775452098905529, 5.104842657787315, -3.775450956663612, -5.104867474321142]}
+PROGRESS {"time_s": 6.000000000000001, "phase": 2, "pitch_rad": -0.11542906949361775, "height_m": 0.20761758089065552, "wheel_contact_n": [0.0, 0.0]}
+EVENT {"time_s": 6.84, "phase": "plant", "route": 2, "waypoint": 5, "pitch_rad": -0.5774334823758871, "height_m": 0.2838352620601654, "actual_q": [5.10081148147583, 6.429110654184612, -5.099905014038086, -6.426064141580852], "reference_q": [5.095895964017824, 6.425284599329646, -5.0958948217799644, -6.425309415876996]}
+PROGRESS {"time_s": 7.000000000000001, "phase": 2, "pitch_rad": -0.5830451235903197, "height_m": 0.28441593050956726, "wheel_contact_n": [31.993820190429688, 34.86314392089844]}
+PROGRESS {"time_s": 8.0, "phase": 2, "pitch_rad": 0.045480076139642556, "height_m": 0.25002437829971313, "wheel_contact_n": [102.93579864501953, 105.58475494384766]}
+EVENT {"time_s": 8.029, "phase": "rise", "route": 2, "waypoint": 5, "pitch_rad": 0.05399643749084082, "height_m": 0.24948181211948395, "actual_q": [6.069726943969727, 6.14601469039917, -6.06841516494751, -6.144613742828369], "reference_q": [6.068713341839296, 6.150578153035929, -6.06871483101301, -6.150611740424061]}
+EVENT {"time_s": 8.723, "phase": "capture", "route": 2, "waypoint": 5, "pitch_rad": 0.06445347681711788, "height_m": 0.3119770586490631, "actual_q": [5.851974964141846, 6.367248662302288, -5.851813793182373, -6.367019303629192], "reference_q": [5.878162134681793, 6.341146543512207, -5.878162598741293, -6.341176031065426]}
+PROGRESS {"time_s": 9.0, "phase": 4, "pitch_rad": 0.13786056398266733, "height_m": 0.29949358105659485, "wheel_contact_n": [103.80207061767578, 108.4281234741211]}
+PROGRESS {"time_s": 10.0, "phase": 4, "pitch_rad": 0.03516689352822033, "height_m": 0.3055560886859894, "wheel_contact_n": [104.70687103271484, 109.54948425292969]}
+EVENT {"time_s": 10.314, "phase": "complete", "route": 2, "waypoint": 5, "pitch_rad": 0.020704250709016714, "height_m": 0.304931104183197, "actual_q": [5.878830432891846, 6.342204221079143, -5.879643440246582, -6.343000539133342], "reference_q": [5.878162134681793, 6.341146543512207, -5.878162598741293, -6.341176031065426]}
+HANDOFF 10.314
+PROGRESS {"time_s": 11.0, "phase": 100, "pitch_rad": -0.0009233897049214512, "height_m": 0.31276798248291016, "wheel_contact_n": [106.06180572509766, 104.8486328125]}
+PROGRESS {"time_s": 12.0, "phase": 100, "pitch_rad": -0.0012879654120103723, "height_m": 0.33279120922088623, "wheel_contact_n": [106.30842590332031, 103.23786163330078]}
+PROGRESS {"time_s": 13.0, "phase": 100, "pitch_rad": -0.0004270052966943716, "height_m": 0.35285162925720215, "wheel_contact_n": [106.20957946777344, 103.07251739501953]}
+PROGRESS {"time_s": 14.0, "phase": 100, "pitch_rad": -0.0006069109097524006, "height_m": 0.3729557693004608, "wheel_contact_n": [106.2401351928711, 104.15444946289062]}
+PROGRESS {"time_s": 15.0, "phase": 100, "pitch_rad": 0.00016106967033335806, "height_m": 0.39175960421562195, "wheel_contact_n": [107.14889526367188, 102.91439056396484]}
+PROGRESS {"time_s": 16.0, "phase": 100, "pitch_rad": -0.00031449516986103987, "height_m": 0.39374157786369324, "wheel_contact_n": [106.36763000488281, 102.85619354248047]}
+PROGRESS {"time_s": 17.0, "phase": 100, "pitch_rad": -0.0007291580949770893, "height_m": 0.393818736076355, "wheel_contact_n": [105.61849975585938, 106.28938293457031]}
+PROGRESS {"time_s": 18.0, "phase": 100, "pitch_rad": -0.0018342052163029532, "height_m": 0.39383119344711304, "wheel_contact_n": [106.38744354248047, 105.50138092041016]}
+PROGRESS {"time_s": 19.0, "phase": 100, "pitch_rad": -0.0031462004522331277, "height_m": 0.39382439851760864, "wheel_contact_n": [108.35779571533203, 100.24732971191406]}
+PROGRESS {"time_s": 20.0, "phase": 100, "pitch_rad": 0.0014391400891580197, "height_m": 0.3938184082508087, "wheel_contact_n": [108.05540466308594, 105.03109741210938]}
+RESULT {"failure": null, "recovery_success": true, "traditional_handoff_success": true, "traditional_window_s": 10.0, "peak_loop_gap_m": 2.427190404680673e-05}
