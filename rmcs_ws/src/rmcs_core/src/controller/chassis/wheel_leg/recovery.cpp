@@ -1,6 +1,8 @@
 #include "wheel_leg_controller.hpp"
 
+#include <array>
 #include <cmath>
+#include <cstdio>
 
 #include "gas_spring_compensation.hpp"
 #include "leg_target_winding.hpp"
@@ -55,7 +57,10 @@ bool WheelLegController::advance_scripted_recovery_(std::size_t tick) {
         recovery_command_ = scripted_recovery_->step(feedback, 1. / pd_frequency_, true);
         if (recovery_command_.phase == Core::Fault) {
             const int fault = recovery_command_.fault;
-            latch_fault_("scripted self-righting failed");
+            std::array<char, 96> reason{};
+            std::snprintf(
+                reason.data(), reason.size(), "scripted self-righting failed (fault=%d)", fault);
+            latch_fault_(reason.data());
             *recovery_phase_output_ = Core::Fault;
             *recovery_fault_output_ = fault;
             return false;

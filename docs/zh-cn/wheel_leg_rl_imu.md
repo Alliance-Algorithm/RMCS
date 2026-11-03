@@ -2,20 +2,26 @@
 
 ## 配置
 
-IMU 安装外参统一放在车辆 YAML 的 `wheel_leg.ros__parameters` 下，两份轮腿配置均提供：
+IMU 安装外参统一放在车辆 YAML 的 `wheel_leg.ros__parameters` 下。当前五个轮腿部署 profile
+均使用同一安装映射：
 
 - `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-rl.yaml`
 - `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml`
+- `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-prone-v4.yaml`
+- `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-wheelbipe.yaml`
+- `rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-wheelbipe-recovery.yaml`
 
 ```yaml
 wheel_leg:
   ros__parameters:
-    imu_to_base: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    imu_to_base: [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
     imu_position: [0.0, 0.0, 0.0]
     imu_angular_acceleration_filter_tau_s: 0.01
 ```
 
-`imu_to_base` 是按行展开的 3×3 旋转矩阵 `R_base_imu`，把 BMI088 测量轴转换为训练使用的 `base_link` 轴。该 base 采用 X 前、Y 左、Z 上。源 CAD 导出 URDF 时已经施加的几何旋转不能在此重复施加。当前安装轴向按已有确认保留单位阵。
+`imu_to_base` 是按行展开的 3×3 旋转矩阵 `R_base_imu`，把 BMI088 原始测量轴转换为训练使用的
+`base_link` 轴。该 base 采用 X 前、Y 左、Z 上；当前实车约定为
+`[x, y, z]_base = [-x, y, -z]_raw`，也就是绕 Y 轴旋转 180°。源 CAD 导出 URDF 时已经施加的几何旋转不能在此重复施加。
 
 `imu_position` 是 **从训练/URDF `base_link` 原点指向 BMI088 加速度计测量中心** 的 `[x, y, z]`，在 **base_link 轴** 下表达，单位 **米**。这里的目标原点不是自动推定的整车质心，也不是任意板卡边角。若测量的是板卡基准点，须先计入芯片相对该点的偏移。未来给出的坐标必须先换算到训练使用的 base_link 轴。
 
@@ -70,9 +76,10 @@ colcon test --merge-install --packages-select rmcs_core --ctest-args -R 'wheel_l
 colcon test-result --test-result-base build/rmcs_core --verbose
 ```
 
-`wheel_leg_imu` 覆盖：两份真实 YAML 的配置归属与外参解析、非法参数拒绝、零偏移兼容、旋转安装、切向/向心补偿、保留自身平移加速度、角加速度噪声滤波、补偿进入真实 EKF、板卡时间对齐、乱序/中断/饱和与复位后的重新建史。测试不创建硬件连接。
+`wheel_leg_imu` 覆盖：五份轮腿 YAML 的配置归属与外参解析、原始 xyz 到
+`(-x,y,-z)` 的映射、非法参数拒绝、零偏移兼容、旋转安装、切向/向心补偿、保留自身平移加速度、角加速度噪声滤波、补偿进入真实 EKF、板卡时间对齐、乱序/中断/饱和与复位后的重新建史。测试不创建硬件连接。
 
-本次容器验证：`rmcs_core`、`rmcs_bringup` 构建通过；新增 11 项 IMU 测试通过，`rmcs_core` 当前全部 6 个测试目标（23 项 GTest）通过。未启动实车或下发运动命令，实测 xyz 尚未填写。
+上述回归只验证软件配置和坐标变换，不启动实车或下发运动命令；现场传感器回读仍需单独核对。
 
 ## 实现位置
 
@@ -83,6 +90,6 @@ colcon test-result --test-result-base build/rmcs_core --verbose
 - `rmcs_core/src/controller/chassis/wheel_leg/{configuration.cpp,observation.cpp,wheel_leg_controller.hpp}`：移除控制器中的重复安装旋转。
 - `rmcs_core/test/wheel_leg_imu.cpp`、`rmcs_core/CMakeLists.txt`：IMU 回归与测试注册。
 - 仓库 `.gitignore`：放行新增的 IMU 回归测试源码。
-- `rmcs_bringup/config/wheel-leg-infantry{-rl,-unified-rl}.yaml`：两套车辆的安装配置。
+- `rmcs_bringup/config/wheel-leg-infantry-*.yaml`：轮腿车辆的安装配置。
 
 以上包路径均位于 `rmcs_ws/src`。现有插件类名、组件列表与接口连接保留，未新增插件。
