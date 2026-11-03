@@ -12,18 +12,8 @@ Eigen::Quaterniond WheelLegController::world_base_orientation_() const {
 }
 
 bool WheelLegController::read_model_state_() {
-    if (!*feedback_fresh_)
-        return feedback_valid_ = false;
-    Eigen::Vector4d motor_q, motor_dq;
-    for (int i = 0; i < 6; ++i) {
-        if (!std::isfinite(*angle_inputs_[i]) || !std::isfinite(*velocity_inputs_[i])
-            || !std::isfinite(*max_torque_inputs_[i]) || *max_torque_inputs_[i] <= 0)
-            return feedback_valid_ = false;
-        if (i < 4) {
-            motor_q[i] = *angle_inputs_[i];
-            motor_dq[i] = *velocity_inputs_[i];
-        }
-    }
+    // Diagnose individual receive stamps even when the hardware's aggregate gate is false.
+    // Otherwise a missing wheel is reported as the default all-sensors-missing mask.
     if (strict_feedback_) {
         const auto now_ns =
             std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch())
@@ -42,6 +32,18 @@ bool WheelLegController::read_model_state_() {
             state_ != State::kRl && (!dm_control_ready_.ready() || !*dm_control_ready_);
         if (!sensor_status_.valid && !awaiting_initial_drives)
             return feedback_valid_ = false;
+    }
+    if (!*feedback_fresh_)
+        return feedback_valid_ = false;
+    Eigen::Vector4d motor_q, motor_dq;
+    for (int i = 0; i < 6; ++i) {
+        if (!std::isfinite(*angle_inputs_[i]) || !std::isfinite(*velocity_inputs_[i])
+            || !std::isfinite(*max_torque_inputs_[i]) || *max_torque_inputs_[i] <= 0)
+            return feedback_valid_ = false;
+        if (i < 4) {
+            motor_q[i] = *angle_inputs_[i];
+            motor_dq[i] = *velocity_inputs_[i];
+        }
     }
     if (!gyro_->allFinite() || !orientation_->coeffs().allFinite()
         || !std::isfinite(orientation_->norm()) || orientation_->norm() == 0.0)

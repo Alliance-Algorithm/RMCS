@@ -94,6 +94,14 @@ private:
             std::array<std::uint8_t, 2> kind{};
         };
 
+        struct CanReceiveStatus {
+            std::atomic<std::uint64_t> frames{0}, matched{0}, rejected{0};
+            std::atomic<std::int64_t> last_ns{0};
+            std::atomic<std::uint32_t> last_id{0};
+            std::atomic<std::size_t> last_length{0};
+            std::array<std::atomic<std::uint64_t>, 32> standard_ids{};
+        };
+
         struct CommandCycle {
             bool side_bound;
             int selected_side;
@@ -226,6 +234,27 @@ private:
             text << "  DR16 raw channels [right lateral, right forward, left yaw, left height]: ["
                  << channels[0] << ',' << channels[1] << ',' << channels[2] << ',' << channels[3]
                  << "] (center=1024, nominal range=[364,1684])\n";
+            for (std::size_t bus = 0; bus < can_receive_status_.size(); ++bus) {
+                const auto& received = can_receive_status_[bus];
+                text << "  CAN[kCan" << bus << "]: rx=" << received.frames.load()
+                     << " matched=" << received.matched.load()
+                     << " rejected=" << received.rejected.load() << " last_id=0x" << std::hex
+                     << received.last_id.load() << std::dec
+                     << " last_length=" << received.last_length.load()
+                     << " age_ms=" << age_ms(received.last_ns) << " standard_ids=[";
+                std::size_t printed = 0;
+                for (std::uint32_t id = 0; id <= 0x7ff; ++id) {
+                    if ((received.standard_ids[id / 64].load() & (std::uint64_t{1} << (id % 64)))
+                        == 0)
+                        continue;
+                    if (printed == 16) {
+                        text << ",...";
+                        break;
+                    }
+                    text << (printed++ == 0 ? "" : ",") << "0x" << std::hex << id << std::dec;
+                }
+                text << "]\n";
+            }
             constexpr auto kNames = std::array{
                 "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
             constexpr std::array kSystemOrder{0, 2, 1, 3};
@@ -247,7 +276,11 @@ private:
                 text << " last_system_age_ms=" << system_age << '\n';
             }
             for (std::size_t i = 0; i < 2; ++i)
-                text << "    wheel[" << i << "]: angle=" << wheel_motors_[i].angle()
+                text << "    wheel[" << i
+                     << "]: can_bus=0 can_id=" << static_cast<unsigned>(wheel_motors_[i].id())
+                     << " feedback_id=0x" << std::hex << wheel_motors_[i].recv_id()
+                     << " command_id=0x" << wheel_motors_[i].send_id() << std::dec
+                     << " angle=" << wheel_motors_[i].angle()
                      << " rad vel=" << wheel_motors_[i].velocity()
                      << " rad/s torque=" << wheel_motors_[i].torque()
                      << " Nm feedback_age_ms=" << age_ms(motor_last_ns_[i]) << '\n';
@@ -359,7 +392,8 @@ private:
             status.register_output("/wheel_leg/joint_position_kp", joint_kp_output_, joint_kp_);
             status.register_output("/wheel_leg/joint_position_kd", joint_kd_output_, joint_kd_);
             command.register_input("/wheel_leg/joint_command_steady_ns", joint_command_ns_, false);
-            command.register_input("/wheel_leg/joint_torque_override", joint_torque_override_, false);
+            command.register_input(
+                "/wheel_leg/joint_torque_override", joint_torque_override_, false);
             if (use_motor_position_pd_)
                 RCLCPP_WARN(
                     status_.get_logger(),
@@ -418,6 +452,9 @@ private:
                 status_.get_logger(), "DM Master IDs [LH,RH,LK,RK]=[%u,%u,%u,%u]",
                 static_cast<unsigned>(feedback_ids[0]), static_cast<unsigned>(feedback_ids[1]),
                 static_cast<unsigned>(feedback_ids[2]), static_cast<unsigned>(feedback_ids[3]));
+            RCLCPP_INFO(
+                status_.get_logger(),
+                "Wheel M3508: kCan0, motor IDs [1,2], feedback IDs [0x201,0x202], command 0x200");
         }
 
         void update_motor_status() {
@@ -873,28 +910,47 @@ private:
         }
 
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
-            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() != 8)
-                [[unlikely]]
+            std::size_t bus = 0;
+            while (bus < can_receive_status_.size() && !(can == Spec::kCans[bus]))
+                ++bus;
+            if (bus == can_receive_status_.size())
                 return;
+            auto& received = can_receive_status_[bus];
+            received.frames.fetch_add(1, std::memory_order_relaxed);
+            received.last_id.store(data.can_id, std::memory_order_relaxed);
+            received.last_length.store(data.can_data.size(), std::memory_order_relaxed);
+            received.last_ns.store(now_ns(), std::memory_order_relaxed);
+            if (!data.is_extended_can_id && data.can_id <= 0x7ff)
+                received.standard_ids[data.can_id / 64].fetch_or(
+                    std::uint64_t{1} << (data.can_id % 64), std::memory_order_relaxed);
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() != 8)
+                [[unlikely]] {
+                received.rejected.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
 
+            bool matched = false;
             if (can == Spec::kCans.kCan0)
-                store_motor_feedback(wheel_motors_, 0, data);
+                matched = store_motor_feedback(wheel_motors_, 0, data);
             else if (can == Spec::kCans.kCan1)
-                store_motor_feedback(hip_motors_, 2, data);
+                matched = store_motor_feedback(hip_motors_, 2, data);
             else if (can == Spec::kCans.kCan2)
-                store_motor_feedback(knee_motors_, 4, data);
+                matched = store_motor_feedback(knee_motors_, 4, data);
+            if (matched)
+                received.matched.fetch_add(1, std::memory_order_relaxed);
         }
 
         template <typename Motor, std::size_t N>
-        void store_motor_feedback(Motor (&motors)[N], std::size_t offset, const View::Can& data) {
+        bool store_motor_feedback(Motor (&motors)[N], std::size_t offset, const View::Can& data) {
             for (std::size_t side = 0; side < N; ++side) {
                 if (!motors[side].matches_feedback(data.can_id, data.can_data))
                     continue;
                 const auto index = offset + side;
                 motor_feedback_[index].publish(
                     device::CanPacket8{data.can_data}, static_cast<std::uint64_t>(now_ns()));
-                return;
+                return true;
             }
+            return false;
         }
 
         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
@@ -992,6 +1048,7 @@ private:
         device::WheelLegSensorMailbox<device::Bmi088Ekf::AccelerationSnapshot>
             acceleration_feedback_;
         device::WheelLegSensorMailbox<WheelSubmission> wheel_submission_;
+        std::array<CanReceiveStatus, 4> can_receive_status_;
         std::array<std::atomic<std::int64_t>, 6> motor_last_ns_{};
         std::array<std::atomic<std::uint8_t>, 4> last_system_command_{};
         std::array<std::atomic<std::int64_t>, 4> last_system_ns_{};

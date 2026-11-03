@@ -60,6 +60,9 @@ if switches:
 if pd_age:
     status += f" | last position PD: {pd_age.group(1)} ms ago"
 print(status)
+for line in message.splitlines():
+    if line.lstrip().startswith("CAN[kCan"):
+        print(line.strip())
 print(f"{'Motor':<20} {'CAN':>3} {'Master':>6} {'Status':>6} {'Angle(rad)':>11} {'Vel(rad/s)':>11} {'Torque(Nm)':>11} {'Fault':>6} {'Age(ms)':>8} {'LastSys':>7} {'SysAge(ms)':>10}")
 
 for line in message.splitlines():
