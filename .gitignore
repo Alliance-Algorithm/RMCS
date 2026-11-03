@@ -80,11 +80,7 @@ develop_ws
 .mimo/
 CLAUDE.md
 
-# Local wheel-leg documentation, validation and simulation records
-/docs/zh-cn/artifacts/
-/docs/zh-cn/wheel_leg_*.md
-!/docs/zh-cn/wheel_leg_prone_motion_v4.md
-!/docs/zh-cn/wheel_leg_refactor.md
+# Local simulation and verification scripts
 /.script/simulation/
 /.script/tests/
 /.script/identification/test_*.py
