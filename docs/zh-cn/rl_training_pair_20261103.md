@@ -5,6 +5,10 @@
 训练来源和接口合同固定在
 [`wheel_leg_training_pair_20261103.json`](../../rmcs_ws/src/rmcs_bringup/config/contracts/wheel_leg_training_pair_20261103.json)。
 
+8500 附近策略的后续评测、独立 ONNX 和脚本启动配置见
+[`rl_wheelbipe_8500_scripted_20261103.md`](rl_wheelbipe_8500_scripted_20261103.md)。
+脚本站立交接通过，但四个倒地样例未完成自起；原表中的早期快照出处保持不变。
+
 | 项目 | 本机自起 ProneMotion-v4 | Kaiser WheelBipe |
 | --- | --- | --- |
 | 配置 | [`wheel-leg-infantry-prone-v4.yaml`](../../rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-prone-v4.yaml) | [`wheel-leg-infantry-wheelbipe.yaml`](../../rmcs_ws/src/rmcs_bringup/config/wheel-leg-infantry-wheelbipe.yaml) |

@@ -69,13 +69,15 @@ if(BUILD_TESTING)
     target_include_directories(wheel_leg_gas_spring_parity PRIVATE src)
     add_executable(wheel_leg_observation_parity tools/wheel_leg_observation_parity.cpp)
     target_include_directories(wheel_leg_observation_parity PRIVATE src)
+    add_library(wheel_leg_self_righting_probe SHARED tools/wheel_leg_self_righting_abi.cpp)
+    target_include_directories(wheel_leg_self_righting_probe PRIVATE src)
     ament_add_gtest(wheel_leg_unified_policy_integration test/wheel_leg_unified_policy_integration.cpp)
     target_include_directories(wheel_leg_unified_policy_integration PRIVATE
         src ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)
     target_compile_definitions(wheel_leg_unified_policy_integration PRIVATE
         RMCS_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml")
     target_link_libraries(wheel_leg_unified_policy_integration ${PROJECT_NAME})
-    foreach(profile prone-v4 wheelbipe)
+    foreach(profile prone-v4 wheelbipe wheelbipe-recovery)
         ament_add_gtest_test(wheel_leg_unified_policy_integration
             TEST_NAME wheel_leg_${profile}_policy_integration
             ENV RMCS_UNIFIED_TEST_PROFILE=${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-${profile}.yaml)

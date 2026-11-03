@@ -137,6 +137,12 @@ bool WheelLegController::assemble_observation_() {
     }
     *policy_command_output_ = Eigen::Vector3d{vx_reference_, 0.0, yaw_reference_};
     *policy_height_output_ = height_reference_;
+    if (state_ == State::kRecover) {
+        vx_reference_ = yaw_reference_ = 0.;
+        height_reference_ = height_from_ = height_target_ = DeployedPolicyContract::kNominalHeight;
+        *policy_command_output_ = Eigen::Vector3d::Zero();
+        *policy_height_output_ = height_reference_;
+    }
     return true;
 }
 
