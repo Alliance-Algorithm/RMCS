@@ -79,8 +79,9 @@ public:
             inference_gap_complete = true;
         }
         *state_ = phase == 0 || phase == 4 || phase == 7 ? 1 : phase == 1 ? 2 : 3;
-        *reset_ = phase < 4 ? 1 : phase < 7 ? 2 : 3;
-        *ready_ = phase != 0;
+        *reset_ = phase < 0 ? 0 : phase < 4 ? 1 : phase < 7 ? 2 : 3;
+        *fresh_ = phase >= 0;
+        *ready_ = phase > 0;
         const double roll = phase == 2 ? std::numbers::pi : phase == 3 ? std::numbers::pi / 2 : 0.0;
         *orientation_ = Eigen::Quaterniond{Eigen::AngleAxisd{roll, Eigen::Vector3d::UnitX()}};
         if (phase >= 9) {
@@ -117,6 +118,8 @@ public:
                                            std::chrono::steady_clock::now().time_since_epoch())
                                            .count());
         for (std::size_t i = 0; i < 6; ++i) {
+            if (phase < 0 && i >= 4)
+                continue;    // Startup fixture: DM and IMU arrive, both wheels remain missing.
             ++*sequence_[i];
             *stamp_[i] = now;
         }
@@ -178,6 +181,8 @@ public:
         register_input("/wheel_leg/enable_request", enabled_);
         register_input("/wheel_leg/rl/action_seq", action_sequence_);
         register_input("/wheel_leg/rl/fault_latched", fault_);
+        register_input("/wheel_leg/rl/feedback/sensor_invalid_mask", sensor_mask_);
+        register_input("/wheel_leg/rl/feedback/imu_age_ms", imu_age_);
         register_input("/wheel_leg/rl/recovery/phase", recovery_phase_);
         register_input("/wheel_leg/rl/recovery/fault", recovery_fault_);
         for (std::size_t i = 0; i < 4; ++i)
@@ -228,6 +233,8 @@ public:
         enabled = *enabled_;
         action_sequence = *action_sequence_;
         fault = *fault_;
+        sensor_mask = *sensor_mask_;
+        imu_age = *imu_age_;
         recovery_phase = *recovery_phase_;
         recovery_fault = *recovery_fault_;
         bool no_gas = true;
@@ -260,6 +267,8 @@ public:
     }
 
     std::atomic<int> state{0};
+    std::atomic<int> sensor_mask{255};
+    std::atomic<double> imu_age{-1.};
     std::atomic<int> recovery_phase{0}, recovery_fault{0};
     std::atomic<bool> gas_zero{true};
     std::atomic<bool> all_zero{true}, valid{false}, enabled{false}, invalid_effort{false},
@@ -285,7 +294,8 @@ private:
     InputInterface<std::vector<double>> frame_;
     InputInterface<std::size_t> frame_sequence_, action_sequence_;
     InputInterface<double> valid_;
-    InputInterface<int> state_, recovery_phase_, recovery_fault_;
+    InputInterface<int> state_, recovery_phase_, recovery_fault_, sensor_mask_;
+    InputInterface<double> imu_age_;
     InputInterface<bool> enabled_, fault_;
     std::size_t last_frame_sequence_ = 0;
     std::array<double, 6> previous_applied_{};
@@ -334,7 +344,7 @@ TEST(UnifiedPolicyIntegration, RejectsLegacyPreprocessingHeadingHoldAndSlowPd) {
 TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndStaleFeedback) {
     rclcpp::executors::SingleThreadedExecutor ros;
     pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
-    std::atomic<int> phase{0};
+    std::atomic<int> phase{-1};
     Component::initializing_component_name = "wheel_leg_controller";
     auto controller = std::make_shared<WheelLegController>();
     if (controller->has_parameter("scripted_self_righting")
@@ -376,6 +386,12 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
         ASSERT_NO_THROW(executor.start());
         for (const auto& topic : forward_list)
             EXPECT_GT(broadcaster_node->count_publishers(topic), 0u) << topic;
+        EXPECT_TRUE(await([&] { return observe->fault && observe->sensor_mask == 0x30; }));
+        EXPECT_TRUE(observe->all_zero);
+        EXPECT_FALSE(observe->enabled);
+        EXPECT_GE(observe->imu_age.load(), 0.);
+        phase = 0; // Fresh double-DOWN reset; subsequent feedback must permit normal startup.
+        EXPECT_TRUE(await([&] { return !observe->fault && observe->state == 1; }));
         std::this_thread::sleep_for(30ms);
         EXPECT_TRUE(observe->all_zero);
         phase = 1;
@@ -480,7 +496,7 @@ TEST(UnifiedPolicyIntegration, ScriptedCaptureFreshHandoffResetAndFault) {
         GTEST_SKIP() << "Requires the scripted WheelBipe YAML";
     rclcpp::executors::SingleThreadedExecutor ros;
     pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
-    std::atomic<int> phase{0};
+    std::atomic<int> phase{-1};
     Component::initializing_component_name = "snapshots";
     auto sensors = std::make_shared<UnifiedSnapshots>(
         phase, controller->get_parameter("leg_model_offsets").as_double_array(), 31ms, true);
@@ -507,6 +523,12 @@ TEST(UnifiedPolicyIntegration, ScriptedCaptureFreshHandoffResetAndFault) {
         executor.add_component(observe);
         executor.add_component(broadcaster);
         ASSERT_NO_THROW(executor.start());
+        EXPECT_TRUE(await([&] { return observe->fault && observe->sensor_mask == 0x30; }));
+        EXPECT_TRUE(observe->all_zero);
+        EXPECT_FALSE(observe->enabled);
+        EXPECT_GE(observe->imu_age.load(), 0.);
+        phase = 0;
+        EXPECT_TRUE(await([&] { return !observe->fault && observe->state == 1; }));
         EXPECT_TRUE(await([&] { return observe->state == 1 && observe->all_zero; }));
         phase = 1;
         EXPECT_TRUE(await([&] { return observe->state == 2 && observe->enabled; }));
