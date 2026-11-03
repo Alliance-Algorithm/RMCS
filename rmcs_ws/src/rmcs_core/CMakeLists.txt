@@ -53,7 +53,10 @@ if(BUILD_TESTING)
     target_include_directories(wheel_leg_imu PRIVATE src)
     target_compile_definitions(wheel_leg_imu PRIVATE
         RMCS_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-rl.yaml"
-        RMCS_UNIFIED_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml")
+        RMCS_UNIFIED_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-unified-rl.yaml"
+        RMCS_PRONE_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-prone-v4.yaml"
+        RMCS_WHEELBIPE_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-wheelbipe.yaml"
+        RMCS_RECOVERY_PROFILE="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-wheelbipe-recovery.yaml")
     target_link_libraries(wheel_leg_imu ${PROJECT_NAME})
     ament_add_gtest(wheel_leg_feedback test/wheel_leg_feedback.cpp)
     target_include_directories(wheel_leg_feedback PRIVATE src)
