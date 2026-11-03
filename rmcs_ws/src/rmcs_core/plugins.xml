@@ -8,6 +8,12 @@
   <class type="rmcs_core::hardware::ClimberEngineer" base_class_type="rmcs_executor::Component">
     <description>Climber engineer hardware.</description>
   </class>
+  <class type="rmcs_core::hardware::GimbalFeedbackTest" base_class_type="rmcs_executor::Component">
+    <description>Image-pitch, small-yaw, IMU and remote feedback with optional small-yaw damping.</description>
+  </class>
+  <class type="rmcs_core::hardware::GimbalBigYawTorqueTest" base_class_type="rmcs_executor::Component">
+    <description>Isolated big-yaw torque test with double-down hardware interlock.</description>
+  </class>
   <class type="rmcs_core::controller::arm::ArmConfig" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
@@ -20,11 +26,17 @@
   <class type="rmcs_core::controller::arm::ArmController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::gimbal::GimbalControllerTest" base_class_type="rmcs_executor::Component">
+    <description>Low-torque manual big-yaw test with double-down protection.</description>
+  </class>
   <class type="rmcs_core::controller::pid::PidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
   <class type="rmcs_core::controller::pid::ErrorPidController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_core::controller::robust::RobustController" base_class_type="rmcs_executor::Component">
+    <description>Model-based robust angular-velocity controller with selectable auxiliary law.</description>
   </class>
   <class type="rmcs_core::broadcaster::ValueBroadcaster" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>

@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Audit recorded breakaway pulses on the CAN monotonic clock, offline only.
+
+Requires numpy and the CSV export from extract-small-yaw-breakaway-can. A
+sustained-motion detection time is reported, not a measured static-friction
+release instant. No controller parameters are generated or applied.
+"""
+
+import argparse
+import csv
+import gzip
+import hashlib
+import json
+import math
+from collections import defaultdict
+from pathlib import Path
+
+import numpy as np
+
+
+SCALE = 2 * math.pi / 65536
+
+
+def slope(t, q):
+    if len(t) < 5 or np.ptp(t) < 0.008:
+        return math.nan
+    x = t - np.mean(t)
+    y = q - np.mean(q)
+    return float(np.dot(x, y) / np.dot(x, x))
+
+
+def window(t, start, end):
+    return slice(np.searchsorted(t, start), np.searchsorted(t, end))
+
+
+def median(values):
+    return float(np.median(values)) if len(values) else math.nan
+
+
+def trailing_velocity(t, q, width=0.04):
+    """Causal local line slopes; preserve distinct stationary CAN frames."""
+    lo = np.searchsorted(t, t - width)
+    hi = np.arange(len(t)) + 1
+    n = hi - lo
+    sums = [np.r_[0.0, np.cumsum(a)] for a in (t, q, t*t, t*q)]
+    st, sq, stt, stq = [a[hi] - a[lo] for a in sums]
+    denominator = stt - st*st/n
+    valid = (n >= 5) & (t - t[lo] >= width * 0.6) & (denominator > 1e-10)
+    velocity = np.full(len(t), np.nan)
+    velocity[valid] = (stq[valid] - st[valid]*sq[valid]/n[valid]) / denominator[valid]
+    return velocity
+
+
+def episodes(command_t, command_tau):
+    active = np.abs(command_tau) > 1.0
+    starts = np.flatnonzero(active & ~np.r_[False, active[:-1]])
+    ends = np.flatnonzero(active & ~np.r_[active[1:], False]) + 1
+    return [(float(command_t[a]), float(command_t[b]), median(command_tau[a:b]))
+            for a, b in zip(starts, ends) if b < len(command_t)]
+
+
+def detect_motion(t, q, velocity, start, end, origin, direction, speed=0.1):
+    """Detect >=50ms sustained motion, with >=0.05rad total directed travel."""
+    selected = window(t, start, end)
+    tt, yy, vv = t[selected], q[selected], velocity[selected]
+    if len(tt) < 5 or direction*(median(yy[-10:]) - origin) < 0.05:
+        return math.nan
+    good = np.isfinite(vv) & (direction*vv >= speed)
+    begin = None
+    for index, qualifies in enumerate(good):
+        if qualifies:
+            if begin is None:
+                begin = index
+            if tt[index] - tt[begin] >= 0.05:
+                return float(tt[begin])
+        else:
+            begin = None
+    return math.nan
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("raw", type=Path)
+    parser.add_argument("--pulse-summary", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    metadata = json.loads((args.raw / "metadata.json").read_text())
+    zero = metadata.get("joint1_zero_point")
+    if zero is None:
+        import yaml
+        zero = yaml.safe_load((args.raw / "config.yaml").read_text())["gimbal_feedback_test"]["ros__parameters"]["joint1_zero_point"]
+    with gzip.open(args.raw / "can_samples.csv.gz", "rt", newline="") as stream:
+        data = list(csv.DictReader(stream))
+    ns = np.array([int(r["can_receive_monotonic_ns"]) for r in data], dtype=np.int64)
+    if np.any(np.diff(ns) < -1000000000):
+        raise ValueError("CAN monotonic clock reset; split reboot epochs before analysis")
+    _, unique = np.unique(ns, return_index=True)
+    data = [data[i] for i in unique]
+    ns = ns[unique]
+    first_ns = int(ns[0])
+    t = (ns - first_ns) * 1e-9
+    raw = np.array([int(r["raw_angle"]) for r in data])
+    delta = (np.diff(raw) + 32768) % 65536 - 32768
+    q = -(np.r_[0, np.cumsum(delta)] + (raw[0] - zero + 32768) % 65536 - 32768) * SCALE
+    current = np.array([float(r["current_amp"]) for r in data])
+    torque = np.array([float(r["torque_nm"]) for r in data])
+    online = np.array([int(r["online"]) for r in data], dtype=bool)
+    bag_ns = np.array([int(r["bag_stamp_ns"]) for r in data], dtype=np.int64)
+    offsets = bag_ns - ns
+    clock_offset = int(np.median(offsets))
+    clock_jitter = float(np.percentile(np.abs(offsets-clock_offset), 95)*1e-9)
+    command_ns = np.array([int(r["command_monotonic_ns"]) for r in data], dtype=np.int64)
+    command_tau = np.array([float(r["command_torque_nm"]) for r in data])
+    command_ns, ci = np.unique(command_ns, return_index=True)
+    command_tau = command_tau[ci]
+    valid = command_ns > 0
+    command_t = (command_ns[valid] - first_ns)*1e-9
+    command_tau = command_tau[valid]
+    pulses = episodes(command_t, command_tau)
+    summaries = list(csv.DictReader(args.pulse_summary.open(newline="")))
+    if len(pulses) != len(summaries):
+        raise ValueError(f"command episode count {len(pulses)} != summary rows {len(summaries)}")
+    scalar_data = defaultdict(list)
+    with gzip.open(args.raw / "scalars.csv.gz", "rt", newline="") as stream:
+        for row in csv.DictReader(stream):
+            try:
+                value = float(row["value"])
+            except ValueError:
+                continue
+            scalar_data[row["topic_key"]].append(((int(row["bag_stamp_ns"])-clock_offset-first_ns)*1e-9, value))
+    scalars = {key: np.array(values) for key, values in scalar_data.items()}
+    velocity = trailing_velocity(t, q)
+    results = []
+    for pulse_index, (summary, (start, end, command)) in enumerate(zip(summaries, pulses)):
+        if abs(command-float(summary["applied_torque_median_nm"])) > 0.12 or abs(end-start-0.5) > 0.05:
+            raise ValueError(f"episode mismatch with {summary}: {start, end, command}")
+        direction = 1 if command > 0 else -1
+        pre = window(t, start-0.2, start-0.02)
+        active = window(t, start, end)
+        tail = window(t, end-0.1, end-0.01)
+        origin = median(q[window(t, start-0.02, start)])
+        finish = median(q[window(t, end-0.02, end)])
+        onset = detect_motion(t, q, velocity, start, end, origin, direction)
+        onset_window = window(t, onset-0.01, onset+0.01) if math.isfinite(onset) else slice(0, 0)
+        samples = t[window(t, start-0.2, end)]
+        row = {
+            "pulse_id": ":".join(summary[k] for k in ("run_index", "group", "sequence_index")),
+            "run_index": int(summary["run_index"]), "group": int(summary["group"]),
+            "sequence_index": int(summary["sequence_index"]),
+            "physical_direction": direction, "nominal_level_nm": float(summary["commanded_level_nm"]),
+            "command_torque_nm": command, "command_duration_s": end-start,
+            "command_start_monotonic_ns": first_ns+round(start*1e9),
+            "previous_command_torque_nm": pulses[pulse_index-1][2] if pulse_index else math.nan,
+            "zero_torque_gap_before_s": start-pulses[pulse_index-1][1] if pulse_index else math.nan,
+            "previous_direction_relation": ("same" if command*pulses[pulse_index-1][2] > 0 else "opposite") if pulse_index else "unavailable",
+            "start_angle_deg": math.degrees(math.atan2(math.sin(origin), math.cos(origin))),
+            "pre_velocity_rad_s": slope(t[pre], q[pre]),
+            "pre_angle_span_rad": float(np.ptp(q[pre])),
+            "pre_last_100ms_velocity_rad_s": slope(*[a[window(t, start-0.1, start-0.01)] for a in (t, q)]),
+            "can_sample_count": len(t[active]), "max_can_gap_s": float(np.max(np.diff(samples))),
+            "all_online": bool(np.all(online[window(t, start-0.2, end)])),
+            "directed_pulse_displacement_rad": direction*(finish-origin),
+            "directed_tail_velocity_rad_s": direction*slope(t[tail], q[tail]),
+            "current_pulse_median_a": median(current[active]),
+            "current_derived_torque_pulse_median_nm": median(torque[active]),
+            "sustained_motion_detected_after_s": onset-start if math.isfinite(onset) else math.nan,
+            "current_at_detection_median_a": median(current[onset_window]),
+            "current_derived_torque_at_detection_nm": median(torque[onset_window]),
+        }
+        if row["directed_tail_velocity_rad_s"] > 0.05 and row["directed_pulse_displacement_rad"] > 0.02:
+            row["late_response"] = "continued_motion"
+        elif abs(row["directed_tail_velocity_rad_s"]) <= 0.02 and abs(finish-origin) > 0.002:
+            row["late_response"] = "small_excursion_then_stop_or_limit"
+        else:
+            row["late_response"] = "ambiguous"
+        for speed in (0.05, 0.15):
+            detection = detect_motion(t, q, velocity, start, end, origin, direction, speed)
+            row[f"motion_detection_speed_{speed:g}_after_s"] = detection-start if math.isfinite(detection) else math.nan
+        for key in ("joint2_angle", "joint2_error", "joint2_target", "big_yaw_angle", "elapsed"):
+            values = scalars.get(key)
+            if values is not None:
+                # Slow scalar posture diagnostics are aligned via the measured
+                # CAN-to-bag clock offset; they are not atomic CAN signals.
+                selected = window(values[:, 0], start-0.02, start+0.02)
+                row[key+"_at_start"] = median(values[selected, 1])
+                if key == "elapsed":
+                    row["elapsed_alignment_error_s"] = row[key+"_at_start"] - float(summary["pulse_start_s"])
+                    continue
+                selected = window(values[:, 0], start, end)
+                values_here = values[selected, 1]
+                if key == "big_yaw_angle":
+                    values_here = np.unwrap(values_here)
+                row[key+"_pulse_span_rad"] = float(np.ptp(values_here)) if len(values_here) else math.nan
+        results.append(row)
+    counts = []
+    for threshold in (0.01, 0.02, 0.05):
+        stationary = [r for r in results if abs(r["pre_velocity_rad_s"]) <= threshold]
+        counts.append({"initial_speed_threshold_rad_s": threshold, "qualified_pulses": len(stationary),
+                       "sustained_motion_detected": sum(math.isfinite(r["sustained_motion_detected_after_s"]) for r in stationary)})
+    report = {
+        "source_metadata_sha256": hashlib.sha256((args.raw/"metadata.json").read_bytes()).hexdigest(),
+        "unique_can_frames": len(t), "pulse_count": len(results),
+        "can_gap_p99_s": float(np.percentile(np.diff(t), 99)),
+        "can_to_bag_offset_p95_deviation_s": clock_jitter,
+        "initial_speed_sensitivity": counts,
+        "maximum_initial_speed_rad_s": max(abs(r["pre_velocity_rad_s"]) for r in results),
+        "maximum_initial_angle_span_rad": max(r["pre_angle_span_rad"] for r in results),
+        "maximum_elapsed_alignment_error_s": max(abs(r.get("elapsed_alignment_error_s", 0)) for r in results),
+        "level_response_counts": [
+            {"nominal_level_nm": level,
+             "pulse_count": sum(r["nominal_level_nm"] == level for r in results),
+             "continued_motion_at_pulse_end": sum(r["nominal_level_nm"] == level and r["late_response"] == "continued_motion" for r in results)}
+            for level in sorted({r["nominal_level_nm"] for r in results})],
+        "limitations": [
+            "Initial speed is an encoder line fit in [-200,-20] ms before command.",
+            "Motion detection uses causal 40ms slopes >=0.1rad/s for 50ms and >=0.05rad pulse travel; detector latency is not physical breakaway time.",
+            "Detection current is median +/-10ms at detector event, not independently measured shaft torque or true static-friction threshold.",
+            "Scalar joint2/big-yaw posture has CAN-to-bag alignment uncertainty; position and load history remain distinct from static friction.",
+            "Known/suspected mechanical stops require review; no small displacement is automatically a high-friction observation.",
+        ],
+        "pulses": results,
+    }
+    args.output.mkdir(parents=True, exist_ok=True)
+    with (args.output/"pulses.csv").open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(results[0]))
+        writer.writeheader()
+        writer.writerows(results)
+    # CSV uses NaN for unavailable detector events; portable JSON uses null.
+    def clean(value):
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        if isinstance(value, dict):
+            return {k: clean(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [clean(v) for v in value]
+        return value
+    (args.output/"analysis.json").write_text(json.dumps(clean(report), ensure_ascii=False, indent=2, allow_nan=False)+"\n")
+    print(json.dumps({k: v for k, v in report.items() if k not in ("pulses", "limitations")}, indent=2))
+
+
+if __name__ == "__main__":
+    main()

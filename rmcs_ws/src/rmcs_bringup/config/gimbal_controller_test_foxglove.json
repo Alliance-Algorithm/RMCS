@@ -1,0 +1,900 @@
+{
+  "configById": {
+    "Plot!joint1_angle": {
+      "title": "小 yaw 相对角度保持 (rad)",
+      "paths": [
+        {
+          "value": "/arm/joint_1/motor/angle.data",
+          "label": "joint1 实际角度 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#bb8ce2"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_hold_target_angle.data",
+          "label": "解锁时目标角度 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "角度 (rad)",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240
+    },
+    "Plot!gimbal_angles": {
+      "title": "云台与机械臂关节角、IMU 姿态 (rad)",
+      "paths": [
+        {
+          "value": "/arm/image_pitch/motor/angle.data",
+          "label": "电机俯仰 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        },
+        {
+          "value": "/arm/joint_1/motor/angle.data",
+          "label": "小 yaw / joint1 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#bb8ce2"
+        },
+        {
+          "value": "/arm/joint_2/motor/angle.data",
+          "label": "机械臂 joint2 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#35a89a"
+        },
+        {
+          "value": "/arm/joint_2/encoder/angle.data",
+          "label": "joint2 关节编码器 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#f0a35e"
+        },
+        {
+          "value": "/arm/joint_3/motor/angle.data",
+          "label": "机械臂 joint3 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#568be0"
+        },
+        {
+          "value": "/arm/joint_4/motor/angle.data",
+          "label": "机械臂 joint4 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e080a5"
+        },
+        {
+          "value": "/arm/joint_5/motor/angle.data",
+          "label": "机械臂 joint5 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#c88940"
+        },
+        {
+          "value": "/arm/joint_6/motor/angle.data",
+          "label": "机械臂 joint6 (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#83a84b"
+        },
+        {
+          "value": "/roll_imu_angle.data",
+          "label": "IMU Roll (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e86b67"
+        },
+        {
+          "value": "/pitch_imu_angle.data",
+          "label": "IMU Pitch (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#55b58e"
+        },
+        {
+          "value": "/yaw_imu_angle.data",
+          "label": "IMU Yaw (rad)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#4e98e2"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "角度 (rad)",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240
+    },
+    "Plot!gimbal_velocities": {
+      "title": "云台与 IMU 角速度 (rad/s)",
+      "paths": [
+        {
+          "value": "/arm/image_pitch/motor/velocity.data",
+          "label": "电机俯仰 (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        },
+        {
+          "value": "/arm/joint_1/motor/velocity.data",
+          "label": "小 yaw / joint1 (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#bb8ce2"
+        },
+        {
+          "value": "/roll_imu_velocity.data",
+          "label": "IMU Roll (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e86b67"
+        },
+        {
+          "value": "/pitch_imu_velocity.data",
+          "label": "IMU Pitch (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#55b58e"
+        },
+        {
+          "value": "/yaw_imu_velocity.data",
+          "label": "IMU Yaw (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#4e98e2"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_damping_velocity.data",
+          "label": "小 yaw 编码器估速 / 阻尼输入 (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6c95d"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_robust_target_velocity.data",
+          "label": "小 yaw 目标角速度 (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#f08a5d"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_robust_velocity.data",
+          "label": "小 yaw 实际角速度 (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#6c9be8"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "角速度 (rad/s)",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240
+    },
+    "Plot!gimbal_encoder": {
+      "title": "电机原始编码器 (0–65535；-1 为无反馈)",
+      "paths": [
+        {
+          "value": "/arm/image_pitch/motor/raw_angle.data",
+          "label": "俯仰原始编码器",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        },
+        {
+          "value": "/arm/joint_1/motor/raw_angle.data",
+          "label": "小 yaw / joint1 原始编码器",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#bb8ce2"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "编码器计数",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240
+    },
+    "Plot!remote_right_joystick": {
+      "title": "右摇杆输入（范围 -1 至 +1）",
+      "paths": [
+        {
+          "value": "/remote/joystick/right/x.data",
+          "label": "右摇杆左右 X（大 yaw 控制轴）",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#4e98e2"
+        },
+        {
+          "value": "/remote/joystick/right/y.data",
+          "label": "右摇杆上下 Y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "归一化摇杆值",
+      "yAxisRange": [
+        -1,
+        1
+      ],
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240
+    },
+    "StateTransitions!gimbal_status": {
+      "title": "遥控、反馈与保护状态",
+      "paths": [
+        {
+          "value": "/gimbal/test/state.data",
+          "label": "测试状态",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "disabled",
+                "label": "测试已关闭",
+                "color": "#9699a2"
+              },
+              {
+                "value": "remote_invalid",
+                "label": "遥控无效",
+                "color": "#e86b67"
+              },
+              {
+                "value": "double_down_protection",
+                "label": "双下保护",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "waiting_for_double_down",
+                "label": "等待双下确认",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "feedback_unavailable",
+                "label": "反馈未就绪",
+                "color": "#e86b67"
+              },
+              {
+                "value": "feedback_only",
+                "label": "正常采集",
+                "color": "#55b58e"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/test/double_down_protection.data",
+          "label": "双下保护 (true=保护)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "保护中",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "false",
+                "label": "非双下",
+                "color": "#9699a2"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/test/double_down_confirmed.data",
+          "label": "双下确认 (true=已确认)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "已确认",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "待确认",
+                "color": "#e6b45d"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/test/enabled.data",
+          "label": "测试许可（不是电机使能）",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "测试许可",
+                "color": "#4e98e2"
+              },
+              {
+                "value": "false",
+                "label": "测试锁定",
+                "color": "#9699a2"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/test/feedback_ready.data",
+          "label": "反馈就绪 (true=就绪)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "就绪",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "未就绪",
+                "color": "#e86b67"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/feedback/motor_online.data",
+          "label": "俯仰电机反馈在线",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "在线",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "离线",
+                "color": "#e86b67"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/feedback/small_yaw_online.data",
+          "label": "小 yaw / joint1 反馈在线",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "在线",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "离线",
+                "color": "#e86b67"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/feedback/imu_online.data",
+          "label": "IMU 反馈在线",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "在线",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "离线",
+                "color": "#e86b67"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/remote/online.data",
+          "label": "遥控有效",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "在线",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "离线",
+                "color": "#e86b67"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/remote/switch/left.data",
+          "label": "左开关 (0未知 1上 2下 3中)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "0",
+                "label": "未知 / 失联",
+                "color": "#e86b67"
+              },
+              {
+                "value": "1",
+                "label": "上",
+                "color": "#4e98e2"
+              },
+              {
+                "value": "2",
+                "label": "下",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "3",
+                "label": "中",
+                "color": "#55b58e"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/remote/switch/right.data",
+          "label": "右开关 (0未知 1上 2下 3中)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "0",
+                "label": "未知 / 失联",
+                "color": "#e86b67"
+              },
+              {
+                "value": "1",
+                "label": "上",
+                "color": "#4e98e2"
+              },
+              {
+                "value": "2",
+                "label": "下",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "3",
+                "label": "中",
+                "color": "#55b58e"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/test/small_yaw_damping_permitted.data",
+          "label": "小 yaw 阻尼许可",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_damping_active.data",
+          "label": "小 yaw 阻尼出力",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/gimbal/test/big_yaw_block_reason.data",
+          "label": "大 yaw 硬件阻断原因",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/gimbal/test/big_yaw_position_tracking_fault.data",
+          "label": "大 yaw 位置跟踪故障 (true=锁存)",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/gimbal/test/big_yaw_angle_origin_valid.data",
+          "label": "大 yaw 角度原点有效",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_hold_reference_valid.data",
+          "label": "小 yaw 保持目标有效",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_block_reason.data",
+          "label": "小 yaw 阻断原因",
+          "enabled": true,
+          "timestampMethod": "receiveTime"
+        },
+        {
+          "value": "/gimbal/test/joint2_pid_permitted.data",
+          "label": "joint2 PID 许可",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "获准",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "未获准",
+                "color": "#e86b67"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/test/joint2_pid_active.data",
+          "label": "joint2 PID 实际有下发非零命令",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "true",
+                "label": "出力中",
+                "color": "#55b58e"
+              },
+              {
+                "value": "false",
+                "label": "未出力",
+                "color": "#e6b45d"
+              }
+            ]
+          }
+        },
+        {
+          "value": "/gimbal/test/joint2_pid_block_reason.data",
+          "label": "joint2 PID 未出力原因",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "customStates": {
+            "type": "discrete",
+            "states": [
+              {
+                "value": "disabled",
+                "label": "PID 未启用",
+                "color": "#9699a2"
+              },
+              {
+                "value": "remote_invalid",
+                "label": "遥控无效",
+                "color": "#e86b67"
+              },
+              {
+                "value": "switch_invalid",
+                "label": "开关无效",
+                "color": "#e86b67"
+              },
+              {
+                "value": "double_down_protection",
+                "label": "双下保护中",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "feedback_invalid",
+                "label": "电机或编码器反馈无效",
+                "color": "#e86b67"
+              },
+              {
+                "value": "update_gap",
+                "label": "控制周期异常",
+                "color": "#e86b67"
+              },
+              {
+                "value": "waiting_for_double_down",
+                "label": "等待双下确认",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "waiting_for_stick_center",
+                "label": "等待摇杆回中",
+                "color": "#e6b45d"
+              },
+              {
+                "value": "none",
+                "label": "无阻断",
+                "color": "#55b58e"
+              }
+            ]
+          }
+        }
+      ],
+      "isSynced": true,
+      "xAxisRange": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "showPoints": false,
+      "showLegend": true,
+      "xAxisLabel": "时间 (s)"
+    },
+    "Plot!robust_big_yaw_velocity": {
+      "title": "大 yaw：目标角速度与实际角速度 (rad/s)",
+      "paths": [
+        {
+          "value": "/gimbal/test/big_yaw_target_velocity.data",
+          "label": "大 yaw 目标角速度 (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        },
+        {
+          "value": "/chassis/big_yaw/velocity.data",
+          "label": "大 yaw 实际角速度 (rad/s)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#4e98e2"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "角速度 (rad/s)",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240
+    },
+    "Plot!robust_big_yaw_torque": {
+      "title": "Robust 力矩与硬件下发 (Nm)",
+      "paths": [
+        {
+          "value": "/gimbal/test/robust_control_torque.data",
+          "label": "Robust 请求力矩",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        },
+        {
+          "value": "/gimbal/test/big_yaw_torque_applied.data",
+          "label": "硬件下发力矩",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#4e98e2"
+        },
+        {
+          "value": "/gimbal/test/robust_shadow_torque.data",
+          "label": "Robust 影子力矩",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#bb8ce2"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "力矩 (Nm)",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240
+    },
+    "Plot!small_yaw_damping_torque": {
+      "title": "小 yaw 保持力矩：指令与电流反馈 (Nm)",
+      "paths": [
+        {
+          "value": "/gimbal/test/small_yaw_damping_torque.data",
+          "label": "保持控制请求 (Nm)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        },
+        {
+          "value": "/gimbal/test/small_yaw_damping_torque_applied.data",
+          "label": "编码后下发 (Nm)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#bb8ce2"
+        },
+        {
+          "value": "/arm/joint_1/motor/torque.data",
+          "label": "电机电流折算力矩 (Nm)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#55b58e"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "力矩 (Nm)",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240,
+      "minYValue": -3,
+      "maxYValue": 3
+    },
+    "Plot!joint2_torque": {
+      "title": "joint2 抬升力矩：请求、下发与电机反馈估算 (Nm)",
+      "paths": [
+        {
+          "value": "/gimbal/test/joint2_pid_torque.data",
+          "label": "PID 力矩请求 (Nm)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#e6b45d"
+        },
+        {
+          "value": "/gimbal/test/joint2_pid_torque_applied.data",
+          "label": "编码后下发命令 (Nm)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#bb8ce2"
+        },
+        {
+          "value": "/arm/joint_2/motor/torque.data",
+          "label": "电机反馈电流折算 (Nm)",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "color": "#55b58e"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "xAxisLabel": "时间 (s)",
+      "yAxisLabel": "力矩 (Nm)",
+      "followingViewWidth": 20,
+      "timeWindowMode": "sliding",
+      "playbackBarPosition": "right",
+      "sidebarDimension": 240,
+      "minYValue": -26,
+      "maxYValue": 26
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "splitPercentage": 65,
+    "first": {
+      "direction": "column",
+      "splitPercentage": 37,
+      "first": {
+        "direction": "row",
+        "splitPercentage": 45,
+        "first": "Plot!joint1_angle",
+        "second": "Plot!gimbal_angles"
+      },
+      "second": {
+        "direction": "column",
+        "splitPercentage": 58,
+        "first": "Plot!robust_big_yaw_velocity",
+        "second": {
+          "direction": "column",
+          "splitPercentage": 50,
+          "first": "Plot!gimbal_encoder",
+          "second": {
+            "direction": "column",
+            "splitPercentage": 52,
+            "first": "Plot!small_yaw_damping_torque",
+            "second": "Plot!joint2_torque"
+          }
+        }
+      }
+    },
+    "second": {
+      "direction": "column",
+      "splitPercentage": 64,
+      "first": "StateTransitions!gimbal_status",
+      "second": {
+        "direction": "column",
+        "splitPercentage": 34,
+        "first": "Plot!remote_right_joystick",
+        "second": {
+          "direction": "column",
+          "splitPercentage": 50,
+          "first": "Plot!gimbal_velocities",
+          "second": "Plot!robust_big_yaw_torque"
+        }
+      }
+    }
+  }
+}

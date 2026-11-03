@@ -49,6 +49,15 @@ struct DMMotorConfig {
 
 class DMMotor {
 public:
+    // Status-only form for hardware whose command path is handled by a separate executor
+    // component. Keeping feedback and command components separate avoids a dependency cycle.
+    DMMotor(Component& status_component, const std::string& name_prefix) {
+        status_component.register_output(name_prefix + "/angle", angle_, 0.0);
+        status_component.register_output(name_prefix + "/velocity", velocity_, 0.0);
+        status_component.register_output(name_prefix + "/torque", torque_, 0.0);
+        status_component.register_output(name_prefix + "/motor", motor_, this);
+    }
+
     DMMotor(
         Component& status_component, Component& command_component, const std::string& name_prefix)
 
@@ -134,9 +143,10 @@ public:
         T_coil = (double)(rx_buff[7]);
     }
 
-    CanPacket8 generate_torque_command() {
+    CanPacket8 generate_torque_command() { return generate_torque_command(*control_torque_); }
+
+    CanPacket8 generate_torque_command(double torque) {
         uint64_t result = 0;
-        double torque   = *control_torque_;
         if (std::isnan(torque)) {
             torque = 0.0;
         }

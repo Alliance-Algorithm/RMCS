@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Export atomic CAN frames and scalar diagnostics from a finalized ROS bag.
+
+This helper only reads recordings. It never subscribes, publishes, changes
+parameters, or stops a recorder. Run in the sourced ROS environment containing
+rmcs_msgs/msg/GimbalCanSample.
+"""
+
+import argparse
+import csv
+import gzip
+import hashlib
+import json
+from pathlib import Path
+import shutil
+
+import yaml
+
+
+CAN_TOPIC = "/gimbal/feedback/small_yaw_can_sample"
+SCALAR_TOPICS = {
+    "elapsed": "/gimbal/test/small_yaw_identification_elapsed_s",
+    "state": "/gimbal/test/small_yaw_identification_state",
+    "reason": "/gimbal/test/small_yaw_block_reason",
+    "angle": "/arm/joint_1/motor/angle",
+    "relative": "/gimbal/test/small_yaw_identification_relative_angle",
+    "applied": "/gimbal/test/small_yaw_damping_torque_applied",
+    "requested": "/gimbal/test/small_yaw_damping_torque",
+    "joint2_angle": "/arm/joint_2/encoder/angle",
+    "joint2_error": "/gimbal/test/joint2_pid_position_error",
+    "joint2_target": "/gimbal/test/joint2_pid_target_angle",
+    "joint2_permitted": "/gimbal/test/joint2_pid_permitted",
+    "big_yaw_angle": "/chassis/big_yaw/angle",
+    "big_yaw_velocity": "/chassis/big_yaw/velocity",
+    "remote_online": "/remote/online",
+    "small_yaw_online": "/gimbal/feedback/small_yaw_online",
+}
+CAN_FIELDS = (
+    "bag_stamp_ns", "can_receive_monotonic_ns", "command_monotonic_ns",
+    "can_channel", "can_id", "raw_angle", "current_amp", "torque_nm",
+    "command_torque_nm", "online",
+)
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def source_files(bag, info):
+    files = [bag / name for name in info["relative_file_paths"]]
+    if not files or any(not path.is_file() for path in files):
+        raise RuntimeError("metadata lists missing bag files")
+    return {
+        path.name: {"size_bytes": path.stat().st_size, "mtime_ns": path.stat().st_mtime_ns}
+        for path in files
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("bag", type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    bag = args.bag.resolve()
+    bag_metadata = bag / "metadata.yaml"
+    if not bag_metadata.is_file():
+        raise SystemExit("Finalized metadata.yaml is required; active bags are not read.")
+    metadata_hash = sha256(bag_metadata)
+    info = yaml.safe_load(bag_metadata.read_text())["rosbag2_bagfile_information"]
+    before = source_files(bag, info)
+    args.output.mkdir(parents=True, exist_ok=True)
+
+    import rosbag2_py
+    from rclpy.serialization import deserialize_message
+    from rosidl_runtime_py.utilities import get_message
+
+    reader = rosbag2_py.SequentialReader()
+    reader.open(
+        rosbag2_py.StorageOptions(uri=str(bag), storage_id=info["storage_identifier"]),
+        rosbag2_py.ConverterOptions("cdr", "cdr"),
+    )
+    types = {topic.name: topic.type for topic in reader.get_all_topics_and_types()}
+    if CAN_TOPIC not in types:
+        raise SystemExit("Atomic CAN topic is absent.")
+    topics = {topic: key for key, topic in SCALAR_TOPICS.items() if topic in types}
+    reader.set_filter(rosbag2_py.StorageFilter(topics=[CAN_TOPIC, *topics]))
+    classes = {topic: get_message(types[topic]) for topic in [CAN_TOPIC, *topics]}
+    counts = {"can_sample": 0, **{key: 0 for key in topics.values()}}
+    minimum_stamp = None
+    maximum_stamp = None
+    with gzip.open(args.output / "can_samples.csv.gz", "wt", newline="", compresslevel=3) as can_stream, \
+            gzip.open(args.output / "scalars.csv.gz", "wt", newline="", compresslevel=3) as scalar_stream:
+        can_writer = csv.writer(can_stream)
+        scalar_writer = csv.writer(scalar_stream)
+        can_writer.writerow(CAN_FIELDS)
+        scalar_writer.writerow(("topic_key", "bag_stamp_ns", "value"))
+        while reader.has_next():
+            topic, data, stamp = reader.read_next()
+            message = deserialize_message(data, classes[topic])
+            stamp = int(stamp)
+            minimum_stamp = stamp if minimum_stamp is None else min(stamp, minimum_stamp)
+            maximum_stamp = stamp if maximum_stamp is None else max(stamp, maximum_stamp)
+            if topic == CAN_TOPIC:
+                can_writer.writerow((
+                    stamp, int(message.can_receive_monotonic_ns),
+                    int(message.command_monotonic_ns), int(message.can_channel),
+                    int(message.can_id), int(message.raw_angle), float(message.current_amp),
+                    float(message.torque_nm), float(message.command_torque_nm), int(message.online),
+                ))
+                counts["can_sample"] += 1
+            else:
+                value = message.data
+                if isinstance(value, bool):
+                    value = int(value)
+                scalar_writer.writerow((topics[topic], stamp, value))
+                counts[topics[topic]] += 1
+    del reader
+    if counts["can_sample"] == 0:
+        raise RuntimeError("Atomic CAN topic contains no recorded samples.")
+    if source_files(bag, info) != before or sha256(bag_metadata) != metadata_hash:
+        raise RuntimeError("Source bag changed during export; discard this export.")
+    shutil.copyfile(bag_metadata, args.output / "bag_metadata.yaml")
+    config = bag.parent / "small_yaw_breakaway_identification.yaml"
+    zero_point = None
+    if config.is_file():
+        shutil.copyfile(config, args.output / "config.yaml")
+        zero_point = yaml.safe_load(config.read_text()).get("gimbal_feedback_test", {}).get(
+            "ros__parameters", {}).get("joint1_zero_point")
+    recording = bag.parent / "recording.json"
+    if recording.is_file():
+        shutil.copyfile(recording, args.output / "recording.json")
+    report = {
+        "schema_version": 1,
+        "source_bag": str(bag), "source_bag_metadata_sha256": metadata_hash,
+        "source_files": before, "source_unchanged_during_export": True,
+        "bag_first_stamp_ns": minimum_stamp, "bag_last_stamp_ns": maximum_stamp,
+        "counts": counts, "joint1_zero_point": zero_point,
+        "can_topic": CAN_TOPIC, "can_fields": list(CAN_FIELDS),
+        "scalar_topics": {key: topic for topic, key in topics.items()},
+        "topic_types": {topic: types[topic] for topic in [CAN_TOPIC, *topics]},
+        "missing_scalar_keys": sorted(set(SCALAR_TOPICS) - set(topics.values())),
+        "notes": [
+            "All timestamps are exact integer nanoseconds; no floating-point conversion.",
+            "Online scalar booleans are CSV 0/1; state and reason strings are preserved.",
+            "Atomic current and torque already have the joint-axis sign; do not reverse again.",
+            "raw_angle increases opposite to the configured small-yaw angle; unwrap and negate.",
+            "A command snapshot can be newer than its CAN frame; align by command timestamp.",
+        ],
+        "output_sha256": {
+            name: sha256(args.output / name)
+            for name in ("can_samples.csv.gz", "scalars.csv.gz", "bag_metadata.yaml")
+        },
+    }
+    if config.is_file():
+        report["config_sha256"] = sha256(config)
+    (args.output / "metadata.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({"output": str(args.output), "counts": counts, "joint1_zero_point": zero_point}))
+
+
+if __name__ == "__main__":
+    main()

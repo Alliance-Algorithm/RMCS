@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""Build empirical angle/direction response brackets from a pulse-summary CSV.
+
+This is an offline report, not a fit of true static friction or a controller
+configuration. No CAN timing, initial speed, or mechanical stop is inferred.
+"""
+
+import argparse
+import csv
+import hashlib
+import json
+import math
+import shlex
+from collections import Counter, defaultdict
+from pathlib import Path
+
+
+RETAINED_DYNAMIC_MODEL = {
+    "inertia": 0.311472,
+    "viscous_friction": 0.725324,
+    "coulomb_friction_nm": 2.63482,
+    "torque_bias_nm": -0.122053,
+    "status": "retained prior identification; not refitted by breakaway pulses",
+}
+
+
+def wrap(angle):
+    return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def finite_number(row, name):
+    try:
+        value = float(row[name])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def pulse_key(text):
+    try:
+        values = tuple(int(value) for value in text.split(":"))
+        if len(values) != 3 or any(value < 1 for value in values):
+            raise ValueError
+        return values
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("expected RUN:GROUP:SEQUENCE, all positive integers") from error
+
+
+def read_pulses(path, suspect_keys):
+    pulses = []
+    with path.open(newline="") as stream:
+        for row in csv.DictReader(stream):
+            key = tuple(int(row[name]) for name in ("run_index", "group", "sequence_index"))
+            applied = finite_number(row, "applied_torque_median_nm")
+            angle = finite_number(row, "angle_start_rad")
+            delta = finite_number(row, "relative_angle_delta_rad")
+            torque = finite_number(row, "can_feedback_torque_median_nm")
+            source = "CAN current-derived torque median"
+            if torque is None:
+                torque = finite_number(row, "feedback_torque_median_nm")
+                source = "motor-topic current-derived torque median"
+            required = (applied, angle, delta, torque)
+            if any(value is None for value in required) or applied == 0:
+                raise ValueError(f"pulse {key}: finite applied torque, feedback torque and angles required")
+            direction = 1 if applied > 0 else -1
+            pulses.append({
+                "pulse_id": ":".join(str(value) for value in key),
+                "run_index": key[0], "group": key[1], "sequence_index": key[2],
+                "pulse_start_s": float(row["pulse_start_s"]),
+                "pulse_end_s": float(row["pulse_end_s"]),
+                "waveform_direction": int(row["direction"]),
+                "physical_direction": direction,
+                "commanded_level_nm": float(row["commanded_level_nm"]),
+                "applied_torque_median_nm": applied,
+                "feedback_torque_median_nm": torque,
+                "feedback_torque_magnitude_nm": abs(torque),
+                "feedback_torque_source": source,
+                "angle_start_rad": wrap(angle),
+                "angle_start_deg": math.degrees(wrap(angle)),
+                "angle_end_rad": wrap(float(row["angle_end_rad"])),
+                "wrapped_endpoint_delta_rad": wrap(float(row["angle_end_rad"]) - angle),
+                "relative_angle_delta_rad": delta,
+                "directed_displacement_rad": direction * delta,
+                "suspected_limit": key in suspect_keys,
+            })
+    if not pulses:
+        raise ValueError("empty pulse-summary CSV")
+    ids = [pulse["pulse_id"] for pulse in pulses]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate run/group/sequence identifiers; use the corrected segmented CSV")
+    missing = suspect_keys - {
+        (pulse["run_index"], pulse["group"], pulse["sequence_index"]) for pulse in pulses
+    }
+    if missing:
+        raise ValueError(f"suspected-limit pulse(s) not found: {sorted(missing)}")
+    return sorted(pulses, key=lambda pulse: (pulse["run_index"], pulse["pulse_start_s"]))
+
+
+def classify(pulse, negligible, clear):
+    if pulse["suspected_limit"]:
+        return "suspected_limit"
+    delta = pulse["relative_angle_delta_rad"]
+    if abs(delta) <= negligible:
+        return "negligible_response"
+    if pulse["directed_displacement_rad"] >= clear:
+        return "clear_directed_response"
+    if pulse["directed_displacement_rad"] < -negligible:
+        return "opposite_direction_response"
+    return "ambiguous_response"
+
+
+def local_brackets(pulses, negligible, clear, maximum_angle_gap_deg):
+    candidates = defaultdict(list)
+    for failed in pulses:
+        if classify(failed, negligible, clear) != "negligible_response":
+            continue
+        for moved in pulses:
+            if (classify(moved, negligible, clear) != "clear_directed_response"
+                    or moved["run_index"] != failed["run_index"]
+                    or moved["group"] != failed["group"]
+                    or moved["physical_direction"] != failed["physical_direction"]
+                    or moved["pulse_start_s"] <= failed["pulse_start_s"]
+                    or moved["commanded_level_nm"] <= failed["commanded_level_nm"]
+                    or moved["feedback_torque_magnitude_nm"] <= failed["feedback_torque_magnitude_nm"]):
+                continue
+            gap = abs(math.degrees(wrap(moved["angle_start_rad"] - failed["angle_start_rad"])))
+            if gap <= maximum_angle_gap_deg:
+                candidates[moved["pulse_id"]].append((failed, moved, gap))
+                # Pulses are time-ordered. Choose only the first later clear
+                # response for this low-response observation, within 3 degrees.
+                break
+    brackets = []
+    for pairs in candidates.values():
+        failed, moved, gap = max(pairs, key=lambda pair: pair[0]["feedback_torque_magnitude_nm"])
+        brackets.append({
+            "run_index": moved["run_index"], "group": moved["group"],
+            "physical_direction": moved["physical_direction"],
+            "reference_angle_deg": moved["angle_start_deg"],
+            "lower_low_response_nm_exclusive": failed["feedback_torque_magnitude_nm"],
+            "upper_clear_response_nm_inclusive": moved["feedback_torque_magnitude_nm"],
+            "low_response_pulse_id": failed["pulse_id"],
+            "clear_response_pulse_id": moved["pulse_id"],
+            "start_angle_separation_deg": gap,
+            "matched_low_response_count": len(pairs),
+            "interpretation": "empirical response bracket; not a physical static-friction confidence interval",
+        })
+    return sorted(brackets, key=lambda item: (item["run_index"], item["group"], item["reference_angle_deg"]))
+
+
+def angle_bins(pulses, negligible, clear):
+    grouped = defaultdict(list)
+    for pulse in pulses:
+        start = 30 * math.floor(pulse["angle_start_deg"] / 30)
+        grouped[(start, pulse["physical_direction"])].append(pulse)
+    rows = []
+    for (start, direction), members in sorted(grouped.items()):
+        classes = Counter(classify(pulse, negligible, clear) for pulse in members)
+        low = [pulse["feedback_torque_magnitude_nm"] for pulse in members
+               if classify(pulse, negligible, clear) == "negligible_response"]
+        high = [pulse["feedback_torque_magnitude_nm"] for pulse in members
+                if classify(pulse, negligible, clear) == "clear_directed_response"]
+        lower = max(low) if low else None
+        upper = min(high) if high else None
+        if lower is None or upper is None:
+            support = "one_sided_missing_support"
+        elif lower >= upper:
+            support = "overlap_or_history_conflict"
+        else:
+            support = "separated_empirical_response_bounds"
+        rows.append({
+            "angle_bin_start_deg": start, "angle_bin_end_deg": start + 30,
+            "physical_direction": direction, "pulse_count": len(members),
+            "negligible_count": classes["negligible_response"],
+            "clear_directed_count": classes["clear_directed_response"],
+            "ambiguous_count": classes["ambiguous_response"],
+            "opposite_direction_count": classes["opposite_direction_response"],
+            "suspected_limit_count": classes["suspected_limit"],
+            "max_negligible_feedback_torque_nm": lower,
+            "min_clear_feedback_torque_nm": upper,
+            "support": support,
+        })
+    return rows
+
+
+def history_conflicts(pulses, negligible, clear, maximum_angle_gap_deg):
+    conflicts = []
+    for failed in pulses:
+        if classify(failed, negligible, clear) != "negligible_response":
+            continue
+        for moved in pulses:
+            if (classify(moved, negligible, clear) != "clear_directed_response"
+                    or moved["physical_direction"] != failed["physical_direction"]
+                    or moved["commanded_level_nm"] > failed["commanded_level_nm"]
+                    or moved["feedback_torque_magnitude_nm"] >= failed["feedback_torque_magnitude_nm"]):
+                continue
+            gap = abs(math.degrees(wrap(moved["angle_start_rad"] - failed["angle_start_rad"])))
+            if gap <= maximum_angle_gap_deg:
+                conflicts.append({
+                    "physical_direction": moved["physical_direction"],
+                    "low_response_pulse_id": failed["pulse_id"],
+                    "low_response_angle_deg": failed["angle_start_deg"],
+                    "low_response_nominal_level_nm": failed["commanded_level_nm"],
+                    "low_response_feedback_torque_nm": failed["feedback_torque_magnitude_nm"],
+                    "low_response_directed_displacement_rad": failed["directed_displacement_rad"],
+                    "clear_response_pulse_id": moved["pulse_id"],
+                    "clear_response_angle_deg": moved["angle_start_deg"],
+                    "clear_response_nominal_level_nm": moved["commanded_level_nm"],
+                    "clear_response_feedback_torque_nm": moved["feedback_torque_magnitude_nm"],
+                    "clear_response_directed_displacement_rad": moved["directed_displacement_rad"],
+                    "start_angle_separation_deg": gap,
+                })
+    return sorted(conflicts, key=lambda item: (
+        abs(item["low_response_nominal_level_nm"] - item["clear_response_nominal_level_nm"]),
+        item["start_angle_separation_deg"], item["low_response_pulse_id"]))
+
+
+def write_csv(path, rows):
+    with path.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def report(model, bins):
+    source = model["source"]
+    lines = [
+        "# 小 yaw 起步摩擦离线修正报告", "",
+        f"数据：`{source['csv']}`；SHA-256：`{source['sha256']}`。",
+        f"共 {source['run_count']} 轮、{source['pulse_count']} 个脉冲。每轮的分组和脉冲单独保留，不混合 elapsed 重置。", "",
+        "本次输出是按角度和方向整理的**经验运动响应界限**，不是精确的物理静摩擦曲线。",
+        "相对角净位移绝对值 ≤0.02 rad 记为微小响应；沿实际下发力矩方向净位移 ≥0.10 rad 记为明确运动；中间值保留为不确定。",
+        "物理正负方向由 applied_torque_median_nm 决定；+1 表示编码器角度增加，−1 表示角度减小。本次与 waveform direction 相反。角度差使用环绕安全的计算。",
+        "力矩界限使用 CAN 电流折算反馈的脉冲中位数，仍沿用 3.6 Nm/A 标称系数，不是独立力矩传感器读数。", "",
+        "## 同轮、同组、同向的局部界限", "",
+        "仅把起始角相隔不超过 3° 的微小响应与随后更高档的明确运动配对；相同明确运动端点保留最大的微小响应力矩。",
+        "括号 (a,b] 仅表示当前阈值下 a 的响应很小、b 有明确响应，不表示真实静摩擦必然处于此区间。", "",
+        "|轮|组|起始角度|实际方向|电流折算经验界限 Nm|脉冲配对|",
+        "|---:|---:|---:|---:|---:|---|",
+    ]
+    for bracket in model["local_response_brackets"]:
+        lines.append(
+            f"|{bracket['run_index']}|{bracket['group']}|{bracket['reference_angle_deg']:.2f}°|"
+            f"{bracket['physical_direction']:+d}|({bracket['lower_low_response_nm_exclusive']:.3f}, "
+            f"{bracket['upper_clear_response_nm_inclusive']:.3f}]|"
+            f"{bracket['low_response_pulse_id']} → {bracket['clear_response_pulse_id']}|"
+        )
+    lines += ["", "## 相同附近角度仍出现不同响应", "",
+              "下列实测对照不能用唯一的角度静摩擦值解释：同向、起始角相近，较小的反馈力矩反而产生明确运动。",
+              "这可能包含运动历史、未静止、弹性和摩擦状态差异。局部界限只对当时条件成立，不可直接插值成精确全角度曲线。", "",
+              "|实际方向|微小响应：脉冲 / 角度 / 估算力矩 / 顺向净位移|明确运动：脉冲 / 角度 / 估算力矩 / 顺向净位移|角度间隔|",
+              "|---:|---|---|---:|"]
+    for item in model["near_angle_history_conflicts"][:6]:
+        lines.append(
+            f"|{item['physical_direction']:+d}|{item['low_response_pulse_id']} / "
+            f"{item['low_response_angle_deg']:.2f}° / {item['low_response_feedback_torque_nm']:.3f} Nm / "
+            f"{item['low_response_directed_displacement_rad']:.3f} rad|{item['clear_response_pulse_id']} / "
+            f"{item['clear_response_angle_deg']:.2f}° / {item['clear_response_feedback_torque_nm']:.3f} Nm / "
+            f"{item['clear_response_directed_displacement_rad']:.3f} rad|{item['start_angle_separation_deg']:.2f}°|")
+    lines += ["", "## 角度覆盖与历史差异", "",
+              "30° 分箱的两类界限分别计算，不强行补齐缺失一侧，不插值；存在界限交错时保留历史/角度差异标记。", "",
+              "|起始角区间|实际方向|微小/明确/不确定/疑似限位个数|微小响应最大 Nm|明确运动最小 Nm|支持状态|",
+              "|---|---:|---:|---:|---:|---|"]
+    for row in bins:
+        def number(value):
+            return "—" if value is None else f"{value:.3f}"
+        counts = "/".join(str(row[name]) for name in
+                          ("negligible_count", "clear_directed_count", "ambiguous_count", "suspected_limit_count"))
+        lines.append(f"|[{row['angle_bin_start_deg']}, {row['angle_bin_end_deg']})°|"
+                     f"{row['physical_direction']:+d}|{counts}|"
+                     f"{number(row['max_negligible_feedback_torque_nm'])}|"
+                     f"{number(row['min_clear_feedback_torque_nm'])}|{row['support']}|")
+    lines += ["", "## 阈值敏感性", "",
+              "分别改变微小响应和明确运动阈值，避免把人为阈值当作真实起步点。JSON 保留每组阈值下的全部配对。", "",
+              "|微小响应阈值 rad|明确运动阈值 rad|微小响应个数|明确运动个数|局部配对数|",
+              "|---:|---:|---:|---:|---:|"]
+    for item in model["threshold_sensitivity"]:
+        counts = item["class_counts"]
+        lines.append(f"|{item['negligible_displacement_rad']:.2f}|{item['clear_directed_displacement_rad']:.2f}|"
+                     f"{counts.get('negligible_response', 0)}|"
+                     f"{counts.get('clear_directed_response', 0)}|{len(item['local_response_brackets'])}|")
+    five = next((item for item in model["nominal_level_response_counts"] if item["nominal_level_nm"] == 5.0), None)
+    candidate_text = "5 Nm 档没有足够样本支持固定补偿候选；不能从此输出推定通用固定值。"
+    if five:
+        candidate_text = (f"5 Nm 档 {five['class_counts'].get('clear_directed_response', 0)}/{five['pulse_count']} "
+                          "达到沿下发方向 ≥0.10 rad 的净位移。")
+        if model["candidate_existing_scalar_setting"]["nominal_command_nm"] is not None:
+            candidate_text += "若仍使用已有单值起步补偿，5 Nm 标称档是有样本支持的候选，但不是全角度保证。"
+    lines += ["", "## 可采用的修正和限制", "",
+              "- 保留已有动态模型 J=0.311472、B=0.725324、Fc=2.63482 Nm、bias=−0.122053 Nm；本实验没有重新辨识这些参数。",
+              "- " + candidate_text,
+              "- 未接入新的控制逻辑，未改动现有控制配置；角度表只保留实测支持，不生成全角度平滑曲线。",
+              "- 疑似限位脉冲：" + (", ".join(source["suspected_limit_pulse_ids"]) or "无人工标记") + "。它们是根据已知实验背景人工标记的候选，不是已证实限位；不作摩擦下界。",
+              "- CSV 缺少每个脉冲前的原子 CAN 速度、静止确认与原始单调时间戳；不能区分惯性延续、弹性位移、回差和真实脱离静摩擦。2 s 等待并不等于已经证实静止。",
+              "- 此 CSV 的 first_motion_after_s 对两个编码器计数即响应，angle_peak_to_peak_rad 还可能受 ±π 环绕影响；本报告均不使用它们判定起步。",
+              "- current-derived torque 是整个脉冲的中位数，不等于脱离静摩擦瞬间的真实轴端力矩。数据支持约 4–5 Nm 的起步响应范围与局部差异，不能声称已经得到高精度全角度静摩擦模型。", "",
+              "复现命令：", "", "```sh", model["reproduce_command"], "```", ""]
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("csv", type=Path, help="corrected per-pulse CSV with run_index")
+    parser.add_argument("--output", type=Path, required=True, help="output directory")
+    parser.add_argument("--suspected-limit-pulse", type=pulse_key, action="append", default=[],
+                        help="explicit, unconfirmed mechanical-limit candidate RUN:GROUP:SEQUENCE")
+    args = parser.parse_args()
+    pulses = read_pulses(args.csv, set(args.suspected_limit_pulse))
+    negligible, clear, angle_gap = 0.02, 0.10, 3.0
+    classified = [dict(pulse, classification=classify(pulse, negligible, clear)) for pulse in pulses]
+    bins = angle_bins(pulses, negligible, clear)
+    level_counts = []
+    for level in sorted({pulse["commanded_level_nm"] for pulse in pulses}):
+        subset = [pulse for pulse in pulses if pulse["commanded_level_nm"] == level]
+        level_counts.append({"nominal_level_nm": level, "pulse_count": len(subset),
+                             "class_counts": dict(sorted(Counter(classify(p, negligible, clear)
+                                                                for p in subset).items()))})
+    command = [str(Path(__file__).resolve()), str(args.csv.resolve()), "--output", str(args.output.resolve())]
+    for key in sorted(set(args.suspected_limit_pulse)):
+        command += ["--suspected-limit-pulse", ":".join(str(value) for value in key)]
+    model = {
+        "schema_version": 1,
+        "model_kind": "empirical_starting_response_brackets",
+        "runtime_integration": False,
+        "source": {"csv": str(args.csv.resolve()), "sha256": hashlib.sha256(args.csv.read_bytes()).hexdigest(),
+                   "run_count": len({pulse["run_index"] for pulse in pulses}), "pulse_count": len(pulses),
+                   "suspected_limit_pulse_ids": [":".join(str(value) for value in key)
+                                                 for key in sorted(set(args.suspected_limit_pulse))]},
+        "thresholds": {"negligible_displacement_rad": negligible, "clear_directed_displacement_rad": clear,
+                       "local_start_angle_gap_deg": angle_gap, "angle_bin_width_deg": 30},
+        "class_counts": dict(sorted(Counter(pulse["classification"] for pulse in classified).items())),
+        "retained_prior_dynamic_model": RETAINED_DYNAMIC_MODEL,
+        "local_response_brackets": local_brackets(pulses, negligible, clear, angle_gap),
+        "near_angle_history_conflicts": history_conflicts(pulses, negligible, clear, angle_gap),
+        "angle_bins": bins,
+        "nominal_level_response_counts": level_counts,
+        "threshold_sensitivity": [
+            {"negligible_displacement_rad": low_threshold,
+             "clear_directed_displacement_rad": clear_threshold,
+             "class_counts": dict(sorted(Counter(classify(pulse, low_threshold, clear_threshold)
+                                                for pulse in pulses).items())),
+             "local_response_brackets": local_brackets(pulses, low_threshold, clear_threshold, angle_gap)}
+            for low_threshold, clear_threshold in ((0.01, 0.10), (0.02, 0.05), (0.02, 0.10),
+                                                   (0.02, 0.15), (0.03, 0.10), (0.05, 0.10))],
+        "candidate_existing_scalar_setting": {
+            "nominal_command_nm": 5.0,
+            "reason": "20/20 sampled 5 Nm pulses have directed net displacement >=0.10 rad",
+            "scope": "sampled conditions only; not a universally identified static friction parameter",
+            "applied": False,
+        },
+        "limitations": [
+            "Current-derived torque, nominal 3.6 Nm/A, no independent torque measurement.",
+            "CSV contains pulse medians, not onset torque or raw CAN monotonic time series.",
+            "Initial speed is unavailable; zero-torque rest does not establish initial standstill.",
+            "Net displacement cannot distinguish friction breakaway from compliance, backlash, or prior motion.",
+            "Coarse bins can conflict with motion history and position; no angle interpolation is justified.",
+        ],
+        "reproduce_command": shlex.join(command),
+    }
+    five = next((item for item in level_counts if item["nominal_level_nm"] == 5.0), None)
+    if not five or five["class_counts"].get("clear_directed_response", 0) != five["pulse_count"]:
+        model["candidate_existing_scalar_setting"]["nominal_command_nm"] = None
+        model["candidate_existing_scalar_setting"]["reason"] = "5 Nm samples do not all have clear directed response"
+    else:
+        model["candidate_existing_scalar_setting"]["reason"] = (
+            f"{five['pulse_count']}/{five['pulse_count']} sampled 5 Nm pulses have directed net displacement >=0.10 rad")
+    args.output.mkdir(parents=True, exist_ok=True)
+    (args.output / "model.json").write_text(json.dumps(model, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
+    write_csv(args.output / "angle_bins.csv", bins)
+    write_csv(args.output / "pulse_classification.csv", classified)
+    (args.output / "report.md").write_text(report(model, bins))
+    print(json.dumps({"output": str(args.output), "runs": model["source"]["run_count"],
+                      "pulses": len(pulses), "class_counts": model["class_counts"],
+                      "local_brackets": len(model["local_response_brackets"])}, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

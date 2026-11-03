@@ -1,0 +1,1629 @@
+#!/usr/bin/env python3
+"""Read a completed small-yaw rosbag; write statistics and cautious preliminary fits.
+
+Run in a sourced ROS environment. This script never publishes, changes parameters,
+signals processes, rewrites a bag, or treats ValueBroadcaster topics as atomic.
+"""
+
+import argparse
+import bisect
+import csv
+from datetime import datetime, timezone
+import hashlib
+import itertools
+import json
+import math
+import os
+from pathlib import Path
+import sys
+
+import numpy as np
+
+
+MOTOR = '/arm/joint_1/motor/'
+TEST = '/gimbal/test/'
+TOPICS = {
+    'raw': MOTOR + 'raw_angle', 'stamp': MOTOR + 'last_received_monotonic_ns',
+    'angle': MOTOR + 'angle', 'native_velocity': MOTOR + 'velocity',
+    'current': MOTOR + 'current', 'motor_torque': MOTOR + 'torque_estimate',
+    'age': MOTOR + 'feedback_age_ms',
+    'state': TEST + 'small_yaw_identification_state',
+    'reason': TEST + 'small_yaw_block_reason',
+    'elapsed': TEST + 'small_yaw_identification_elapsed_s',
+    'relative_angle': TEST + 'small_yaw_identification_relative_angle',
+    'estimated_velocity': TEST + 'small_yaw_damping_velocity',
+    'requested': TEST + 'small_yaw_damping_torque',
+    'applied': TEST + 'small_yaw_damping_torque_applied',
+    'joint2_error': TEST + 'joint2_pid_position_error',
+    'joint2_target': TEST + 'joint2_pid_target_angle',
+    'joint2_permitted': TEST + 'joint2_pid_permitted',
+    'joint2_angle': '/arm/joint_2/encoder/angle',
+    'joint2_velocity': '/arm/joint_2/encoder/velocity',
+    'big_yaw_angle': '/chassis/big_yaw/angle',
+    'big_yaw_velocity': '/chassis/big_yaw/velocity',
+    'big_yaw_torque': '/chassis/big_yaw/torque',
+    'small_yaw_online': '/gimbal/feedback/small_yaw_online',
+    'big_yaw_online': '/gimbal/feedback/big_yaw_online',
+    'remote_online': '/remote/online',
+    'atomic_can_sample': '/gimbal/feedback/small_yaw_can_sample',
+}
+ACTIVE = {'settling', 'pulse', 'rest', 'sine', 'constant_positive', 'constant_negative',
+          # Current profile repeats 0 -> +peak -> 0 -> -peak -> 0 by group.
+          'ramp_up', 'ramp_down', 'ramp_reverse_up', 'ramp_reverse_down'}
+QUANTUM_NM = 3.6 * 66.0 / 4096.0
+DEFAULTS = {
+    'command_sign': 1.0,
+    'torque_limit_nm': 6.0,
+    'pulse_duration_s': 0.20, 'rest_duration_s': 0.7,
+    'settle_duration_s': 1.0, 'max_velocity_rad_s': 1.0,
+    'sine_torque_amplitude_nm': 6.0, 'sine_frequency_hz': 0.15,
+    'sine_frequency_end_hz': 0.60, 'sine_duration_s': 16.0,
+    'constant_torque_nm': 1.0, 'constant_duration_s': 2.0,
+    'constant_rest_duration_s': 0.5, 'linear_ramp_peak_nm': 4.5,
+    'linear_ramp_duration_s': 6.0, 'linear_ramp_group_count': 1,
+    'joint2_position_tolerance_rad': 10.0 * math.pi / 180.0,
+}
+# The plant input for identification is the motor's current-derived torque
+# estimate. The software command remains available as a comparison channel.
+PRIMARY_TORQUE_INPUT = 'current_estimate_nm'
+TORQUE_INPUTS = (PRIMARY_TORQUE_INPUT, 'applied_command_nm')
+TORQUE_INPUT_LABELS = {
+    'current_estimate_nm': 'current_estimate_nm (primary)',
+    'applied_command_nm': 'applied_command_nm (comparison)',
+}
+FIXED_BASE_EXCURSION_RAD = 0.01
+BIG_YAW_WINDOW_PADDING_S = 0.125
+# A p95 clock offset is not meaningful for a tiny epoch. Such epochs can be
+# created by a recorder split or a brief CAN gap and must not dominate the
+# boundary guard for 200 ms excitation pulses.
+MIN_CLOCK_JITTER_EPOCH_SAMPLES = 100
+MIN_VALIDATION_RUNS = 3
+MIN_BOOTSTRAP_RUNS = 5
+BOOTSTRAP_REPLICATES = 1000
+MAX_CURRENT_MOTION_SHIFT_S = 0.05
+CURRENT_MOTION_SHIFT_STEP_S = 0.005
+CURRENT_MOTION_SHIFT_GRID_S = tuple(
+    np.round(np.arange(-MAX_CURRENT_MOTION_SHIFT_S,
+                       MAX_CURRENT_MOTION_SHIFT_S + CURRENT_MOTION_SHIFT_STEP_S / 2,
+                       CURRENT_MOTION_SHIFT_STEP_S), 6))
+LIMITATIONS = [
+    'State boundaries and scalar-to-CAN association have finite uncertainty; commands are zero-order held and current/torque are linearly interpolated onto the CAN receive clock.',
+    'The selected current-to-motion offset is an effective alignment parameter searched within +/-50 ms, not a direct measurement of motor electrical or mechanical delay.',
+    'Current-derived model validation selects the offset inside each training fold; bootstrap parameter intervals condition on the full-data selected offset.',
+    'CAN timestamp deduplication retains distinct stationary samples; unchanged encoder counts alone are not used to deduplicate.',
+    'Reverse raw encoder conversion is -2*pi/65536 rad/count. Angle zero does not affect displacement; gaps split continuity.',
+    'Reported motor torque is an estimate from reported current, not an independent torque measurement.',
+    'Nonoverlapping integration intervals still have correlated local velocity estimates near their endpoints; fit residuals are not confidence intervals.',
+    'A single-run fit is training-only. Repeated-run validation uses whole-run holdout and run-cluster bootstrap; it still estimates an apparent model, not validated plant truth or permission to enable a controller.',
+    'A complete waveform is required for a fit; aborted, limit-truncated and joint2-unstable runs are excluded. Big-yaw motion removes only nearby fit windows; the full run is retained for diagnostics.',
+]
+
+
+class Series:
+    def __init__(self, pairs):
+        pairs = sorted(pairs, key=lambda pair: pair[0])
+        self.t = np.asarray([pair[0] for pair in pairs], dtype=float)
+        # Keep integer CAN nanoseconds exact rather than converting them to float.
+        self.v = np.asarray([pair[1] for pair in pairs])
+
+    def nearby(self, t, tolerance, previous=False):
+        if not len(self.t):
+            return None, None
+        index = int(np.searchsorted(self.t, t, side='right')) - 1
+        candidates = [index] if previous else [index, index + 1]
+        candidates = [i for i in candidates if 0 <= i < len(self.t)]
+        if not candidates:
+            return None, None
+        index = min(candidates, key=lambda i: abs(self.t[i] - t))
+        skew = float(self.t[index] - t)
+        if abs(skew) > tolerance:
+            return None, skew
+        value = self.v[index]
+        return value.item() if hasattr(value, 'item') else value, skew
+
+    def window(self, start, end):
+        lo = int(np.searchsorted(self.t, start, side='left'))
+        hi = int(np.searchsorted(self.t, end, side='left'))
+        return self.t[lo:hi], self.v[lo:hi]
+
+    def period(self):
+        differences = np.diff(self.t)
+        differences = differences[differences > 0]
+        return float(np.median(differences)) if len(differences) else None
+
+    def interpolate(self, time, mode='linear', maximum_gap=0.05):
+        """Sample a scalar broadcast series at a CAN-clock time.
+
+        CAN samples are the time base for identification.  Commands are held
+        between broadcasts (``zoh``); measured current/torque is linearly
+        interpolated.  Values are rejected when extrapolation or an unusually
+        large broadcast gap would be required.
+        """
+        if not len(self.t) or not math.isfinite(float(time)):
+            return None
+        index = int(np.searchsorted(self.t, time, side='right'))
+        if mode == 'zoh':
+            previous = index - 1
+            if previous < 0 or float(time) - float(self.t[previous]) > maximum_gap:
+                return None
+            value = self.v[previous]
+            return float(value) if math.isfinite(float(value)) else None
+        if index <= 0 or index >= len(self.t):
+            return None
+        left, right = index - 1, index
+        left_time, right_time = float(self.t[left]), float(self.t[right])
+        gap = right_time - left_time
+        if gap <= 0.0 or float(time) - left_time > maximum_gap or right_time - float(time) > maximum_gap:
+            return None
+        left_value, right_value = float(self.v[left]), float(self.v[right])
+        if not math.isfinite(left_value) or not math.isfinite(right_value):
+            return None
+        fraction = (float(time) - left_time) / gap
+        return left_value + fraction * (right_value - left_value)
+
+
+def stats(values, unwrap=False):
+    values = np.asarray(values, dtype=float)
+    total_count = len(values)
+    values = values[np.isfinite(values)]
+    if not len(values):
+        return {'count': 0, 'nonfinite_count': total_count}
+    if unwrap:
+        values = np.unwrap(values)
+    return {
+        'count': len(values), 'nonfinite_count': total_count - len(values),
+        'min': float(values.min()), 'max': float(values.max()),
+        'mean': float(values.mean()), 'max_abs': float(np.max(np.abs(values))),
+        'start': float(values[0]), 'end': float(values[-1]),
+        'delta': float(values[-1] - values[0]),
+        'peak_to_peak': float(np.ptp(values)),
+    }
+
+
+def file_signature(bag):
+    return {str(path.relative_to(bag)): [path.stat().st_size, path.stat().st_mtime_ns]
+            for path in sorted(bag.rglob('*')) if path.is_file()}
+
+
+def validate_bag(bag):
+    import yaml
+
+    if not bag.is_dir() or not (bag / 'metadata.yaml').is_file():
+        raise RuntimeError('--bag must be a completed bag directory with finalized metadata.yaml; stop recording first')
+    metadata = yaml.safe_load((bag / 'metadata.yaml').read_text())['rosbag2_bagfile_information']
+    if metadata.get('message_count', 0) <= 0:
+        raise RuntimeError('Bag is empty or its metadata has not been finalized')
+    recorder_path = bag.parent / 'recording.json'
+    recorder = json.loads(recorder_path.read_text()) if recorder_path.is_file() else {}
+    pid = recorder.get('pid')
+    if isinstance(pid, int) and pid > 1:
+        try:
+            process = Path(f'/proc/{pid}')
+            stat = (process / 'stat').read_text().rsplit(') ', 1)[1].split()
+            argv = [os.fsdecode(item) for item in (process / 'cmdline').read_bytes().rstrip(b'\0').split(b'\0')]
+            output = argv[argv.index('--output') + 1] if '--output' in argv else None
+            if stat[0] != 'Z' and stat[19] == recorder.get('process_start_ticks') and output and Path(output).resolve() == bag:
+                raise RuntimeError('The matching recorder is still active; stop it cleanly before analysis')
+        except (FileNotFoundError, ProcessLookupError, IndexError):
+            pass
+    snapshot = None
+    source_config = recorder.get('source_config')
+    parameters = {}
+    if source_config:
+        candidate = bag.parent / Path(source_config).name
+        if candidate.is_file():
+            contents = candidate.read_bytes()
+            digest = hashlib.sha256(contents).hexdigest()
+            if digest != recorder.get('source_config_sha256'):
+                raise RuntimeError('Saved configuration SHA256 does not match recording.json')
+            snapshot = {'path': str(candidate), 'sha256': digest}
+            configuration = yaml.safe_load(contents)
+            parameters = configuration.get('gimbal_feedback_test', {}).get('ros__parameters', {})
+    limits = {name: float(parameters.get('small_yaw_identification_' + name, value))
+              for name, value in DEFAULTS.items()}
+    # Older saved profiles drove ramps to the shared torque limit; preserve
+    # their original expected waveform when analyzing archived bags.
+    if snapshot and 'small_yaw_identification_linear_ramp_peak_nm' not in parameters:
+        limits['linear_ramp_peak_nm'] = limits['torque_limit_nm']
+    # A saved configuration from the fixed-frequency profile predates the end
+    # frequency.  Treat it as a constant-frequency segment when reanalyzing
+    # that bag; never infer the newer chirp from an old recording.
+    if snapshot and 'small_yaw_identification_sine_frequency_end_hz' not in parameters:
+        limits['sine_frequency_end_hz'] = limits['sine_frequency_hz']
+    # Recordings made before the sine segment was added remain analyzable.
+    # A saved legacy config has no sine parameters, so its expected duration
+    # and waveform should stay pulse-only.
+    if snapshot and 'small_yaw_identification_sine_duration_s' not in parameters:
+        limits['sine_torque_amplitude_nm'] = 0.0
+        limits['sine_frequency_hz'] = 0.0
+        limits['sine_frequency_end_hz'] = 0.0
+        limits['sine_duration_s'] = 0.0
+    # Recordings made before the constant/ramp extension remain analyzable.
+    if snapshot and 'small_yaw_identification_constant_duration_s' not in parameters:
+        limits['constant_torque_nm'] = 0.0
+        limits['constant_duration_s'] = 0.0
+        limits['constant_rest_duration_s'] = 0.0
+        limits['linear_ramp_duration_s'] = 0.0
+    limits['fixed_base_excursion_rad'] = FIXED_BASE_EXCURSION_RAD
+    return metadata, recorder, snapshot, limits
+
+
+def read_bag(bag, metadata):
+    import rosbag2_py
+    from rclpy.serialization import deserialize_message
+    from rosidl_runtime_py.utilities import get_message
+
+    reader = rosbag2_py.SequentialReader()
+    reader.open(rosbag2_py.StorageOptions(uri=str(bag), storage_id=metadata['storage_identifier']),
+                rosbag2_py.ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr'))
+    types = {topic.name: topic.type for topic in reader.get_all_topics_and_types()}
+    wanted = {name: topic for name, topic in TOPICS.items() if topic in types}
+    # Older bags predate the explicitly named estimate topic; retain their
+    # original scalar torque stream as a backwards-compatible source.
+    if 'motor_torque' not in wanted and MOTOR + 'torque' in types:
+        wanted['motor_torque'] = MOTOR + 'torque'
+    reader.set_filter(rosbag2_py.StorageFilter(topics=list(wanted.values())))
+    classes = {topic: get_message(types[topic]) for topic in wanted.values()}
+    names = {topic: name for name, topic in wanted.items()}
+    pairs = {name: [] for name in TOPICS if name != 'atomic_can_sample'}
+    atomic_samples = []
+    start_ns = int(metadata['starting_time']['nanoseconds_since_epoch'])
+    while reader.has_next():
+        topic, serialized, timestamp = reader.read_next()
+        message = deserialize_message(serialized, classes[topic])
+        name = names[topic]
+        if name == 'atomic_can_sample':
+            atomic_samples.append({
+                'bag_time_s': (timestamp - start_ns) * 1e-9,
+                'can_receive_monotonic_ns': int(message.can_receive_monotonic_ns),
+                'can_channel': int(message.can_channel),
+                'can_id': int(message.can_id),
+                'raw_angle': int(message.raw_angle),
+                'current_amp': float(message.current_amp),
+                'motor_torque': float(message.torque_nm),
+                'online': bool(message.online),
+                'command_monotonic_ns': int(message.command_monotonic_ns),
+                'command_torque': float(message.command_torque_nm),
+            })
+            continue
+        if not hasattr(message, 'data') or isinstance(message.data, (list, tuple)):
+            raise RuntimeError('Expected a scalar .data message on ' + topic)
+        pairs[name].append(((timestamp - start_ns) * 1e-9, message.data))
+    del reader
+    series = {name: Series(values) for name, values in pairs.items()}
+    required = ['state', 'raw', 'stamp', 'requested', 'applied']
+    missing = [TOPICS[name] for name in required if not len(series[name].t)]
+    if missing:
+        raise RuntimeError('Missing required recorded topics: ' + ', '.join(missing))
+    return series, types, atomic_samples
+
+
+def _estimate_atomic_derivatives(samples):
+    """Estimate encoder velocity/acceleration on the atomic CAN time base."""
+    by_segment = {}
+    for sample in samples:
+        by_segment.setdefault(sample['segment'], []).append(sample)
+    for rows in by_segment.values():
+        times = np.asarray([row['time_s'] for row in rows], dtype=float)
+        angles = np.asarray([row['angle_segment_rad'] for row in rows], dtype=float)
+        for index, row in enumerate(rows):
+            half_window = 0.025
+            lo = int(np.searchsorted(times, times[index] - half_window, side='left'))
+            hi = int(np.searchsorted(times, times[index] + half_window, side='right'))
+            local_times, local_angles = times[lo:hi], angles[lo:hi]
+            if hi - lo < 5 or np.ptp(local_times) < 0.015:
+                continue
+            scale = max(float(np.ptp(local_times) * 0.5), 0.01)
+            local_time = (local_times - times[index]) / scale
+            try:
+                coefficients = np.polyfit(local_time, local_angles, 2)
+            except (TypeError, ValueError, np.linalg.LinAlgError):
+                continue
+            if np.all(np.isfinite(coefficients)):
+                row['velocity_rad_s'] = float(coefficients[1] / scale)
+                row['acceleration_rad_s2'] = float(2.0 * coefficients[0] / (scale * scale))
+
+
+def reconstruct_atomic_can(atomic_samples, period, series=None):
+    """Reconstruct directly from atomic CAN samples when the new topic is recorded."""
+    if not atomic_samples:
+        return [], {'source': 'none', 'raw_broadcasts': 0, 'unique_can_samples': 0}
+    ordered = sorted(atomic_samples, key=lambda sample: (sample['can_receive_monotonic_ns'],
+                                                          sample['bag_time_s']))
+    unique = []
+    for sample in ordered:
+        if not 0 <= sample['raw_angle'] <= 65535 or sample['can_receive_monotonic_ns'] <= 0:
+            continue
+        if unique and sample['can_receive_monotonic_ns'] == unique[-1]['can_receive_monotonic_ns']:
+            # Retain the first frame for an identical receive timestamp; the publisher emits
+            # once per packet, so a duplicate is a recorder/conversion duplicate.
+            continue
+        unique.append(sample)
+    if not unique:
+        raise RuntimeError('Atomic CAN topic contains no valid samples')
+
+    # Each diagnostic message carries the latest command snapshot. Reconstruct
+    # the zero-order command history by selecting the newest command whose
+    # send timestamp is no later than each CAN receive timestamp; a command
+    # sent after a receive frame must never be assigned to that frame.
+    command_history = sorted(
+        {(sample['command_monotonic_ns'], sample['command_torque'])
+         for sample in unique if sample['command_monotonic_ns'] > 0
+         and math.isfinite(sample['command_torque'])})
+    command_times = [entry[0] for entry in command_history]
+
+    samples = []
+    epochs = []
+    for sample in unique:
+        if not epochs or (sample['can_receive_monotonic_ns'] - epochs[-1][-1]['can_receive_monotonic_ns']) * 1e-9 > 0.1:
+            epochs.append([])
+        epochs[-1].append(sample)
+    clock_notes = []
+    for segment, epoch in enumerate(epochs):
+        first_can = epoch[0]['can_receive_monotonic_ns']
+        first_bag = epoch[0]['bag_time_s']
+        offsets = [sample['bag_time_s'] - (sample['can_receive_monotonic_ns'] - first_can) * 1e-9
+                   for sample in epoch]
+        offset = float(np.median(offsets))
+        jitter = float(np.percentile(np.abs(np.asarray(offsets) - offset), 95)) if offsets else period
+        clock_notes.append({'segment': segment, 'can_samples': len(epoch),
+                            'bag_clock_offset_s': offset, 'offset_p95_deviation_s': jitter,
+                            'uses_feedback_age': False, 'source': 'atomic_can_sample'})
+        raw_previous = epoch[0]['raw_angle']
+        angle = 0.0
+        for item in epoch:
+            delta = (item['raw_angle'] - raw_previous + 32768) % 65536 - 32768
+            angle -= delta * 2.0 * math.pi / 65536.0
+            raw_previous = item['raw_angle']
+            current = item['current_amp'] if item['online'] and math.isfinite(item['current_amp']) else None
+            torque = item['motor_torque'] if item['online'] and math.isfinite(item['motor_torque']) else None
+            command_index = bisect.bisect_right(
+                command_times, item['can_receive_monotonic_ns']) - 1
+            command = (command_history[command_index][1]
+                       if command_index >= 0 else None)
+            if command is None:
+                command = (series['applied'].interpolate(
+                    item['bag_time_s'], mode='zoh', maximum_gap=max(0.05, 3 * period))
+                           if series is not None else 0.0)
+            samples.append({
+                'time_s': offset + (item['can_receive_monotonic_ns'] - first_can) * 1e-9,
+                'broadcast_time_s': item['bag_time_s'],
+                'can_monotonic_ns': item['can_receive_monotonic_ns'],
+                'segment': segment,
+                'raw_angle': item['raw_angle'],
+                'angle_segment_rad': angle,
+                'raw_stamp_pair_skew_s': 0.0,
+                'velocity_rad_s': None,
+                'acceleration_rad_s2': None,
+                'native_velocity': None,
+                'current': current,
+                'motor_torque': torque,
+                'native_velocity_broadcast_skew_s': 0.0,
+                'current_broadcast_skew_s': 0.0,
+                'motor_torque_broadcast_skew_s': 0.0,
+                'requested_aligned_nm': command,
+                'applied_aligned_nm': command,
+                'current_aligned': current,
+                'motor_torque_aligned_nm': torque,
+                'atomic_source': True,
+                'command_monotonic_ns': item['command_monotonic_ns'],
+            })
+    samples.sort(key=lambda row: row['time_s'])
+    _estimate_atomic_derivatives(samples)
+    return samples, {
+        'source': 'atomic_can_sample', 'raw_broadcasts': len(atomic_samples),
+        'unique_can_samples': len(samples), 'duplicate_snapshots_removed': len(ordered) - len(unique),
+        'ambiguous_timestamp_groups_excluded': 0, 'unmatched_raw_broadcasts': 0,
+        'invalid_raw_or_timestamp': len(ordered) - len(unique),
+        'pair_tolerance_s': 0.0, 'clock_segments': clock_notes,
+    }
+
+
+def reconstruct_can(series, period, atomic_samples=None):
+    if atomic_samples:
+        return reconstruct_atomic_can(atomic_samples, period, series)
+    tolerance = min(0.02, max(0.003, period * 0.75))
+    grouped = {}
+    unmatched = invalid = 0
+    for broadcast, raw in zip(series['raw'].t, series['raw'].v):
+        stamp, skew = series['stamp'].nearby(float(broadcast), tolerance)
+        if stamp is None:
+            unmatched += 1
+            continue
+        if not 0 <= int(raw) <= 65535 or int(stamp) <= 0:
+            invalid += 1
+            continue
+        grouped.setdefault(int(stamp), []).append((float(broadcast), int(raw), float(skew)))
+    ambiguous = sum(len({row[1] for row in rows}) != 1 for rows in grouped.values())
+    candidates = [min(rows, key=lambda row: abs(row[2])) + (stamp,)
+                  for stamp, rows in grouped.items() if len({row[1] for row in rows}) == 1]
+    candidates.sort()
+    if not candidates:
+        raise RuntimeError('No unambiguous raw-angle / CAN-timestamp pairs were recorded')
+    # A monotonic->bag-clock offset is estimated per continuous epoch. Relative CAN
+    # timing remains exact; scalar feedback_age is only an approximate clock anchor.
+    epochs = []
+    for candidate in candidates:
+        if not epochs or candidate[3] <= epochs[-1][-1][3] or (candidate[3] - epochs[-1][-1][3]) * 1e-9 > 0.1:
+            epochs.append([])
+        epochs[-1].append(candidate)
+    samples = []
+    clock_notes = []
+    for segment, epoch in enumerate(epochs):
+        first_stamp = epoch[0][3]
+        offsets = []
+        fallback = []
+        for broadcast, raw, skew, stamp in epoch:
+            relative = (stamp - first_stamp) * 1e-9
+            fallback.append(broadcast - relative)
+            age, _ = series['age'].nearby(broadcast, tolerance)
+            if age is not None and math.isfinite(float(age)) and 0 <= age <= 100:
+                offsets.append(broadcast - relative - age * 0.001)
+        clock_offset = float(np.median(offsets)) if offsets else float(np.percentile(fallback, 10))
+        jitter = float(np.percentile(np.abs(np.asarray(offsets) - clock_offset), 95)) if offsets else period
+        clock_notes.append({'segment': segment, 'can_samples': len(epoch), 'bag_clock_offset_s': clock_offset,
+                            'offset_p95_deviation_s': jitter, 'uses_feedback_age': bool(offsets)})
+        raw_previous = epoch[0][1]
+        angle = 0.0
+        for broadcast, raw, skew, stamp in epoch:
+            delta = (raw - raw_previous + 32768) % 65536 - 32768
+            angle -= delta * 2.0 * math.pi / 65536.0
+            raw_previous = raw
+            sample = {'time_s': clock_offset + (stamp - first_stamp) * 1e-9,
+                      'broadcast_time_s': broadcast, 'can_monotonic_ns': stamp,
+                      'segment': segment, 'raw_angle': raw, 'angle_segment_rad': angle,
+                      'raw_stamp_pair_skew_s': skew, 'velocity_rad_s': None,
+                      'acceleration_rad_s2': None}
+            for name in ['native_velocity', 'current', 'motor_torque']:
+                value, field_skew = series[name].nearby(broadcast, tolerance)
+                sample[name] = float(value) if value is not None and math.isfinite(float(value)) else None
+                sample[name + '_broadcast_skew_s'] = field_skew
+            # Align asynchronous scalar broadcasts to the CAN receive clock.
+            # Commands are zero-order held; measured current/torque are
+            # interpolated between adjacent broadcasts.  The old nearest
+            # values remain above for backwards-compatible diagnostics.
+            sample['requested_aligned_nm'] = series['requested'].interpolate(
+                broadcast, mode='zoh', maximum_gap=max(0.05, 3 * period))
+            sample['applied_aligned_nm'] = series['applied'].interpolate(
+                broadcast, mode='zoh', maximum_gap=max(0.05, 3 * period))
+            sample['current_aligned'] = series['current'].interpolate(
+                broadcast, mode='linear', maximum_gap=max(0.05, 3 * period))
+            sample['motor_torque_aligned_nm'] = series['motor_torque'].interpolate(
+                broadcast, mode='linear', maximum_gap=max(0.05, 3 * period))
+            samples.append(sample)
+        rows = [sample for sample in samples if sample['segment'] == segment]
+        times = np.asarray([row['time_s'] for row in rows])
+        angles = np.asarray([row['angle_segment_rad'] for row in rows])
+        for index, row in enumerate(rows):
+            # Fit a local quadratic on a 50 ms symmetric window.  The linear
+            # fit used previously differentiates encoder quantisation noise;
+            # the quadratic's first derivative is less sensitive while its
+            # second derivative supplies the acceleration used by the fit.
+            half_window = 0.025
+            lo = int(np.searchsorted(times, times[index] - half_window, side='left'))
+            hi = int(np.searchsorted(times, times[index] + half_window, side='right'))
+            local_times, local_angles = times[lo:hi], angles[lo:hi]
+            if hi - lo >= 5 and np.ptp(local_times) >= 0.015:
+                scale = max(float(np.ptp(local_times) * 0.5), 0.01)
+                local_time = (local_times - times[index]) / scale
+                try:
+                    coefficients = np.polyfit(local_time, local_angles, 2)
+                except (TypeError, ValueError, np.linalg.LinAlgError):
+                    coefficients = None
+                if coefficients is not None and np.all(np.isfinite(coefficients)):
+                    row['velocity_rad_s'] = float(coefficients[1] / scale)
+                    row['acceleration_rad_s2'] = float(2.0 * coefficients[0] / (scale * scale))
+    samples.sort(key=lambda row: row['time_s'])
+    return samples, {
+        'raw_broadcasts': len(series['raw'].t), 'unique_can_samples': len(samples),
+        'duplicate_snapshots_removed': sum(max(0, len(rows) - 1) for rows in grouped.values() if len({row[1] for row in rows}) == 1),
+        'ambiguous_timestamp_groups_excluded': ambiguous, 'unmatched_raw_broadcasts': unmatched,
+        'invalid_raw_or_timestamp': invalid, 'pair_tolerance_s': tolerance, 'clock_segments': clock_notes,
+    }
+
+
+def transitions(series, bag_end):
+    result = []
+    for index, (time, value) in enumerate(zip(series.t, series.v)):
+        value = str(value)
+        if not result or value != result[-1]['state']:
+            if result:
+                result[-1]['end_s'] = float(time)
+            previous = float(series.t[index - 1]) if index else float(time)
+            result.append({'state': value, 'start_s': float(time), 'end_s': bag_end,
+                           'transition_bracket_s': [previous, float(time)]})
+    return result
+
+
+def estimate_clock_jitter(clock_segments, fallback_period):
+    """Estimate clock jitter from sufficiently populated CAN epochs."""
+    eligible = [segment for segment in clock_segments
+                if segment.get('can_samples', 0) >= MIN_CLOCK_JITTER_EPOCH_SAMPLES]
+    selected = eligible if eligible else clock_segments
+    jitter = max((segment.get('offset_p95_deviation_s', fallback_period)
+                  for segment in selected), default=fallback_period)
+    return jitter, {
+        'minimum_epoch_samples': MIN_CLOCK_JITTER_EPOCH_SAMPLES,
+        'used_segments': [segment['segment'] for segment in selected],
+        'ignored_segments': [segment['segment'] for segment in clock_segments
+                             if segment not in selected],
+        'fallback_to_all_segments': not bool(eligible),
+    }
+
+
+def measure(series, start, end, unwrap=False):
+    return stats(series.window(start, end)[1], unwrap=unwrap)
+
+
+def big_yaw_local_excursion(series, start, end):
+    """Return unwrapped big-yaw peak-to-peak around one fit window."""
+    times, values = series['big_yaw_angle'].window(start, end)
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if len(finite) < 3:
+        return None
+    return float(np.ptp(np.unwrap(finite)))
+
+
+def phase_summary(phase, series, samples, margin):
+    start, end = phase['start_s'], phase['end_s']
+    inside = [sample for sample in samples if start + margin <= sample['time_s'] < end - margin]
+    result = dict(phase, duration_s=end - start, interior_guard_s=margin, can_samples=len(inside))
+    result['angle_rad'] = stats([sample['angle_segment_rad'] for sample in inside])
+    result['can_continuity_segments'] = sorted({sample['segment'] for sample in inside})
+    if len(result['can_continuity_segments']) > 1:
+        result['angle_rad']['delta'] = None
+        result['angle_rad']['continuity_warning'] = 'Encoder continuity reset across a gap; aggregate displacement is unavailable'
+    result['encoder_velocity_rad_s'] = stats([sample['velocity_rad_s'] for sample in inside if sample['velocity_rad_s'] is not None])
+    result['encoder_acceleration_rad_s2'] = stats([sample['acceleration_rad_s2'] for sample in inside
+                                                   if sample['acceleration_rad_s2'] is not None])
+    result['aligned_applied_torque_nm'] = stats([sample['applied_aligned_nm'] for sample in inside
+                                                 if sample['applied_aligned_nm'] is not None])
+    result['aligned_motor_torque_nm'] = stats([sample['motor_torque_aligned_nm'] for sample in inside
+                                               if sample['motor_torque_aligned_nm'] is not None])
+    result['motor_velocity_rad_s'] = measure(series['native_velocity'], start + margin, end - margin)
+    for name in ['requested', 'applied', 'motor_torque', 'current', 'joint2_error', 'joint2_angle',
+                 'joint2_velocity', 'joint2_target', 'big_yaw_velocity', 'big_yaw_torque']:
+        result[name] = measure(series[name], start + margin, end - margin)
+    result['big_yaw_angle'] = measure(series['big_yaw_angle'], start + margin, end - margin, unwrap=True)
+    _, applied = series['applied'].window(start + margin, end - margin)
+    finite = np.asarray(applied, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    result['actual_quantized_command_nm'] = sorted({round(float(value), 9) for value in finite})
+    result['quantization_max_error_counts'] = float(np.max(np.abs(finite / QUANTUM_NM - np.round(finite / QUANTUM_NM)))) if len(finite) else None
+    return result
+
+
+def series_quality(series, start, end, maximum_gap):
+    times, values = series.window(start, end)
+    boundary = np.r_[start, times, end]
+    return {'messages': len(values), 'max_broadcast_gap_s': float(np.max(np.diff(boundary))) if len(boundary) > 1 else end - start,
+            'coverage_ok': bool(len(values) and np.max(np.diff(boundary)) <= maximum_gap)}
+
+
+def analyze_runs(events, series, samples, limits, margin):
+    runs = []
+    for event_index, event in enumerate(events):
+        if event['state'] not in ACTIVE or (event_index and events[event_index - 1]['state'] in ACTIVE):
+            continue
+        phases = []
+        cursor = event_index
+        while cursor < len(events) and events[cursor]['state'] in ACTIVE:
+            phases.append(events[cursor])
+            cursor += 1
+        terminal = events[cursor] if cursor < len(events) else None
+        start, end = phases[0]['start_s'], phases[-1]['end_s']
+        terminal_state = terminal['state'] if terminal else 'bag_ended_during_run'
+        reasons = sorted({str(value) for value in series['reason'].window(end, min(end + 0.1, terminal['end_s']) if terminal else end)[1]})
+        run = {'run': len(runs) + 1, 'start_s': start, 'end_s': end, 'duration_s': end - start,
+               'terminal_state': terminal_state, 'terminal_reasons_observed': reasons,
+               'phases': [phase_summary(phase, series, samples, margin) for phase in phases]}
+        pulse_count = 0
+        for phase in run['phases']:
+            if phase['state'] == 'pulse':
+                pulse_count += 1
+                phase['pulse_index'] = pulse_count
+        run['pulse_count'] = pulse_count
+        waveform_checks = []
+        pulse_number = 0
+        waveform_amplitudes = (2.0, 3.5, 5.0, 6.0)
+        waveform_signs = (1.0, -1.0, -1.0, 1.0)
+        for phase in run['phases']:
+            observed_commands = phase.get('actual_quantized_command_nm', [])
+            if phase['state'] == 'settling' or phase['state'] == 'rest':
+                zero_ok = bool(observed_commands) and all(abs(value) <= QUANTUM_NM * 0.51
+                                                          for value in observed_commands)
+                phase['expected_command_nm'] = 0.0
+                phase['waveform_matches_expected'] = zero_ok
+                waveform_checks.append({'state': phase['state'], 'start_s': phase['start_s'],
+                                        'expected_command_nm': 0.0, 'observed_commands_nm': observed_commands,
+                                        'matches_expected': zero_ok})
+                if not zero_ok:
+                    waveform_checks[-1]['problem'] = phase['state'] + ' phase has missing or nonzero applied command'
+            elif phase['state'] == 'pulse':
+                expected = (limits['command_sign'] * waveform_signs[pulse_number % 4]
+                            * waveform_amplitudes[pulse_number // 4]) if pulse_number < 16 else None
+                matches = expected is not None and bool(observed_commands) and all(
+                    abs(value - expected) <= QUANTUM_NM * 0.51 for value in observed_commands)
+                phase['expected_command_nm'] = expected
+                phase['waveform_matches_expected'] = matches
+                waveform_checks.append({'state': 'pulse', 'pulse': pulse_number + 1,
+                                        'start_s': phase['start_s'], 'expected_command_nm': expected,
+                                        'observed_commands_nm': observed_commands, 'matches_expected': matches})
+                pulse_number += 1
+            elif phase['state'] == 'sine':
+                amplitude = limits['sine_torque_amplitude_nm']
+                max_observed = max((abs(value) for value in observed_commands), default=0.0)
+                # The command is quantized and sampled asynchronously, so the
+                # sine phase is checked by its bounded, varying command range;
+                # the actual time-aligned waveform remains in the bag samples.
+                varied = len(observed_commands) >= 3 and max_observed >= amplitude * 0.5
+                bounded = bool(observed_commands) and max_observed <= amplitude + QUANTUM_NM * 0.51
+                matches = varied and bounded
+                phase['sine_amplitude_nm'] = amplitude
+                phase['sine_frequency_hz'] = limits['sine_frequency_hz']
+                phase['sine_frequency_end_hz'] = limits['sine_frequency_end_hz']
+                phase['waveform_matches_expected'] = matches
+                waveform_checks.append({'state': 'sine', 'start_s': phase['start_s'],
+                                        'expected_amplitude_nm': amplitude,
+                                        'expected_frequency_hz': limits['sine_frequency_hz'],
+                                        'expected_frequency_end_hz': limits['sine_frequency_end_hz'],
+                                        'observed_commands_nm': observed_commands,
+                                        'matches_expected': matches})
+            elif phase['state'] in {'constant_positive', 'constant_negative'}:
+                amplitude = min(limits['constant_torque_nm'], limits.get('torque_limit_nm', 6.0))
+                expected = (amplitude if phase['state'] == 'constant_positive' else -amplitude)
+                expected *= limits['command_sign']
+                matches = bool(observed_commands) and all(
+                    abs(value - expected) <= QUANTUM_NM * 0.51 for value in observed_commands)
+                phase['constant_torque_nm'] = expected
+                phase['waveform_matches_expected'] = matches
+                waveform_checks.append({'state': phase['state'], 'start_s': phase['start_s'],
+                                        'expected_command_nm': expected,
+                                        'observed_commands_nm': observed_commands,
+                                        'matches_expected': matches})
+            elif phase['state'] in {'ramp_up', 'ramp_down',
+                                    'ramp_reverse_up', 'ramp_reverse_down'}:
+                limit = min(limits.get('linear_ramp_peak_nm', limits.get('torque_limit_nm', 6.0)),
+                            limits.get('torque_limit_nm', 6.0))
+                max_observed = max((abs(value) for value in observed_commands), default=0.0)
+                varied = len(observed_commands) >= 3 and max_observed >= limit * 0.5
+                bounded = bool(observed_commands) and max_observed <= limit + QUANTUM_NM * 0.51
+                positive = phase['state'] in {'ramp_up', 'ramp_down'}
+                if positive:
+                    expected_start, expected_end = (
+                        (0.0, limit) if phase['state'] == 'ramp_up' else (limit, 0.0))
+                    returns_zero = min((abs(value) for value in observed_commands), default=float('inf'))
+                else:
+                    expected_start, expected_end = (
+                        (0.0, -limit) if phase['state'] == 'ramp_reverse_up'
+                        else (-limit, 0.0))
+                    returns_zero = min((abs(value) for value in observed_commands), default=float('inf'))
+                signed_peak = limits['command_sign'] * (limit if positive else -limit)
+                reaches_peak = (max(observed_commands, default=0.0) >= limit * 0.5
+                                if signed_peak > 0.0 else
+                                min(observed_commands, default=0.0) <= -limit * 0.5)
+                # Each leg is monotonic and starts/ends at zero.  The samples
+                # at the state boundaries may be quantized, so only require a
+                # near-zero sample plus the expected signed peak.
+                boundary_zero_tolerance = max(
+                    QUANTUM_NM * 1.51,
+                    limit * margin / max(phase['duration_s'], 1e-9) * 1.5)
+                matches = (varied and bounded and reaches_peak
+                           and returns_zero <= boundary_zero_tolerance)
+                phase['ramp_start_nm'] = limits['command_sign'] * expected_start
+                phase['ramp_end_nm'] = limits['command_sign'] * expected_end
+                phase['waveform_matches_expected'] = matches
+                waveform_checks.append({'state': phase['state'], 'start_s': phase['start_s'],
+                                        'expected_start_nm': phase['ramp_start_nm'],
+                                        'expected_end_nm': phase['ramp_end_nm'],
+                                        'observed_commands_nm': observed_commands,
+                                        'matches_expected': matches})
+        run['waveform_checks'] = waveform_checks
+        metrics = {}
+        for name in ['joint2_error', 'joint2_angle', 'joint2_velocity', 'joint2_target',
+                     'big_yaw_velocity', 'big_yaw_torque', 'relative_angle', 'native_velocity',
+                     'estimated_velocity', 'applied', 'motor_torque']:
+            metrics[name] = measure(series[name], start, end)
+        metrics['big_yaw_angle'] = measure(series['big_yaw_angle'], start, end, unwrap=True)
+        run['quality_metrics'] = metrics
+        problems = []
+        if len(waveform_checks) != len(run['phases']) or any(
+                not check['matches_expected'] for check in waveform_checks):
+            problems.append('applied torque does not match the recorded excitation waveform')
+        linear_group_count = max(1, int(round(limits.get('linear_ramp_group_count', 1))))
+        expected_duration = (limits['settle_duration_s']
+                             + 16 * (limits['pulse_duration_s'] + limits['rest_duration_s'])
+                             + limits['sine_duration_s']
+                             + 2 * limits['constant_duration_s']
+                             + limits['constant_rest_duration_s']
+                             + (4 * linear_group_count if any(
+                                    phase['state'] in {'ramp_reverse_up', 'ramp_reverse_down'}
+                                    for phase in run['phases']) else 2)
+                             * limits['linear_ramp_duration_s'])
+        if terminal_state != 'identification_complete':
+            problems.append('run did not complete; aborted/truncated data are descriptive only')
+        sine_required = limits['sine_duration_s'] > 0.0
+        sine_phases = [phase for phase in run['phases'] if phase['state'] == 'sine']
+        constant_required = limits['constant_duration_s'] > 0.0
+        constant_phases = [phase for phase in run['phases']
+                           if phase['state'] in {'constant_positive', 'constant_negative'}]
+        ramp_required = limits['linear_ramp_duration_s'] > 0.0
+        ramp_phases = [phase for phase in run['phases']
+                       if phase['state'] in {'ramp_up', 'ramp_down',
+                                             'ramp_reverse_up', 'ramp_reverse_down'}]
+        expected_ramp_count = (4 * linear_group_count if any(
+            phase['state'] in {'ramp_reverse_up', 'ramp_reverse_down'}
+            for phase in run['phases']) else 2)
+        if (phases[0]['state'] != 'settling' or pulse_count != 16
+                or (sine_required and len(sine_phases) != 1)
+                or (not sine_required and sine_phases)
+                or (constant_required and len(constant_phases) != 2)
+                or (not constant_required and constant_phases)
+                or (ramp_required and len(ramp_phases) != expected_ramp_count)
+                or (not ramp_required and ramp_phases)
+                or abs(end - start - expected_duration) > max(0.05, 4 * margin)):
+            problems.append('full baseline and configured excitation waveform were not observed')
+        for name, threshold in [('joint2_error', limits['joint2_position_tolerance_rad']),
+                                ('estimated_velocity', limits['max_velocity_rad_s'])]:
+            if (not metrics[name]['count'] or metrics[name]['nonfinite_count']
+                    or metrics[name]['max_abs'] > threshold + 1e-7):
+                problems.append(name + ' missing or exceeds identification tolerance')
+        for name in ['joint2_permitted', 'small_yaw_online', 'big_yaw_online', 'remote_online']:
+            _, values = series[name].window(start + margin, end - margin)
+            if not len(values) or not all(bool(value) for value in values):
+                problems.append(name + ' is missing or false')
+        if metrics['joint2_target'].get('peak_to_peak', math.inf) > 0.0001:
+            problems.append('joint2 support target changed or was unavailable')
+        run['big_yaw_peak_to_peak_rad'] = metrics['big_yaw_angle'].get('peak_to_peak')
+        run['big_yaw_local_window_padding_s'] = BIG_YAW_WINDOW_PADDING_S
+        run['big_yaw_local_window_threshold_rad'] = limits['fixed_base_excursion_rad']
+        run['big_yaw_motion_windows_excluded'] = 0
+        run['big_yaw_window_checks_missing'] = 0
+        run['coverage'] = {}
+        for name in ['state', 'applied', 'motor_torque', 'joint2_error', 'joint2_velocity',
+                     'joint2_permitted', 'big_yaw_angle', 'big_yaw_velocity', 'big_yaw_torque',
+                     'small_yaw_online', 'big_yaw_online', 'remote_online']:
+            coverage = series_quality(series[name], start, end, max(0.03, 3 * (series[name].period() or 0)))
+            run['coverage'][name] = coverage
+            if not coverage['coverage_ok']:
+                problems.append(name + ' has insufficient broadcast coverage')
+        rows = [sample for sample in samples if start <= sample['time_s'] < end]
+        if len(rows) < 20 or len({sample['segment'] for sample in rows}) != 1:
+            problems.append('insufficient continuous, unique CAN samples')
+        elif max(np.diff([sample['time_s'] for sample in rows]), default=0.0) > 0.03:
+            problems.append('unique CAN sample gap exceeds 30 ms')
+        if margin >= limits['pulse_duration_s'] / 3:
+            problems.append('asynchronous boundary uncertainty is too large for these short pulses')
+        run['fit_eligible'] = not problems
+        run['fit_exclusions'] = problems
+        runs.append(run)
+    return runs
+
+
+def integrate_hold(series, start, end, maximum_gap=0.03):
+    before = int(np.searchsorted(series.t, start, side='right')) - 1
+    after = int(np.searchsorted(series.t, end, side='left'))
+    if before < 0 or series.t[before] < start - maximum_gap:
+        return None
+    times = np.r_[start, series.t[before + 1:after], end]
+    values = np.asarray(series.v[before:after], dtype=float)
+    if not len(values) or len(values) != len(times) - 1 or not np.all(np.isfinite(values)):
+        return None
+    if max(np.diff(times), default=0.0) > maximum_gap:
+        return None
+    return float(np.dot(np.diff(times), values))
+
+
+def integrate_aligned_samples(samples, start, end, field, maximum_gap=0.05):
+    """Integrate a CAN-clock-aligned sample field over a fit window.
+
+    Fit windows begin and end on CAN samples, so trapezoidal integration is
+    well-defined and does not reintroduce the asynchronous scalar topic clock.
+    A continuity gap or missing aligned value rejects the window.
+    """
+    rows = [sample for sample in samples if start <= sample['time_s'] <= end]
+    if len(rows) < 2 or rows[0]['time_s'] > start + 1e-9 or rows[-1]['time_s'] < end - 1e-9:
+        return None
+    times = np.asarray([sample['time_s'] for sample in rows], dtype=float)
+    values = np.asarray([sample.get(field) for sample in rows], dtype=float)
+    if not np.all(np.isfinite(values)) or np.any(np.diff(times) <= 0.0):
+        return None
+    if np.max(np.diff(times)) > maximum_gap:
+        return None
+    return float(np.trapz(values, times))
+
+
+class SampleFieldIntegrator:
+    """Fast piecewise-linear integrals on the monotonic CAN receive clock."""
+
+    def __init__(self, samples, field, maximum_gap=0.05):
+        self.times = np.asarray([sample['time_s'] for sample in samples], dtype=float)
+        self.values = np.asarray([sample.get(field) for sample in samples], dtype=float)
+        self.maximum_gap = maximum_gap
+        self.dt = np.diff(self.times)
+        areas = 0.5 * (self.values[:-1] + self.values[1:]) * self.dt
+        valid = (np.isfinite(self.values[:-1]) & np.isfinite(self.values[1:])
+                 & (self.dt > 0.0) & (self.dt <= maximum_gap))
+        self.areas = np.where(valid, areas, 0.0)
+        self.prefix = np.r_[0.0, np.cumsum(self.areas)]
+
+    def _primitive(self, value):
+        if not len(self.times) or value < self.times[0] or value > self.times[-1]:
+            return None
+        exact = int(np.searchsorted(self.times, value, side='left'))
+        if exact < len(self.times) and abs(self.times[exact] - value) <= 1e-12:
+            return float(self.prefix[exact])
+        index = int(np.searchsorted(self.times, value, side='right')) - 1
+        if index < 0 or index >= len(self.dt) or not np.isfinite(self.areas[index]):
+            return None
+        if (not np.isfinite(self.values[index]) or not np.isfinite(self.values[index + 1])
+                or self.dt[index] <= 0.0 or self.dt[index] > self.maximum_gap):
+            return None
+        fraction = (value - self.times[index]) / self.dt[index]
+        endpoint = self.values[index] + fraction * (self.values[index + 1] - self.values[index])
+        area = 0.5 * (self.values[index] + endpoint) * (value - self.times[index])
+        return float(self.prefix[index] + area)
+
+    def integrate(self, start, end):
+        if not math.isfinite(start) or not math.isfinite(end) or end <= start:
+            return None
+        start_primitive = self._primitive(start)
+        end_primitive = self._primitive(end)
+        if start_primitive is None or end_primitive is None:
+            return None
+        first = max(0, int(np.searchsorted(self.times, start, side='right')) - 1)
+        last = min(len(self.dt), int(np.searchsorted(self.times, end, side='left')))
+        if last > first:
+            intervals = slice(first, last)
+            if (np.any(self.dt[intervals] <= 0.0)
+                    or np.any(self.dt[intervals] > self.maximum_gap)
+                    or not np.all(np.isfinite(self.values[first:last + 1]))):
+                return None
+        return float(end_primitive - start_primitive)
+
+
+def fit_nonnegative(design, target, nonnegative_count):
+    # Enumerate active zero bounds for the nonnegative physical coefficients.
+    # The final columns (such as bias) remain unconstrained.  This is bounded
+    # least squares without requiring SciPy; the directional model has five
+    # nonnegative coefficients and still only requires 32 small solves.
+    norms = np.linalg.norm(design, axis=0)
+    scaled = design / np.where(norms > 0, norms, 1.0)
+    best = None
+    for free in itertools.product([False, True], repeat=nonnegative_count):
+        # The unconstrained columns follow the nonnegative columns.  This is
+        # currently one bias column for the symmetric model; callers with a
+        # directional design pass its index explicitly below.
+        unconstrained = list(range(nonnegative_count, design.shape[1]))
+        columns = [index for index, enabled in enumerate(free) if enabled] + unconstrained
+        candidate = np.zeros(design.shape[1])
+        candidate[columns] = np.linalg.lstsq(scaled[:, columns], target, rcond=None)[0]
+        if np.any(candidate[:nonnegative_count] < -1e-10):
+            continue
+        candidate[:nonnegative_count] = np.maximum(candidate[:nonnegative_count], 0.0)
+        residual = scaled @ candidate - target
+        loss = float(residual @ residual)
+        if best is None or loss < best[0]:
+            best = (loss, candidate / np.where(norms > 0, norms, 1.0))
+    return best[1] if best is not None else None
+
+
+def fit_nonnegative_first_three(design, target):
+    return fit_nonnegative(design, target, 3)
+
+
+def solve_model(design, target, nonnegative_count=3):
+    norms = np.linalg.norm(design, axis=0)
+    scaled = design / np.maximum(norms, 1e-15)
+    rank = int(np.linalg.matrix_rank(scaled))
+    condition = float(np.linalg.cond(scaled))
+    if rank < design.shape[1] or not math.isfinite(condition) or condition > 1e5:
+        return None, {'rank': rank, 'column_scaled_condition_number': condition}
+    coefficients = fit_nonnegative(design, target, nonnegative_count)
+    return coefficients, {
+        'rank': rank, 'column_scaled_condition_number': condition,
+    }
+
+
+def prediction_metrics(actual, predicted):
+    residual = predicted - actual
+    total = float(np.sum((actual - actual.mean()) ** 2))
+    return {
+        'windows': int(len(actual)),
+        'rmse_nm': float(np.sqrt(np.mean(residual ** 2))),
+        'mae_nm': float(np.mean(np.abs(residual))),
+        'p95_abs_error_nm': float(np.percentile(np.abs(residual), 95)),
+        'r_squared': float(1.0 - np.sum(residual ** 2) / total) if total > 0 else None,
+    }
+
+
+def shifted_current_window_sets(windows, integrator):
+    values_by_window = []
+    for window in windows:
+        duration = window['end_s'] - window['start_s']
+        shifted = {}
+        for offset in CURRENT_MOTION_SHIFT_GRID_S:
+            area = integrator.integrate(window['start_s'] - offset,
+                                        window['end_s'] - offset)
+            if area is None:
+                break
+            shifted[offset] = area / duration
+        if len(shifted) == len(CURRENT_MOTION_SHIFT_GRID_S):
+            values_by_window.append((window, shifted))
+    result = {}
+    for offset in CURRENT_MOTION_SHIFT_GRID_S:
+        result[offset] = [dict(window, current_estimate_nm=shifted[offset])
+                          for window, shifted in values_by_window]
+    return result
+
+
+def choose_current_motion_shift(window_sets, run_ids, model_kind):
+    """Choose one common offset by leave-one-run-out score on training runs."""
+    best = None
+    for offset, windows in window_sets.items():
+        selected = [window for window in windows if window['run'] in run_ids]
+        actual_all, predicted_all = [], []
+        valid = True
+        for held_run in run_ids:
+            training = [window for window in selected if window['run'] != held_run]
+            testing = [window for window in selected if window['run'] == held_run]
+            if not training or not testing:
+                valid = False
+                break
+            design = model_design(training, model_kind)
+            target = np.asarray([window['current_estimate_nm'] for window in training])
+            coefficients, _ = solve_model(design, target, model_nonnegative_count(model_kind))
+            if coefficients is None:
+                valid = False
+                break
+            actual_all.extend(window['current_estimate_nm'] for window in testing)
+            predicted_all.extend((model_design(testing, model_kind) @ coefficients).tolist())
+        if not valid or not actual_all:
+            continue
+        metrics = prediction_metrics(np.asarray(actual_all), np.asarray(predicted_all))
+        key = (metrics['rmse_nm'], abs(offset), offset)
+        if best is None or key < best[0]:
+            best = (key, offset, metrics)
+    if best is None:
+        return 0.0, {'status': 'not_selected', 'reason': 'No offset had valid complete-run cross-validation.'}
+    return best[1], {'status': 'selected', 'selection_runs': sorted(run_ids),
+                     'selected_offset_ms': best[1] * 1000.0,
+                     'selection_leave_one_run_out_metrics': best[2],
+                     'grid_ms': [offset * 1000.0 for offset in window_sets]}
+
+
+def validate_shifted_current_runs(window_sets, run_ids, model_kind):
+    folds = []
+    held_actual, held_predicted = [], []
+    for held_run in run_ids:
+        training_runs = sorted(set(run_ids) - {held_run})
+        offset, selection = choose_current_motion_shift(window_sets, training_runs, model_kind)
+        windows = window_sets[offset]
+        training = [window for window in windows if window['run'] != held_run]
+        testing = [window for window in windows if window['run'] == held_run]
+        design = model_design(training, model_kind)
+        target = np.asarray([window['current_estimate_nm'] for window in training], dtype=float)
+        coefficients, quality = solve_model(design, target, model_nonnegative_count(model_kind))
+        fold = {'held_out_run': held_run, 'training_runs': training_runs,
+                'selected_current_motion_offset_ms': offset * 1000.0,
+                'inner_selection': selection, 'training_windows': len(training),
+                'test_windows': len(testing), **quality}
+        if coefficients is None or not testing:
+            fold['status'] = 'not_validated'
+            fold['reason'] = 'Training design is rank-deficient/ill-conditioned or held-out run has no fit windows.'
+        else:
+            actual = np.asarray([window['current_estimate_nm'] for window in testing], dtype=float)
+            predicted = model_design(testing, model_kind) @ coefficients
+            fold['status'] = 'validated'
+            fold['metrics'] = prediction_metrics(actual, predicted)
+            held_actual.extend(actual.tolist())
+            held_predicted.extend(predicted.tolist())
+        folds.append(fold)
+    result = {'status': 'validated' if len(folds) == len(run_ids)
+              and all(fold['status'] == 'validated' for fold in folds) else 'incomplete',
+              'folds': folds}
+    if held_actual:
+        result['pooled_metrics'] = prediction_metrics(
+            np.asarray(held_actual), np.asarray(held_predicted))
+    return result
+
+
+def phase_residual_diagnostics(windows, coefficients, model_kind, target_name):
+    groups = {
+        'pulse_start_stop': {'pulse'},
+        'sinusoidal': {'sine'},
+        'constant_hold': {'constant_positive', 'constant_negative'},
+        'linear_ramp': {'ramp_up', 'ramp_down', 'ramp_reverse_up', 'ramp_reverse_down'},
+    }
+    result = {}
+    for group, phases in groups.items():
+        selected = [window for window in windows if window['phase'] in phases]
+        if not selected:
+            continue
+        actual = np.asarray([window[target_name] for window in selected], dtype=float)
+        predicted = model_design(selected, model_kind) @ coefficients
+        metrics = prediction_metrics(actual, predicted)
+        metrics['mean_signed_residual_nm'] = float(np.mean(predicted - actual))
+        metrics['runs'] = len({window['run'] for window in selected})
+        result[group] = metrics
+    return result
+
+
+def directional_row(window):
+    """Build a direction-asymmetric friction row from a symmetric window."""
+    acceleration, velocity, direction, _ = window['row']
+    return [acceleration, max(velocity, 0.0), min(velocity, 0.0),
+            1.0 if direction > 0 else 0.0,
+            -1.0 if direction < 0 else 0.0]
+
+
+def model_design(windows, model_kind):
+    if model_kind == 'directional_friction':
+        return np.asarray([directional_row(window) for window in windows], dtype=float)
+    return np.asarray([window['row'] for window in windows], dtype=float)
+
+
+def model_nonnegative_count(model_kind):
+    return 5 if model_kind == 'directional_friction' else 3
+
+
+def model_parameter_names(model_kind):
+    if model_kind == 'directional_friction':
+        return ['J_kg_m2', 'b_positive_nm_s_rad', 'b_negative_nm_s_rad',
+                'Fc_positive_nm', 'Fc_negative_nm']
+    return ['J_kg_m2', 'b_nm_s_rad', 'Fc_nm', 'bias_nm']
+
+
+def validate_repeated_runs(windows, target_name, model_kind='symmetric'):
+    run_ids = sorted({window['run'] for window in windows})
+    result = {
+        'independent_runs': len(run_ids),
+        'minimum_runs_for_validation': MIN_VALIDATION_RUNS,
+        'minimum_runs_for_bootstrap_interval': MIN_BOOTSTRAP_RUNS,
+        'leave_one_run_out': {'status': 'not_available', 'folds': []},
+        'run_cluster_bootstrap_95_percent_interval': {
+            'status': 'not_available', 'replicates_requested': BOOTSTRAP_REPLICATES,
+        },
+    }
+    if len(run_ids) < MIN_VALIDATION_RUNS:
+        reason = 'Need at least three complete, independent identification runs; windows within one run are correlated.'
+        result['leave_one_run_out']['reason'] = reason
+        result['run_cluster_bootstrap_95_percent_interval']['reason'] = reason
+        return result
+
+    held_actual = []
+    held_predicted = []
+    for held_run in run_ids:
+        training = [window for window in windows if window['run'] != held_run]
+        testing = [window for window in windows if window['run'] == held_run]
+        design = model_design(training, model_kind)
+        target = np.asarray([window[target_name] for window in training], dtype=float)
+        coefficients, quality = solve_model(design, target, model_nonnegative_count(model_kind))
+        fold = {'held_out_run': held_run, 'training_runs': sorted({window['run'] for window in training}),
+                'training_windows': len(training), 'test_windows': len(testing), **quality}
+        if coefficients is None or not testing:
+            fold['status'] = 'not_validated'
+            fold['reason'] = 'Training design is rank-deficient/ill-conditioned or held-out run has no fit windows.'
+        else:
+            test_design = model_design(testing, model_kind)
+            actual = np.asarray([window[target_name] for window in testing], dtype=float)
+            predicted = test_design @ coefficients
+            fold['status'] = 'validated'
+            fold['metrics'] = prediction_metrics(actual, predicted)
+            held_actual.extend(actual.tolist())
+            held_predicted.extend(predicted.tolist())
+        result['leave_one_run_out']['folds'].append(fold)
+    passed_folds = [fold for fold in result['leave_one_run_out']['folds']
+                    if fold['status'] == 'validated']
+    if len(passed_folds) == len(run_ids):
+        result['leave_one_run_out']['status'] = 'validated'
+        result['leave_one_run_out']['pooled_metrics'] = prediction_metrics(
+            np.asarray(held_actual), np.asarray(held_predicted))
+    else:
+        result['leave_one_run_out']['status'] = 'incomplete'
+        result['leave_one_run_out']['reason'] = 'At least one held-out run could not be predicted reliably.'
+
+    if len(run_ids) < MIN_BOOTSTRAP_RUNS:
+        result['run_cluster_bootstrap_95_percent_interval']['reason'] = (
+            'Need at least five independent complete runs for a minimally useful run-cluster interval; '
+            'three runs only support leave-one-run-out validation.')
+        return result
+
+    rng = np.random.default_rng(20261024)
+    grouped = {run_id: [window for window in windows if window['run'] == run_id]
+               for run_id in run_ids}
+    estimates = []
+    for _ in range(BOOTSTRAP_REPLICATES):
+        draw = rng.choice(run_ids, size=len(run_ids), replace=True).tolist()
+        if len(set(draw)) < 2:
+            continue
+        resampled = [window for run_id in draw for window in grouped[run_id]]
+        design = model_design(resampled, model_kind)
+        target = np.asarray([window[target_name] for window in resampled], dtype=float)
+        coefficients, _ = solve_model(design, target, model_nonnegative_count(model_kind))
+        if coefficients is not None and np.all(np.isfinite(coefficients)):
+            estimates.append(coefficients)
+    bootstrap = result['run_cluster_bootstrap_95_percent_interval']
+    bootstrap['successful_replicates'] = len(estimates)
+    bootstrap['method'] = 'Percentile intervals from resampling whole independent runs; not individual windows.'
+    if len(estimates) >= 200:
+        values = np.asarray(estimates)
+        names = model_parameter_names(model_kind)
+        bootstrap['status'] = 'estimated'
+        bootstrap['parameters'] = {
+            name: {'lower_2_5_percent': float(np.percentile(values[:, index], 2.5)),
+                   'upper_97_5_percent': float(np.percentile(values[:, index], 97.5))}
+            for index, name in enumerate(names)
+        }
+    else:
+        bootstrap['status'] = 'insufficient_valid_replicates'
+    return result
+
+
+def fit_models(runs, series, samples, margin):
+    windows = []
+    big_yaw_windows_excluded = 0
+    big_yaw_window_checks_missing = 0
+    for run in runs:
+        run['fit_candidate_windows'] = 0
+        run['fit_windows_retained'] = 0
+    for run in runs:
+        if not run['fit_eligible']:
+            continue
+        for phase in run['phases']:
+            if phase['state'] not in {'pulse', 'rest', 'sine', 'constant_positive',
+                                      'constant_negative', 'ramp_up', 'ramp_down',
+                                      'ramp_reverse_up', 'ramp_reverse_down'}:
+                continue
+            rows = [sample for sample in samples
+                    if phase['start_s'] + margin <= sample['time_s'] < phase['end_s'] - margin
+                    and sample['velocity_rad_s'] is not None
+                    and sample['acceleration_rad_s2'] is not None]
+            cursor = 0
+            while cursor + 4 < len(rows):
+                stop = cursor + 1
+                while stop < len(rows) and rows[stop]['time_s'] - rows[cursor]['time_s'] < 0.03:
+                    stop += 1
+                if stop >= len(rows):
+                    break
+                block = rows[cursor:stop + 1]
+                cursor = stop + 1
+                velocity = np.asarray([row['velocity_rad_s'] for row in block])
+                acceleration = np.asarray([row['acceleration_rad_s2'] for row in block])
+                # Exclude sticking and reversal: the simple Coulomb model is not
+                # valid at zero speed and encoder-derived endpoint slopes are noisy.
+                if (len(block) < 5 or not np.all(np.isfinite(acceleration))
+                        or np.any(np.abs(velocity) < 0.02)
+                        or not np.all(np.sign(velocity) == np.sign(velocity[0]))):
+                    continue
+                first, last = block[0], block[-1]
+                start, end = first['time_s'], last['time_s']
+                duration = end - start
+                run['fit_candidate_windows'] += 1
+                local_start = start - BIG_YAW_WINDOW_PADDING_S
+                local_end = end + BIG_YAW_WINDOW_PADDING_S
+                big_yaw_excursion = big_yaw_local_excursion(
+                    series, local_start, local_end)
+                if big_yaw_excursion is None:
+                    run['big_yaw_window_checks_missing'] += 1
+                    big_yaw_window_checks_missing += 1
+                    continue
+                if big_yaw_excursion > run['big_yaw_local_window_threshold_rad']:
+                    run['big_yaw_motion_windows_excluded'] += 1
+                    big_yaw_windows_excluded += 1
+                    continue
+                command = integrate_aligned_samples(samples, start, end, 'applied_aligned_nm')
+                feedback = integrate_aligned_samples(samples, start, end, 'motor_torque_aligned_nm')
+                if command is None or feedback is None:
+                    continue
+                windows.append({
+                    'run': run['run'], 'start_s': start, 'end_s': end, 'phase': phase['state'],
+                    'big_yaw_local_peak_to_peak_rad': big_yaw_excursion,
+                    'big_yaw_local_check_start_s': local_start,
+                    'big_yaw_local_check_end_s': local_end,
+                    'direction': int(np.sign(velocity[0])),
+                    'angle_rad': float(np.mean([row['angle_segment_rad'] for row in block])),
+                    'row': [float(np.mean(acceleration)),
+                            (last['angle_segment_rad'] - first['angle_segment_rad']) / duration,
+                            float(np.sign(velocity[0])), 1.0],
+                    'applied_command_nm': command / duration,
+                    'current_estimate_nm': feedback / duration,
+                })
+                run['fit_windows_retained'] += 1
+    current_integrator = SampleFieldIntegrator(samples, 'motor_torque_aligned_nm')
+    shifted_windows = shifted_current_window_sets(windows, current_integrator)
+    current_shift = 0.0
+    current_shift_info = {'status': 'not_selected'}
+    run_ids = sorted({window['run'] for window in windows})
+    if shifted_windows and len(run_ids) >= 3:
+        current_shift, current_shift_info = choose_current_motion_shift(
+            shifted_windows, run_ids, 'symmetric')
+        if current_shift in shifted_windows:
+            windows = shifted_windows[current_shift]
+    positive = [window for window in windows if window['direction'] > 0]
+    negative = [window for window in windows if window['direction'] < 0]
+    result = {'equation': 'J * acceleration + b * velocity + Fc * sign(velocity) + bias = tau',
+              'method': 'Nonoverlapping >=30 ms interval equations: J*delta_v + b*delta_q + Fc*integral(sign(v)) + bias*dt = integral(tau); rows divided by dt',
+              'velocity_estimator': 'local +/-25 ms quadratic encoder-angle regression on unique CAN timestamps; acceleration is the mean local second derivative',
+              'minimum_motion_speed_rad_s': 0.02, 'positive_windows': len(positive), 'negative_windows': len(negative),
+              'positive_motion_s': sum(window['end_s'] - window['start_s'] for window in positive),
+              'negative_motion_s': sum(window['end_s'] - window['start_s'] for window in negative),
+              'big_yaw_window_threshold_rad': FIXED_BASE_EXCURSION_RAD,
+              'big_yaw_window_padding_s': BIG_YAW_WINDOW_PADDING_S,
+              'big_yaw_motion_windows_excluded': big_yaw_windows_excluded,
+              'big_yaw_window_checks_missing': big_yaw_window_checks_missing,
+              'eligible_runs': [run['run'] for run in runs if run['fit_eligible']],
+              'status': 'not_fitted', 'reasons': [], 'models': {},
+              'primary_torque_input': PRIMARY_TORQUE_INPUT,
+              'current_motion_offset_ms': current_shift * 1000.0,
+              'current_motion_offset_selection': current_shift_info,
+              'directional_models': {},
+              'directional_model_equation': ('J*a + b+*v+ + b-*v- + Fc+*I(v>0) '
+                                             '+ Fc-*I(v<0) = tau (bias fixed to zero)')}
+    if len(positive) < 8 or len(negative) < 8 or min(result['positive_motion_s'], result['negative_motion_s']) < 0.2:
+        result['reasons'].append('Insufficient bidirectional motion: need >=8 windows and >=0.2 s moving in each direction')
+        return result, windows
+    design = np.asarray([window['row'] for window in windows])
+    singular = np.linalg.svd(design, compute_uv=False)
+    scaled = design / np.maximum(np.linalg.norm(design, axis=0), 1e-15)
+    scaled_singular = np.linalg.svd(scaled, compute_uv=False)
+    result['rank'] = int(np.linalg.matrix_rank(scaled))
+    result['singular_values'] = singular.tolist()
+    result['condition_number'] = float(np.linalg.cond(design))
+    result['column_scaled_condition_number'] = float(np.linalg.cond(scaled))
+    result['column_scaled_singular_values'] = scaled_singular.tolist()
+    if result['rank'] < 4 or result['column_scaled_condition_number'] > 1e5:
+        result['reasons'].append('Design is rank-deficient or ill-conditioned; J, b, Fc and bias cannot be separated reliably')
+        return result, windows
+    for name in TORQUE_INPUTS:
+        target = np.asarray([window[name] for window in windows])
+        coefficients = fit_nonnegative_first_three(design, target)
+        residual = design @ coefficients - target
+        total = float(np.sum((target - target.mean()) ** 2))
+        result['models'][name] = {
+            'J_kg_m2': float(coefficients[0]), 'b_nm_s_rad': float(coefficients[1]),
+            'Fc_nm': float(coefficients[2]), 'bias_nm': float(coefficients[3]),
+            'constraints': 'J >= 0, b >= 0, Fc >= 0; bias free',
+            'training_windows': len(windows), 'rmse_average_torque_nm': float(np.sqrt(np.mean(residual ** 2))),
+            'mae_average_torque_nm': float(np.mean(np.abs(residual))),
+            'p95_abs_residual_nm': float(np.percentile(np.abs(residual), 95)),
+            'training_r_squared': float(1 - np.sum(residual ** 2) / total) if total > 0 else None,
+            'positive_rmse_nm': float(np.sqrt(np.mean(residual[[window['direction'] > 0 for window in windows]] ** 2))),
+            'negative_rmse_nm': float(np.sqrt(np.mean(residual[[window['direction'] < 0 for window in windows]] ** 2))),
+            'angle_residual_correlation': {
+                basis: float(np.corrcoef(residual, values)[0, 1])
+                if len(values) > 1 and np.std(values) > 1e-12 and np.std(residual) > 1e-12 else None
+                for basis, values in {
+                    'sin_angle': np.sin([window['angle_rad'] for window in windows]),
+                    'cos_angle': np.cos([window['angle_rad'] for window in windows]),
+                }.items()
+            },
+            'parameters_at_zero_bound': [parameter for parameter, value in zip(['J', 'b', 'Fc'], coefficients[:3]) if value <= 1e-9],
+            'interpretation': ('Apparent command-to-motion model; commanded torque is not measured delivered torque'
+                               if name == 'applied_command_nm' else
+                               'Current-derived motor torque estimate; calibration, drive dynamics and external loads can bias apparent parameters'),
+            'repeat_run_validation': validate_repeated_runs(windows, name),
+        }
+        result['models'][name]['phase_diagnostics'] = phase_residual_diagnostics(
+            windows, coefficients, 'symmetric', name)
+        if name == PRIMARY_TORQUE_INPUT and shifted_windows and len(run_ids) >= 3:
+            validation = result['models'][name]['repeat_run_validation']
+            validation['leave_one_run_out'] = validate_shifted_current_runs(
+                shifted_windows, run_ids, 'symmetric')
+            validation['current_motion_offset_ms'] = current_shift * 1000.0
+            validation['current_motion_offset_selection'] = current_shift_info
+    result['status'] = ('cross_validated_apparent_fit'
+                        if len(result['eligible_runs']) >= MIN_VALIDATION_RUNS
+                        and all(model['repeat_run_validation']['leave_one_run_out']['status'] == 'validated'
+                                for model in result['models'].values())
+                        else 'preliminary_fit')
+
+    # Fit a direction-asymmetric friction model as a diagnostic.  It is
+    # reported beside the symmetric fit and is not silently selected for a
+    # controller.  A repeated-run validation gate remains required before it
+    # can be treated as a usable plant model.
+    directional_design = model_design(windows, 'directional_friction')
+    directional_scaled = directional_design / np.maximum(
+        np.linalg.norm(directional_design, axis=0), 1e-15)
+    directional_rank = int(np.linalg.matrix_rank(directional_scaled))
+    directional_condition = float(np.linalg.cond(directional_scaled))
+    result['directional_rank'] = directional_rank
+    result['directional_column_scaled_condition_number'] = directional_condition
+    if directional_rank == directional_design.shape[1] and math.isfinite(directional_condition) and directional_condition <= 1e5:
+        for name in TORQUE_INPUTS:
+            directional_offset = current_shift
+            directional_selection = current_shift_info
+            model_windows = windows
+            if name == PRIMARY_TORQUE_INPUT and shifted_windows and len(run_ids) >= 3:
+                directional_offset, directional_selection = choose_current_motion_shift(
+                    shifted_windows, run_ids, 'directional_friction')
+                model_windows = shifted_windows[directional_offset]
+            target = np.asarray([window[name] for window in model_windows])
+            model_design_matrix = model_design(model_windows, 'directional_friction')
+            coefficients = fit_nonnegative(model_design_matrix, target, 5)
+            if coefficients is None:
+                continue
+            residual = model_design_matrix @ coefficients - target
+            total = float(np.sum((target - target.mean()) ** 2))
+            directional_result = {
+                'J_kg_m2': float(coefficients[0]),
+                'b_positive_nm_s_rad': float(coefficients[1]),
+                'b_negative_nm_s_rad': float(coefficients[2]),
+                'Fc_positive_nm': float(coefficients[3]),
+                'Fc_negative_nm': float(coefficients[4]),
+                'constraints': 'J, b+/b-, Fc+/Fc- >= 0; bias fixed to zero because it is unidentifiable with Fc+/Fc-',
+                'training_windows': len(model_windows),
+                'rmse_average_torque_nm': float(np.sqrt(np.mean(residual ** 2))),
+                'mae_average_torque_nm': float(np.mean(np.abs(residual))),
+                'p95_abs_residual_nm': float(np.percentile(np.abs(residual), 95)),
+                'training_r_squared': float(1 - np.sum(residual ** 2) / total) if total > 0 else None,
+                'positive_rmse_nm': float(np.sqrt(np.mean(residual[[window['direction'] > 0 for window in windows]] ** 2))),
+                'negative_rmse_nm': float(np.sqrt(np.mean(residual[[window['direction'] < 0 for window in windows]] ** 2))),
+                'parameters_at_zero_bound': [parameter for parameter, value in zip(
+                    model_parameter_names('directional_friction'), coefficients)
+                    if value <= 1e-9],
+                'interpretation': ('Diagnostic direction-asymmetric apparent model; not enabled for control'
+                                   if name == 'applied_command_nm' else
+                                   'Diagnostic direction-asymmetric current-derived model; calibration and drive dynamics can bias parameters'),
+                'repeat_run_validation': validate_repeated_runs(
+                    model_windows, name, 'directional_friction'),
+                'phase_diagnostics': phase_residual_diagnostics(
+                    model_windows, coefficients, 'directional_friction', name),
+            }
+            if name == PRIMARY_TORQUE_INPUT and shifted_windows and len(run_ids) >= 3:
+                directional_result['current_motion_offset_ms'] = directional_offset * 1000.0
+                directional_result['current_motion_offset_selection'] = directional_selection
+                directional_validation = directional_result['repeat_run_validation']
+                directional_validation['leave_one_run_out'] = validate_shifted_current_runs(
+                    shifted_windows, run_ids, 'directional_friction')
+                directional_validation['current_motion_offset_ms'] = directional_offset * 1000.0
+                directional_validation['current_motion_offset_selection'] = directional_selection
+            result['directional_models'][name] = directional_result
+    else:
+        result['directional_model_reason'] = (
+            'Directional model is rank-deficient or ill-conditioned; collect more independent motion '
+            'before separating b+/b- and Fc+/Fc-.')
+    return result, windows
+
+
+def clean_json(value):
+    if isinstance(value, dict):
+        return {key: clean_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [clean_json(item) for item in value]
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, (float, np.floating)) and not math.isfinite(value):
+        return None
+    return value
+
+
+def write_csv(path, rows):
+    if not rows:
+        path.write_text('')
+        return
+    columns = list(dict.fromkeys(key for row in rows for key in row))
+    with path.open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def render_report(report):
+    lines = ['# 小 yaw 辨识离线分析', '',
+             '输入：`' + report['bag'] + '`。原始录包未修改。', '',
+             '分段边界两侧留出 %.4f s；CAN 样本按独立接收时间去重，命令/电流/力矩已对齐到 CAN 时间轴。' % report['boundary_guard_s'], '',
+             '时钟偏差取至少 %d 个 CAN 样本的 epoch 中最大 p95；样本更少的 epoch 不参与估计，除非全包没有足够长的 epoch。' % MIN_CLOCK_JITTER_EPOCH_SAMPLES, '',
+             '共 %d 次已触发运行，%d 个唯一 CAN 样本。' % (len(report['runs']), report['can_reconstruction']['unique_can_samples']), '',
+             '|运行|时长/s|脉冲数|结束状态|拟合资格|', '|---|---:|---:|---|---|']
+    for run in report['runs']:
+        lines.append('|%d|%.3f|%d|%s|%s|' % (run['run'], run['duration_s'], run['pulse_count'], run['terminal_state'], '满足质量门槛' if run['fit_eligible'] else '排除'))
+        if 'big_yaw_peak_to_peak_rad' in run:
+            lines.append('运行 %d 大 yaw 全段峰峰值 %.6g rad；拟合候选窗口 %d，保留 %d，因附近大 yaw 运动剔除 %d（检查范围前后各 %.3g s）。' %
+                         (run['run'], run['big_yaw_peak_to_peak_rad'] or 0.0,
+                          run.get('fit_candidate_windows', 0), run.get('fit_windows_retained', 0),
+                          run.get('big_yaw_motion_windows_excluded', 0),
+                          run.get('big_yaw_local_window_padding_s', BIG_YAW_WINDOW_PADDING_S)))
+        if run['terminal_reasons_observed']:
+            lines.extend(['', '运行 %d 结束后观测到的原因：%s。' % (run['run'], ', '.join(run['terminal_reasons_observed']))])
+        if run['fit_exclusions']:
+            lines.extend(['', '运行 %d 排除原因：%s。' % (run['run'], '; '.join(run['fit_exclusions']))])
+    fit = report['fit']
+    lines.extend(['', '拟合状态：`' + fit['status'] + '`。', '',
+                  '正向/反向有效积分窗口：%d / %d。' % (fit['positive_windows'], fit['negative_windows'])])
+    lines.append('拟合只检查每个候选窗口前后各 %.3f s 的大 yaw 角度峰峰值（门槛 %.4g rad）；局部运动剔除 %d 个窗口，缺数据无法判断 %d 个窗口。' %
+                 (fit.get('big_yaw_window_padding_s', BIG_YAW_WINDOW_PADDING_S),
+                  fit.get('big_yaw_window_threshold_rad', FIXED_BASE_EXCURSION_RAD),
+                  fit.get('big_yaw_motion_windows_excluded', 0),
+                  fit.get('big_yaw_window_checks_missing', 0)))
+    lines.extend(['', '主力矩输入：电机实际电流折算估值；软件下发力矩只作对照。',
+                  '有效电流-运动时间偏移：%.1f ms（搜索范围 ±%.0f ms；正值表示将电流窗口向更早时刻移动）。' %
+                  (fit.get('current_motion_offset_ms', 0.0), MAX_CURRENT_MOTION_SHIFT_S * 1000.0)])
+    for reason in fit['reasons']:
+        lines.extend(['', reason])
+    if fit['models']:
+        lines.extend(['', '设计矩阵秩：%d；列归一化条件数：%.4g。' % (fit['rank'], fit['column_scaled_condition_number']), '',
+                      '|力矩输入|J/(kg·m²)|b/(Nm·s/rad)|Fc/Nm|bias/Nm|残差 RMSE/Nm|', '|---|---:|---:|---:|---:|---:|'])
+        for name, model in fit['models'].items():
+            lines.append('|%s|%.6g|%.6g|%.6g|%.6g|%.6g|' % (TORQUE_INPUT_LABELS.get(name, name), model['J_kg_m2'], model['b_nm_s_rad'], model['Fc_nm'], model['bias_nm'], model['rmse_average_torque_nm']))
+            validation = model['repeat_run_validation']
+            loo = validation['leave_one_run_out']
+            lines.extend(['', '**%s：** 整轮留出验证：`%s`，独立轮数 %d。' %
+                          (TORQUE_INPUT_LABELS.get(name, name), loo['status'], validation['independent_runs'])])
+            if 'pooled_metrics' in loo:
+                metrics = loo['pooled_metrics']
+                lines.append('留出轮次合并误差：RMSE %.6g Nm，MAE %.6g Nm，R² %s。' %
+                             (metrics['rmse_nm'], metrics['mae_nm'],
+                              'n/a' if metrics['r_squared'] is None else '%.6g' % metrics['r_squared']))
+            elif loo.get('reason'):
+                lines.append(loo['reason'])
+            bootstrap = validation['run_cluster_bootstrap_95_percent_interval']
+            if bootstrap['status'] == 'estimated':
+                lines.append('按整轮重采样得到的 95%% 参数区间：')
+                lines.append('')
+                lines.append('|参数|2.5 百分位|97.5 百分位|')
+                lines.append('|---|---:|---:|')
+                for parameter, interval in bootstrap['parameters'].items():
+                    lines.append('|%s|%.6g|%.6g|' %
+                                 (parameter, interval['lower_2_5_percent'], interval['upper_97_5_percent']))
+            elif bootstrap.get('reason'):
+                lines.append(bootstrap['reason'])
+            else:
+                lines.append('整轮 bootstrap 有效重采样不足：%d / %d。' %
+                             (bootstrap.get('successful_replicates', 0), bootstrap['replicates_requested']))
+            phase_diagnostics = model.get('phase_diagnostics', {})
+            if phase_diagnostics:
+                lines.extend(['', '按激励阶段检查拟合残差（训练数据诊断）：', '',
+                              '|阶段|窗口数|轮数|RMSE/Nm|MAE/Nm|平均有符号残差/Nm|',
+                              '|---|---:|---:|---:|---:|---:|'])
+                for phase, metrics in phase_diagnostics.items():
+                    lines.append('|%s|%d|%d|%.6g|%.6g|%.6g|' %
+                                 (phase, metrics['windows'], metrics['runs'], metrics['rmse_nm'],
+                                  metrics['mae_nm'], metrics['mean_signed_residual_nm']))
+        directional = fit.get('directional_models', {})
+        if directional:
+            lines.extend(['', '方向不对称摩擦模型（诊断，不自动用于控制）：', '',
+                          '|力矩输入|J|b+|b-|Fc+|Fc-|RMSE/Nm|',
+                          '|---|---:|---:|---:|---:|---:|---:|'])
+            for name, model in directional.items():
+                lines.append('|%s|%.6g|%.6g|%.6g|%.6g|%.6g|%.6g|' %
+                             (name, model['J_kg_m2'], model['b_positive_nm_s_rad'],
+                              model['b_negative_nm_s_rad'], model['Fc_positive_nm'],
+                              model['Fc_negative_nm'], model['rmse_average_torque_nm']))
+                validation = model['repeat_run_validation']['leave_one_run_out']
+                lines.append('方向模型 `%s` 整轮留出：`%s`，偏移 %.1f ms%s' %
+                             (name, validation['status'], model.get('current_motion_offset_ms', 0.0),
+                              ('，RMSE %.6g Nm，R² %s' %
+                               (validation['pooled_metrics']['rmse_nm'],
+                                'n/a' if validation['pooled_metrics']['r_squared'] is None else
+                                '%.6g' % validation['pooled_metrics']['r_squared']))
+                              if 'pooled_metrics' in validation else ''))
+        elif fit.get('directional_model_reason'):
+            lines.extend(['', '方向不对称模型未拟合：' + fit['directional_model_reason']])
+    lines.extend(['', '逐阶段与逐脉冲、正弦、恒力矩和线性扫力矩的量化命令、位移、速度、joint2 姿态、大 yaw 运动详见 `analysis.json`、`pulses.csv`、`sine_segments.csv` 和 `excitation_segments.csv`；重建样本见 `can_samples.csv`。', '',
+                  '**电机反馈力矩由电流折算，不是真实力矩传感器测量。拟合描述这组记录中的表观响应；是否通过整轮留出验证见上表。**', ''])
+    lines.extend('- ' + limitation for limitation in LIMITATIONS)
+    return '\n'.join(lines) + '\n'
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, epilog='Stop the recorder cleanly first. Source /opt/ros/jazzy/setup.bash and /rmcs_install/setup.bash before running.')
+    parser.add_argument('--bag', required=True, type=Path, help='Completed bag DIRECTORY containing finalized metadata.yaml')
+    parser.add_argument('--output', type=Path, help='New analysis directory outside the bag (default: sibling small_yaw_analysis_<UTC timestamp>)')
+    parser.add_argument('--command-sign', type=float, choices=(-1.0, 1.0),
+                        help='Override polarity when analyzing recordings made before polarity was saved in YAML')
+    args = parser.parse_args()
+    bag = args.bag.expanduser().resolve()
+    output = (args.output.expanduser().resolve() if args.output else
+              bag.parent / ('small_yaw_analysis_' + datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')))
+    if output == bag or output.is_relative_to(bag) or output.exists():
+        parser.error('--output must be a new directory outside the original bag')
+    metadata, recorder, snapshot, limits = validate_bag(bag)
+    if args.command_sign is not None:
+        limits['command_sign'] = args.command_sign
+    before = file_signature(bag)
+    series, types, atomic_samples = read_bag(bag, metadata)
+    period = series['state'].period() or 0.005
+    samples, can_metadata = reconstruct_can(series, period, atomic_samples)
+    clock_jitter, clock_jitter_estimation = estimate_clock_jitter(
+        can_metadata['clock_segments'], period)
+    # Protect the +/-25 ms quadratic encoder fit as well as state/bag-clock skew.
+    margin = max(0.02, 3 * period) + clock_jitter
+    bag_end = int(metadata['duration']['nanoseconds']) * 1e-9
+    events = transitions(series['state'], bag_end)
+    runs = analyze_runs(events, series, samples, limits, margin)
+    fit, windows = fit_models(runs, series, samples, margin)
+    if file_signature(bag) != before:
+        raise RuntimeError('Bag files changed during analysis; no analysis output written. Stop the recorder first')
+    report = {
+        'format_version': 2, 'bag': str(bag), 'analysis_time_utc': datetime.now(timezone.utc).isoformat(),
+        'script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'input_file_signatures_size_mtime_ns': before, 'recorded_topics': len(types),
+        'analyzed_topics': {name: {'topic': TOPICS[name], 'messages': len(data.t), 'median_period_s': data.period()} for name, data in series.items()},
+        'atomic_can_samples_recorded': len(atomic_samples),
+        'saved_config': snapshot, 'quality_limits': limits,
+        'limits_source': 'verified saved recording config' if snapshot else 'built-in small-yaw profile defaults; configuration snapshot unavailable',
+        'boundary_guard_s': margin, 'clock_jitter_estimation': clock_jitter_estimation,
+        'torque_command_quantum_nm': QUANTUM_NM,
+        'can_reconstruction': can_metadata, 'state_transitions': events,
+        'runs': runs, 'fit': fit, 'limitations': LIMITATIONS,
+    }
+    report = clean_json(report)
+    output.mkdir(parents=True, exist_ok=False)
+    (output / 'analysis.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
+    write_csv(output / 'can_samples.csv', samples)
+    write_csv(output / 'fit_windows.csv', [{**window, 'row': json.dumps(window['row'])} for window in windows])
+    pulses = []
+    sine_segments = []
+    excitation_segments = []
+    for run in runs:
+        for phase in run['phases']:
+            if phase['state'] == 'pulse':
+                pulses.append({'run': run['run'], 'pulse': phase['pulse_index'], 'start_s': phase['start_s'],
+                               'duration_s': phase['duration_s'], 'unique_can_samples': phase['can_samples'],
+                               'expected_command_nm': phase.get('expected_command_nm'),
+                               'waveform_matches_expected': phase.get('waveform_matches_expected'),
+                               'quantized_command_nm': json.dumps(phase['actual_quantized_command_nm']),
+                               'angle_delta_rad': phase['angle_rad'].get('delta'),
+                               'velocity_min_rad_s': phase['encoder_velocity_rad_s'].get('min'),
+                               'velocity_max_rad_s': phase['encoder_velocity_rad_s'].get('max'),
+                               'current_estimate_torque_min_nm': phase['motor_torque'].get('min'),
+                               'current_estimate_torque_max_nm': phase['motor_torque'].get('max'),
+                               'joint2_error_max_abs_rad': phase['joint2_error'].get('max_abs'),
+                               'joint2_velocity_max_abs_rad_s': phase['joint2_velocity'].get('max_abs'),
+                               'big_yaw_angle_excursion_rad': phase['big_yaw_angle'].get('peak_to_peak'),
+                               'big_yaw_velocity_max_abs_rad_s': phase['big_yaw_velocity'].get('max_abs'),
+                               'big_yaw_torque_min_nm': phase['big_yaw_torque'].get('min'),
+                               'big_yaw_torque_max_nm': phase['big_yaw_torque'].get('max')})
+            elif phase['state'] == 'sine':
+                sine_segments.append({
+                    'run': run['run'], 'start_s': phase['start_s'],
+                    'duration_s': phase['duration_s'],
+                    'frequency_hz': phase.get('sine_frequency_hz'),
+                    'frequency_end_hz': phase.get('sine_frequency_end_hz'),
+                    'amplitude_nm': phase.get('sine_amplitude_nm'),
+                    'actual_quantized_commands_nm': json.dumps(phase['actual_quantized_command_nm']),
+                    'angle_delta_rad': phase['angle_rad'].get('delta'),
+                    'angle_peak_to_peak_rad': phase['angle_rad'].get('peak_to_peak'),
+                    'encoder_velocity_max_abs_rad_s': phase['encoder_velocity_rad_s'].get('max_abs'),
+                    'current_estimate_torque_min_nm': phase['motor_torque'].get('min'),
+                    'current_estimate_torque_max_nm': phase['motor_torque'].get('max'),
+                    'joint2_error_max_abs_rad': phase['joint2_error'].get('max_abs'),
+                    'joint2_velocity_max_abs_rad_s': phase['joint2_velocity'].get('max_abs'),
+                    'big_yaw_angle_excursion_rad': phase['big_yaw_angle'].get('peak_to_peak'),
+                })
+            elif phase['state'] in {'constant_positive', 'constant_negative',
+                                    'ramp_up', 'ramp_down',
+                                    'ramp_reverse_up', 'ramp_reverse_down'}:
+                excitation_segments.append({
+                    'run': run['run'], 'state': phase['state'],
+                    'start_s': phase['start_s'], 'duration_s': phase['duration_s'],
+                    'expected_start_nm': phase.get('constant_torque_nm', phase.get('ramp_start_nm')),
+                    'expected_end_nm': phase.get('constant_torque_nm', phase.get('ramp_end_nm')),
+                    'actual_quantized_commands_nm': json.dumps(phase['actual_quantized_command_nm']),
+                    'waveform_matches_expected': phase.get('waveform_matches_expected'),
+                    'angle_delta_rad': phase['angle_rad'].get('delta'),
+                    'angle_peak_to_peak_rad': phase['angle_rad'].get('peak_to_peak'),
+                    'encoder_velocity_max_abs_rad_s': phase['encoder_velocity_rad_s'].get('max_abs'),
+                    'current_estimate_torque_min_nm': phase['motor_torque'].get('min'),
+                    'current_estimate_torque_max_nm': phase['motor_torque'].get('max'),
+                    'joint2_error_max_abs_rad': phase['joint2_error'].get('max_abs'),
+                    'joint2_velocity_max_abs_rad_s': phase['joint2_velocity'].get('max_abs'),
+                    'big_yaw_angle_excursion_rad': phase['big_yaw_angle'].get('peak_to_peak'),
+                })
+    write_csv(output / 'pulses.csv', pulses)
+    write_csv(output / 'sine_segments.csv', sine_segments)
+    write_csv(output / 'excitation_segments.csv', excitation_segments)
+    (output / 'report.md').write_text(render_report(report))
+    print(json.dumps({'output': str(output), 'runs': len(runs), 'fit_status': fit['status'],
+                      'fit_reasons': fit['reasons'], 'raw_bag_unchanged': True}, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, RuntimeError, ValueError, KeyError, ImportError) as error:
+        print('analyze-small-yaw-identification: ' + str(error), file=sys.stderr)
+        sys.exit(1)

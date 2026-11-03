@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""Summarize the small-yaw breakaway staircase from a completed ROS bag.
+
+The report keeps the encoder angle and current-derived motor torque separate
+from the commanded torque. It emits one CSV row per 0.5 s pulse so the
+minimum torque that actually starts motion can be compared at each angle.
+"""
+
+import argparse
+import csv
+import math
+from pathlib import Path
+
+import numpy as np
+import rosbag2_py
+from rclpy.serialization import deserialize_message
+from rosidl_runtime_py.utilities import get_message
+
+
+TOPICS = {
+    "elapsed": "/gimbal/test/small_yaw_identification_elapsed_s",
+    "relative": "/gimbal/test/small_yaw_identification_relative_angle",
+    "applied": "/gimbal/test/small_yaw_damping_torque_applied",
+    "feedback_torque": "/arm/joint_1/motor/torque",
+    "angle": "/arm/joint_1/motor/angle",
+    "can_sample": "/gimbal/feedback/small_yaw_can_sample",
+}
+
+
+def read_series(bag: Path):
+    reader = rosbag2_py.SequentialReader()
+    reader.open(
+        rosbag2_py.StorageOptions(uri=str(bag), storage_id="mcap"),
+        rosbag2_py.ConverterOptions("", ""),
+    )
+    types = {item.name: item.type for item in reader.get_all_topics_and_types()}
+    messages = {name: [] for name in TOPICS}
+    while reader.has_next():
+        topic, data, stamp = reader.read_next()
+        name = next((key for key, value in TOPICS.items() if value == topic), None)
+        if name is None or topic not in types:
+            continue
+        message = deserialize_message(data, get_message(types[topic]))
+        if name == "can_sample":
+            # The message contains the current-derived torque and both
+            # monotonic CAN/command timestamps. Keep the bag timestamp for
+            # alignment with elapsed/angle, while retaining those hardware
+            # timestamps in the output statistics.
+            messages[name].append((
+                stamp * 1e-9,
+                float(message.current_amp),
+                float(message.torque_nm),
+                float(message.command_torque_nm),
+                int(message.can_receive_monotonic_ns),
+                int(message.command_monotonic_ns),
+                bool(message.online),
+            ))
+        else:
+            messages[name].append((stamp * 1e-9, float(message.data)))
+    return messages
+
+
+def array(series):
+    if not series:
+        return np.empty((0, 2), dtype=float)
+    return np.asarray(series, dtype=float)
+
+
+def interpolate(series, times):
+    values = array(series)
+    if len(values) == 0:
+        return np.full(len(times), np.nan)
+    return np.interp(times, values[:, 0], values[:, 1])
+
+
+def interpolate_can(series, times, field):
+    if not series:
+        return np.full(len(times), np.nan)
+    values = np.asarray([(item[0], item[field]) for item in series], dtype=float)
+    finite = np.isfinite(values[:, 1])
+    if not np.any(finite):
+        return np.full(len(times), np.nan)
+    return np.interp(times, values[finite, 0], values[finite, 1])
+
+
+def elapsed_segments(elapsed_values):
+    """Return contiguous runs separated by an identification reset.
+
+    The controller resets elapsed_s to zero on double-down. A single bag can
+    therefore contain several complete runs; interpolating against the whole
+    non-monotonic elapsed series would silently mix those runs.
+    """
+    if len(elapsed_values) == 0:
+        return []
+    starts = [0]
+    for index in range(1, len(elapsed_values)):
+        if elapsed_values[index] < elapsed_values[index - 1] - 0.1:
+            starts.append(index)
+    starts.append(len(elapsed_values))
+    return list(zip(starts[:-1], starts[1:]))
+
+
+def robust_stat(values, reducer):
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    return float(reducer(values)) if len(values) else math.nan
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("bag", type=Path, help="completed rosbag2 bag directory")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--pulse", type=float, default=0.5)
+    parser.add_argument("--rest", type=float, default=2.0)
+    parser.add_argument("--settle", type=float, default=1.0)
+    parser.add_argument("--groups", type=int, default=5)
+    parser.add_argument(
+        "--run", type=int,
+        help="analyze only this 1-based run after elapsed_s resets (default: all runs)",
+    )
+    args = parser.parse_args()
+
+    messages = read_series(args.bag)
+    elapsed = array(messages["elapsed"])
+    if len(elapsed) == 0:
+        raise SystemExit("missing identification elapsed topic")
+    all_times = elapsed[:, 0]
+    all_elapsed_values = elapsed[:, 1]
+    segments = elapsed_segments(all_elapsed_values)
+    if args.run is not None and (args.run < 1 or args.run > len(segments)):
+        raise SystemExit(f"--run must be between 1 and {len(segments)}")
+    levels = (3.0, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0)
+    # The first three groups are +3...+7 followed by -3...-7. The final two
+    # groups use different deterministic, interleaved sign/level sequences.
+    # These must match the C++ waveform exactly; they are intentionally fixed
+    # rather than re-randomized when a bag is analyzed.
+    group_pulses = (
+        tuple((1, level) for level in levels)
+        + tuple((-1, level) for level in levels),
+        tuple((1, level) for level in levels)
+        + tuple((-1, level) for level in levels),
+        tuple((1, level) for level in levels)
+        + tuple((-1, level) for level in levels),
+        ((1, 5.5), (-1, 3.0), (1, 6.5), (-1, 4.0),
+         (1, 7.0), (-1, 4.5), (1, 6.0), (-1, 5.0),
+         (1, 3.0), (-1, 6.5), (1, 4.5), (-1, 7.0),
+         (1, 5.0), (-1, 5.5), (1, 4.0), (-1, 6.0)),
+        ((-1, 6.0), (1, 4.5), (-1, 3.0), (1, 7.0),
+         (-1, 5.0), (1, 6.5), (-1, 4.0), (1, 5.5),
+         (-1, 7.0), (1, 3.0), (-1, 5.5), (1, 4.0),
+         (-1, 6.5), (1, 5.0), (-1, 4.5), (1, 6.0)),
+    )
+    rows = []
+    pulse_period = args.pulse + args.rest
+    analyzed_runs = 0
+    for segment_index, (segment_start, segment_end) in enumerate(segments, start=1):
+        if args.run is not None and segment_index != args.run:
+            continue
+        segment_times = all_times[segment_start:segment_end]
+        elapsed_values = all_elapsed_values[segment_start:segment_end]
+        # The elapsed topic defines the analysis time base. Interpolate every
+        # measurement at these wall-clock samples, but only within this reset
+        # segment so repeated runs cannot contaminate one another.
+        series = {
+            name: interpolate(messages[name], segment_times)
+            for name in ("relative", "applied", "feedback_torque", "angle")
+        }
+        can_torque = interpolate_can(messages["can_sample"], segment_times, 2)
+        can_current = interpolate_can(messages["can_sample"], segment_times, 1)
+        can_command = interpolate_can(messages["can_sample"], segment_times, 3)
+        use_can = np.isfinite(can_torque).any()
+        analyzed_runs += 1
+        for group in range(args.groups):
+            sequence = group_pulses[group] if group < len(group_pulses) else group_pulses[0]
+            for sequence_index, (direction, level) in enumerate(sequence, start=1):
+                pulse_index = group * 16 + sequence_index - 1
+                start = args.settle + pulse_index * pulse_period
+                end = start + args.pulse
+                mask = (elapsed_values >= start) & (elapsed_values < end)
+                if not np.any(mask):
+                    continue
+                pulse_elapsed = elapsed_values[mask]
+                pulse_relative = series["relative"][mask]
+                pulse_angle = series["angle"][mask]
+                motion_origin = robust_stat(pulse_relative[: max(1, len(pulse_relative) // 10)], np.median)
+                moved = np.abs(pulse_relative - motion_origin) > 2.0 * 2.0 * math.pi / 65536.0
+                first_motion = float(pulse_elapsed[np.flatnonzero(moved)[0]] - start) if np.any(moved) else math.nan
+                rows.append(
+                    {
+                        "run_index": segment_index,
+                        "group": group + 1,
+                        "direction": direction,
+                        "sequence_index": sequence_index,
+                        "commanded_level_nm": level,
+                        "pulse_start_s": start,
+                        "pulse_end_s": end,
+                        "applied_torque_median_nm": robust_stat(series["applied"][mask], np.median),
+                        "feedback_torque_median_nm": robust_stat(series["feedback_torque"][mask], np.median),
+                        "feedback_torque_min_nm": robust_stat(series["feedback_torque"][mask], np.min),
+                        "feedback_torque_max_nm": robust_stat(series["feedback_torque"][mask], np.max),
+                        "can_current_median_a": robust_stat(can_current[mask], np.median),
+                        "can_feedback_torque_median_nm": robust_stat(can_torque[mask], np.median),
+                        "can_command_torque_median_nm": robust_stat(can_command[mask], np.median),
+                        "feedback_torque_source": "can_sample" if use_can else "motor_topic",
+                        "relative_angle_start_rad": robust_stat(pulse_relative[: max(1, len(pulse_relative) // 10)], np.median),
+                        "relative_angle_end_rad": robust_stat(pulse_relative[-max(1, len(pulse_relative) // 10):], np.median),
+                        "relative_angle_delta_rad": float(pulse_relative[-1] - pulse_relative[0]),
+                        "angle_start_rad": robust_stat(pulse_angle[: max(1, len(pulse_angle) // 10)], np.median),
+                        "angle_end_rad": robust_stat(pulse_angle[-max(1, len(pulse_angle) // 10):], np.median),
+                        "angle_peak_to_peak_rad": float(np.ptp(pulse_angle)),
+                        "first_motion_after_s": first_motion,
+                    }
+                    )
+    output = args.output or args.bag / "breakaway_staircase.csv"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]) if rows else [])
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"wrote {len(rows)} pulse rows from {analyzed_runs} run(s) to {output}")
+
+
+if __name__ == "__main__":
+    main()

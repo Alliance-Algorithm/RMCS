@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""Manage a detached, read-only gimbal ROS bag recorder over SSH."""
+
+import argparse
+from datetime import datetime, timezone
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import shlex
+import signal
+import socket
+import subprocess
+import sys
+import time
+from zoneinfo import ZoneInfo
+
+
+CONFIG = Path('/rmcs_install/share/rmcs_bringup/config/gimbal_controller_test.yaml')
+
+
+def write_json(path, value):
+    temporary = path.with_name(path.name + '.new')
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+    temporary.replace(path)
+
+
+def process_info(pid):
+    try:
+        stat = Path(f'/proc/{pid}/stat').read_text().rsplit(') ', 1)[1].split()
+        if stat[0] == 'Z':
+            return None
+        command = Path(f'/proc/{pid}/cmdline').read_bytes().rstrip(b'\0').split(b'\0')
+        return {'start_ticks': stat[19], 'argv': [os.fsdecode(v) for v in command]}
+    except (FileNotFoundError, ProcessLookupError):
+        return None
+
+
+def recorder_alive(metadata, run):
+    pid = metadata.get('pid')
+    if not isinstance(pid, int) or pid <= 1:
+        return False
+    process = process_info(pid)
+    if process is None or process['start_ticks'] != metadata.get('process_start_ticks'):
+        return False
+    argv = process['argv']
+    bag = str(run / 'bag')
+    return (metadata.get('bag_path') == bag and 'bag' in argv and 'record' in argv
+            and '--output' in argv and argv[argv.index('--output') + 1:][:1] == [bag])
+
+
+def latest_run(root):
+    pointer = root / 'LATEST'
+    if not pointer.exists():
+        return None, None
+    run = Path(pointer.read_text().strip()).resolve()
+    if run.parent != root:
+        raise RuntimeError('LATEST points outside the recording root')
+    return run, json.loads((run / 'recording.json').read_text())
+
+
+def report(run, metadata):
+    if run is None:
+        return {'state': 'no_recording'}
+    files = [p for p in run.rglob('*') if p.is_file()]
+    newest = max(files, key=lambda p: p.stat().st_mtime_ns) if files else None
+    return {
+        'state': 'recording' if recorder_alive(metadata, run) else 'stopped',
+        'directory': str(run), 'bag_path': str(run / 'bag'), 'pid': metadata.get('pid'),
+        'topics': len(metadata.get('topics', [])),
+        'mcap_files': [str(p) for p in sorted((run / 'bag').glob('*.mcap'))],
+        'total_bytes': sum(p.stat().st_size for p in files),
+        'newest_file': str(newest) if newest else None,
+        'newest_mtime_shanghai': datetime.fromtimestamp(
+            newest.stat().st_mtime, ZoneInfo('Asia/Shanghai')).isoformat() if newest else None,
+        'recorder_log': str(run / 'recorder.log'),
+    }
+
+
+def ros_environment():
+    setup_files = [Path('/opt/ros/jazzy/setup.bash'), Path('/rmcs_install/setup.bash')]
+    if not setup_files[0].is_file():
+        raise RuntimeError('ROS Jazzy setup is missing: ' + str(setup_files[0]))
+    setup_files = [path for path in setup_files if path.is_file()]
+    shell = '\n'.join('source ' + shlex.quote(str(path)) + ' || exit $?' for path in setup_files)
+    result = subprocess.run(['bash', '-c', shell + '\nenv -0'], check=True, stdout=subprocess.PIPE)
+    environment = dict(os.fsdecode(item).split('=', 1)
+                       for item in result.stdout.split(b'\0') if b'=' in item)
+    return environment, [str(path) for path in setup_files]
+
+
+def start(root, config=CONFIG):
+    import yaml
+
+    previous, previous_metadata = latest_run(root)
+    if previous is not None and recorder_alive(previous_metadata, previous):
+        result = report(previous, previous_metadata)
+        result['message'] = 'Latest recorder is already active; no second recorder was started.'
+        return result
+
+    source = config.read_bytes()
+    configuration = yaml.safe_load(source)
+    parameters = configuration['value_broadcaster']['ros__parameters']
+    topics = sorted({'/' + name.lstrip('/') for name in parameters['forward_list']})
+    # Atomic CAN samples are published directly by their hardware component,
+    # so they are intentionally outside ValueBroadcaster's scalar forward_list.
+    if config.name in ('small_yaw_identification.yaml',
+                       'small_yaw_breakaway_identification.yaml'):
+        topics.append('/gimbal/feedback/small_yaw_can_sample')
+        topics = sorted(set(topics))
+    elif config.name == 'gimbal_controller_identification.yaml':
+        topics.append('/gimbal/feedback/big_yaw_can_sample')
+        topics = sorted(set(topics))
+    if not topics or any(not isinstance(name, str) or not name.startswith('/') for name in topics):
+        raise RuntimeError('The installed ValueBroadcaster topic list is empty or invalid')
+    environment, setup_files = ros_environment()
+    now = datetime.now(timezone.utc)
+    run = root / now.astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y%m%d_%H%M%S_%f')
+    run.mkdir(exist_ok=False)
+    (run / config.name).write_bytes(source)
+    qos = {topic: {'history': 'keep_last', 'depth': 1000, 'reliability': 'reliable',
+                   'durability': 'volatile'} for topic in topics}
+    (run / 'qos.yaml').write_text(yaml.safe_dump(qos, sort_keys=True))
+    # Longer MCAP segments reduce file-opening gaps during excitation runs.
+    # Short rollovers can leave a synchronized gap while the next file opens.
+    command = ['ros2', 'bag', 'record', '--storage', 'mcap', '--max-bag-duration', '300',
+               '--max-cache-size', '16777216', '--disable-keyboard-controls',
+               '--qos-profile-overrides-path', str(run / 'qos.yaml'),
+               '--output', str(run / 'bag'), *topics]
+    metadata = {
+        'host': socket.gethostname(), 'start_time_utc': now.isoformat(),
+        'start_time_shanghai': now.astimezone(ZoneInfo('Asia/Shanghai')).isoformat(),
+        'source': 'Independent read-only ros2 bag subscriptions to existing RMCS ValueBroadcaster',
+        'source_config': str(config), 'source_config_sha256': hashlib.sha256(source).hexdigest(),
+        'configured_publish_rate_hz': parameters.get('publish_rate'),
+        'topics': topics, 'command': command, 'environment_setup': setup_files,
+        'bag_path': str(run / 'bag'), 'pid': None,
+    }
+    write_json(run / 'recording.json', metadata)
+    with (run / 'recorder.log').open('ab', buffering=0) as log:
+        child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                                 env=environment, start_new_session=True, close_fds=True)
+    metadata['pid'] = child.pid
+    identity = process_info(child.pid)
+    metadata['process_start_ticks'] = identity['start_ticks'] if identity else None
+    write_json(run / 'recording.json', metadata)
+    pointer = root / 'LATEST.new'
+    pointer.write_text(str(run) + '\n')
+    pointer.replace(root / 'LATEST')
+    time.sleep(2)
+    if child.poll() is not None or not recorder_alive(metadata, run):
+        tail = (run / 'recorder.log').read_text(errors='replace')[-4000:]
+        raise RuntimeError(f'Recorder failed to start. Directory: {run}\n{tail}')
+    result = report(run, metadata)
+    result['message'] = 'Detached recorder is running; SSH may disconnect. MCAP rolls every 300 seconds.'
+    return result
+
+
+def stop(root):
+    run, metadata = latest_run(root)
+    if run is None or not recorder_alive(metadata, run):
+        result = report(run, metadata)
+        result['message'] = 'No matching live recorder; no process was signalled.'
+        return result
+    # Validate the PID identity and exact bag output immediately before signalling only that PID.
+    if not recorder_alive(metadata, run):
+        raise RuntimeError('Recorder process identity changed; refusing to signal it')
+    os.kill(metadata['pid'], signal.SIGINT)
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and recorder_alive(metadata, run):
+        time.sleep(0.2)
+    metadata['stop_requested_time_utc'] = datetime.now(timezone.utc).isoformat()
+    write_json(run / 'recording.json', metadata)
+    result = report(run, metadata)
+    if result['state'] == 'recording':
+        raise RuntimeError(f'Recorder still active after SIGINT; no stronger signal sent. {run}')
+    result['message'] = 'Recorder stopped with SIGINT; executor and hardware were not changed.'
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['start', 'status', 'stop'])
+    parser.add_argument('--host', default='remote', help='SSH host or existing SSH alias (default: remote)')
+    parser.add_argument('--root', help='Remote persistent recording root (default: ~/rmcs_recordings/big_yaw)')
+    parser.add_argument('--config', type=Path, default=CONFIG,
+                        help='Remote absolute YAML path for topics and metadata (default: %(default)s)')
+    parser.add_argument('--remote', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    if not args.config.is_absolute():
+        parser.error('--config must be an absolute path on the remote host')
+    if not args.remote:
+        if args.host.startswith('-'):
+            parser.error('--host must be a host name or SSH alias')
+        command = ['python3', '-', args.action, '--remote', '--config', str(args.config)]
+        if args.root:
+            command += ['--root', args.root]
+        result = subprocess.run(
+            ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '--', args.host,
+             shlex.join(command)], input=Path(__file__).read_bytes())
+        return result.returncode
+
+    root = Path(args.root).expanduser().resolve() if args.root else Path.home() / 'rmcs_recordings/big_yaw'
+    root = root.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / '.record-gimbal.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if args.action == 'start':
+            result = start(root, args.config)
+        elif args.action == 'stop':
+            result = stop(root)
+        else:
+            result = report(*latest_run(root))
+    print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, RuntimeError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+        print(f'record-gimbal: {error}', file=sys.stderr, flush=True)
+        sys.exit(1)

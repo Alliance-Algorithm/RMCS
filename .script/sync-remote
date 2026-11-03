@@ -8,9 +8,20 @@ import subprocess
 from colorama import Fore, Style
 
 
-SRC_DIR = os.getenv("RMCS_PATH") + "/rmcs_ws/install"
+rmcs_path = os.getenv("RMCS_PATH")
+if not rmcs_path:
+    # Keep sync-remote usable in shells that did not source env_setup.zsh.
+    rmcs_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+SRC_DIR = os.path.join(rmcs_path, "rmcs_ws", "install")
 DST_DIR = "ssh://remote//rmcs_install"
 SOCKET_PATH = "/tmp/sync-remote"
+
+# Keep the deployed process in step with the install tree. The remote helper
+# performs the safe shutdown before launching the updated stack again.
+REMOTE_HOST = "remote"
+REMOTE_SERVICE = "rmcs"
+RECORDING_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "record-gimbal")
 
 SYNC_FLAG = b"Nothing to do:"
 COLORED_SYNC_FLAG = (
@@ -31,6 +42,12 @@ def create_process():
         DST_DIR,
         "-force",
         SRC_DIR,
+        # Python caches are generated on both hosts while ROS is running. They
+        # are not part of the install and must not create restart cycles.
+        "-ignore",
+        "Name **/__pycache__",
+        "-ignore",
+        "Name *.pyc",
         "-follow",
         "Name *",
     ]
@@ -64,6 +81,33 @@ def finish_connection(conn: socket):
         conn.close()
 
 
+def restart_remote():
+    # The recorder is a read-only helper outside the install tree. Keep it in
+    # sync with the analysis code before restarting the remote service, so a
+    # new atomic diagnostic topic is recorded after every deployment.
+    helper = subprocess.run(
+        ["scp", "-q", RECORDING_HELPER, f"{REMOTE_HOST}:/root/record-gimbal.py"],
+        check=False,
+    )
+    if helper.returncode != 0:
+        print(
+            f"Remote recorder helper sync failed (exit {helper.returncode}); "
+            "the install tree was synchronized, but the remote service was not restarted."
+        )
+        return
+    result = subprocess.run(
+        ["ssh", REMOTE_HOST, "service", REMOTE_SERVICE, "restart"],
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            f"Remote RMCS restart failed (exit {result.returncode}); "
+            "the files were synchronized, but the running process was left unchanged."
+        )
+    else:
+        print("Remote RMCS restarted automatically.")
+
+
 def main():
     selector = selectors.DefaultSelector()
 
@@ -75,6 +119,9 @@ def main():
 
     clients = []
     ready = False
+    first_sync = True
+    sync_cycle_started = False
+    output_tail = b""
 
     try:
         while True:
@@ -88,12 +135,35 @@ def main():
                         clients.append(conn)
                 else:
                     stdout = os.read(pipe_stdout, 1024)
-                    if stdout.startswith(SYNC_FLAG):
+                    if not stdout:
+                        continue
+
+                    # Unison output is streamed in arbitrary chunks.  The old
+                    # startswith check missed successful synchronizations when
+                    # progress text preceded the completion marker in a chunk.
+                    output = output_tail + stdout
+                    output_tail = output[-128:]
+                    # "Reconciling changes" also appears during every empty
+                    # watch cycle; only a real transfer marker should trigger
+                    # another service restart.
+                    if b"[BGN]" in output:
+                        sync_cycle_started = True
+
+                    completed = (b"Synchronization complete" in output
+                                 or SYNC_FLAG in output)
+                    if completed:
                         ready = True
-                        stdout = COLORED_SYNC_FLAG + stdout[len(SYNC_FLAG) :]
                         for conn in clients:
                             finish_connection(conn)
                         clients = []
+                        # Restart after the first synchronization even when
+                        # there were no file changes, and after each later
+                        # synchronization that actually propagated updates.
+                        if first_sync or sync_cycle_started:
+                            restart_remote()
+                        first_sync = False
+                        sync_cycle_started = False
+                        output_tail = b""
                     else:
                         ready = False
                     os.write(1, stdout)

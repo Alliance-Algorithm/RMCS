@@ -1,0 +1,352 @@
+# The ArmBoard reads image pitch, small yaw and joint2 motor feedback.
+# Joint2 absolute feedback comes from EncoderBoard CAN1 / 0x200; torque goes to ArmBoard CAN1 / 0x142.
+# The dedicated right-board component operates only the big-yaw motor on CAN2 (feedback 0x33,
+# command 0x03). Right-stick X increments one combined yaw-angle target.
+# Small yaw responds first; big yaw follows its deflection while small yaw compensates
+# the measured big-yaw motion and returns to the angle captured on enable.
+# Joint2 lifts 30 degrees after double-down release.
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::GimbalFeedbackTest -> gimbal_feedback_test
+      - rmcs_core::hardware::GimbalBigYawTorqueTest -> gimbal_big_yaw_torque_test
+      - rmcs_core::controller::gimbal::GimbalControllerTest -> gimbal_controller_test
+      - rmcs_core::controller::robust::RobustController -> big_yaw_robust_shadow_controller
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+gimbal_feedback_test:
+  ros__parameters:
+    board_serial_arm_board: "D4-D354-B7C8-A457-ECB1-11A9-998E"
+    board_serial_encoder_board: "D4-9C35-EDF1-2B20-7AE6-4ED0-8308"
+    image_pitch_zero_point: 43131
+    joint1_zero_point: 14669
+    # Calibrated zero points from the same arm-board configuration; joint2 uses a 42:1 gearbox.
+    joint2_zero_point: 0
+    joint3_zero_point: 29072
+    joint4_zero_point: 33493
+    joint5_zero_point: 60137
+    joint6_zero_point: 12793
+    # Both yaw axes consume the coordinator's references, armed with right-stick X centered.
+    # Double-down, remote timeout and invalid feedback immediately remove torque.
+    small_yaw_damping_enabled: false
+    small_yaw_damping_torque_nm: 2.5
+    small_yaw_position_hold_enabled: false
+    small_yaw_position_hold_sliding_enabled: true
+    small_yaw_position_hold_sliding_position_gain: 4.0
+    small_yaw_position_hold_sliding_velocity_limit_rad_s: 0.35
+    small_yaw_position_hold_kp_nm_rad: 20.0
+    small_yaw_position_hold_kd_nm_s_rad: 2.5
+    small_yaw_position_hold_torque_slew_nm_s: 75.0
+    small_yaw_position_hold_deadband_rad: 0.0002
+    # Restore the last dedicated small-yaw velocity-control trial parameters.
+    # Provenance: build_deploy/small_yaw_breakaway_20261025_222513/
+    # robust_trial_10nm_velocity_07875/gimbal_controller_test.yaml.
+    small_yaw_robust_enabled: true
+    small_yaw_robust_external_reference: true
+    small_yaw_robust_max_velocity_rad_s: 8.0
+    small_yaw_robust_max_acceleration_rad_s2: 6.0
+    # Match the existing gimbal joystick convention; verify direction with a
+    # supported, low-speed test before increasing the velocity limit.
+    small_yaw_robust_joystick_velocity_direction: -1.0
+    small_yaw_robust_torque_limit_nm: 10.0
+    small_yaw_robust_torque_slew_nm_s: 60.0
+    # Retain J/B from the prior current-derived dynamic identification.
+    small_yaw_robust_inertia: 0.311472
+    small_yaw_robust_viscous_friction: 0.725324
+    # Closed-loop CAN-current audit: apparent running load median 3.97 Nm,
+    # interquartile range 3.32–4.41 Nm. Use a 3.6 Nm compensation baseline;
+    # the bounded integral handles the remaining load. This is not a unique Fc fit.
+    small_yaw_robust_coulomb_friction: 3.6
+    # Two-run CAN audit: all 20 nominal 5 Nm pulses kept moving for 0.5 s.
+    # This is a bounded trial setting, not a unique angle-only friction fit.
+    small_yaw_robust_static_friction_compensation: 5.0
+    small_yaw_robust_torque_bias: -0.122053
+    small_yaw_robust_tracking_gain: 8.0
+    small_yaw_robust_gain: 2.0
+    small_yaw_robust_boundary_width: 0.3
+    small_yaw_robust_integral_gain_nm_per_rad: 10.0
+    small_yaw_robust_integral_torque_limit_nm: 2.8
+    small_yaw_robust_friction_velocity_scale: 0.05
+    small_yaw_robust_standstill_velocity_threshold: 0.02
+    # These brake thresholds/slew apply only when position holding is disabled.
+    small_yaw_damping_start_velocity_rad_s: 0.006
+    small_yaw_damping_stop_velocity_rad_s: 0.002
+    small_yaw_damping_torque_slew_nm_s: 18.0
+    # Joint2 position comes from EncoderBoard CAN1 / 0x200; torque goes to ArmBoard CAN1 / 0x142.
+    # Joint-space positive direction follows the arm controller convention; verify with a small
+    # supported test before increasing the lift angle or torque.
+    joint2_pid_enabled: true
+    joint2_encoder_zero_point: 39433
+    joint2_pid_lift_angle_deg: 30.0
+    # Raising the arm decreases the absolute encoder angle (verified by manual movement).
+    joint2_lift_direction: -1.0
+    joint2_lower_limit_rad: -1.084
+    joint2_upper_limit_rad: 1.528
+    joint2_pid_kp_nm_per_rad: 100.0
+    joint2_pid_ki_nm_per_rad_s: 12.0
+    joint2_pid_kd_nm_s_per_rad: 10.0
+    joint2_pid_torque_limit_nm: 36.0
+    joint2_pid_torque_slew_nm_s: 60.0
+    joint2_pid_torque_release_nm_s: 240.0
+    joint2_pid_reference_speed_rad_s: 1.0
+    joint2_pid_integral_limit_rad_s: 1.0
+    update_rate: 1000.0
+    feedback_timeout_ms: 100.0
+    remote_timeout_ms: 200.0
+
+gimbal_big_yaw_torque_test:
+  ros__parameters:
+    joystick_input: /remote/joystick/right
+    coordinated_yaw_enabled: true
+    board_serial_right_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
+    position_tracking_max_velocity_rad_s: 4.5
+    big_yaw_zero_point: 40944
+    torque_limit_nm: 10.0
+    identification_torque_limit_nm: 2.7
+    robust_torque_limit_nm: 10.0
+    robust_torque_slew_nm_s: 200.0
+    feedback_timeout_ms: 100.0
+    remote_timeout_ms: 200.0
+
+gimbal_controller_test:
+  ros__parameters:
+    # Operator arming and the hardware interlocks still gate all motor commands.
+    enabled: true
+    # Right X integrates an angle target using actual dt. Centering holds that
+    # target; it does not cancel big-yaw takeover or small-yaw compensation.
+    robust_control_enabled: true
+    coordinated_yaw_enabled: true
+    joystick_input: /remote/joystick/right
+    max_joystick_angular_velocity_rad_s: 4.5
+    max_joystick_angular_acceleration_rad_s2: 40.0
+    joystick_velocity_direction: -1.0
+    big_yaw_torque_limit_nm: 10.0
+    identification_enabled: false
+    # Restore the first direct angle-feedback coordinator. Keep the joystick
+    # feedforward responsive and use gentler takeover/angle correction near rest.
+    # Operator confirmed that both joint-positive axes turn alike.
+    coordinated_small_yaw_direction: 1.0
+    coordinated_heading_gain: 2.0
+    coordinated_heading_error_deadband_rad: 0.003
+    coordinated_follow_gain: 6.4
+    coordinated_follow_deadband_rad: 0.01
+    # Begin takeover after 5 degrees; stay engaged until the original center
+    # band has settled. Centered-stick following uses the gentler previous gain.
+    coordinated_follow_start_offset_rad: 0.08726646259971647
+    coordinated_centered_follow_gain: 3.2
+    # Preserve small-yaw counterrotation capacity during big-yaw deceleration.
+    coordinated_counterrotation_speed_fraction: 0.85
+    coordinated_max_target_error_rad: 0.35
+    coordinated_max_small_offset_rad: 0.8
+    # Relative to the center captured at enable. Brake outward references to
+    # zero at +/-45 degrees; inward recentering retains control authority.
+    coordinated_small_speed_zero_offset_rad: 0.7853981633974483
+    # Reserve actuator response travel before the existing 0.8 rad hard fault.
+    coordinated_small_braking_response_time_s: 0.32
+    # Suppress measured DM standstill jitter only in base-velocity feedforward;
+    # encoder heading feedback and the robust inner-loop measurement remain active.
+    coordinated_big_velocity_noise_threshold_rad_s: 0.02
+    coordinated_small_max_velocity_rad_s: 8.0
+    coordinated_small_max_acceleration_rad_s2: 6.0
+    # Big-yaw takeover must fit within the small axis's counter-rotation capability.
+    coordinated_big_max_velocity_rad_s: 4.5
+    coordinated_big_max_acceleration_rad_s2: 3.0
+    identification_pulse_torque_nm: 2.7
+    identification_pulse_duration_s: 0.15
+    identification_rest_duration_s: 0.70
+    identification_chirp_torque_nm: 2.7
+    identification_chirp_start_hz: 0.7
+    identification_chirp_end_hz: 1.2
+    identification_chirp_duration_s: 8.0
+    remote_timeout_ms: 200.0
+
+# The existing component name is retained. Its control output now drives big yaw
+# after arming; shadow_control mirrors the calculation for telemetry only.
+# Big-yaw J/B/Fc/bias come from the completed 20261028_205036_805215 run.
+# Provenance: build_deploy/big_yaw_identification/constant3_linear35_model/model.json.
+big_yaw_robust_shadow_controller:
+  ros__parameters:
+    enabled: true
+    measurement: /chassis/big_yaw/velocity
+    setpoint: /gimbal/test/big_yaw_target_velocity
+    feedforward: /gimbal/test/big_yaw_target_acceleration
+    control: /gimbal/test/robust_control_torque
+    shadow_control: /gimbal/test/robust_shadow_torque
+    auxiliary_law: smooth
+    inertia: 0.317375134
+    viscous_friction: 0.080399177
+    # 100 ms moving-window fit using CAN position/time and protocol torque feedback.
+    # Running compensation applies only while target and motion have the same direction.
+    # A centered stick requests zero-speed braking, with no friction or bias compensation.
+    coulomb_friction: 1.912103711
+    # Paired low-speed trial; verify breakaway after reducing this setting.
+    static_friction_compensation: 3.2
+    torque_bias: -0.007155586
+    tracking_gain: 12.0
+    robust_gain: 4.2
+    # First continuous-friction trial uses the native smooth robust law without an error integral.
+    integral_gain_nm_per_rad: 0.0
+    integral_torque_limit_nm: 2.0
+    # Motion tracking retains the tested 0.4 boundary; an exactly zero target
+    # uses the wider 0.6 braking boundary to soften near-zero feedback.
+    boundary_width: 0.4
+    zero_reference_boundary_width: 0.6
+    # Preserve identified Fc and existing Fs; fit only the continuous amplitude transition.
+    # Provenance: build_deploy/big_yaw_sliding_control/native_smooth_model_fit_20261101/README.md.
+    friction_model: continuous
+    friction_transition_velocity_scale: 0.22
+    # Restore the tested Fs=3.2 / scale=0.01 low-speed baseline.
+    # Provenance: build_deploy/big_yaw_sliding_control/continuous_fs32_20261101/README.md.
+    friction_velocity_scale: 0.01
+    # DM8009's 12-bit speed feedback jitters around zero by about 0.006-0.018 rad/s.
+    # Use this only for reversal decisions; model, error and centered-stick braking use raw speed.
+    standstill_velocity_threshold: 0.02
+    output_min: -10.0
+    output_max: 10.0
+
+# RMCS inputs are paired with the hardware/controller outputs above.
+# Only this component forwards their values for visualization.
+value_broadcaster:
+  ros__parameters:
+    publish_rate: 200.0
+    forward_list:
+      - /arm/image_pitch/motor/raw_angle
+      - /arm/image_pitch/motor/angle
+      - /arm/image_pitch/motor/velocity
+      - /arm/joint_1/motor/raw_angle
+      - /arm/joint_1/motor/angle
+      - /arm/joint_1/motor/velocity
+      - /arm/joint_1/motor/current
+      - /arm/joint_1/motor/torque
+      - /arm/joint_2/motor/angle
+      - /arm/joint_2/motor/current
+      - /arm/joint_2/motor/torque
+      - /arm/joint_2/encoder/angle
+      - /arm/joint_2/encoder/velocity
+      - /arm/joint_2/encoder/raw_angle
+      - /arm/joint_3/motor/angle
+      - /arm/joint_4/motor/angle
+      - /arm/joint_5/motor/angle
+      - /arm/joint_6/motor/angle
+      - roll_imu_angle
+      - pitch_imu_angle
+      - yaw_imu_angle
+      - roll_imu_velocity
+      - pitch_imu_velocity
+      - yaw_imu_velocity
+      - /remote/switch/left
+      - /remote/switch/right
+      - /remote/online
+      - /remote/joystick/right/x
+      - /remote/joystick/right/y
+      - /remote/joystick/left/x
+      - /remote/joystick/left/y
+      - /gimbal/feedback/motor_online
+      - /gimbal/feedback/small_yaw_online
+      - /gimbal/feedback/can1_motor_id_scan
+      - /gimbal/feedback/joint_2_online
+      - /gimbal/feedback/joint_2_encoder_online
+      - /gimbal/feedback/joint_3_online
+      - /gimbal/feedback/joint_4_online
+      - /gimbal/feedback/joint_5_online
+      - /gimbal/feedback/joint_6_online
+      - /gimbal/feedback/imu_online
+      - /chassis/big_yaw/angle
+      - /chassis/big_yaw/velocity
+      - /chassis/big_yaw/torque
+      - /gimbal/feedback/big_yaw_online
+      - /gimbal/test/enabled
+      - /gimbal/test/feedback_ready
+      - /gimbal/test/double_down_protection
+      - /gimbal/test/double_down_confirmed
+      - /gimbal/test/big_yaw_control_torque
+      - /gimbal/test/big_yaw_identification_torque
+      - /gimbal/test/big_yaw_target_velocity
+      - /gimbal/test/big_yaw_target_acceleration
+      - /gimbal/test/robust_control_active
+      - /gimbal/test/robust_control_torque
+      - /gimbal/test/big_yaw_hardware_permitted
+      - /gimbal/test/big_yaw_torque_applied
+      - /gimbal/test/big_yaw_double_down_protection
+      - /gimbal/test/big_yaw_unwrapped_angle
+      - /gimbal/test/big_yaw_unwrapped_angle_valid
+      - /gimbal/test/big_yaw_relative_angle
+      - /gimbal/test/robust_shadow_torque
+      - /gimbal/test/coordinated_yaw_active
+      - /gimbal/test/yaw_target_angle
+      - /gimbal/test/yaw_actual_angle
+      - /gimbal/test/yaw_angle_error
+      - /gimbal/test/yaw_reference_limited
+      - /gimbal/test/small_yaw_center_angle
+      - /gimbal/test/small_yaw_center_offset
+      - /gimbal/test/small_yaw_coordinated_target_velocity
+      - /gimbal/test/small_yaw_coordinated_target_acceleration
+      - /gimbal/test/big_yaw_angle_limit_triggered
+      - /gimbal/test/big_yaw_position_tracking_fault
+      - /gimbal/test/big_yaw_angle_origin_valid
+      - /gimbal/test/big_yaw_block_reason
+      - /gimbal/test/identification_elapsed_s
+      - /gimbal/test/state
+      - /gimbal/test/small_yaw_damping_permitted
+      - /gimbal/test/small_yaw_damping_active
+      - /gimbal/test/small_yaw_damping_velocity
+      - /gimbal/test/small_yaw_damping_torque
+      - /gimbal/test/small_yaw_damping_torque_applied
+      - /gimbal/test/small_yaw_hold_reference_valid
+      - /gimbal/test/small_yaw_hold_target_angle
+      - /gimbal/test/small_yaw_hold_position_error
+      - /gimbal/test/small_yaw_block_reason
+      - /gimbal/test/small_yaw_robust_permitted
+      - /gimbal/test/small_yaw_robust_active
+      - /gimbal/test/small_yaw_robust_target_velocity
+      - /gimbal/test/small_yaw_robust_target_acceleration
+      - /gimbal/test/small_yaw_robust_velocity
+      - /gimbal/test/small_yaw_robust_torque
+      - /gimbal/test/small_yaw_robust_torque_applied
+      - /gimbal/test/small_yaw_robust_integral_torque
+      - /gimbal/test/small_yaw_robust_block_reason
+      - /gimbal/test/joint2_pid_permitted
+      - /gimbal/test/joint2_pid_active
+      - /gimbal/test/joint2_pid_target_valid
+      - /gimbal/test/joint2_pid_target_angle
+      - /gimbal/test/joint2_pid_position_error
+      - /gimbal/test/joint2_pid_torque
+      - /gimbal/test/joint2_pid_torque_applied
+      - /gimbal/test/joint2_pid_block_reason
+
+# Started alongside this test by rmcs.launch.py. Visualization is read-only.
+foxglove_bridge:
+  ros__parameters:
+    address: 0.0.0.0
+    port: 8765
+    capabilities: [connectionGraph]
+    sysinfo: false
+    topic_whitelist:
+      - ^/arm/image_pitch/motor/(raw_angle|angle|velocity)$
+      - ^/arm/joint_1/motor/(raw_angle|angle|velocity|current|torque)$
+      - ^/arm/joint_2/motor/(angle|current|torque)$
+      - ^/arm/joint_[3-6]/motor/angle$
+      - ^/arm/joint_2/encoder/(raw_angle|angle|velocity)$
+      - ^/(roll|pitch|yaw)_imu_(angle|velocity)$
+      - ^/remote/(switch/(left|right)|online|joystick/(left|right)/(x|y))$
+      - ^/gimbal/feedback/(motor_online|small_yaw_online|imu_online)$
+      - ^/gimbal/feedback/can1_motor_id_scan$
+      - ^/gimbal/feedback/joint_[2-6]_online$
+      - ^/gimbal/feedback/joint_2_encoder_online$
+      - ^/chassis/big_yaw/(angle|velocity|torque)$
+      - ^/gimbal/feedback/big_yaw_online$
+      - ^/gimbal/test/(enabled|feedback_ready|double_down_protection|double_down_confirmed|big_yaw_control_torque|big_yaw_identification_torque|big_yaw_target_velocity|big_yaw_target_acceleration|robust_control_active|robust_control_torque|big_yaw_hardware_permitted|big_yaw_torque_applied|big_yaw_double_down_protection|state)$
+      - ^/gimbal/test/(big_yaw_unwrapped_angle|big_yaw_unwrapped_angle_valid|big_yaw_relative_angle|big_yaw_angle_limit_triggered|identification_elapsed_s)$
+      - ^/gimbal/test/robust_shadow_torque$
+      - ^/gimbal/test/coordinated_yaw_active$
+      - ^/gimbal/test/yaw_(target_angle|actual_angle|angle_error|reference_limited)$
+      - ^/gimbal/test/small_yaw_(center_angle|center_offset|coordinated_target_velocity|coordinated_target_acceleration)$
+      - ^/gimbal/test/big_yaw_(position_tracking_fault|angle_origin_valid|block_reason)$
+      - ^/gimbal/test/small_yaw_damping_(permitted|active|velocity|torque|torque_applied)$
+      - ^/gimbal/test/small_yaw_hold_(reference_valid|target_angle|position_error)$
+      - ^/gimbal/test/small_yaw_block_reason$
+      - ^/gimbal/test/small_yaw_robust_(permitted|active|target_velocity|target_acceleration|velocity|torque|torque_applied|integral_torque|block_reason)$
+      - ^/gimbal/test/joint2_pid_(permitted|active|target_valid|target_angle|position_error|torque|torque_applied|block_reason)$
+    num_threads: 2
+    max_qos_depth: 5

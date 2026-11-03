@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+"""Read existing ROS telemetry over SSH and check big-yaw velocity zero."""
+
+import argparse
+from bisect import bisect_left, bisect_right
+import csv
+from datetime import datetime, timezone
+import json
+import math
+from pathlib import Path
+import shlex
+import statistics
+import subprocess
+import sys
+import time
+
+
+TOPICS = {
+    'angle': ('/chassis/big_yaw/angle', 'Float64'),
+    'velocity': ('/chassis/big_yaw/velocity', 'Float64'),
+    'big_online': ('/gimbal/feedback/big_yaw_online', 'Bool'),
+    'remote_online': ('/remote/online', 'Bool'),
+    'switch_left': ('/remote/switch/left', 'UInt8'),
+    'switch_right': ('/remote/switch/right', 'UInt8'),
+    'applied': ('/gimbal/test/big_yaw_torque_applied', 'Float64'),
+    'active': ('/gimbal/test/robust_control_active', 'Bool'),
+}
+WINDOW_NS = 1_000_000_000
+MAX_GAP_NS = 50_000_000
+MAX_POSITION_SPAN_RAD = 0.0005
+
+
+def percentile(values, probability):
+    ordered = sorted(values)
+    location = (len(ordered) - 1) * probability
+    lo = int(location)
+    hi = min(lo + 1, len(ordered) - 1)
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (location - lo)
+
+
+def distribution(values):
+    return {'median': statistics.median(values),
+            'p10': percentile(values, 0.1), 'p90': percentile(values, 0.9)}
+
+
+def covered_interval(rows, start, end):
+    """Return endpoint-bracketing observations and state values inside a window."""
+    if not rows:
+        return None, 'no_samples'
+    stamps = [row[0] for row in rows]
+    first = bisect_right(stamps, start) - 1
+    last = bisect_left(stamps, end)
+    if first < 0 or last >= len(rows):
+        return None, 'missing_endpoint_bracket'
+    selected = rows[first:last + 1]
+    if start - selected[0][0] > MAX_GAP_NS or selected[-1][0] - end > MAX_GAP_NS:
+        return None, 'stale_endpoint'
+    if any(not isinstance(v, (bool, int, float)) or not math.isfinite(v)
+           for _, v in selected):
+        return None, 'nonfinite_sample'
+    if any(b[0] - a[0] > MAX_GAP_NS for a, b in zip(selected, selected[1:])):
+        return None, 'stream_gap_over_50ms'
+    inside = [value for stamp, value in selected if stamp <= end]
+    return (selected, inside), None
+
+
+def interpolate(rows, stamp):
+    stamps = [row[0] for row in rows]
+    right = bisect_left(stamps, stamp)
+    if right < len(rows) and rows[right][0] == stamp:
+        return float(rows[right][1])
+    left = right - 1
+    a, va = rows[left]
+    b, vb = rows[right]
+    return va + (vb - va) * ((stamp - a) / (b - a))
+
+
+def held_mean(rows, start, end):
+    total = 0.0
+    for (a, value), (b, _) in zip(rows, rows[1:]):
+        overlap = max(0, min(b, end) - max(a, start))
+        total += overlap * value
+    return total / (end - start)
+
+
+def analyze(streams, start_ns, duration_s):
+    """Pure analysis, usable for saved/mock telemetry without ROS imports."""
+    data = {key: sorted(streams.get(key, []), key=lambda row: row[0]) for key in TOPICS}
+    # Angle observations use their own callback times; remove only 2*pi wrap jumps.
+    unwrapped = []
+    previous_raw = previous_unwrapped = None
+    for stamp, raw in data['angle']:
+        if not isinstance(raw, (int, float)) or not math.isfinite(raw):
+            unwrapped.append((stamp, raw))
+            previous_raw = previous_unwrapped = None
+            continue
+        value = raw if previous_raw is None else previous_unwrapped + math.remainder(raw - previous_raw, 2 * math.pi)
+        unwrapped.append((stamp, value))
+        previous_raw, previous_unwrapped = raw, value
+    data['angle'] = unwrapped
+    accepted, rejected = [], []
+    expected_states = {'big_online': True, 'remote_online': True,
+                       'switch_left': 2, 'switch_right': 2, 'active': False, 'applied': 0.0}
+    for offset in range(int(duration_s)):
+        start = start_ns + offset * WINDOW_NS
+        end = start + WINDOW_NS
+        windows, reasons = {}, []
+        for key in TOPICS:
+            part, reason = covered_interval(data[key], start, end)
+            if reason:
+                reasons.append(key + ':' + reason)
+            else:
+                windows[key] = part
+        if not reasons:
+            for key, value in expected_states.items():
+                if any(sample != value for sample in windows[key][1]):
+                    reasons.append(key + ':required_state_not_continuous')
+        if not reasons:
+            angle_rows = windows['angle'][0]
+            q0, q1 = interpolate(angle_rows, start), interpolate(angle_rows, end)
+            positions = [q0, q1] + [value for stamp, value in angle_rows if start < stamp < end]
+            span = max(positions) - min(positions)
+            if span >= MAX_POSITION_SPAN_RAD:
+                reasons.append('angle:position_span_not_stationary')
+        if reasons:
+            rejected.append({'start_monotonic_ns': start, 'reasons': reasons})
+            continue
+        position_velocity = (q1 - q0) / ((end - start) * 1e-9)
+        protocol_velocity = held_mean(windows['velocity'][0], start, end)
+        accepted.append({'start_monotonic_ns': start,
+                         'protocol_mean_rad_s': protocol_velocity,
+                         'position_endpoint_velocity_rad_s': position_velocity,
+                         'protocol_minus_position_rad_s': protocol_velocity - position_velocity,
+                         'position_span_rad': span,
+                         'samples_in_window': {key: sum(start <= stamp <= end for stamp, _ in data[key])
+                                               for key in TOPICS}})
+    result = {
+        'valid': bool(accepted),
+        'status': 'stationary_windows_observed' if accepted else 'invalid_no_qualified_stationary_windows',
+        'clock': 'Independent local time.monotonic_ns() callback receive times, not CAN sampling timestamps.',
+        'requested_duration_s': duration_s,
+        'window_duration_s': 1.0,
+        'accepted_window_count': len(accepted), 'rejected_window_count': len(rejected),
+        'diagnostic_selection': {'maximum_stream_gap_s': MAX_GAP_NS * 1e-9,
+                                 'position_span_must_be_below_rad': MAX_POSITION_SPAN_RAD,
+                                 'continuous_states': expected_states},
+        'sample_counts': {key: len(rows) for key, rows in data.items()},
+        'observed_protocol_bias_rad_s': distribution([x['protocol_minus_position_rad_s'] for x in accepted]) if accepted else None,
+        'protocol_mean_rad_s': distribution([x['protocol_mean_rad_s'] for x in accepted]) if accepted else None,
+        'position_endpoint_velocity_rad_s': distribution([x['position_endpoint_velocity_rad_s'] for x in accepted]) if accepted else None,
+        'accepted_windows': accepted, 'rejected_windows': rejected,
+        'interpretation': 'Observed protocol-minus-position difference only. This does not identify firmware quantization or apply a control correction.',
+    }
+    return result
+
+
+def collect(duration_s):
+    import rclpy
+    import std_msgs.msg
+
+    collection_started_utc = datetime.now(timezone.utc).isoformat()
+    rclpy.init(args=[])
+    node = rclpy.create_node('readonly_big_yaw_velocity_zero_check')
+    streams = {key: [] for key in TOPICS}
+
+    def callback(key):
+        def receive(message):
+            streams[key].append((time.monotonic_ns(), message.data))
+        return receive
+
+    subscriptions = [node.create_subscription(getattr(std_msgs.msg, cls), topic, callback(key), 1000)
+                     for key, (topic, cls) in TOPICS.items()]
+    warmup_end = time.monotonic_ns() + WINDOW_NS
+    end_ns = warmup_end + round(duration_s * 1e9)
+    try:
+        while time.monotonic_ns() < end_ns + 100_000_000:
+            rclpy.spin_once(node, timeout_sec=0.01)
+    finally:
+        for subscription in subscriptions:
+            node.destroy_subscription(subscription)
+        node.destroy_node()
+        rclpy.shutdown()
+    report = analyze(streams, warmup_end, duration_s)
+    report['collection_started_utc'] = collection_started_utc
+    return report, streams
+
+
+def json_safe(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [json_safe(item) for item in value]
+    return value
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--duration', type=float, default=5.0, help='Observation seconds after 1 s subscription warmup (default: 5).')
+    parser.add_argument('--host', default='remote', help='SSH host or alias (default: remote).')
+    parser.add_argument('--output-dir', type=Path, help='New local directory for report.json, samples.json and samples.csv.')
+    parser.add_argument('--remote', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--include-samples', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    if not math.isfinite(args.duration) or args.duration < 1:
+        parser.error('--duration must be finite and at least 1 second')
+    if args.host.startswith('-'):
+        parser.error('--host must be a host name or SSH alias')
+    if args.remote:
+        report, streams = collect(args.duration)
+        payload = {'report': report}
+        if args.include_samples:
+            payload['samples'] = streams
+        print(json.dumps(json_safe(payload), ensure_ascii=False, allow_nan=False), flush=True)
+        return 0
+    if args.output_dir:
+        args.output_dir.mkdir(parents=True, exist_ok=False)
+    command = ['python3', '-', '--remote', '--duration', str(args.duration)]
+    if args.output_dir:
+        command.append('--include-samples')
+    remote_shell = 'source /root/env_setup.bash && exec ' + shlex.join(command)
+    ssh_command = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '--', args.host,
+                   shlex.join(['bash', '-c', remote_shell])]
+    response = subprocess.run(ssh_command, input=Path(__file__).read_bytes(), capture_output=True,
+                              timeout=args.duration + 30)
+    if response.stderr:
+        sys.stderr.buffer.write(response.stderr)
+    if response.returncode:
+        raise RuntimeError('SSH/ROS collection failed (exit ' + str(response.returncode) + ')')
+    payload = json.loads(response.stdout)
+    report = payload['report']
+    report['host'] = args.host
+    report['topics'] = {key: topic for key, (topic, _) in TOPICS.items()}
+    if args.output_dir:
+        (args.output_dir / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
+        (args.output_dir / 'samples.json').write_text(json.dumps(payload['samples'], ensure_ascii=False, allow_nan=False) + '\n')
+        with (args.output_dir / 'samples.csv').open('w', newline='') as handle:
+            writer = csv.writer(handle)
+            writer.writerow(['stream', 'topic', 'receive_monotonic_ns', 'value'])
+            rows = [(key, TOPICS[key][0], stamp, value) for key, items in payload['samples'].items() for stamp, value in items]
+            writer.writerows(sorted(rows, key=lambda item: item[2]))
+    print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
+    return 0 if report['valid'] else 2
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as error:
+        print('check-big-yaw-velocity-zero: ' + str(error), file=sys.stderr)
+        sys.exit(1)

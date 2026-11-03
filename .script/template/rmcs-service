@@ -2,6 +2,54 @@
 
 set -e
 
+SMALL_YAW_RECORD_SCRIPT=/root/record-gimbal.py
+
+record_small_yaw_start() {
+    local config root
+    case "${RMCS_ROBOT_TYPE:-}" in
+    small_yaw_identification)
+        config=/rmcs_install/share/rmcs_bringup/config/small_yaw_identification.yaml
+        root=/root/rmcs_recordings/small_yaw_identification
+        ;;
+    small_yaw_breakaway_identification)
+        config=/rmcs_install/share/rmcs_bringup/config/small_yaw_breakaway_identification.yaml
+        root=/root/rmcs_recordings/small_yaw_breakaway_identification
+        ;;
+    gimbal_controller_identification)
+        config=/rmcs_install/share/rmcs_bringup/config/gimbal_controller_identification.yaml
+        root=/root/rmcs_recordings/big_yaw_identification
+        ;;
+    *) return 0 ;;
+    esac
+    if [[ -f "$SMALL_YAW_RECORD_SCRIPT" ]]; then
+        python3 "$SMALL_YAW_RECORD_SCRIPT" start --remote \
+            --config "$config" --root "$root"
+    fi
+}
+
+record_small_yaw_stop() {
+    local config root
+    case "${RMCS_ROBOT_TYPE:-}" in
+    small_yaw_identification)
+        config=/rmcs_install/share/rmcs_bringup/config/small_yaw_identification.yaml
+        root=/root/rmcs_recordings/small_yaw_identification
+        ;;
+    small_yaw_breakaway_identification)
+        config=/rmcs_install/share/rmcs_bringup/config/small_yaw_breakaway_identification.yaml
+        root=/root/rmcs_recordings/small_yaw_breakaway_identification
+        ;;
+    gimbal_controller_identification)
+        config=/rmcs_install/share/rmcs_bringup/config/gimbal_controller_identification.yaml
+        root=/root/rmcs_recordings/big_yaw_identification
+        ;;
+    *) return 0 ;;
+    esac
+    if [[ -f "$SMALL_YAW_RECORD_SCRIPT" ]]; then
+        python3 "$SMALL_YAW_RECORD_SCRIPT" stop --remote \
+            --config "$config" --root "$root" || true
+    fi
+}
+
 start() {
     if [[ -z "$HOME" ]]; then
         export HOME=/root
@@ -21,6 +69,8 @@ start() {
 
     screen -dmS rmcs bash -c "ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE}"
 
+    record_small_yaw_start
+
     sleep 0.1
     
     if is_running; then
@@ -36,6 +86,8 @@ attach() {
 }
 
 stop() {
+    source ~/env_setup.bash
+    record_small_yaw_stop
     if is_running; then
         screen -S rmcs -X quit
         echo "Successfully stopped RMCS daemon."

@@ -12,13 +12,19 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
-file(GLOB RMCS_MSGS_MSGS "${CMAKE_CURRENT_SOURCE_DIR}/msg/*.msg")
+file(GLOB RMCS_MSGS_MSGS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "msg/*.msg")
 
 foreach(MSG ${RMCS_MSGS_MSGS})
   get_filename_component(MSG_NAME ${MSG} NAME_WE)
   set(MSG_PATH "${MSG_PATH};msg/${MSG_NAME}.msg")
 endforeach()
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${RMCS_MSGS_MSGS}
+  DEPENDENCIES builtin_interfaces geometry_msgs std_msgs
+)
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+ament_export_dependencies(rosidl_default_runtime)
 ament_auto_package()
