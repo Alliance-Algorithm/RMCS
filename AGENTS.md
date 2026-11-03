@@ -25,6 +25,8 @@ build-rmcs --packages-select rmcs_core rmcs_bringup
 
 ## 其它约定
 
+- 重构、部署、训练、验证和审查报告写入本机 `.codex/report/`，不提交到仓库，不放在 `docs/`。
+- `docs/` 维护正式项目文档；不要为本机报告添加 `.gitignore` 放行规则或 README 链接。
 - 构建产物固定位置：`rmcs_ws/build`、`rmcs_ws/install`（merge install + symlink install）。
 - 测试：在 `rmcs_ws` 下 `colcon test --packages-select <pkg>`，结果用
   `colcon test-result --test-result-base build/<pkg> --verbose` 查看。

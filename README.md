@@ -100,9 +100,7 @@ launch-rmcs
 `wheel-leg-infantry-wheelbipe`（WheelBipe，50 Hz 策略）。它们共用
 `hardware::WheelLeg`，RL 均采用 200 Hz PC 侧 PD；每次只加载一个主控制器。
 
-结构、数据流、参数归属、删除内容和验证边界见
-[轮腿重构说明](docs/zh-cn/wheel_leg_refactor.md)。模型来源见
-[两路训练部署](docs/zh-cn/rl_training_pair_20261103.md)。当前策略快照尚未完成行为和实车验收；
+当前策略快照尚未完成行为和实车验收；
 脚本自起默认关闭，启用限制仍保留。旧 `wheel-leg-infantry-rl` 和
 `wheel-leg-infantry-unified-rl` 入口已删除。
 
