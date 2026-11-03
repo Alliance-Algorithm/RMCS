@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "controller/wheelleg/recovery_geometry_v202.hpp"
+
 namespace rmcs_core::controller::chassis {
 
 namespace {
@@ -76,6 +78,9 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     register_output("/wheel_leg/rl/state", state_output_, std::to_underlying(State::kInit));
     register_output("/wheel_leg/enable_request", enable_request_, false);
     register_output("/wheel_leg/rl/fault_latched", fault_output_, false);
+    register_output("/wheel_leg/rl/recovery/phase", recovery_phase_output_, 0);
+    register_output("/wheel_leg/rl/recovery/fault", recovery_fault_output_, 0);
+    register_output("/wheel_leg/rl/recovery/capture_ready", recovery_ready_output_, false);
     register_output("/wheel_leg/rl/feedback/sensors_valid", sensors_valid_output_, false);
     register_output("/wheel_leg/rl/feedback/sensor_issue", sensor_issue_output_, 0);
     register_output("/wheel_leg/rl/feedback/sensor_invalid_mask", sensor_mask_output_, 255);
@@ -153,6 +158,21 @@ WheelLegController::WheelLegController(const rclcpp::NodeOptions& options)
     if (!unified_full_rl_ && version != UnifiedObservation::Version::kStandingV3)
         throw std::runtime_error("This wheel-leg observation contract requires unified_full_rl");
     unified_observation_.select_version(version);
+    if (get_parameter_or("scripted_self_righting", false)) {
+        if (version != UnifiedObservation::Version::kWheelbipeV202)
+            throw std::runtime_error("Scripted self-righting requires the WheelBipe profile");
+        wheelleg::SelfRightingCore::Settings settings;
+        settings.stand_knee = wheelleg::recovery_v202::stand_knee;
+        settings.stand_orbit = wheelleg::recovery_v202::stand_orbit;
+        settings.timeout_seconds = get_parameter_or("self_righting_timeout_seconds", 30.0);
+        if (!std::isfinite(settings.timeout_seconds) || settings.timeout_seconds <= 0.0
+            || settings.timeout_seconds > 30.0)
+            throw std::runtime_error("Self-righting timeout must be within (0, 30] seconds");
+        scripted_recovery_.emplace(
+            wheelleg::recovery_v202::geometry, settings,
+            wheelleg::recovery_v202::support_compensation);
+        scripted_recovery_->configure_capture(20.0, .98);
+    }
     gas_spring_compensation_enabled_ = get_parameter_or("gas_spring_compensation_enabled", false);
     gas_spring_compensation_gain_ = get_parameter_or("gas_spring_compensation_gain", 1.0);
     if (!std::isfinite(gas_spring_compensation_gain_) || gas_spring_compensation_gain_ < 0.0
@@ -316,6 +336,10 @@ void WheelLegController::configure_policy_bridge_() {
     // Executor::start sets /predefined/update_rate AFTER before_updating().
     last_reset_count_ = *reset_count_;
     use_motor_position_pd_ = motor_position_pd_.ready() && *motor_position_pd_;
+    if (scripted_recovery_
+        && (policy_profile_.name != kWheelbipePolicyProfile.name || !unified_full_rl_
+            || use_motor_position_pd_))
+        throw std::runtime_error("Scripted self-righting requires WheelBipe host torque control");
     if (unified_full_rl_) {
         if (!root_drive_profile(policy_profile_.name) || heading_hold_enabled_
             || use_motor_position_pd_ || unified_observation_.version() != contract.observation

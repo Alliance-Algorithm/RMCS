@@ -101,8 +101,21 @@ void WheelLegController::enter_(State next, bool force_reset) {
         }
     }
     reset_heading_hold_();
-    if (next == State::kRl)
+    if (next == State::kRl) {
+        // Script feedforward ends with script ownership. WheelBipe was trained
+        // with physical springs and no motor cancellation feedforward.
+        if (scripted_recovery_)
+            clear_outputs_();
         return;
+    }
+
+    if (scripted_recovery_)
+        scripted_recovery_->reset();
+    recovery_command_ = {};
+    recovery_policy_started_ = false;
+    *recovery_phase_output_ = 0;
+    *recovery_fault_output_ = 0;
+    *recovery_ready_output_ = false;
 
     clear_outputs_();
     *pd_time_us_ = 0.0;
@@ -132,11 +145,12 @@ void WheelLegController::enter_(State next, bool force_reset) {
     vx_reference_ = yaw_reference_ = 0.0;
     height_reference_ = height_from_ = height_target_ = DeployedPolicyContract::kNominalHeight;
     height_start_ = *timestamp_;
-    *enable_request_ = next == State::kPrepare;
+    *enable_request_ = next == State::kPrepare || next == State::kRecover;
 }
 
 void WheelLegController::update_state_output_() {
-    const bool active = state_ == State::kPrepare || state_ == State::kRl;
+    const bool active =
+        state_ == State::kPrepare || state_ == State::kRecover || state_ == State::kRl;
     *sensors_valid_output_ = active && sensor_status_.valid && feedback_valid_ && !fault_latched_;
     *sensor_issue_output_ = std::to_underlying(sensor_status_.issue);
     *sensor_mask_output_ = sensor_status_.invalid_mask;
@@ -246,7 +260,8 @@ void WheelLegController::update() {
         update_state_output_();
         return;
     }
-    if (requested == 2 || (state_ != State::kPrepare && state_ != State::kRl))
+    if (requested == 2
+        || (state_ != State::kPrepare && state_ != State::kRecover && state_ != State::kRl))
         enter_(State::kPrepare);
     *enable_request_ = true;
     if (!dm_control_ready_.ready() || !*dm_control_ready_) {
@@ -263,6 +278,15 @@ void WheelLegController::update() {
         return;
     }
     const std::size_t tick = *update_count_;
+    if (scripted_recovery_ && state_ != State::kRl) {
+        if (state_ != State::kRecover)
+            enter_(State::kRecover);
+        const bool policy_ready = advance_scripted_recovery_(tick);
+        if (!policy_ready) {
+            update_state_output_();
+            return;
+        }
+    }
     if (!evaluate_policy_(tick)) {
         latch_fault_("policy action invalid or expired");
         update_state_output_();
@@ -273,7 +297,7 @@ void WheelLegController::update() {
         update_state_output_();
         return;
     }
-    // The policy owns every pose and all six axes from its first valid action.
+    // With scripted startup, the first action is accepted only after capture.
     enter_(State::kRl);
     const bool pd_due =
         !schedule_.last_pd_tick || tick - *schedule_.last_pd_tick >= schedule_.pd_divisor;
