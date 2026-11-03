@@ -19,6 +19,7 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
+#include "controller/wheelleg/self_righting_core.hpp"
 #include "deployment_contract.hpp"
 #include "feedback_sensor_guard.hpp"
 
@@ -29,8 +30,8 @@ inline constexpr std::array<const char*, 6> kMotorNames{"left_hip_joint",  "left
                                                         "right_hip_joint", "right_knee_joint",
                                                         "left_wheel",      "right_wheel"};
 
-// PREPARE only waits for drive readiness and the first policy action.
-enum class State : int { kInit = 0, kIdle = 1, kPrepare = 2, kRl = 3 };
+// PREPARE waits for drives; optional RECOVER owns scripted startup before RL.
+enum class State : int { kInit = 0, kIdle = 1, kPrepare = 2, kRl = 3, kRecover = 4 };
 
 class WheelLegController final
     : public rmcs_executor::Component
@@ -76,6 +77,10 @@ private:
     void publish_model_feedback_();
     std::expected<void, std::string> process_action_(std::span<const double> raw);
     void compute_motor_torques_();
+    void write_motor_efforts_(
+        Eigen::Vector4d leg_torque, const Eigen::Vector2d& wheel_torque, bool torque_override);
+    bool advance_scripted_recovery_(std::size_t tick);
+    bool scripted_capture_ready_() const;
     bool apply_soft_limits_(Eigen::Vector4d& leg_torque) const;
     bool policy_action_fresh_() const;
 
@@ -106,6 +111,8 @@ private:
     InputInterface<std::uint64_t> imu_ns_, imu_sequence_, acceleration_sequence_;
     OutputInterface<int> state_output_;
     OutputInterface<bool> enable_request_, fault_output_;
+    OutputInterface<int> recovery_phase_output_, recovery_fault_output_;
+    OutputInterface<bool> recovery_ready_output_;
     OutputInterface<bool> sensors_valid_output_;
     OutputInterface<int> sensor_issue_output_, sensor_mask_output_;
     OutputInterface<double> motor_age_output_, imu_age_output_, acceleration_age_output_;
@@ -137,6 +144,9 @@ private:
     std::size_t next_policy_frame_sequence_ = 0;
     std::array<double, 6> applied_policy_action_{};
     bool unified_full_rl_ = false;
+    std::optional<wheelleg::SelfRightingCore> scripted_recovery_;
+    wheelleg::SelfRightingCore::Output recovery_command_;
+    bool recovery_policy_started_ = false;
 
     Vector6 action_scales_ = Vector6::Ones();
     std::array<double, 6> action_clip_min_{}, action_clip_max_{};

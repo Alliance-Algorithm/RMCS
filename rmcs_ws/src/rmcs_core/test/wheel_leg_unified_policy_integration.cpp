@@ -28,9 +28,10 @@ class UnifiedSnapshots final : public Component {
 public:
     UnifiedSnapshots(
         std::atomic<int>& phase, const std::vector<double>& offsets,
-        std::chrono::milliseconds gap = 41ms)
+        std::chrono::milliseconds gap = 41ms, bool scripted = false)
         : phase_(phase)
-        , gap_(gap) {
+        , gap_(gap)
+        , scripted_(scripted) {
         std::copy_n(offsets.begin(), 4, offsets_.begin());
         for (std::size_t i = 0; i < 6; ++i) {
             const auto path = std::string{"/wheel_leg/"} + kMotorNames[i];
@@ -103,6 +104,12 @@ public:
                 *q_[3] = -1.5691575222758865;
             }
         }
+        if (scripted_) {
+            for (std::size_t i = 0; i < 4; ++i) {
+                *q_[i] = offsets_[i] - kFullVehicleV202PolicyProfile.nominal[i];
+                *dq_[i] = phase == 15 ? -4. : 0.;
+            }
+        }
         if (phase == 6)
             return;
         const auto now =
@@ -124,6 +131,7 @@ public:
 private:
     std::atomic<int>& phase_;
     std::chrono::milliseconds gap_;
+    bool scripted_;
     std::array<double, 4> offsets_;
     std::array<OutputInterface<double>, 6> q_, dq_, torque_, limit_;
     std::array<OutputInterface<std::uint64_t>, 6> sequence_, stamp_;
@@ -170,6 +178,12 @@ public:
         register_input("/wheel_leg/enable_request", enabled_);
         register_input("/wheel_leg/rl/action_seq", action_sequence_);
         register_input("/wheel_leg/rl/fault_latched", fault_);
+        register_input("/wheel_leg/rl/recovery/phase", recovery_phase_);
+        register_input("/wheel_leg/rl/recovery/fault", recovery_fault_);
+        for (std::size_t i = 0; i < 4; ++i)
+            register_input(
+                std::string{"/wheel_leg/"} + kMotorNames[i] + "/gas_spring_compensation_torque",
+                gas_[i]);
         register_input("/wheel_leg/rl/gas_spring/left/beta_deg", beta_[0]);
         register_input("/wheel_leg/rl/gas_spring/right/beta_deg", beta_[1]);
     }
@@ -214,6 +228,12 @@ public:
         enabled = *enabled_;
         action_sequence = *action_sequence_;
         fault = *fault_;
+        recovery_phase = *recovery_phase_;
+        recovery_fault = *recovery_fault_;
+        bool no_gas = true;
+        for (const auto& value : gas_)
+            no_gas &= *value == 0.;
+        gas_zero = no_gas;
         if (*state_ == 2 && !zero)
             effort_before_policy = true;
         if (*frame_sequence_ != 0 && *frame_sequence_ != last_frame_sequence_) {
@@ -240,6 +260,8 @@ public:
     }
 
     std::atomic<int> state{0};
+    std::atomic<int> recovery_phase{0}, recovery_fault{0};
+    std::atomic<bool> gas_zero{true};
     std::atomic<bool> all_zero{true}, valid{false}, enabled{false}, invalid_effort{false},
         fault{false}, effort_before_policy{false}, invalid_soft_limit{false}, inward_effort{false},
         knee_at_110{false}, knee_at_40{false};
@@ -252,6 +274,7 @@ private:
     std::array<InputInterface<double>, 6> torque_, applied_;
     std::array<InputInterface<double>, 6> limits_;
     std::array<InputInterface<double>, 4> angles_;
+    std::array<InputInterface<double>, 4> gas_;
     std::array<InputInterface<double>, 2> beta_;
     std::array<double, 2> hinge_min_, hinge_max_;
     double hinge_margin_;
@@ -262,7 +285,7 @@ private:
     InputInterface<std::vector<double>> frame_;
     InputInterface<std::size_t> frame_sequence_, action_sequence_;
     InputInterface<double> valid_;
-    InputInterface<int> state_;
+    InputInterface<int> state_, recovery_phase_, recovery_fault_;
     InputInterface<bool> enabled_, fault_;
     std::size_t last_frame_sequence_ = 0;
     std::array<double, 6> previous_applied_{};
@@ -314,6 +337,9 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
     std::atomic<int> phase{0};
     Component::initializing_component_name = "wheel_leg_controller";
     auto controller = std::make_shared<WheelLegController>();
+    if (controller->has_parameter("scripted_self_righting")
+        && controller->get_parameter("scripted_self_righting").as_bool())
+        GTEST_SKIP() << "Scripted entry is covered by ScriptedCaptureFreshHandoffResetAndFault";
     const auto profile_name = controller->get_parameter("control_profile").as_string();
     const bool wheelbipe = profile_name == kWheelbipePolicyProfile.name;
     Component::initializing_component_name = "snapshots";
@@ -442,6 +468,81 @@ TEST(UnifiedPolicyIntegration, NeutralPrepareDirectInvertedAndSideEntryResetAndS
     std::cout << "Coherent full-RL frames=" << observe->frames
               << ", serialization max=" << observe->serialization_error
               << ", applied-history max=" << observe->history_error << '\n';
+}
+
+TEST(UnifiedPolicyIntegration, ScriptedCaptureFreshHandoffResetAndFault) {
+    if (!rclcpp::ok())
+        GTEST_SKIP() << "Direct-entry profile finished its executor test";
+    Component::initializing_component_name = "wheel_leg_controller";
+    auto controller = std::make_shared<WheelLegController>();
+    if (!controller->has_parameter("scripted_self_righting")
+        || !controller->get_parameter("scripted_self_righting").as_bool())
+        GTEST_SKIP() << "Requires the scripted WheelBipe YAML";
+    rclcpp::executors::SingleThreadedExecutor ros;
+    pluginlib::ClassLoader<Component> loader{"rmcs_executor", "rmcs_executor::Component"};
+    std::atomic<int> phase{0};
+    Component::initializing_component_name = "snapshots";
+    auto sensors = std::make_shared<UnifiedSnapshots>(
+        phase, controller->get_parameter("leg_model_offsets").as_double_array(), 31ms, true);
+    Component::initializing_component_name = "rl_bridge";
+    auto bridge = loader.createSharedInstance("rmcs_rl::RlBridge");
+    Component::initializing_component_name = "observe";
+    auto observe = std::make_shared<UnifiedObserve>(
+        controller->get_parameter("hinge_min").as_double_array(),
+        controller->get_parameter("hinge_max").as_double_array(),
+        controller->get_parameter("hinge_margin").as_double(), true, 5);
+    Component::initializing_component_name = "value_broadcaster";
+    auto broadcaster = loader.createSharedInstance("rmcs_core::broadcaster::ValueBroadcaster");
+    auto node = std::dynamic_pointer_cast<rclcpp::Node>(broadcaster);
+    auto paths = node->get_parameter("forward_list").as_string_array();
+    std::erase_if(paths, [](const auto& path) {
+        return !path.starts_with("/wheel_leg/rl/observation/frame/");
+    });
+    ASSERT_TRUE(node->set_parameter(rclcpp::Parameter{"forward_list", paths}).successful);
+    {
+        rmcs_executor::Executor executor{"rmcs_executor", ros};
+        executor.add_component(sensors);
+        executor.add_component(controller);
+        executor.add_component(bridge);
+        executor.add_component(observe);
+        executor.add_component(broadcaster);
+        ASSERT_NO_THROW(executor.start());
+        EXPECT_TRUE(await([&] { return observe->state == 1 && observe->all_zero; }));
+        phase = 1;
+        EXPECT_TRUE(await([&] { return observe->state == 2 && observe->enabled; }));
+        EXPECT_TRUE(observe->all_zero);
+        phase = 2;  // Inverted fixture: script owns effort; actor must stay disabled.
+        EXPECT_TRUE(await([&] { return observe->state == 4; }));
+        std::this_thread::sleep_for(100ms);
+        EXPECT_FALSE(observe->valid);
+        EXPECT_EQ(observe->frames, 0u);
+        EXPECT_FALSE(observe->fault);
+        phase = 15; // Recovery overspeed must latch a zero-output fault.
+        EXPECT_TRUE(await([&] { return observe->fault && observe->all_zero; }));
+        EXPECT_EQ(observe->recovery_fault, 3);
+        phase = 4;  // Explicit reset clears script state, integrators and fault.
+        EXPECT_TRUE(await([&] { return !observe->fault && observe->recovery_phase == 0; }));
+        phase = 5;  // Stationary nominal fixture supplies the measured capture condition.
+        EXPECT_TRUE(await([&] { return observe->state == 3 && observe->valid; }));
+        EXPECT_EQ(observe->recovery_phase, 5);
+        EXPECT_TRUE(observe->gas_zero);
+        const auto sequence = observe->action_sequence.load();
+        phase = 6;
+        EXPECT_TRUE(await([&] { return observe->fault && observe->all_zero; }));
+        phase = 5;
+        std::this_thread::sleep_for(30ms);
+        EXPECT_TRUE(observe->fault);
+        phase = 7;
+        EXPECT_TRUE(await([&] { return !observe->fault && observe->state == 1; }));
+        phase = 8;
+        EXPECT_TRUE(await([&] {
+            return observe->state == 3 && observe->valid && observe->action_sequence > sequence;
+        }));
+        EXPECT_TRUE(observe->gas_zero);
+        EXPECT_FALSE(observe->invalid_effort);
+        rclcpp::shutdown();
+    }
+    EXPECT_EQ(observe->first_frame[22], 0.); // No script target enters actor history.
 }
 } // namespace
 

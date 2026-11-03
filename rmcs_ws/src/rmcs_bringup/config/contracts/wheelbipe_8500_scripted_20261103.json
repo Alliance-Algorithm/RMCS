@@ -1,0 +1,823 @@
+{
+  "schema": "rmcs-wheelbipe-near8000-scripted-deployment-v1",
+  "status": "integrated_offline_verified_script_recovery_failed",
+  "hardware_tested": false,
+  "behavior_qualified": false,
+  "live_training_modified": false,
+  "campaign": "full_flat_1024_20000_200hz_balanced_seed119_011",
+  "attempt": "0001-03d234624906",
+  "source_commit": "a603a7c9a5b4fa6d94e7b6846c944a42cdba8391",
+  "source_snapshot_sha256": "58e406a68713b23688c96b90b083c77c7125b8fbe9b42ebab284b0210f79e6a2",
+  "asset_manifest_sha256": "01b3f0e8714ad30236a1b45be9f61e2986a19f81504fc96ea5fd97bde5cbe2e0",
+  "candidates": {
+    "7500": {
+      "completed_updates": 7501,
+      "checkpoint_sha256": "61c7c73086cc21ec049acde6d21ab7de2160522913d43683a12a1aa607226a08",
+      "evaluation_host": "kaiser",
+      "envs": 32,
+      "duration_s": 8,
+      "measurement_window_s": [
+        4,
+        8
+      ],
+      "cases": [
+        {
+          "case": "stand_low",
+          "command": [
+            0.0,
+            0.0,
+            0.23
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.04084836691617966,
+          "mean_abs_vx_m_s": 0.04084836691617966,
+          "height_mae_m": 0.0038164069410413504,
+          "tilt_mean_deg": 0.26697465777397156,
+          "gap_peak_m": 8.553011139156297e-05
+        },
+        {
+          "case": "stand_mid",
+          "command": [
+            0.0,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.012776381336152554,
+          "mean_abs_vx_m_s": 0.012776381336152554,
+          "height_mae_m": 0.008983264677226543,
+          "tilt_mean_deg": 0.35669082403182983,
+          "gap_peak_m": 3.354763248353265e-05
+        },
+        {
+          "case": "stand_high",
+          "command": [
+            0.0,
+            0.0,
+            0.42
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.07881119847297668,
+          "mean_abs_vx_m_s": 0.07881119847297668,
+          "height_mae_m": 0.010239928960800171,
+          "tilt_mean_deg": 0.4565146565437317,
+          "gap_peak_m": 1.7815533283283003e-05
+        },
+        {
+          "case": "forward",
+          "command": [
+            0.5,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.4165031313896179,
+          "mean_abs_vx_m_s": 0.4165031313896179,
+          "height_mae_m": 0.010927912779152393,
+          "tilt_mean_deg": 0.5472559928894043,
+          "gap_peak_m": 3.672889215522446e-05
+        },
+        {
+          "case": "reverse",
+          "command": [
+            -0.5,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": -0.4051765203475952,
+          "mean_abs_vx_m_s": 0.4051765203475952,
+          "height_mae_m": 0.00848840270191431,
+          "tilt_mean_deg": 0.3050115406513214,
+          "gap_peak_m": 3.131757694063708e-05
+        }
+      ]
+    },
+    "8000": {
+      "completed_updates": 8001,
+      "checkpoint_sha256": "0e817ac58eecd4d3649956a2e1dac69d44fbe239b7d58d3b37fda25c203f3824",
+      "evaluation_host": "local",
+      "envs": 32,
+      "duration_s": 8,
+      "measurement_window_s": [
+        4,
+        8
+      ],
+      "cases": [
+        {
+          "case": "stand_low",
+          "command": [
+            0.0,
+            0.0,
+            0.23
+          ],
+          "resets": 0,
+          "mean_vx_m_s": -0.02515212446451187,
+          "mean_abs_vx_m_s": 0.02515212446451187,
+          "height_mae_m": 0.003913540858775377,
+          "tilt_mean_deg": 0.279194712638855,
+          "gap_peak_m": 8.295888255815953e-05
+        },
+        {
+          "case": "stand_mid",
+          "command": [
+            0.0,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": -0.007931123487651348,
+          "mean_abs_vx_m_s": 0.008557259105145931,
+          "height_mae_m": 0.009320233017206192,
+          "tilt_mean_deg": 0.43359634280204773,
+          "gap_peak_m": 3.1848754588281736e-05
+        },
+        {
+          "case": "stand_high",
+          "command": [
+            0.0,
+            0.0,
+            0.42
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.07282265275716782,
+          "mean_abs_vx_m_s": 0.07282265275716782,
+          "height_mae_m": 0.00822633970528841,
+          "tilt_mean_deg": 0.3373720943927765,
+          "gap_peak_m": 2.5025066861417145e-05
+        },
+        {
+          "case": "forward",
+          "command": [
+            0.5,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.3650336265563965,
+          "mean_abs_vx_m_s": 0.3650336265563965,
+          "height_mae_m": 0.012426191009581089,
+          "tilt_mean_deg": 0.3889496624469757,
+          "gap_peak_m": 3.0609699024353176e-05
+        },
+        {
+          "case": "reverse",
+          "command": [
+            -0.5,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": -0.4007728397846222,
+          "mean_abs_vx_m_s": 0.4007728397846222,
+          "height_mae_m": 0.009436123073101044,
+          "tilt_mean_deg": 0.4254956841468811,
+          "gap_peak_m": 3.2754869607742876e-05
+        }
+      ]
+    },
+    "8500": {
+      "completed_updates": 8501,
+      "checkpoint_sha256": "fb36b4a9e5bd7f85f7bc3b4e28532b77edb7516fa1c46ed029a2a4d72fdd4a3f",
+      "evaluation_host": "kaiser",
+      "envs": 32,
+      "duration_s": 8,
+      "measurement_window_s": [
+        4,
+        8
+      ],
+      "cases": [
+        {
+          "case": "stand_low",
+          "command": [
+            0.0,
+            0.0,
+            0.23
+          ],
+          "resets": 0,
+          "mean_vx_m_s": -0.006370065733790398,
+          "mean_abs_vx_m_s": 0.007246531546115875,
+          "height_mae_m": 0.0038434844464063644,
+          "tilt_mean_deg": 0.6022952795028687,
+          "gap_peak_m": 8.290469122584909e-05
+        },
+        {
+          "case": "stand_mid",
+          "command": [
+            0.0,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.0064705596305429935,
+          "mean_abs_vx_m_s": 0.0064705596305429935,
+          "height_mae_m": 0.0057403575628995895,
+          "tilt_mean_deg": 0.28168031573295593,
+          "gap_peak_m": 2.9872706363676116e-05
+        },
+        {
+          "case": "stand_high",
+          "command": [
+            0.0,
+            0.0,
+            0.42
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.0710696130990982,
+          "mean_abs_vx_m_s": 0.0710696130990982,
+          "height_mae_m": 0.009796342812478542,
+          "tilt_mean_deg": 0.4804050326347351,
+          "gap_peak_m": 2.0404037059051916e-05
+        },
+        {
+          "case": "forward",
+          "command": [
+            0.5,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": 0.397012859582901,
+          "mean_abs_vx_m_s": 0.397012859582901,
+          "height_mae_m": 0.00835499633103609,
+          "tilt_mean_deg": 0.2647896409034729,
+          "gap_peak_m": 2.9273724067024887e-05
+        },
+        {
+          "case": "reverse",
+          "command": [
+            -0.5,
+            0.0,
+            0.305
+          ],
+          "resets": 0,
+          "mean_vx_m_s": -0.4029821753501892,
+          "mean_abs_vx_m_s": 0.4029821753501892,
+          "height_mae_m": 0.005120600573718548,
+          "tilt_mean_deg": 0.26965320110321045,
+          "gap_peak_m": 3.135736915282905e-05
+        }
+      ]
+    }
+  },
+  "selected_checkpoint": "model_8500.pt",
+  "selected_completed_updates": 8501,
+  "selection_reason": "Lower low/mid standing speed and most height errors than the nearby candidates in nominal seed111 tests; 7500 tracks forward speed better. This is a deployment candidate, not a statistically established optimum.",
+  "script_origin": {
+    "repository_commit": "2e883162762f0d658a7cc2e066ccbd00698c1d01",
+    "files": [
+      "rmcs_ws/src/rmcs_core/src/controller/wheelleg/self_righting_core.hpp",
+      "rmcs_ws/src/rmcs_core/src/controller/wheelleg/recovery_geometry_v202.hpp"
+    ],
+    "full_fallen_start_qualified": false
+  },
+  "configuration": "wheel-leg-infantry-wheelbipe-recovery.yaml",
+  "clocks": {
+    "physics_dt": 0.005,
+    "policy_hz": 50,
+    "decimation": 4,
+    "feedback_pd_hz": 200,
+    "rmcs_executor_hz": 1000,
+    "solver_iterations": [
+      64,
+      32
+    ]
+  },
+  "qualification_limits": [
+    "Nominal flat diagnostics only, no robustness or full capability acceptance",
+    "Kaiser training accumulated a 1.4104231595993042 m excluded-anchor distance peak; not repaired or used to stop training",
+    "No hardware/CAN test",
+    "Low-prone, roof-down and both side starts triggered script fault5 (trajectory not reached) before policy handoff",
+    "The scripted-start configuration is an integrated research candidate; fallen-start deployment is not qualified"
+  ],
+  "evidence_directory": "reports/wheelbipe8000_scripted_20261103",
+  "selected_extended_evaluation": {
+    "source": "reports/wheelbipe8000_scripted_20261103/eval8500_20s_no_timeout/receipt.json",
+    "host": "local",
+    "envs": 4,
+    "seed": 111,
+    "duration_s": 20,
+    "measurement_window_s": [
+      10,
+      20
+    ],
+    "episode_budget_s": 21,
+    "cases": [
+      {
+        "case": "stand_low",
+        "command": [
+          0.0,
+          0.0,
+          0.23
+        ],
+        "resets": 0,
+        "mean_vx_m_s": -0.007050737738609314,
+        "mean_abs_vx_m_s": 0.007621185854077339,
+        "height_mae_m": 0.0038683474995195866,
+        "tilt_mean_deg": 0.6044012904167175,
+        "gap_peak_m": 8.196041744668037e-05
+      },
+      {
+        "case": "stand_mid",
+        "command": [
+          0.0,
+          0.0,
+          0.305
+        ],
+        "resets": 0,
+        "mean_vx_m_s": 0.00667093601077795,
+        "mean_abs_vx_m_s": 0.00667093601077795,
+        "height_mae_m": 0.005745765753090382,
+        "tilt_mean_deg": 0.2819359004497528,
+        "gap_peak_m": 2.712214336497709e-05
+      },
+      {
+        "case": "stand_high",
+        "command": [
+          0.0,
+          0.0,
+          0.42
+        ],
+        "resets": 0,
+        "mean_vx_m_s": 0.07099682092666626,
+        "mean_abs_vx_m_s": 0.07099682092666626,
+        "height_mae_m": 0.009793665260076523,
+        "tilt_mean_deg": 0.4805068075656891,
+        "gap_peak_m": 1.841204721131362e-05
+      },
+      {
+        "case": "forward",
+        "command": [
+          0.5,
+          0.0,
+          0.305
+        ],
+        "resets": 0,
+        "mean_vx_m_s": 0.3971460461616516,
+        "mean_abs_vx_m_s": 0.3971460461616516,
+        "height_mae_m": 0.008355526253581047,
+        "tilt_mean_deg": 0.2647579610347748,
+        "gap_peak_m": 2.919928010669537e-05
+      },
+      {
+        "case": "reverse",
+        "command": [
+          -0.5,
+          0.0,
+          0.305
+        ],
+        "resets": 0,
+        "mean_vx_m_s": -0.4028686583042145,
+        "mean_abs_vx_m_s": 0.4028686583042145,
+        "height_mae_m": 0.005121039692312479,
+        "tilt_mean_deg": 0.2700353264808655,
+        "gap_peak_m": 3.130850018351339e-05
+      }
+    ]
+  },
+  "onnx_cpp_parity": {
+    "status": "pass",
+    "samples": 1039,
+    "native_observation_frames": 15,
+    "max_absolute_error": 1.9073486328125e-06,
+    "hardware_tested": false
+  },
+  "regression_parity": {
+    "status": "passed",
+    "hardware_io": false,
+    "behavior_qualified": false,
+    "prone_frames": 4778,
+    "prone_frame_max_absolute_error": 1.7881393432617188e-07,
+    "wheelbipe_frames": 256,
+    "wheelbipe_frame_max_absolute_error": 0.0,
+    "gas_samples": 1201,
+    "gas_max_absolute_error_Nm": 3.039894025391732e-08,
+    "profiles": {
+      "prone": {
+        "config_sha256": "dc36ceb032166ea2fc8760645deb71b0544721b0b8db73ff924308848a7d3276",
+        "model_sha256": "5e57f89ddb39efe36b1c5ce353606d2d3a289e65438b117ef25e0b379f3aa9c6",
+        "policy_samples": 239,
+        "policy_max_absolute_error": 2.384185791015625e-07,
+        "wrong_profile_model_rejected": true
+      },
+      "wheelbipe": {
+        "config_sha256": "44c679b559c766e13648f74f8ca2a17451f6603be6e173cf4ee7b7e474d10608",
+        "model_sha256": "4abb1556fe69a1f11dcb546585d210f200f4b0ba4fca2a0c195098a29879b4e9",
+        "policy_samples": 256,
+        "policy_max_absolute_error": 9.5367431640625e-07,
+        "wrong_profile_model_rejected": true
+      }
+    }
+  },
+  "native_recovery_evaluation": {
+    "status": "diagnostics_complete_not_qualified",
+    "cases": [
+      {
+        "start": "stand",
+        "initial_condition": "pose bank geometry placement; no passive settle proof",
+        "handoff_s": 5.64,
+        "fault": 0,
+        "resets": 0,
+        "peak_gap_m": 5.260527541395277e-05,
+        "final_phase": 5,
+        "duration_s": 30.0,
+        "tail_mean_vx_height_tilt": [
+          0.00683005486925443,
+          0.2992509517272313,
+          0.28228739309310913
+        ],
+        "pose_binding": {
+          "name": "stand",
+          "pose_bank_gimbal_q": {
+            "M_joint1": 0.0,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0
+        }
+      },
+      {
+        "start": "floor_knee103_103_orbit1.6_r0_p0",
+        "initial_condition": "pose bank geometry placement; no passive settle proof",
+        "handoff_s": null,
+        "fault": 5,
+        "resets": 0,
+        "peak_gap_m": 4.261145295458846e-05,
+        "final_phase": 255,
+        "duration_s": 5.62,
+        "pose_binding": {
+          "name": "floor_knee103_103_orbit1.6_r0_p0",
+          "pose_bank_gimbal_q": {
+            "M_joint1": 0.0,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.008000000000000007
+        }
+      },
+      {
+        "start": "recovery_roof_down_front_front_00",
+        "initial_condition": "pose bank geometry placement; no passive settle proof",
+        "handoff_s": null,
+        "fault": 5,
+        "resets": 0,
+        "peak_gap_m": 8.794435416348279e-05,
+        "final_phase": 255,
+        "duration_s": 5.66,
+        "pose_binding": {
+          "name": "recovery_roof_down_front_front_00",
+          "pose_bank_gimbal_q": {
+            "M_joint1": -0.44605698598908283,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0022029110862565315
+        }
+      },
+      {
+        "start": "recovery_left_side_front_front_00",
+        "initial_condition": "pose bank geometry placement; no passive settle proof",
+        "handoff_s": null,
+        "fault": 5,
+        "resets": 0,
+        "peak_gap_m": 0.00023705627245362848,
+        "final_phase": 255,
+        "duration_s": 5.58,
+        "pose_binding": {
+          "name": "recovery_left_side_front_front_00",
+          "pose_bank_gimbal_q": {
+            "M_joint1": 0.6601212629069932,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0020000000000000018
+        }
+      },
+      {
+        "start": "recovery_right_side_front_front_00",
+        "initial_condition": "pose bank geometry placement; no passive settle proof",
+        "handoff_s": null,
+        "fault": 5,
+        "resets": 0,
+        "peak_gap_m": 0.00022669436293654144,
+        "final_phase": 255,
+        "duration_s": 5.62,
+        "pose_binding": {
+          "name": "recovery_right_side_front_front_00",
+          "pose_bank_gimbal_q": {
+            "M_joint1": -0.3924365117217459,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0020000000000000018
+        }
+      }
+    ],
+    "physics_dt": 0.005,
+    "policy_hz": 50,
+    "feedback_pd_hz": 200,
+    "solver_iterations": [
+      64,
+      32
+    ],
+    "gap_scope": "Excluded-anchor distance at policy observation boundaries",
+    "script_library_sha256": "8f950362ecb8b4c21084b4dac6e4a3de46fd643631f39563cc46c6effcdf56cf",
+    "native_cases_scope": "One geometric pose-bank motor/base placement per case, with gimbal projected to the frozen zero-gimbal asset; no passive-settle or seed-sweep proof",
+    "intermediate_simulator_failure": {
+      "run": "native_recovery002",
+      "exit_code": 134,
+      "message": "carb.tasking::Mutex::lock Recursion not allowed after three completed cases; side cases rerun in separate processes"
+    },
+    "first_invalid_harness": "native_recovery used policy fall termination during script; superseded by 002 and independent side cases",
+    "superseded_endpoint_reset_eval": "eval8500_20s hit the existing 20s episode timeout at its last frame; all five 4-lane evaluations repeated with a 21s episode budget"
+  },
+  "capability_status": [
+    {
+      "id": "initial_recovery",
+      "requirement": "Recover from initial front/back/left/right/upside-down and asymmetric leg poses; stabilize and continue the requested task",
+      "qualified": false,
+      "status": "failed_examples",
+      "reason": "All four selected fallen placements ended with script fault5, no actor handoff"
+    },
+    {
+      "id": "moving_fall_recovery",
+      "requirement": "Detect and recover quickly after a real fall during forward/reverse/turning/spinning motion; resume the request without scripted assistance",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "standing",
+      "requirement": "Stable quiet low/mid/high standing after actual recovery completion, with continuous effective dual-wheel support allowing<=2ms pulses, small true XY drift and no sustained outward drift",
+      "qualified": false,
+      "status": "partial_nominal_diagnostics",
+      "reason": "0 resets in finite nominal standing windows; high standing speed drift remains about 0.071m/s; contact/XY acceptance not assessed"
+    },
+    {
+      "id": "low_speed_straight",
+      "requirement": "Track low positive and negative speeds and the straight path smoothly",
+      "qualified": false,
+      "status": "partial_nominal_diagnostics",
+      "reason": "Commands +/-0.5m/s yield about +0.397/-0.403m/s; no full straight-path acceptance"
+    },
+    {
+      "id": "high_speed_straight",
+      "requirement": "Track high forward and reverse speeds while retaining straight-path accuracy and balance",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "stationary_spin",
+      "requirement": "Target100rpm, at least80rpm, both directions, near the same ground location without falling or vibration",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "four_direction_arcs",
+      "requirement": "Forward-left, forward-right, reverse-left and reverse-right simultaneous translation and turning, including transitions",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "standing_height_change",
+      "requirement": "Smooth standing height changes without meaningful wheel lift, excessive drift or loss of balance; apply the post-completion<=2ms contact tolerance",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "moving_height_change",
+      "requirement": "Change height during forward/reverse/turning motion while maintaining tracking and balance",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "spinning_height_change",
+      "requirement": "Change height during both spin directions while maintaining yaw, location and balance",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "high_speed_braking",
+      "requirement": "Abruptly command zero from high forward and reverse speeds; stop promptly, smoothly and upright with small overshoot and little rebound",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "smoothness",
+      "requirement": "All tasks must avoid high-frequency leg/wheel excitation, contact chatter and dangerous measured joint speed",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    },
+    {
+      "id": "robustness",
+      "requirement": "Confirm nominal and randomized held-out dynamics, actuator/sensor/timing/friction domains, seeds and disturbances; preserve all failures",
+      "qualified": false,
+      "status": "not_accepted",
+      "reason": "Only partial nominal diagnostics; no complete requirement assessment"
+    }
+  ],
+  "training_still_running": {
+    "unix_time": 1793714338.3695393,
+    "pid": 1320791,
+    "start_ticks": 23335213,
+    "process_state": "S",
+    "argv": "/home/kaiser/wheelbipe-sim51/env/bin/python -u /home/kaiser/workspace/wheelbipe-v202-port/a603a7c9/scripts/train_wheelbipe_port.py --mode train --task flat --num-envs 1024 --iterations 20000 --save-interval 500 --seed 119 --device cuda:0 --headless --training-profile foundation-v2 --physics-hz 200 --leg-armature .015795 --leg-kp 60 --leg-kd 2 --leg-target-projection-penalty 1 --solver-position-iterations 64 --solver-velocity-iterations 32 --no-external-forces-every-iteration --randomization-profile requested --randomization-strength 1 --output /home/kaiser/workspace/wheelbipe-v202-port/runs/full_flat_1024_20000_200hz_balanced_seed119_011/attempts/0001-03d234624906/train --managed-control-dir /home/kaiser/workspace/wheelbipe-v202-port/runs/full_flat_1024_20000_200hz_balanced_seed119_011/attempts/0001-03d234624906/control ",
+    "cwd": "/home/kaiser/workspace/wheelbipe-v202-port/a603a7c9",
+    "completed_updates": 9480,
+    "training_status": "training",
+    "checkpoint_sha256": "fb36b4a9e5bd7f85f7bc3b4e28532b77edb7516fa1c46ed029a2a4d72fdd4a3f",
+    "max_constraint_gap_m": 1.4104231595993042,
+    "peak_diagnostic": {
+      "lane": 994,
+      "pin": 5,
+      "physical_call": 749120,
+      "sample_scope": "policy_observation_boundary",
+      "episode_time_s": 5.5200000000000005,
+      "initialized": true,
+      "gaps_m": [
+        0.13621333241462708,
+        0.3538719415664673,
+        0.1651465743780136,
+        0.2716774344444275,
+        0.6148353815078735,
+        1.4104231595993042
+      ],
+      "root_state": [
+        -62.5504264831543,
+        -54.298561096191406,
+        0.6415430307388306,
+        -0.44883695244789124,
+        -0.6553512215614319,
+        -0.5993499159812927,
+        -0.09919567406177521,
+        2.7656021118164062,
+        -3.6029481887817383,
+        3.8944549560546875,
+        233.80902099609375,
+        117.84221649169922,
+        -30.71749496459961
+      ],
+      "joint_pos": [
+        -4.041479587554932,
+        1.434624195098877,
+        -1.7222093343734741,
+        1.4573698043823242,
+        0.6970804929733276,
+        -0.7672196626663208,
+        -0.15380236506462097,
+        -2.3536856174468994,
+        -4.789806842803955,
+        -0.9418294429779053,
+        -5.270866870880127,
+        1.0145152807235718,
+        -5.359323501586914,
+        -2.438453197479248,
+        0.06972765922546387,
+        0.06972894817590714,
+        -0.4300231337547302,
+        2.191075325012207
+      ],
+      "joint_vel": [
+        70.7160415649414,
+        99.79187774658203,
+        -114.09512329101562,
+        -96.76628875732422,
+        -100.02099609375,
+        -43.05046081542969,
+        -658.90380859375,
+        -6.427330017089844,
+        -15.308927536010742,
+        37.756370544433594,
+        2.852876663208008,
+        34.85694122314453,
+        -104.21798706054688,
+        138.13558959960938,
+        77.8165283203125,
+        258.44586181640625,
+        32.450157165527344,
+        100.46217346191406
+      ],
+      "previous_motor_effort_Nm": [
+        40.0,
+        -40.0,
+        -4.499999523162842,
+        40.0,
+        40.0,
+        -0.0
+      ]
+    },
+    "live_training_modified": false,
+    "signals_sent_to_learner": 0
+  },
+  "geometry_binding": {
+    "canonical_model_spec_sha256": "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812",
+    "physics_model_spec_sha256": "388dbdc69cbc7021ea02e553caaed098a05e237a6867b45ee7df172858050b29",
+    "fixed_zero_gimbal_only_spec_difference": true,
+    "native_pose_binding_audit": {
+      "status": "complete",
+      "fixed_gimbal_projection": true,
+      "all_numerical_geometry_except_gimbal_joint_release_identical": true,
+      "poses": [
+        {
+          "name": "stand",
+          "pose_bank_gimbal_q": {
+            "M_joint1": 0.0,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0
+        },
+        {
+          "name": "floor_knee103_103_orbit1.6_r0_p0",
+          "pose_bank_gimbal_q": {
+            "M_joint1": 0.0,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.008000000000000007
+        },
+        {
+          "name": "recovery_left_side_front_front_00",
+          "pose_bank_gimbal_q": {
+            "M_joint1": 0.6601212629069932,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0020000000000000018
+        },
+        {
+          "name": "recovery_right_side_front_front_00",
+          "pose_bank_gimbal_q": {
+            "M_joint1": -0.3924365117217459,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0020000000000000018
+        },
+        {
+          "name": "recovery_roof_down_front_front_00",
+          "pose_bank_gimbal_q": {
+            "M_joint1": -0.44605698598908283,
+            "M_joint2": 0.0
+          },
+          "actual_fixed_gimbal_q": [
+            0.0,
+            0.0
+          ],
+          "minimum_collision_clearance_m": 0.0022029110862565315
+        }
+      ]
+    }
+  },
+  "verification": {
+    "build": "build-rmcs: rmcs_core rmcs_rl rmcs_bringup passed",
+    "ctest": {
+      "rmcs_core": {
+        "passed": 11,
+        "failed": 0
+      },
+      "rmcs_rl": {
+        "passed": 2,
+        "failed": 0
+      }
+    },
+    "formatter": "clang-format passed",
+    "hardware_io": false
+  },
+  "onnx_sha256": "f4baaa4daa4611a9d438ff75bf75dced4df81ceb28b22a5a1e41ca07425b0f85"
+}

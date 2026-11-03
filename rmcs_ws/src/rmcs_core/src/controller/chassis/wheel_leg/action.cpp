@@ -116,11 +116,35 @@ void WheelLegController::compute_motor_torques_() {
         (policy_profile_.wheel_kp * (policy_targets_.tail<2>() - dq_.tail<2>()))
             .cwiseMax(-policy_profile_.wheel_torque_limit)
             .cwiseMin(policy_profile_.wheel_torque_limit);
+    write_motor_efforts_(tau, wheel_tau, gas_spring_compensation_enabled_);
+    if (fault_latched_)
+        return;
+    if (use_motor_position_pd_) {
+        // Preserve the pair's continuous turn in the encoder API frame.
+        const Eigen::Vector4d delta =
+            leg_jacobian_.transpose() * (policy_targets_.head<4>() - q_.head<4>());
+        for (int i = 0; i < 4; ++i) {
+            const double target = *angle_inputs_[i] + delta[i];
+            if (!std::isfinite(target)) {
+                latch_fault_("non-finite motor position target");
+                return;
+            }
+            *angle_outputs_[i] = target;
+        }
+        *joint_command_ns_ = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
+    }
+}
+
+void WheelLegController::write_motor_efforts_(
+    Eigen::Vector4d tau, const Eigen::Vector2d& wheel_tau, bool torque_override) {
+    tau = tau.cwiseMax(-DeployedPolicyContract::kLegTorqueLimit)
+              .cwiseMin(DeployedPolicyContract::kLegTorqueLimit);
     // A crossed hinge boundary only removes outward effort. Preserve inward
     // correction and common rotation without leaving the policy-controlled state.
     const bool at_limit = apply_soft_limits_(tau);
     // MIT position PD would otherwise discard the host's compensated effort.
-    *joint_torque_override_ = at_limit || gas_spring_compensation_enabled_;
+    *joint_torque_override_ = at_limit || torque_override;
     const Eigen::Vector4d motor_tau = leg_jacobian_.transpose() * tau;
     if (!motor_tau.allFinite() || !wheel_tau.allFinite()) {
         latch_fault_("non-finite actuator effort");
@@ -139,22 +163,6 @@ void WheelLegController::compute_motor_torques_() {
         *torque_outputs_[i] = effort_scale * motor_tau[i];
     *joint_torque_override_ = *joint_torque_override_ || effort_scale < 1.0;
 
-    if (use_motor_position_pd_) {
-        // Preserve the pair's continuous turn in the encoder API frame.
-        // Driver reversal/bias is applied only by DmMotor.
-        const Eigen::Vector4d delta =
-            leg_jacobian_.transpose() * (policy_targets_.head<4>() - q_.head<4>());
-        for (int i = 0; i < 4; ++i) {
-            const double target = *angle_inputs_[i] + delta[i];
-            if (!std::isfinite(target)) {
-                latch_fault_("non-finite motor position target");
-                return;
-            }
-            *angle_outputs_[i] = target;
-        }
-        *joint_command_ns_ = static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
-    }
     for (int i = 0; i < 2; ++i) {
         // DjiMotor converts motor current to wheel-output torque using its own ratio.
         const double motor_tau_wheel = wheel_scale_[i] * wheel_tau[i];
