@@ -225,7 +225,7 @@ protected:
 
 TEST_F(WheelLegImuConfig, AllVehicleProfilesMapRawAxesBeforeEkf) {
     for (const char* profile :
-         {RMCS_PROFILE, RMCS_UNIFIED_PROFILE, RMCS_PRONE_PROFILE, RMCS_WHEELBIPE_PROFILE,
+         {RMCS_TRADITIONAL_PROFILE, RMCS_PRONE_PROFILE, RMCS_WHEELBIPE_PROFILE,
           RMCS_RECOVERY_PROFILE}) {
         SCOPED_TRACE(profile);
         const auto options =
@@ -257,7 +257,6 @@ TEST_F(WheelLegImuConfig, AllVehicleProfilesMapRawAxesBeforeEkf) {
                 .successful);
         EXPECT_TRUE(load_wheel_leg_imu_config(hardware).sensor_position_body_m.isZero());
         EXPECT_FALSE(controller.has_parameter("imu_to_base"));
-        EXPECT_TRUE(controller.get_parameter("imu_alignment_ready").as_bool());
     }
 }
 

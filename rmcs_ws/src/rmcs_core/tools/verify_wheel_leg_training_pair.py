@@ -12,7 +12,7 @@ import onnxruntime as ort
 import torch
 import yaml
 
-from verify_prone_motion_parity import sensor_records, python_frames, sha, require
+from wheel_leg_parity_fixtures import sensor_records, python_frames, sha, require
 
 ROOT = Path(__file__).resolve().parents[4]
 
@@ -43,7 +43,8 @@ def main():
     def run(binary, arguments, payload, reject=False):
         result = subprocess.run(["docker", "exec", "-i", args.container, "bash", "-lc",
             "source /opt/ros/jazzy/setup.bash && source /workspaces/RMCS/rmcs_ws/install/setup.bash && "
-            + shlex.join(["/workspaces/RMCS/rmcs_ws/build/" + binary, *arguments])],
+            + "source " + shlex.quote(str(ROOT / "rmcs_ws/install/setup.bash")) + " && "
+            + shlex.join([str(ROOT / "rmcs_ws/build" / binary), *arguments])],
             input=payload, text=True, capture_output=True)
         if reject:
             require(result.returncode != 0 and "does not match" in result.stderr,
@@ -110,16 +111,16 @@ def main():
     report.update(gas_samples=len(gas_q), gas_max_absolute_error_Nm=gas_error)
     report["profiles"] = {}
     for name, filename, model, mode in (
-        ("prone", "wheel-leg-infantry-prone-v4.yaml", "prone_motion_v4_100hz.onnx", "--prone-200hz"),
+        ("prone", "wheel-leg-infantry-prone-v4.yaml", "prone_motion_v4_100hz.onnx", "--prone-motion"),
         ("wheelbipe", "wheel-leg-infantry-wheelbipe.yaml", "wheelbipe_v202_50hz.onnx", "--wheelbipe")):
         config_file = cfg_dir / filename
         cfg = yaml.safe_load(config_file.read_text())
-        bridge, control, hardware = [cfg[key]["ros__parameters"] for key in ("rl_bridge", "wheel_leg_controller", "wheel_leg")]
-        require(bridge["policy_rate"] == pair[name]["policy_hz"] and control["pd_frequency"] == 200., "Profile clocks differ")
-        require(control["gas_spring_compensation_enabled"] == (name == "prone"), "Spring feedforward differs")
-        require(hardware["joint_control_mode"] == "torque" and not hardware["allow_set_zero"], "Drive mode differs")
-        require((hardware["joint_position_kp"], hardware["joint_position_kd"])
-                == ((160., 2.5) if name == "prone" else (60., 2.)), "Leg gains differ")
+        bridge, control, hardware = [cfg[key]["ros__parameters"] for key in ("rl_bridge", "wheel_leg_rl_controller", "wheel_leg")]
+        require(bridge["policy_rate"] == pair[name]["policy_hz"], "Policy clock differs")
+        require(control["policy"] == ("prone_motion" if name=="prone" else "wheelbipe"), "Wrong policy adapter")
+        require(cfg["rmcs_executor"]["ros__parameters"]["update_rate"] == 1000., "Executor clock differs")
+        require(not any(key in hardware for key in ("joint_control_mode","joint_position_kp","joint_position_kd","allow_set_zero")), "Retired drive parameters returned")
+        require(all(float(dict(token.split("=",1) for token in term.split()).get("scale","1"))==1. and "clip=" not in term for term in bridge["action_terms"]), "Bridge must publish raw policy actions")
         require(bridge["expected_observation_contract_sha256"] == pair[name]["observation_contract_sha256"], "Observation identity differs")
         path = ROOT / "rmcs_ws/src/rmcs_rl/models/wheel_leg" / model
         session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
@@ -129,7 +130,7 @@ def main():
         cpp = np.loadtxt(run("rmcs_rl/prone_policy_parity", [str(path), mode], payload).splitlines())
         error = float(np.abs(cpp - reference).max())
         require(error < 2e-5, f"C++ policy engine differs for {name}: {error}")
-        other = "--wheelbipe" if name == "prone" else "--prone-200hz"
+        other = "--wheelbipe" if name == "prone" else "--prone-motion"
         run("rmcs_rl/prone_policy_parity", [str(path), other], payload, reject=True)
         report["profiles"][name] = dict(config_sha256=sha(config_file), model_sha256=sha(path),
             policy_samples=len(sample), policy_max_absolute_error=error,

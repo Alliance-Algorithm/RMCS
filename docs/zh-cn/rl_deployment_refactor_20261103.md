@@ -1,5 +1,7 @@
 # 轮腿部署职责整理（2026-11-03）
 
+> 本文保留当时的实现与验证记录。当前接口、入口及源码结构以[轮腿重构说明](wheel_leg_refactor.md)为准；文中的退役入口不再可用。
+
 本次在两路训练部署配置上整理 RMCS 和 `rmcs_rl` 的职责。参考仓库中的
 `OmniWheelController`、`SteeringWheelController` 及现有硬件 partner 组件写法：
 接口由构造函数直接注册，生命周期函数组织流程，私有函数处理具体控制步骤，
