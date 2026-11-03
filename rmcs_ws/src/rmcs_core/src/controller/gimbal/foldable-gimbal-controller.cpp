@@ -132,6 +132,8 @@ public:
         fold_velocity_tolerance_ =
             std::max(get_parameter_or("fold_velocity_tolerance", 0.05), 1e-6);
         fold_angle_tolerance_ = std::max(get_parameter_or("fold_angle_tolerance", 0.05), 1e-6);
+        // 为 true 时启动即处于展开态（允许摩擦轮/发射），跳过上电展开流程，用于射击台架测试。
+        start_unfolded_ = get_parameter_or("start_unfolded", false);
     }
 
     auto before_updating() -> void override {
@@ -147,7 +149,7 @@ public:
         previous_yaw_timestamp_ = *input_.timestamp;
         last_update_timestamp_ = *input_.timestamp;
         last_rotary_knob_switch_ = *input_.rotary_knob_switch;
-        fold_state_ = FoldState::UnFolding;
+        fold_state_ = start_unfolded_ ? FoldState::UnFold : FoldState::UnFolding;
         fold_ready_elapsed_ = 0.0;
         fold_bottom_yaw_target_ = *input_.bottom_yaw_angle;
         publish_fold_state();
@@ -385,6 +387,7 @@ private:
     bool last_fold_request_ = false;
 
     FoldState fold_state_ = FoldState::UnFolding;
+    bool start_unfolded_ = false;
 
     double fold_bottom_yaw_target_ = 0.0;
 
