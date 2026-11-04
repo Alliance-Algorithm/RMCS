@@ -66,6 +66,11 @@ public:
         register_output("/wheel_leg/rl/fault_latched", fault_, false);
         register_output("/wheel_leg/recovery/phase", recovery_phase_, 0);
         register_output("/wheel_leg/recovery/fault", recovery_fault_, 0);
+        register_output("/wheel_leg/recovery/capture_ready", recovery_capture_ready_, false);
+        register_output("/wheel_leg/recovery/capture_blockers", recovery_capture_blockers_, 0);
+        recovery_.configure_speed_protection(
+            get_parameter_or("self_righting_overspeed_fault_enabled", true),
+            get_parameter_or("self_righting_speed_braking_enabled", true));
         timeout_ = get_parameter_or("inference_timeout", .06);
         heading_hold_ = get_parameter_or("heading_hold_enabled", false);
         height_rate_ = get_parameter_or("height_reference_rate_max", .6666666666666666);
@@ -73,7 +78,8 @@ public:
         const bool sim_only = get_parameter_or("self_righting.simulation_only", true);
         const bool hardware_verified =
             get_parameter_or("self_righting.hardware_mapping_verified", false);
-        if (recovery_enabled_ && (sim_only || !hardware_verified))
+        simulation_guarded_ = recovery_enabled_ && (sim_only || !hardware_verified);
+        if (simulation_guarded_)
             register_input("/wheel_leg/simulation", simulation_);
         if (!std::isfinite(timeout_) || timeout_ <= 0. || !std::isfinite(height_rate_)
             || height_rate_ <= 0.)
@@ -88,9 +94,10 @@ public:
                 || !std::isinf(*action_max_[i]))
                 throw std::invalid_argument(
                     "Wheel-leg adapters require unscaled raw policy actions");
-        if (simulation_.ready() && !*simulation_)
+        if (simulation_guarded_ && (!simulation_.ready() || !*simulation_))
             throw std::invalid_argument(
-                "Self-righting remains simulation-only until hardware mapping is verified");
+                "Self-righting requires an explicit /wheel_leg/simulation=true input until "
+                "hardware mapping is verified");
     }
     void update() override {
         if (!schedule_checked_) {
@@ -140,6 +147,8 @@ public:
                 *recovery_phase_ = recovery_output_.phase;
                 *recovery_fault_ = recovery_output_.fault;
                 if (recovery_output_.phase == wheel_leg::SelfRightingCore::Fault) {
+                    *recovery_capture_ready_ = false;
+                    *recovery_capture_blockers_ = capture_blockers();
                     fail("self-righting protection");
                     return;
                 }
@@ -152,6 +161,8 @@ public:
                 last_pd_ = *tick_;
             }
             const bool captured = capture_ready();
+            *recovery_capture_ready_ = captured;
+            *recovery_capture_blockers_ = capture_blockers();
             if (!captured) {
                 if (*policy_enable_)
                     fail("capture lost while awaiting policy");
@@ -191,6 +202,8 @@ public:
             if (*state_ == 4) {
                 *state_ = 3;
                 last_pd_.reset();
+                *recovery_capture_ready_ = false;
+                *recovery_capture_blockers_ = 0;
             }
         }
         const auto now = Clock::now();
@@ -227,6 +240,8 @@ private:
         *state_ = 1;
         *recovery_phase_ = 0;
         *recovery_fault_ = 0;
+        *recovery_capture_ready_ = false;
+        *recovery_capture_blockers_ = 0;
         have_target_ = false;
         accepted_sequence_ = *action_sequence_;
         accepted_stamp_ = 0;
@@ -239,10 +254,14 @@ private:
     void fail(const char* reason) {
         RCLCPP_ERROR(get_logger(), "Wheel-leg RL stopped: %s", reason);
         const int phase = *recovery_phase_, fault = *recovery_fault_;
+        const bool capture_ready = *recovery_capture_ready_;
+        const int capture_blockers = *recovery_capture_blockers_;
         reset_runtime();
         *fault_ = true;
         *recovery_phase_ = phase;
         *recovery_fault_ = fault;
+        *recovery_capture_ready_ = capture_ready;
+        *recovery_capture_blockers_ = capture_blockers;
     }
     bool write_effort(const JointVector& effort) {
         JointVector caps;
@@ -258,16 +277,31 @@ private:
             *effort_[i] = api[i];
         return true;
     }
-    bool capture_ready() const {
-        if (recovery_output_.phase != wheel_leg::SelfRightingCore::Complete
-            || gravity_->z() >= -.9903 || gyro_->head<2>().norm() >= .35)
-            return false;
+    static constexpr int kCapturePhase = 1 << 0;
+    static constexpr int kCaptureGravity = 1 << 1;
+    static constexpr int kCaptureGyro = 1 << 2;
+    static constexpr int kCaptureWheelVelocity = 1 << 3;
+    static constexpr int kCaptureLegVelocity = 1 << 4;
+    static constexpr int kCaptureTarget = 1 << 5;
+    int capture_blockers() const {
+        int blockers = 0;
+        if (recovery_output_.phase != wheel_leg::SelfRightingCore::Complete)
+            blockers |= kCapturePhase;
+        if (gravity_->z() >= -.9903)
+            blockers |= kCaptureGravity;
+        if (gyro_->head<2>().norm() >= .35)
+            blockers |= kCaptureGyro;
         const auto target = action_target(policy_, JointVector{}, *q_);
         for (int i = 0; i < 6; ++i)
-            if (std::abs((*dq_)[i]) >= (i < 4 ? .6 : 2.)
-                || (i < 4 && std::abs(target[i] - (*q_)[i]) >= .25))
-                return false;
-        return true;
+            if (std::abs((*dq_)[i]) >= (i < 4 ? .6 : 2.))
+                blockers |= i < 4 ? kCaptureLegVelocity : kCaptureWheelVelocity;
+        for (int i = 0; i < 4; ++i)
+            if (std::abs(target[i] - (*q_)[i]) >= .25)
+                blockers |= kCaptureTarget;
+        return blockers;
+    }
+    bool capture_ready() const {
+        return capture_blockers() == 0;
     }
     void update_command() {
         const std::size_t divisor = static_cast<std::size_t>(1000. / policy_.policy_hz);
@@ -318,7 +352,8 @@ private:
     OutputInterface<JointVector> applied_;
     OutputInterface<Eigen::Vector3d> policy_command_;
     OutputInterface<double> policy_height_;
-    OutputInterface<int> state_, recovery_phase_, recovery_fault_;
+    OutputInterface<int> state_, recovery_phase_, recovery_fault_, recovery_capture_blockers_;
+    OutputInterface<bool> recovery_capture_ready_;
     wheel_leg::SelfRightingCore recovery_;
     wheel_leg::SelfRightingCore::Output recovery_output_;
     JointVector target_{}, pending_history_{};
@@ -328,7 +363,8 @@ private:
     std::size_t last_reset_ = 0, accepted_sequence_ = 0;
     std::uint64_t accepted_stamp_ = 0;
     double timeout_, height_rate_;
-    bool heading_hold_, recovery_enabled_, have_target_ = false, schedule_checked_ = false;
+    bool heading_hold_, recovery_enabled_, simulation_guarded_ = false, have_target_ = false,
+        schedule_checked_ = false;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

@@ -3,8 +3,10 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <format>
 #include <memory>
 #include <mutex>
+#include <numbers>
 #include <optional>
 #include <ranges>
 #include <sstream>
@@ -14,20 +16,25 @@
 #include <eigen3/Eigen/Dense>
 #include <librmcs/board/rmcs_board_lite.hpp>
 #include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
+#include <rmcs_utility/ring_buffer.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
 #include "hardware/device/bmi088_ekf.hpp"
+#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/lk_motor.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "hardware/device/supercap.hpp"
 #include "hardware/device/wheel_leg_sensor_snapshot.hpp"
 #include "hardware/util/wheel_leg_drive.hpp"
-#include "hardware/wheel_leg_imu.hpp"
 
 namespace rmcs_core::hardware {
 class WheelLeg final
@@ -39,36 +46,56 @@ public:
         : Node{get_component_name(), node::options()}
         , command_(create_partner_component<Command>(get_component_name() + "_command", *this)) {
         remote_control_ = std::make_unique<device::RemoteControl>(*this);
-        board_ =
-            std::make_unique<Board>(*this, *command_, get_parameter("board_serial").as_string());
-        imu_parameters_callback_ = freeze_wheel_leg_imu_parameters(*this);
+        // The gimbal board's IMU publishes the tf tree; the yaw encoder angle
+        // comes from this board's BottomBoard to complete GimbalCenterLink ->
+        // YawLink. It is read through an accessor because one component may not
+        // register both an input and an output under the same interface name.
+        register_output("/tf", tf_);
+        bottom_board_ = std::make_unique<BottomBoard>(
+            *this, *command_, get_parameter("serial_filter_bottom_board").as_string());
+        top_board_ = std::make_unique<TopBoard>(
+            *this, *command_, get_parameter("serial_filter_top_board").as_string());
         using Srv = std_srvs::srv::Trigger;
         status_service_ = create_service<Srv>(
             "/rmcs/service/robot_status",
             [this](const Srv::Request::SharedPtr&, const Srv::Response::SharedPtr& response) {
                 response->success = true;
-                response->message = board_->status();
+                response->message = status_text();
             });
     }
     void update() override {
-        board_->update();
+        bottom_board_->update();
+        top_board_->update();
         remote_control_->update();
     }
 
 private:
+    std::string status_text() const {
+        std::ostringstream text;
+        text << std::format("    yaw_motor_zero_point: {}\n", bottom_board_->yaw_raw_angle());
+        text << std::format("    pitch_motor_zero_point: {}\n", top_board_->pitch_raw_angle());
+        return text.str();
+    }
+
     class Command : public rmcs_executor::Component {
     public:
         explicit Command(WheelLeg& hardware)
             : hardware_(hardware) {}
-        void update() override { hardware_.board_->command_update(); }
+        void update() override {
+            hardware_.bottom_board_->command_update();
+            hardware_.top_board_->command_update();
+        }
 
     private:
         WheelLeg& hardware_;
     };
-    struct Board final : librmcs::board::RmcsBoardLite::Callback {
+    // Chassis board: wheels, both DM leg pairs, gimbal yaw (CAN3), feeder and
+    // supercap (CAN0). It also owns the chassis BMI088.
+    struct BottomBoard final : librmcs::board::RmcsBoardLite::Callback {
         using Clock = std::chrono::steady_clock;
         using Action = WheelLegDmCommandScheduler::Action;
-        Board(WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
+        BottomBoard(
+            WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
             : status_(status)
             , wheel_motors_(
                   {status, command, "/wheel_leg/left_wheel"},
@@ -79,7 +106,18 @@ private:
             , knee_motors_(
                   {status, command, "/wheel_leg/left_knee_joint"},
                   {status, command, "/wheel_leg/right_knee_joint"})
-            , bmi088_(load_wheel_leg_imu_config(status)) {
+            , gimbal_yaw_motor_(status, command, "/gimbal/yaw")
+            , feeder_motor_(status, command, "/gimbal/bullet_feeder")
+            , supercap_(status, command)
+            // Chassis BMI088: mounted rotated 180 degrees about body Y, so the
+            // sensor axes read (-x, y, -z) relative to the body frame.
+            , bmi088_(device::Bmi088Ekf::Config{
+                  .body_to_sensor =
+                      Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitY()}
+                          .toRotationMatrix(),
+              }) {
+            // The yaw LkMotor already publishes /gimbal/yaw/angle; the top board
+            // reads it to place YawLink in the tree.
             status.register_output(
                 "/wheel_leg/imu/quaternion", imu_quaternion_, Eigen::Quaterniond::Identity());
             status.register_output(
@@ -96,7 +134,20 @@ private:
             status.register_output(
                 "/wheel_leg/imu/acceleration_sequence", acceleration_sequence_output_,
                 std::uint64_t{0});
+            // Referee serial: same UART and framing as the deformable infantry.
+            status.register_output("/referee/serial", referee_serial_);
+            referee_serial_->read = [this](std::byte* buffer, size_t size) {
+                return referee_ring_buffer_receive_.pop_front_n(
+                    [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
+            };
+            referee_serial_->write = [this](const std::byte* buffer, size_t size) {
+                board_->start_transmit().uart_transmit(
+                    Spec::kUarts.kUart0, {.uart_data = std::span<const std::byte>{buffer, size}});
+                return size;
+            };
             status.register_output("/wheel_leg/feedback_fresh", feedback_fresh_output_, false);
+            status.register_output(
+                "/wheel_leg/feedback_available", feedback_available_output_, false);
             status.register_output("/wheel_leg/dm_control_ready", dm_control_ready_output_, false);
             status.register_output("/wheel_leg/dr16_fresh", dr16_fresh_output_, false);
             constexpr std::array names{"left_hip_joint",   "left_knee_joint", "right_hip_joint",
@@ -114,16 +165,19 @@ private:
             if (!std::isfinite(timeout) || timeout <= 0. || timeout > 1.)
                 throw std::invalid_argument("feedback_timeout_s must be finite and in (0,1]");
             timeout_ns_ = static_cast<std::int64_t>(timeout * 1e9);
-            allow_balance_switch_ = status.get_parameter_or("allow_balance_switch", false);
             configure_motors(status);
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = true;
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial, options);
+            board_->start_transmit().uart_config(Spec::kUarts.kUart0, {.baudrate = 115200});
             status.remote_control_->register_dr16(&dr16_);
         }
         void update() {
             const std::lock_guard lock{status_mutex_};
             update_motor_status();
+            gimbal_yaw_motor_.update_status();
+            feeder_motor_.update_status();
+            supercap_.update_status();
             constexpr std::array receive_order{2, 4, 3, 5, 0, 1};
             for (std::size_t i = 0; i < receive_order.size(); ++i) {
                 const auto& sample = motor_feedback_[receive_order[i]].latest();
@@ -131,8 +185,12 @@ private:
                 *feedback_sequence_outputs_[i] = sample.sequence;
             }
             publish_imu_feedback();
-            *feedback_fresh_output_ = feedback_fresh();
-            *dm_control_ready_output_ = *feedback_fresh_output_ && enabled_[0] && enabled_[1]
+            const bool available = feedback_available();
+            const bool fresh = feedback_fresh();
+            *feedback_available_output_ = available;
+            *feedback_fresh_output_ = fresh;
+            update_feedback_warning();
+            *dm_control_ready_output_ = available && enabled_[0] && enabled_[1]
                                      && mit_sent_[0] && mit_sent_[1]
                                      && wheel_leg_dm_pair_enabled(pair_feedback(0))
                                      && wheel_leg_dm_pair_enabled(pair_feedback(1));
@@ -148,13 +206,13 @@ private:
                 reset_imu_motion_requested_.store(true, std::memory_order_release);
             last_reset_ = *reset_count_;
             const std::array pairs{pair_feedback(0), pair_feedback(1)};
-            const bool fresh = feedback_fresh();
-            const bool requested = (allow_balance_switch_ && *enable_request_ && dr16_fresh()
-                                    && fresh && dr16_.switch_left() == rmcs_msgs::Switch::MIDDLE
-                                    && dr16_.switch_right() == rmcs_msgs::Switch::UP)
-                                || wheel_leg_normal_enable_request(
-                                       dr16_fresh(), dr16_.switch_left(), dr16_.switch_right(),
-                                       true, *enable_request_, fresh, pairs, true);
+            const bool available = feedback_available();
+            // The board owns only the safety interlock: the remote must be live
+            // and must not be commanding a both-down stop. Which switch gesture
+            // arms the chassis is the controller's decision, delivered through
+            // /chassis/control_enable, so the traditional and RL stacks share
+            // this board build without either one leaking its gestures here.
+            const bool requested = *enable_request_ && dr16_fresh() && available && !both_down;
             const std::array requests{requested, requested};
             for (int side = 0; side < 2; ++side)
                 if (enabled_[side] != requested)
@@ -165,43 +223,51 @@ private:
                                     && wheel_leg_dm_pair_enabled(pairs[0])
                                     && wheel_leg_dm_pair_enabled(pairs[1]);
             auto builder = board_->start_transmit();
+            // M3508 IDs 1/2 are the wheels and ID 3 is the feeder, all behind the
+            // single 0x200 frame on CAN0. This board stays the only 0x200 writer:
+            // a second producer would overwrite the other slots every cycle.
             auto wheels = device::CanPacket8{
                 wheel_motors_[0].generate_command(
                     wheel_allowed ? wheel_motors_[0].control_torque() : 0.),
                 wheel_motors_[1].generate_command(
                     wheel_allowed ? wheel_motors_[1].control_torque() : 0.),
                 device::CanPacket8::PaddingQuarter{}, device::CanPacket8::PaddingQuarter{}};
+            wheels << feeder_motor_;
             builder.can_transmit(
                 Spec::kCans.kCan0, {.can_id = 0x200, .can_data = wheels.as_bytes()});
+            auto supercap_package = device::CanPacket8{
+                device::CanPacket8::PaddingQuarter{},
+                device::CanPacket8::PaddingQuarter{},
+                device::CanPacket8::PaddingQuarter{},
+                supercap_.generate_command()};
+            builder.can_transmit(
+                Spec::kCans.kCan0,
+                {.can_id = 0x1FE, .can_data = supercap_package.as_bytes()});
+            builder.can_transmit(
+                Spec::kCans.kCan3,
+                {
+                    .can_id = 0x141,
+                    .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
+                });
             WheelLegDmSideSchedulers::dispatch(
                 actions, {0, 2, 1, 3}, [&](std::size_t axis, Action action) {
                     const auto side = axis / 2;
                     const auto& motor = axis % 2 == 0 ? hip_motors_[side] : knee_motors_[side];
-                    auto packet = joint_command(motor, action, fresh);
+                    auto packet = joint_command(motor, action, available);
                     builder.can_transmit(
                         axis % 2 == 0 ? Spec::kCans.kCan1 : Spec::kCans.kCan2,
                         {.can_id = motor.send_id(), .can_data = packet.as_bytes()});
                 });
             for (int side = 0; side < 2; ++side) {
-                if (requested && fresh && actions[side] == Action::kMit)
+                if (requested && available && actions[side] == Action::kMit)
                     mit_sent_[side] = true;
                 enabled_[side] = requested;
             }
         }
-        std::string status() const {
-            const std::lock_guard lock{status_mutex_};
-            std::ostringstream text;
-            text << "WheelLeg: feedback=" << *feedback_fresh_output_
-                 << " remote=" << *dr16_fresh_output_
-                 << " drives_ready=" << *dm_control_ready_output_ << " mode=host_torque\n";
-            for (int side = 0; side < 2; ++side)
-                text << "side " << side << ": hip status=" << hip_motors_[side].status_code()
-                     << " fault=" << hip_motors_[side].fault_code()
-                     << " crank status=" << knee_motors_[side].status_code()
-                     << " fault=" << knee_motors_[side].fault_code() << '\n';
-            return text.str();
+        [[nodiscard]] double yaw_angle() const { return gimbal_yaw_motor_.angle(); }
+        [[nodiscard]] std::int64_t yaw_raw_angle() const {
+            return gimbal_yaw_motor_.last_raw_angle();
         }
-
     private:
         mutable std::mutex status_mutex_;
         static std::int64_t now_ns() {
@@ -214,6 +280,42 @@ private:
                 now_ns, timeout_ns_, imu_last_ns_, motor_last_ns_[0], motor_last_ns_[1],
                 motor_last_ns_[2], motor_last_ns_[3], motor_last_ns_[4], motor_last_ns_[5]);
         }
+        bool feedback_available() const {
+            return wheel_leg_feedback_available(
+                now_ns, imu_last_ns_, motor_last_ns_[0], motor_last_ns_[1], motor_last_ns_[2],
+                motor_last_ns_[3], motor_last_ns_[4], motor_last_ns_[5]);
+        }
+        bool motor_feedback_available() const {
+            return wheel_leg_feedback_available(
+                now_ns, motor_last_ns_[0], motor_last_ns_[1], motor_last_ns_[2], motor_last_ns_[3],
+                motor_last_ns_[4], motor_last_ns_[5]);
+        }
+        bool motor_feedback_fresh() const {
+            return wheel_leg_feedback_fresh(
+                now_ns, timeout_ns_, motor_last_ns_[0], motor_last_ns_[1], motor_last_ns_[2],
+                motor_last_ns_[3], motor_last_ns_[4], motor_last_ns_[5]);
+        }
+        void update_feedback_warning() {
+            const auto state = !motor_feedback_available()
+                                 ? FeedbackWarningState::kMissing
+                                 : !motor_feedback_fresh() ? FeedbackWarningState::kStale
+                                                            : FeedbackWarningState::kFresh;
+            if (state == feedback_warning_state_)
+                return;
+            if (state == FeedbackWarningState::kMissing) {
+                RCLCPP_WARN(
+                    status_.get_logger(),
+                    "WheelLeg CAN joint feedback has not completed its first sample; "
+                    "control remains gated until all six motors report once");
+            } else if (state == FeedbackWarningState::kStale) {
+                RCLCPP_WARN(
+                    status_.get_logger(),
+                    "WheelLeg CAN joint feedback is older than %.1f ms; continuing with "
+                    "the last valid samples",
+                    static_cast<double>(timeout_ns_) / 1e6);
+            }
+            feedback_warning_state_ = state;
+        }
         bool dr16_fresh() const {
             return wheel_leg_feedback_fresh(now_ns, 100'000'000, dr16_last_ns_);
         }
@@ -221,11 +323,11 @@ private:
             return {
                 hip_motors_[side].status_code(), knee_motors_[side].status_code(),
                 hip_motors_[side].fault_code(), knee_motors_[side].fault_code(),
-                wheel_leg_feedback_fresh(
-                    now_ns, timeout_ns_, motor_last_ns_[2 + side], motor_last_ns_[4 + side])};
+                wheel_leg_feedback_available(
+                    now_ns, motor_last_ns_[2 + side], motor_last_ns_[4 + side])};
         }
         static device::CanPacket8
-            joint_command(const device::DmMotor& motor, Action action, bool fresh) {
+            joint_command(const device::DmMotor& motor, Action action, bool available) {
             if (action == Action::kClearError)
                 return motor.clear_error_command();
             if (action == Action::kEnable)
@@ -233,17 +335,23 @@ private:
             if (action == Action::kDisable)
                 return motor.disable_command();
             return motor.generate_command(
-                action == Action::kMit && fresh ? motor.control_torque() : 0.);
+                action == Action::kMit && available ? motor.control_torque() : 0.);
         }
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() != 8)
                 return;
-            if (can == Spec::kCans.kCan0)
-                store_motor_feedback(wheel_motors_, 0, data);
-            else if (can == Spec::kCans.kCan1)
+            if (can == Spec::kCans.kCan0) {
+                // The supercap answers on CAN0 with its own status frame.
+                if (data.can_id == 0x300)
+                    supercap_.store_status(data.can_data);
+                else if (!store_motor_feedback(wheel_motors_, 0, data))
+                    feeder_motor_.match_then_store_status(data.can_id, data.can_data);
+            } else if (can == Spec::kCans.kCan1)
                 store_motor_feedback(hip_motors_, 2, data);
             else if (can == Spec::kCans.kCan2)
                 store_motor_feedback(knee_motors_, 4, data);
+            else if (can == Spec::kCans.kCan3 && data.can_id == 0x141)
+                gimbal_yaw_motor_.store_status(data.can_data);
         }
         void configure_motors(WheelLeg& status) {
             constexpr auto kMotorIds = std::array<std::uint8_t, 2>{1, 2};
@@ -291,6 +399,15 @@ private:
                 configure_joint(hip_motors_[side], side, kMotorIds[side]);
                 configure_joint(knee_motors_[side], side + 2, kMotorIds[side]);
             }
+            const auto yaw_zero_point =
+                status.get_parameter_or<std::int64_t>("yaw_motor_zero_point", 0);
+            gimbal_yaw_motor_.configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
+                    static_cast<int>(yaw_zero_point)));
+            // Feeder M3508 drives through an external 27:1 reducer. Mechanical
+            // constants stay in code; only per-robot zero points live in YAML.
+            feeder_motor_.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}.set_reduction_ratio(27.));
             RCLCPP_INFO(
                 status_.get_logger(), "DM Master IDs [LH,RH,LK,RK]=[%u,%u,%u,%u]",
                 static_cast<unsigned>(feedback_ids[0]), static_cast<unsigned>(feedback_ids[1]),
@@ -354,6 +471,11 @@ private:
             if (uart == Spec::kUarts.kDbus && data.uart_data.size() == 18) {
                 dr16_.store_status(data.uart_data.data(), data.uart_data.size());
                 dr16_last_ns_.store(now_ns(), std::memory_order::relaxed);
+            } else if (uart == Spec::kUarts.kUart0) {
+                const std::byte* ptr = data.uart_data.data();
+                referee_ring_buffer_receive_.emplace_back_n(
+                    [&ptr](std::byte* storage) noexcept { *storage = *ptr++; },
+                    data.uart_data.size());
             }
         }
 
@@ -402,7 +524,9 @@ private:
         OutputInterface<Eigen::Vector3d> imu_angular_velocity_, imu_acceleration_;
         OutputInterface<std::uint64_t> acceleration_last_output_, imu_last_output_,
             imu_sequence_output_, acceleration_sequence_output_;
-        OutputInterface<bool> feedback_fresh_output_, dm_control_ready_output_, dr16_fresh_output_;
+        OutputInterface<bool>
+            feedback_fresh_output_, feedback_available_output_, dm_control_ready_output_,
+            dr16_fresh_output_;
         std::array<OutputInterface<std::uint64_t>, 6> feedback_ns_outputs_,
             feedback_sequence_outputs_;
         InputInterface<bool> enable_request_;
@@ -410,7 +534,12 @@ private:
         std::size_t last_reset_ = 0;
         device::DjiMotor wheel_motors_[2];
         device::DmMotor hip_motors_[2], knee_motors_[2];
+        device::LkMotor gimbal_yaw_motor_;
+        device::DjiMotor feeder_motor_;
+        device::Supercap supercap_;
         device::Dr16 dr16_;
+        rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
+        OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         device::Bmi088Ekf bmi088_;
         device::WheelLegImuSampleClock imu_sample_clock_;
         std::optional<device::Bmi088Ekf::TimePoint> published_acceleration_time_;
@@ -425,13 +554,128 @@ private:
         std::array<bool, 2> enabled_{}, mit_sent_{};
         WheelLegDmSideSchedulers command_schedulers_;
         WheelLegNormalActionGate normal_action_gate_;
-        bool previous_both_down_ = false, allow_balance_switch_ = false;
+        enum class FeedbackWarningState { kFresh, kMissing, kStale };
+        FeedbackWarningState feedback_warning_state_ = FeedbackWarningState::kFresh;
+        bool previous_both_down_ = false;
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
+
+    // Gimbal board: pitch LK4010i10 on CAN0 (0x142), both friction M3508 on
+    // CAN1 sharing one 0x200 frame, and the gimbal-mounted BMI088 that places
+    // PitchLink/YawLink in the tf tree.
+    struct TopBoard final : librmcs::board::RmcsBoardLite::Callback {
+        TopBoard(WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
+            : status_(status)
+            , pitch_motor_(status, command, "/gimbal/pitch")
+            , left_friction_(status, command, "/gimbal/left_friction")
+            , right_friction_(status, command, "/gimbal/right_friction")
+            // Gimbal BMI088: mounted rotated 180 degrees about body Z. That is a
+            // rotation about the gravity axis, so a wrong mount leaves a static
+            // roll/pitch reading correct and only corrupts the yaw-rate bearing;
+            // verify it by pushing the gimbal rather than by reading attitude.
+            , bmi088_(device::Bmi088Ekf::Config{
+                  .body_to_sensor =
+                      Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
+                          .toRotationMatrix(),
+              }) {
+            status.register_output("/gimbal/yaw/velocity_imu", yaw_velocity_, 0.0);
+            status.register_output("/gimbal/pitch/velocity_imu", pitch_velocity_, 0.0);
+            const auto pitch_zero_point =
+                status.get_parameter_or<std::int64_t>("pitch_motor_zero_point", 0);
+            pitch_motor_.configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
+                    static_cast<int>(pitch_zero_point)));
+            // Friction wheels stay at reduction 1.0 like the other infantry
+            // gimbals: the velocity interface is the motor shaft speed.
+            left_friction_.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reduction_ratio(1.));
+            right_friction_.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}.set_reduction_ratio(1.));
+            auto options = librmcs::board::AdvancedOptions{};
+            options.dangerously_skip_version_checks = true;
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial, options);
+        }
+
+        [[nodiscard]] std::int64_t pitch_raw_angle() const {
+            return pitch_motor_.last_raw_angle();
+        }
+
+        void update() {
+            pitch_motor_.update_status();
+            left_friction_.update_status();
+            right_friction_.update_status();
+
+            const double pitch_angle = pitch_motor_.angle();
+            if (auto snapshot = bmi088_.snapshot()) {
+                *yaw_velocity_ = snapshot->gyro_body.z();
+                *pitch_velocity_ = snapshot->gyro_body.y();
+                status_.tf_->set_transform<
+                    rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                    snapshot->orientation.conjugate());
+            }
+            status_.tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
+                pitch_angle);
+            // The yaw encoder lives on the chassis board and is read here only
+            // to complete GimbalCenterLink -> YawLink.
+            if (status_.bottom_board_)
+                status_.tf_->set_state<
+                    rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+                    status_.bottom_board_->yaw_angle());
+        }
+
+        void command_update() {
+            auto builder = board_->start_transmit();
+            builder.can_transmit(
+                Spec::kCans.kCan0,
+                {
+                    .can_id = 0x142,
+                    .can_data = pitch_motor_.generate_torque_command().as_bytes(),
+                });
+            // Left friction is ID 2 and right is ID 1; both share 0x200.
+            auto friction = device::CanPacket8{std::uint64_t{0}};
+            friction << right_friction_ << left_friction_;
+            builder.can_transmit(
+                Spec::kCans.kCan1, {.can_id = 0x200, .can_data = friction.as_bytes()});
+        }
+
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() != 8)
+                return;
+            if (can == Spec::kCans.kCan0) {
+                if (data.can_id == 0x142)
+                    pitch_motor_.store_status(data.can_data);
+            } else if (can == Spec::kCans.kCan1) {
+                if (!left_friction_.match_then_store_status(data.can_id, data.can_data))
+                    right_friction_.match_then_store_status(data.can_id, data.can_data);
+            }
+        }
+
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
+            const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
+            bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
+        }
+
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
+            const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+            if (!timestamp.has_value())
+                return;
+            bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+        }
+
+        WheelLeg& status_;
+        OutputInterface<double> yaw_velocity_, pitch_velocity_;
+        device::LkMotor pitch_motor_;
+        device::DjiMotor left_friction_, right_friction_;
+        device::Bmi088Ekf bmi088_;
+        device::BoardClockLifter board_clock_lifter_;
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
+    };
+
     std::unique_ptr<device::RemoteControl> remote_control_;
     std::shared_ptr<Command> command_;
-    std::unique_ptr<Board> board_;
-    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr imu_parameters_callback_;
+    OutputInterface<rmcs_description::Tf> tf_;
+    std::unique_ptr<BottomBoard> bottom_board_;
+    std::unique_ptr<TopBoard> top_board_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr status_service_;
 };
 } // namespace rmcs_core::hardware

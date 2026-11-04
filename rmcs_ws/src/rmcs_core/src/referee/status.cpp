@@ -126,7 +126,8 @@ public:
                 if (rmcs_utility::dji_crc::verify_crc16(&frame_, frame_size)) {
                     process_frame();
                 } else {
-                    RCLCPP_WARN(logger_, "Body crc16 invalid");
+                    RCLCPP_WARN_THROTTLE(
+                        logger_, *get_clock(), 5000, "Body crc16 invalid");
                 }
             }
         } else {
@@ -136,9 +137,10 @@ public:
                     return rmcs_utility::dji_crc::verify_crc8(header);
                 });
             if (result == rmcs_utility::ReceiveResult::HEADER_INVALID) {
-                RCLCPP_WARN(logger_, "Header start invalid");
+                RCLCPP_WARN_THROTTLE(
+                    logger_, *get_clock(), 5000, "Header start invalid");
             } else if (result == rmcs_utility::ReceiveResult::VERIFY_INVALID) {
-                RCLCPP_WARN(logger_, "Header crc8 invalid");
+                RCLCPP_WARN_THROTTLE(logger_, *get_clock(), 5000, "Header crc8 invalid");
             }
         }
 
