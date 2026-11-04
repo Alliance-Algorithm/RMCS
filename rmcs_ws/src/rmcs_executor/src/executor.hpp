@@ -74,6 +74,10 @@ public:
                 "Parameter update_rate is too large to produce a valid period"};
         predefined_msg_provider_->set_update_rate(update_rate);
 
+        get_parameter_or("stall_warn_ms", stall_warn_ms_, 5.0);
+        if (!std::isfinite(stall_warn_ms_) || stall_warn_ms_ <= 0.0)
+            throw std::runtime_error{"Parameter stall_warn_ms must be finite and positive"};
+
         std::string thread_config_spec;
         get_parameter_or<std::string>("thread_config", thread_config_spec, "");
         auto thread_config = rmcs_utility::ThreadConfig{thread_config_spec, "update"};
@@ -165,18 +169,45 @@ private:
 
         predefined_msg_provider_->set_timestamp(scheduled_start);
 
+        auto slowest_component_duration = SteadyClock::duration::zero();
+        size_t slowest_component_index = 0;
         for (size_t component_index = 0; component_index < updating_order_.size();
              ++component_index) {
             const auto component_start_time = current_time;
             updating_order_[component_index]->update();
             current_time = SteadyClock::now();
-            stats.window.component_update_duration_sums[component_index] +=
-                current_time - component_start_time;
+            const auto component_duration = current_time - component_start_time;
+            stats.window.component_update_duration_sums[component_index] += component_duration;
+            if (component_duration > slowest_component_duration) {
+                slowest_component_duration = component_duration;
+                slowest_component_index = component_index;
+            }
         }
 
         const auto update_duration = current_time - actual_start;
         record_update_duration(update_duration, stats);
+        log_stall(
+            actual_start - scheduled_start, update_duration, slowest_component_duration,
+            updating_order_.empty() ? nullptr : updating_order_[slowest_component_index]);
         return current_time;
+    }
+
+    // A tick that misses several periods means either the update thread was
+    // descheduled (start_late dominates: host/CPU problem) or one component
+    // blocked (update dominates: name is reported). Keep both in one line.
+    void log_stall(
+        SteadyClock::duration start_late, SteadyClock::duration update,
+        SteadyClock::duration slowest_component, Component* slowest) {
+        const double start_late_ms = std::max(0.0, duration_to_ms(start_late));
+        const double update_ms = duration_to_ms(update);
+        if (start_late_ms < stall_warn_ms_ && update_ms < stall_warn_ms_)
+            return;
+        RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "Executor iteration stalled: start_late %.1f ms, update %.1f ms, slowest %s %.1f ms",
+            start_late_ms, update_ms,
+            slowest == nullptr ? "(none)" : slowest->get_component_name().c_str(),
+            duration_to_ms(slowest_component));
     }
 
     void record_start_lateness(
@@ -641,6 +672,7 @@ private:
 
     std::vector<Component*> updating_order_;
     size_t dependency_recursive_level_ = 0;
+    double stall_warn_ms_ = 5.0;
 };
 
 } // namespace rmcs_executor

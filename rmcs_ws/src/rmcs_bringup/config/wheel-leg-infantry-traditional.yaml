@@ -21,6 +21,7 @@ rmcs_executor:
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_rl::WheelLegMirrorComponent -> wheel_leg_mirror
+      - rmcs_core::debug::ValueCollector -> value_collector
 
 wheel_leg:
   ros__parameters:
@@ -131,7 +132,8 @@ wheel_leg_chassis_controller:
     vx_max: 0.5
     vy_max: 0.0
     yaw_rate_max: 1.0
-    spin_yaw_rate: 1.0
+    spin_yaw_rate: 5.235987755982989
+    yaw_stick_rate: 3.141592653589793
     following_velocity_kp: 8.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
@@ -250,3 +252,107 @@ value_broadcaster:
       - /gimbal/left_friction/velocity
       - /gimbal/right_friction/velocity
       - /gimbal/bullet_feeder/velocity
+
+value_collector:
+  ros__parameters:
+    # 轮腿全过程记录（传统控制器版：无 /wheel_leg/rl/* 与自起捕获信号）
+    # 1000 Hz executor，每 5 拍落一行 → 200 Hz；78 个信号 / 103 列，约 12 MB/分钟。
+    csv_path: "/tmp/wheel_leg_<timestamp>.csv"
+    write_interval: 5
+    flush_interval: 200
+    signals:
+      # --- 时间基：单调时钟，单位秒 ---
+      - /predefined/timestamp
+
+      # --- 电源：四个 DM 关节共用底盘母线（DM 反馈帧只有 POS/VEL/T/T_MOS/T_Rotor，无电压字段） ---
+      - /chassis/voltage
+      - /chassis/supercap/voltage
+      - /chassis/power
+
+      # --- 四个驱动腿关节（DM8009） ---
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/torque
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_hip_joint/max_torque
+      - /wheel_leg/left_hip_joint/temperature_mos
+      - /wheel_leg/left_hip_joint/temperature_rotor
+      - /wheel_leg/left_hip_joint/status_code
+      - /wheel_leg/left_hip_joint/fault_code
+
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/left_knee_joint/max_torque
+      - /wheel_leg/left_knee_joint/temperature_mos
+      - /wheel_leg/left_knee_joint/temperature_rotor
+      - /wheel_leg/left_knee_joint/status_code
+      - /wheel_leg/left_knee_joint/fault_code
+
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_hip_joint/max_torque
+      - /wheel_leg/right_hip_joint/temperature_mos
+      - /wheel_leg/right_hip_joint/temperature_rotor
+      - /wheel_leg/right_hip_joint/status_code
+      - /wheel_leg/right_hip_joint/fault_code
+
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/torque
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/right_knee_joint/max_torque
+      - /wheel_leg/right_knee_joint/temperature_mos
+      - /wheel_leg/right_knee_joint/temperature_rotor
+      - /wheel_leg/right_knee_joint/status_code
+      - /wheel_leg/right_knee_joint/fault_code
+
+      # --- 两个驱动轮（DJI） ---
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/left_wheel/max_torque
+      - /wheel_leg/left_wheel/temperature_c
+
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/torque
+      - /wheel_leg/right_wheel/control_torque
+      - /wheel_leg/right_wheel/max_torque
+      - /wheel_leg/right_wheel/temperature_c
+
+      # --- 状态估计（机体） ---
+      - /wheel_leg/state/position
+      - /wheel_leg/state/velocity
+      - /wheel_leg/state/gravity
+      - /wheel_leg/state/attitude
+      - /wheel_leg/state/passive_knee
+      - /wheel_leg/state/passive_knee_rate
+      - /wheel_leg/state/shank
+      - /wheel_leg/state/shank_rate
+      - /wheel_leg/state/leg_length
+      - /wheel_leg/state/forward_velocity
+      - /wheel_leg/state/com_offset
+      - /wheel_leg/state/base_height
+      - /wheel_leg/state/valid
+
+      # --- IMU ---
+      - /wheel_leg/imu/quaternion
+      - /wheel_leg/imu/angular_velocity
+
+      # --- 传统控制器 / 自起 / 硬件诊断 / 底盘指令 ---
+      - /wheel_leg/control/state
+      - /wheel_leg/control/fault
+      - /wheel_leg/recovery/phase
+      - /wheel_leg/recovery/fault
+      - /wheel_leg/feedback_fresh
+      - /wheel_leg/feedback_available
+      - /wheel_leg/dm_control_ready
+      - /wheel_leg/dr16_fresh
+      - /chassis/control_height
+      - /chassis/control_enable
+      - /chassis/reset_count

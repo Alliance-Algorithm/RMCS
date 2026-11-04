@@ -2,7 +2,9 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
+#include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Geometry>
@@ -12,16 +14,13 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <typeinfo>
 #include <utility>
 #include <vector>
 
 namespace rmcs_core::debug {
 
-// Records selected executor interfaces to CSV at a fixed tick divider.
-// Supported interface types: double, int, uint8, uint32, uint64, bool,
-// Eigen::Vector3d (columns x,y,z) and Eigen::Quaterniond (columns w,x,y,z).
-// Multi-component signals expand into "<signal>/<component>" columns.
 class ValueCollector
     : public rmcs_executor::Component
     , public rclcpp::Node
@@ -54,6 +53,12 @@ public:
 
         if (csv_path_.empty() || signal_names_.empty())
             return;
+        if (write_interval_ < 1 || flush_interval_ < 1) {
+            node::error(
+                "write_interval ({}) and flush_interval ({}) must be positive", write_interval_,
+                flush_interval_);
+            return;
+        }
 
         for (const auto& name : signal_names_) {
             const auto it = output_map.find(name);
@@ -66,10 +71,34 @@ public:
                 continue;
             }
             if (!register_signal(name, it->second.type.get()))
-                node::error("signal '{}' has an unsupported type", name);
+                node::error(
+                    "signal '{}' has an unsupported type ({})", name, it->second.type.get().name());
         }
 
         if (units_.empty())
+            return;
+        node::info("resolved {} of {} signals", units_.size(), signal_names_.size());
+    }
+
+    auto before_updating() -> void override {
+        if (units_.empty())
+            return;
+
+        for (auto& unit : units_) {
+            if (!unit.dynamic_width)
+                continue;
+            const auto width = unit.width_probe();
+            *unit.dynamic_width = width;
+            unit.columns = index_columns(unit.dynamic_prefix, width);
+            if (width == 0)
+                node::warn(
+                    "signal '{}' is an empty vector and records no column", unit.dynamic_prefix);
+        }
+
+        auto columns = std::size_t{0};
+        for (const auto& unit : units_)
+            columns += unit.columns.size();
+        if (columns == 0)
             return;
 
         csv_file_.open(csv_path_, std::ios::out | std::ios::trunc);
@@ -86,11 +115,9 @@ public:
         csv_file_ << "\n";
         csv_file_.flush();
 
-        auto columns = std::size_t{0};
-        for (const auto& unit : units_)
-            columns += unit.columns.size();
         node::info(
-            "collecting {} signals ({} columns) to {}", units_.size(), columns, csv_path_);
+            "collecting {} signals ({} columns) to {} every {} ticks", units_.size(), columns,
+            csv_path_, write_interval_);
     }
 
     auto update() -> void override {
@@ -113,7 +140,20 @@ private:
     struct SignalUnit {
         std::vector<std::string> columns;
         std::function<void(std::ostream&)> append;
+        // Only set for std::vector<double>: resolved from the paired input.
+        std::string dynamic_prefix;
+        std::shared_ptr<std::size_t> dynamic_width;
+        std::function<std::size_t()> width_probe;
     };
+
+    static auto index_columns(const std::string& name, std::size_t width)
+        -> std::vector<std::string> {
+        auto columns = std::vector<std::string>{};
+        columns.reserve(width);
+        for (auto i = std::size_t{0}; i < width; ++i)
+            columns.push_back(name + "[" + std::to_string(i) + "]");
+        return columns;
+    }
 
     template <typename T, typename Writer>
     auto register_typed(
@@ -124,10 +164,47 @@ private:
 
         auto holder = std::make_shared<InputInterface<T>>();
         register_input(name, *holder);
-        const auto* raw = holder.get();
+        const auto* const raw = holder.get();
         keepalive_.push_back(holder);
-        units_.push_back(
-            SignalUnit{std::move(columns), [raw, writer](std::ostream& os) { writer(os, **raw); }});
+
+        auto unit = SignalUnit{};
+        unit.columns = std::move(columns);
+        unit.append = [raw, writer](std::ostream& os) { writer(os, **raw); };
+        units_.push_back(std::move(unit));
+        return true;
+    }
+
+    template <std::size_t N>
+    auto register_array(const std::string& name, const std::type_info& type) -> bool {
+        return register_typed<std::array<double, N>>(
+            name, type, index_columns(name, N),
+            [](std::ostream& os, const std::array<double, N>& value) {
+                for (const auto component : value)
+                    os << "," << component;
+            });
+    }
+
+    auto register_vector(const std::string& name, const std::type_info& type) -> bool {
+        if (type != typeid(std::vector<double>))
+            return false;
+
+        auto holder = std::make_shared<InputInterface<std::vector<double>>>();
+        register_input(name, *holder);
+        const auto* const raw = holder.get();
+        keepalive_.push_back(holder);
+
+        auto width = std::make_shared<std::size_t>(0);
+        auto unit = SignalUnit{};
+        unit.dynamic_prefix = name;
+        unit.dynamic_width = width;
+        unit.width_probe = [raw] { return (**raw).size(); };
+        // Pad short samples so a shrinking vector cannot corrupt the row.
+        unit.append = [raw, width](std::ostream& os) {
+            const auto& value = **raw;
+            for (auto i = std::size_t{0}; i < *width; ++i)
+                os << "," << (i < value.size() ? value[i] : 0.);
+        };
+        units_.push_back(std::move(unit));
         return true;
     }
 
@@ -152,9 +229,21 @@ private:
                 os << "," << v;
             }))
             return true;
+        if constexpr (!std::is_same_v<std::size_t, std::uint64_t>) {
+            if (register_typed<std::size_t>(name, type, {name}, [](std::ostream& os, std::size_t v) {
+                    os << "," << v;
+                }))
+                return true;
+        }
         if (register_typed<bool>(name, type, {name}, [](std::ostream& os, bool value) {
                 os << "," << (value ? 1 : 0);
             }))
+            return true;
+        if (register_typed<std::chrono::steady_clock::time_point>(
+                name, type, {name},
+                [](std::ostream& os, std::chrono::steady_clock::time_point value) {
+                    os << "," << std::chrono::duration<double>(value.time_since_epoch()).count();
+                }))
             return true;
         if (register_typed<Eigen::Vector3d>(
                 name, type, {name + "/x", name + "/y", name + "/z"},
@@ -169,7 +258,15 @@ private:
                        << value.z();
                 }))
             return true;
-        return false;
+        if (register_array<2>(name, type))
+            return true;
+        if (register_array<3>(name, type))
+            return true;
+        if (register_array<4>(name, type))
+            return true;
+        if (register_array<6>(name, type))
+            return true;
+        return register_vector(name, type);
     }
 
     std::string csv_path_;

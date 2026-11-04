@@ -72,6 +72,10 @@ public:
             get_parameter_or("self_righting_overspeed_fault_enabled", true),
             get_parameter_or("self_righting_speed_braking_enabled", true));
         timeout_ = get_parameter_or("inference_timeout", .06);
+        drive_loss_debounce_ =
+            std::chrono::duration<double>(get_parameter_or("drive_loss_debounce", .1));
+        if (!std::isfinite(drive_loss_debounce_.count()) || drive_loss_debounce_.count() < 0.)
+            throw std::invalid_argument("Invalid drive loss debounce");
         heading_hold_ = get_parameter_or("heading_hold_enabled", false);
         height_rate_ = get_parameter_or("height_reference_rate_max", .6666666666666666);
         recovery_enabled_ = get_parameter_or("self_righting.enabled", false);
@@ -118,18 +122,51 @@ public:
         }
         if (*fault_)
             return;
+        if (*state_ >= 3 && *policy_enable_) {
+            const auto now = Clock::now();
+            const double since =
+                have_target_
+                    ? std::chrono::duration<double>(now.time_since_epoch()).count()
+                          - accepted_stamp_ * 1e-9
+                    : std::chrono::duration<double>(now - wait_started_.value_or(now)).count();
+            if (since > .5 && !action_starved_logged_) {
+                RCLCPP_WARN(
+                    get_logger(),
+                    "no policy action for %.2f s: state=%d valid=%d drives_ready=%d "
+                    "action_valid=%.0f action_seq=%zu accepted_seq=%zu",
+                    since, *state_, static_cast<int>(*valid_), static_cast<int>(*drives_ready_),
+                    *action_valid_, *action_sequence_, accepted_sequence_);
+                action_starved_logged_ = true;
+            } else if (since <= .5)
+                action_starved_logged_ = false;
+        }
         *enable_ = true;
         if (*state_ <= 1)
             *state_ = 2;
         if (*state_ == 2) {
-            if (!*valid_ || !*drives_ready_)
+            if (!*valid_ || !*drives_ready_) {
+                drive_loss_started_.reset();
                 return;
+            }
             *state_ = recovery_enabled_ ? 4 : 3;
             last_pd_.reset();
             last_command_tick_.reset();
-        } else if (!*valid_ || !*drives_ready_) {
-            fail("feedback or drive readiness lost");
+        } else if (!*valid_) {
+            fail("wheel-leg state estimate invalid");
             return;
+        } else if (!*drives_ready_) {
+            // The hardware already zeroes torque and retries the enable while a
+            // drive is unready, so a short dropout is recoverable. Latch the
+            // fault only once the loss outlives the debounce window.
+            const auto now = Clock::now();
+            if (!drive_loss_started_)
+                drive_loss_started_ = now;
+            if (std::chrono::duration<double>(now - *drive_loss_started_) < drive_loss_debounce_)
+                return;
+            fail("DM drive readiness lost");
+            return;
+        } else {
+            drive_loss_started_.reset();
         }
         const bool pd_due = !last_pd_ || *tick_ - *last_pd_ >= 5;
         if (*state_ == 4) {
@@ -248,6 +285,8 @@ private:
         last_pd_.reset();
         last_command_tick_.reset();
         wait_started_.reset();
+        drive_loss_started_.reset();
+        action_starved_logged_ = false;
         heading_.reset();
         recovery_.reset();
     }
@@ -358,10 +397,12 @@ private:
     wheel_leg::SelfRightingCore::Output recovery_output_;
     JointVector target_{}, pending_history_{};
     std::optional<std::size_t> last_pd_, last_command_tick_;
-    std::optional<Clock::time_point> wait_started_;
+    std::optional<Clock::time_point> wait_started_, drive_loss_started_;
     std::optional<double> heading_;
     std::size_t last_reset_ = 0, accepted_sequence_ = 0;
     std::uint64_t accepted_stamp_ = 0;
+    std::chrono::duration<double> drive_loss_debounce_{.1};
+    bool action_starved_logged_ = false;
     double timeout_, height_rate_;
     bool heading_hold_, recovery_enabled_, simulation_guarded_ = false, have_target_ = false,
         schedule_checked_ = false;

@@ -9,6 +9,7 @@ rmcs_executor:
       - rmcs_core::controller::chassis::WheelLegRlController -> wheel_leg_rl_controller
 
       - rmcs_core::controller::chassis::WheelLegObservation -> wheel_leg_observation
+
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
@@ -20,10 +21,12 @@ rmcs_executor:
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
       - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+
       - rmcs_rl::RlBridge -> rl_bridge
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_rl::WheelLegMirrorComponent -> wheel_leg_mirror
+      - rmcs_core::debug::ValueCollector -> value_collector
 
 wheel_leg:
   ros__parameters:
@@ -39,14 +42,16 @@ wheel_leg:
     dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
     dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
 
-    feedback_timeout_s: 0.04
+    feedback_timeout_s: 0.05
+
 
 wheel_leg_chassis_controller:
   ros__parameters:
     vx_max: 0.5
     vy_max: 0.0
     yaw_rate_max: 0.5
-    spin_yaw_rate: 0.5
+    spin_yaw_rate: 5.235987755982989
+    yaw_stick_rate: 3.141592653589793
     following_velocity_kp: 8.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
@@ -72,6 +77,7 @@ wheel_leg_rl_controller:
   ros__parameters:
     policy: wheelbipe
     inference_timeout: 0.06
+    drive_loss_debounce: 0.1
     heading_hold_enabled: false
     height_reference_rate_max: 0.6666666666666666
 
@@ -174,7 +180,7 @@ bullet_feeder_velocity_pid_controller:
 rl_bridge:
   ros__parameters:
     rl_base: /wheel_leg/rl
-    rl_model_path: models/wheel_leg/wheelbipe_v202_50hz.onnx
+    rl_model_path: models/wheel_leg/wheelbipe_v202_16001_50hz.onnx
     model_type: mlp
 
     policy_rate: 50.0
@@ -226,10 +232,12 @@ value_broadcaster:
       - /wheel_leg/rl/state
       - /wheel_leg/rl/fault_latched
       - /wheel_leg/feedback_fresh
+      - /wheel_leg/feedback_available
       - /wheel_leg/dm_control_ready
-      # frame_sequence 是 std::size_t，ValueBroadcaster 只转发 double/bool/int/uint8
       - /wheel_leg/recovery/phase
       - /wheel_leg/recovery/fault
+      - /wheel_leg/recovery/capture_ready
+      - /wheel_leg/recovery/capture_blockers
       - /wheel_leg/left_hip_joint/status_code
       - /wheel_leg/left_hip_joint/fault_code
       - /wheel_leg/left_knee_joint/status_code
@@ -246,3 +254,132 @@ value_broadcaster:
       - /gimbal/left_friction/velocity
       - /gimbal/right_friction/velocity
       - /gimbal/bullet_feeder/velocity
+
+value_collector:
+  ros__parameters:
+    # 轮腿全过程记录（1000 Hz executor，每 5 拍落一行 → 200 Hz）
+    # 共 95 个信号 / 161 列（含 index），约 19 MB/分钟，/tmp 若是 tmpfs 请注意容量。
+    # 列名规则：标量=信号名；Eigen::Vector3d=name/x,y,z；Quaterniond=name/w,x,y,z；
+    # 6 维向量=name[0..5]，顺序固定为 left_hip, left_knee, right_hip, right_knee,
+    # left_wheel, right_wheel；2 维向量=name[0], name[1]（左、右腿）。
+    # 一次性记录请把下面这条从 components 列表注释掉，或用完删除 CSV。
+    csv_path: "/tmp/wheel_leg_<timestamp>.csv"
+    write_interval: 5
+    flush_interval: 200
+    signals:
+      # --- 时间基：单调时钟，单位秒 ---
+      - /predefined/timestamp
+
+      # --- 电源：四个 DM 关节共用底盘母线（DM 反馈帧只有 POS/VEL/T/T_MOS/T_Rotor，无电压字段） ---
+      - /chassis/voltage
+      - /chassis/supercap/voltage
+      - /chassis/power
+
+      # --- 四个驱动腿关节（DM8009）：反馈 / 下发力矩 / 驱动状态 / 策略原始动作 ---
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/torque
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_hip_joint/max_torque
+      - /wheel_leg/left_hip_joint/temperature_mos
+      - /wheel_leg/left_hip_joint/temperature_rotor
+      - /wheel_leg/left_hip_joint/status_code
+      - /wheel_leg/left_hip_joint/fault_code
+      - /wheel_leg/rl/raw/left_hip_joint
+
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/left_knee_joint/max_torque
+      - /wheel_leg/left_knee_joint/temperature_mos
+      - /wheel_leg/left_knee_joint/temperature_rotor
+      - /wheel_leg/left_knee_joint/status_code
+      - /wheel_leg/left_knee_joint/fault_code
+      - /wheel_leg/rl/raw/left_knee_joint
+
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_hip_joint/max_torque
+      - /wheel_leg/right_hip_joint/temperature_mos
+      - /wheel_leg/right_hip_joint/temperature_rotor
+      - /wheel_leg/right_hip_joint/status_code
+      - /wheel_leg/right_hip_joint/fault_code
+      - /wheel_leg/rl/raw/right_hip_joint
+
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/torque
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/right_knee_joint/max_torque
+      - /wheel_leg/right_knee_joint/temperature_mos
+      - /wheel_leg/right_knee_joint/temperature_rotor
+      - /wheel_leg/right_knee_joint/status_code
+      - /wheel_leg/right_knee_joint/fault_code
+      - /wheel_leg/rl/raw/right_knee_joint
+
+      # --- 两个驱动轮（DJI）：反馈 / 下发力矩 / 温度 / 策略原始动作 ---
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/left_wheel/max_torque
+      - /wheel_leg/left_wheel/temperature_c
+      - /wheel_leg/rl/raw/left_wheel
+
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/torque
+      - /wheel_leg/right_wheel/control_torque
+      - /wheel_leg/right_wheel/max_torque
+      - /wheel_leg/right_wheel/temperature_c
+      - /wheel_leg/rl/raw/right_wheel
+
+      # --- 状态估计（机体） ---
+      - /wheel_leg/state/position
+      - /wheel_leg/state/velocity
+      - /wheel_leg/state/gravity
+      - /wheel_leg/state/attitude
+      - /wheel_leg/state/passive_knee
+      - /wheel_leg/state/passive_knee_rate
+      - /wheel_leg/state/shank
+      - /wheel_leg/state/shank_rate
+      - /wheel_leg/state/leg_length
+      - /wheel_leg/state/forward_velocity
+      - /wheel_leg/state/com_offset
+      - /wheel_leg/state/base_height
+      - /wheel_leg/state/valid
+
+      # --- IMU ---
+      - /wheel_leg/imu/quaternion
+      - /wheel_leg/imu/angular_velocity
+
+      # --- RL 闭环：输入 / 施加动作 / 观测帧 / 推理链路 ---
+      - /wheel_leg/rl/applied_action
+      - /wheel_leg/rl/input/command
+      - /wheel_leg/rl/input/height
+      - /wheel_leg/rl/input/frame
+      - /wheel_leg/rl/state
+      - /wheel_leg/rl/valid
+      - /wheel_leg/rl/healthy
+      - /wheel_leg/rl/action_seq
+      - /wheel_leg/rl/action_steady_ns
+      - /wheel_leg/rl/action_applied
+      - /wheel_leg/rl/fault_latched
+
+      # --- 自起恢复 ---
+      - /wheel_leg/recovery/phase
+      - /wheel_leg/recovery/fault
+      - /wheel_leg/recovery/capture_ready
+      - /wheel_leg/recovery/capture_blockers
+
+      # --- 硬件诊断 / 底盘指令 ---
+      - /wheel_leg/feedback_fresh
+      - /wheel_leg/feedback_available
+      - /wheel_leg/dm_control_ready
+      - /wheel_leg/dr16_fresh
+      - /chassis/control_height
+      - /chassis/control_enable
+      - /chassis/reset_count

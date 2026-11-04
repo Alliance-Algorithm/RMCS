@@ -74,6 +74,7 @@ private:
         std::ostringstream text;
         text << std::format("    yaw_motor_zero_point: {}\n", bottom_board_->yaw_raw_angle());
         text << std::format("    pitch_motor_zero_point: {}\n", top_board_->pitch_raw_angle());
+        text << bottom_board_->status_text();
         return text.str();
     }
 
@@ -190,10 +191,19 @@ private:
             *feedback_available_output_ = available;
             *feedback_fresh_output_ = fresh;
             update_feedback_warning();
-            *dm_control_ready_output_ = available && enabled_[0] && enabled_[1]
-                                     && mit_sent_[0] && mit_sent_[1]
-                                     && wheel_leg_dm_pair_enabled(pair_feedback(0))
-                                     && wheel_leg_dm_pair_enabled(pair_feedback(1));
+            const bool ready = available && enabled_[0] && enabled_[1] && mit_sent_[0]
+                            && mit_sent_[1] && wheel_leg_dm_pair_enabled(pair_feedback(0))
+                            && wheel_leg_dm_pair_enabled(pair_feedback(1));
+            // The controller latches a fault on the first unready tick and then
+            // drops the enable request, which disables the drives and erases the
+            // evidence. Capture the cause at the falling edge instead.
+            if (ready_ && !ready && requested_snapshot_.load(std::memory_order_relaxed))
+                RCLCPP_WARN(
+                    status_.get_logger(), "WheelLeg drive readiness lost: %s",
+                    readiness_text().c_str());
+            ready_ = ready;
+            *dm_control_ready_output_ = ready;
+            log_dm_drive_health();
             dr16_.update_status();
             *dr16_fresh_output_ = dr16_fresh();
         }
@@ -213,6 +223,7 @@ private:
             // /chassis/control_enable, so the traditional and RL stacks share
             // this board build without either one leaking its gestures here.
             const bool requested = *enable_request_ && dr16_fresh() && available && !both_down;
+            requested_snapshot_.store(requested, std::memory_order_relaxed);
             const std::array requests{requested, requested};
             for (int side = 0; side < 2; ++side)
                 if (enabled_[side] != requested)
@@ -264,6 +275,85 @@ private:
                 enabled_[side] = requested;
             }
         }
+        // Called with status_mutex_ held. Keeps the labels stable because
+        // .script/remote-status parses them; a missing field prints as '-'.
+        [[nodiscard]] std::string readiness_text() const {
+            const auto now = now_ns();
+            const auto age_ms = [now](const auto& stamp) {
+                const auto t = stamp.load(std::memory_order_relaxed);
+                return t <= 0 ? -1.0 : static_cast<double>(now - t) / 1'000'000.0;
+            };
+            auto text = std::ostringstream{};
+            text << "dr16_fresh=" << dr16_fresh()
+                 << " enable_request=" << requested_snapshot_.load(std::memory_order_relaxed)
+                 << " available=" << feedback_available() << " enabled=["
+                 << static_cast<int>(enabled_[0]) << ',' << static_cast<int>(enabled_[1])
+                 << "] mit_sent=[" << static_cast<int>(mit_sent_[0]) << ','
+                 << static_cast<int>(mit_sent_[1]) << ']';
+            constexpr std::array names{
+                "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
+            constexpr std::array indices{2, 3, 4, 5};
+            const std::array<const device::DmMotor*, 4> joints{
+                &hip_motors_[0], &hip_motors_[1], &knee_motors_[0], &knee_motors_[1]};
+            for (std::size_t i = 0; i < joints.size(); ++i) {
+                const auto& motor = *joints[i];
+                const int fault = motor.fault_code();
+                text << ", " << names[i]
+                     << std::format(
+                            " status=0x{:X} fault=0x{:X}({}) age={:.1f}ms torque={:.2f}",
+                            motor.status_code(), fault, device::dm_error_text(fault),
+                            age_ms(motor_last_ns_[indices[i]]), motor.torque());
+            }
+            return text.str();
+        }
+        // Same keys as the pre-refactor hardware status; the operator's
+        // .script/remote-status table and this block must stay in sync.
+        [[nodiscard]] std::string status_text() const {
+            const std::lock_guard lock{status_mutex_};
+            const auto now = now_ns();
+            const auto age_ms = [now](const auto& stamp) {
+                const auto t = stamp.load(std::memory_order_relaxed);
+                return t <= 0 ? -1.0 : static_cast<double>(now - t) / 1'000'000.0;
+            };
+            auto text = std::ostringstream{};
+            text << "WheelLeg status (feedback fresh: " << feedback_fresh()
+                 << ", dm feedback fresh: " << motor_feedback_fresh()
+                 << ", dr16 fresh: " << dr16_fresh() << ", dm enable requested [L,R]: ["
+                 << static_cast<int>(enabled_[0]) << ',' << static_cast<int>(enabled_[1]) << ']'
+                 << ", dm control ready: " << ready_
+                 << ", dm feedback available: " << feedback_available()
+                 << ", joint mode: torque):\n";
+            text << "  switches [left,right]: [" << static_cast<int>(dr16_.switch_left()) << ','
+                 << static_cast<int>(dr16_.switch_right()) << "] (down=2, middle=3)"
+                 << std::format(", IMU age={:.1f} ms", age_ms(imu_last_ns_))
+                 << std::format(", dr16 age={:.1f} ms\n", age_ms(dr16_last_ns_));
+            constexpr std::array names{
+                "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
+            constexpr std::array indices{2, 3, 4, 5};
+            const std::array<const device::DmMotor*, 4> joints{
+                &hip_motors_[0], &hip_motors_[1], &knee_motors_[0], &knee_motors_[1]};
+            for (std::size_t i = 0; i < joints.size(); ++i) {
+                const auto& motor = *joints[i];
+                text << "    " << names[i] << ": can_id=" << motor.send_id()
+                     << " master_id=" << motor.feedback_id()
+                     << std::format(" status=0x{:X}", motor.status_code())
+                     << std::format(" angle={:.4f}", motor.angle())
+                     << std::format(" vel={:.3f}", motor.velocity())
+                     << std::format(" torque={:.3f}", motor.torque())
+                     << std::format(" fault=0x{:X}", motor.fault_code())
+                     << std::format(
+                            " feedback_age_ms={:.1f}\n", age_ms(motor_last_ns_[indices[i]]));
+            }
+            for (std::size_t i = 0; i < 2; ++i)
+                text << "    wheel[" << i
+                     << "]: can_id=" << static_cast<unsigned>(wheel_motors_[i].id())
+                     << std::format(" feedback_id=0x{:X}", wheel_motors_[i].recv_id())
+                     << std::format(" angle={:.4f}", wheel_motors_[i].angle())
+                     << std::format(" vel={:.3f}", wheel_motors_[i].velocity())
+                     << std::format(" torque={:.3f}", wheel_motors_[i].torque())
+                     << std::format(" feedback_age_ms={:.1f}\n", age_ms(motor_last_ns_[i]));
+            return text.str();
+        }
         [[nodiscard]] double yaw_angle() const { return gimbal_yaw_motor_.angle(); }
         [[nodiscard]] std::int64_t yaw_raw_angle() const {
             return gimbal_yaw_motor_.last_raw_angle();
@@ -296,6 +386,30 @@ private:
                 motor_last_ns_[3], motor_last_ns_[4], motor_last_ns_[5]);
         }
         void update_feedback_warning() {
+            const auto now = now_ns();
+            // The aggregate flag only trips once every channel is stale, so a
+            // single drive dropping off its bus hid behind it. Watch each
+            // channel, and name the first casualty.
+            for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
+                const auto stamp = motor_last_ns_[i].load(std::memory_order_relaxed);
+                const bool silent = stamp > 0 && now - stamp >= kChannelSilentNs;
+                if (silent && !channel_silent_[i]) {
+                    channel_silent_since_[i] = stamp;
+                    RCLCPP_WARN(
+                        status_.get_logger(), "%s feedback silent for %.1f ms (%s)",
+                        kChannelNames[i], static_cast<double>(now - stamp) / 1'000'000.0,
+                        kChannelBuses[i]);
+                } else if (!silent && channel_silent_[i]) {
+                    const double outage_ms =
+                        stamp > channel_silent_since_[i]
+                            ? static_cast<double>(stamp - channel_silent_since_[i]) / 1'000'000.0
+                            : 0.0;
+                    RCLCPP_WARN(
+                        status_.get_logger(), "%s feedback resumed after %.1f ms (%s)",
+                        kChannelNames[i], outage_ms, kChannelBuses[i]);
+                }
+                channel_silent_[i] = silent;
+            }
             const auto state = !motor_feedback_available()
                                  ? FeedbackWarningState::kMissing
                                  : !motor_feedback_fresh() ? FeedbackWarningState::kStale
@@ -308,13 +422,60 @@ private:
                     "WheelLeg CAN joint feedback has not completed its first sample; "
                     "control remains gated until all six motors report once");
             } else if (state == FeedbackWarningState::kStale) {
+                auto stale = std::string{};
+                for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
+                    const auto stamp = motor_last_ns_[i].load(std::memory_order_relaxed);
+                    const double age =
+                        stamp <= 0 ? -1.0 : static_cast<double>(now - stamp) / 1'000'000.0;
+                    if (stamp > 0 && now - stamp < timeout_ns_)
+                        continue;
+                    if (!stale.empty())
+                        stale += ", ";
+                    stale +=
+                        std::format("{} {:.1f} ms ({})", kChannelNames[i], age, kChannelBuses[i]);
+                }
                 RCLCPP_WARN(
                     status_.get_logger(),
-                    "WheelLeg CAN joint feedback is older than %.1f ms; continuing with "
+                    "WheelLeg CAN joint feedback is older than %.1f ms [%s]; continuing with "
                     "the last valid samples",
-                    static_cast<double>(timeout_ns_) / 1e6);
+                    static_cast<double>(timeout_ns_) / 1e6, stale.c_str());
             }
             feedback_warning_state_ = state;
+        }
+        void log_dm_drive_health() {
+            const std::array<const device::DmMotor*, 4> joints{
+                &hip_motors_[0], &hip_motors_[1], &knee_motors_[0], &knee_motors_[1]};
+            static constexpr std::array<const char*, 4> names{
+                "left_hip_joint", "right_hip_joint", "left_knee_joint", "right_knee_joint"};
+            static constexpr std::array<std::size_t, 4> sides{0, 1, 0, 1};
+            for (std::size_t i = 0; i < joints.size(); ++i) {
+                const auto& motor = *joints[i];
+                const int status = motor.status_code();
+                const int fault = motor.fault_code();
+                if (dm_health_primed_ && fault != dm_fault_[i] && fault != 0)
+                    RCLCPP_ERROR(
+                        status_.get_logger(),
+                        "DM drive %s fault 0x%X (%s), status 0x%X, T_MOS %.0f C, T_rotor %.0f C",
+                        names[i], fault, device::dm_error_text(fault), status,
+                        motor.temperature_mos(), motor.temperature_rotor());
+                else if (dm_health_primed_ && fault != dm_fault_[i])
+                    RCLCPP_INFO(
+                        status_.get_logger(), "DM drive %s fault cleared (status 0x%X)", names[i],
+                        status);
+                if (dm_health_primed_ && status != dm_status_[i]) {
+                    if (status == 1)
+                        RCLCPP_INFO(status_.get_logger(), "DM drive %s enabled", names[i]);
+                    else if (enabled_[sides[i]])
+                        RCLCPP_ERROR(
+                            status_.get_logger(),
+                            "DM drive %s left enabled state (status 0x%X) with no error code; the "
+                            "board is still commanding it - check its power and CAN wiring",
+                            names[i], status);
+                }
+                dm_status_[i] = status;
+                dm_fault_[i] = fault;
+            }
+            dm_health_primed_ = true;
         }
         bool dr16_fresh() const {
             return wheel_leg_feedback_fresh(now_ns, 100'000'000, dr16_last_ns_);
@@ -548,10 +709,26 @@ private:
         device::WheelLegSensorMailbox<device::Bmi088Ekf::Snapshot> imu_feedback_;
         device::WheelLegSensorMailbox<device::Bmi088Ekf::AccelerationSnapshot>
             acceleration_feedback_;
+        // Indexed like motor_last_ns_: wheels (CAN0), hips (CAN1), knees (CAN2).
+        static constexpr std::array<const char*, 6> kChannelNames{
+            "left_wheel",     "right_wheel",    "left_hip_joint",
+            "right_hip_joint", "left_knee_joint", "right_knee_joint"};
+        static constexpr std::array<const char*, 6> kChannelBuses{
+            "CAN0", "CAN0", "CAN1", "CAN1", "CAN2", "CAN2"};
+        // Report a single silent drive long before the aggregate timeout.
+        static constexpr std::int64_t kChannelSilentNs = 100'000'000;
+        std::array<bool, 6> channel_silent_{};
+        std::array<std::int64_t, 6> channel_silent_since_{};
+        // Per DM drive, ordered {left hip, right hip, left knee, right knee}.
+        std::array<int, 4> dm_status_{}, dm_fault_{};
+        bool dm_health_primed_ = false;
         std::array<std::atomic<std::int64_t>, 6> motor_last_ns_{};
         std::atomic<std::int64_t> imu_last_ns_{0}, dr16_last_ns_{0};
         std::int64_t timeout_ns_ = 40'000'000;
         std::array<bool, 2> enabled_{}, mit_sent_{};
+        bool ready_ = false;
+        // Written by the command component, read by the status component.
+        std::atomic<bool> requested_snapshot_{false};
         WheelLegDmSideSchedulers command_schedulers_;
         WheelLegNormalActionGate normal_action_gate_;
         enum class FeedbackWarningState { kFresh, kMissing, kStale };

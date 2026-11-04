@@ -26,6 +26,7 @@ rmcs_executor:
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_rl::WheelLegMirrorComponent -> wheel_leg_mirror
+      - rmcs_core::debug::ValueCollector -> value_collector
 
 wheel_leg:
   ros__parameters:
@@ -52,7 +53,8 @@ wheel_leg_chassis_controller:
     vx_max: 0.5
     vy_max: 0.0
     yaw_rate_max: 0.5
-    spin_yaw_rate: 0.5
+    spin_yaw_rate: 5.235987755982989
+    yaw_stick_rate: 3.141592653589793
     following_velocity_kp: 8.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
@@ -81,15 +83,18 @@ wheel_leg_rl_controller:
     heading_hold_enabled: false
     height_reference_rate_max: 0.6666666666666666
 
-    # 自起仍受「仿真专用」门控：必须由仿真源输出 /wheel_leg/simulation=true。
-    # 当前仓库已无该仿真源（旧夹具 wheel_leg_integration.cpp 已随 141b0343 删除），
-    # 实车启动若保持 enabled: true，接口配对阶段会因缺少必需输入直接 FATAL。
+    # 2026-11-05：实车放行自起。simulation_only 与 hardware_mapping_verified
+    # 必须同时为 false/true，否则控制器会要求无人发布的 /wheel_leg/simulation。
+    # 首次运行请吊起或架空；映射假设（髋膝正向、力矩取反、气簧符号、零位）
+    # 的静态核对见 .codex/report/zh-cn/wheel_leg_selfright_hw_mapping_20261105。
     self_righting:
-      enabled: false
-      simulation_only: true
-      hardware_mapping_verified: false
+      enabled: true
+      simulation_only: false
+      hardware_mapping_verified: true
+    # 刹车开、超速故障关：落地单帧尖峰不会锁存 fault 3。
     self_righting_overspeed_fault_enabled: false
-    self_righting_speed_braking_enabled: false
+    self_righting_speed_braking_enabled: true
+    drive_loss_debounce: 0.1
 
 wheel_leg_observation:
   ros__parameters:
@@ -260,3 +265,132 @@ value_broadcaster:
       - /gimbal/left_friction/velocity
       - /gimbal/right_friction/velocity
       - /gimbal/bullet_feeder/velocity
+
+value_collector:
+  ros__parameters:
+    # 轮腿全过程记录（1000 Hz executor，每 5 拍落一行 → 200 Hz）
+    # 共 95 个信号 / 161 列（含 index），约 19 MB/分钟，/tmp 若是 tmpfs 请注意容量。
+    # 列名规则：标量=信号名；Eigen::Vector3d=name/x,y,z；Quaterniond=name/w,x,y,z；
+    # 6 维向量=name[0..5]，顺序固定为 left_hip, left_knee, right_hip, right_knee,
+    # left_wheel, right_wheel；2 维向量=name[0], name[1]（左、右腿）。
+    # 一次性记录请把下面这条从 components 列表注释掉，或用完删除 CSV。
+    csv_path: "/tmp/wheel_leg_<timestamp>.csv"
+    write_interval: 5
+    flush_interval: 200
+    signals:
+      # --- 时间基：单调时钟，单位秒 ---
+      - /predefined/timestamp
+
+      # --- 电源：四个 DM 关节共用底盘母线（DM 反馈帧只有 POS/VEL/T/T_MOS/T_Rotor，无电压字段） ---
+      - /chassis/voltage
+      - /chassis/supercap/voltage
+      - /chassis/power
+
+      # --- 四个驱动腿关节（DM8009）：反馈 / 下发力矩 / 驱动状态 / 策略原始动作 ---
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/torque
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_hip_joint/max_torque
+      - /wheel_leg/left_hip_joint/temperature_mos
+      - /wheel_leg/left_hip_joint/temperature_rotor
+      - /wheel_leg/left_hip_joint/status_code
+      - /wheel_leg/left_hip_joint/fault_code
+      - /wheel_leg/rl/raw/left_hip_joint
+
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/left_knee_joint/max_torque
+      - /wheel_leg/left_knee_joint/temperature_mos
+      - /wheel_leg/left_knee_joint/temperature_rotor
+      - /wheel_leg/left_knee_joint/status_code
+      - /wheel_leg/left_knee_joint/fault_code
+      - /wheel_leg/rl/raw/left_knee_joint
+
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_hip_joint/max_torque
+      - /wheel_leg/right_hip_joint/temperature_mos
+      - /wheel_leg/right_hip_joint/temperature_rotor
+      - /wheel_leg/right_hip_joint/status_code
+      - /wheel_leg/right_hip_joint/fault_code
+      - /wheel_leg/rl/raw/right_hip_joint
+
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/torque
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/right_knee_joint/max_torque
+      - /wheel_leg/right_knee_joint/temperature_mos
+      - /wheel_leg/right_knee_joint/temperature_rotor
+      - /wheel_leg/right_knee_joint/status_code
+      - /wheel_leg/right_knee_joint/fault_code
+      - /wheel_leg/rl/raw/right_knee_joint
+
+      # --- 两个驱动轮（DJI）：反馈 / 下发力矩 / 温度 / 策略原始动作 ---
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/left_wheel/max_torque
+      - /wheel_leg/left_wheel/temperature_c
+      - /wheel_leg/rl/raw/left_wheel
+
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/torque
+      - /wheel_leg/right_wheel/control_torque
+      - /wheel_leg/right_wheel/max_torque
+      - /wheel_leg/right_wheel/temperature_c
+      - /wheel_leg/rl/raw/right_wheel
+
+      # --- 状态估计（机体） ---
+      - /wheel_leg/state/position
+      - /wheel_leg/state/velocity
+      - /wheel_leg/state/gravity
+      - /wheel_leg/state/attitude
+      - /wheel_leg/state/passive_knee
+      - /wheel_leg/state/passive_knee_rate
+      - /wheel_leg/state/shank
+      - /wheel_leg/state/shank_rate
+      - /wheel_leg/state/leg_length
+      - /wheel_leg/state/forward_velocity
+      - /wheel_leg/state/com_offset
+      - /wheel_leg/state/base_height
+      - /wheel_leg/state/valid
+
+      # --- IMU ---
+      - /wheel_leg/imu/quaternion
+      - /wheel_leg/imu/angular_velocity
+
+      # --- RL 闭环：输入 / 施加动作 / 观测帧 / 推理链路 ---
+      - /wheel_leg/rl/applied_action
+      - /wheel_leg/rl/input/command
+      - /wheel_leg/rl/input/height
+      - /wheel_leg/rl/input/frame
+      - /wheel_leg/rl/state
+      - /wheel_leg/rl/valid
+      - /wheel_leg/rl/healthy
+      - /wheel_leg/rl/action_seq
+      - /wheel_leg/rl/action_steady_ns
+      - /wheel_leg/rl/action_applied
+      - /wheel_leg/rl/fault_latched
+
+      # --- 自起恢复 ---
+      - /wheel_leg/recovery/phase
+      - /wheel_leg/recovery/fault
+      - /wheel_leg/recovery/capture_ready
+      - /wheel_leg/recovery/capture_blockers
+
+      # --- 硬件诊断 / 底盘指令 ---
+      - /wheel_leg/feedback_fresh
+      - /wheel_leg/feedback_available
+      - /wheel_leg/dm_control_ready
+      - /wheel_leg/dr16_fresh
+      - /chassis/control_height
+      - /chassis/control_enable
+      - /chassis/reset_count

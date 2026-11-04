@@ -16,36 +16,22 @@
 
 namespace rmcs_core::hardware::device {
 
-/// 达妙科技 DM-J8009-2EC 减速电机驱动（CAN@1Mbps, 标准帧, MIT 模式）
-///
-/// 协议依据（权威来源）：
-///   《DM-J8009-2EC 减速电机使用说明书 V1.0》(2023.10.15) —— 本机随电机附带
-///   《调试助手使用说明书(达妙驱动控制协议) V1.4》 —— 状态码及系统命令字节来源
-///
-/// 电机参数（说明书 V1.0）：
-///   额定 24V（24-48V），额定 20A / 峰值 50A，额定扭矩 20Nm / 峰值 40Nm，
-///   额定转速 100rpm@24V / 200rpm@48V，减速比 9:1，编码器 14 位（单圈绝对，输出轴）
-///
-/// MIT 控制帧（帧 ID = 电机 CAN ID）：
-///   D[0..1] p_des[15:0]  |  D[2..3] v_des[11:0]|Kp[11:8]  |  D[4] Kp[7:0]
-///   D[5..6] Kd[11:0]|t_ff[11:8]  |  D[7] t_ff[7:0]
-///   定标：位置 16 位、速度 12 位、扭矩 12 位，按 P_MAX/V_MAX/T_MAX 线性映射
-///   （范围由调试助手设定，本驱动必须与电机内寄存器一致）
-///   Kp ∈ [0, 500]，Kd ∈ [0, 5]（固定范围）
-///   注意：对位置进行控制时 kd 不能为 0（说明书警告）
-///
-/// 反馈帧（帧 ID = MST_ID，调试助手设置，默认 0）：
-///   D[0] = ID|ERR<<4（ID 取电机 CAN_ID 低 8 位，实际为低 4 位；ERR 故障码）
-///   D[1..2] POS[15:0] | D[3..4] VEL[11:0] | D[4..5] T[11:0] | D[6] T_MOS | D[7] T_Rotor
-///   ERR：8 超压 / 9 欠压 / A 过流 / B MOS 过温 / C 线圈过温 / D 通讯丢失 / E 过载
-///
-/// 系统命令（帧 ID = 电机 CAN ID，D[0..6]=0xFF，D[7]=命令字节；来自达妙驱动控制协议）：
-///   0xFC 使能 / 0xFD 失能 / 0xFE 设零位 / 0xFB 清错
-///
-/// PC 侧做 PD，本驱动只下发 kp=kd=0 的纯力矩（t_ff = control_torque）。
+inline const char* dm_error_text(int code) noexcept {
+    switch (code) {
+    case 0x8: return "over-voltage";
+    case 0x9: return "under-voltage";
+    case 0xA: return "over-current";
+    case 0xB: return "MOS over-temperature";
+    case 0xC: return "coil over-temperature";
+    case 0xD: return "communication lost";
+    case 0xE: return "overload";
+    default: return "unknown";
+    }
+}
+
 class DmMotor {
 public:
-    enum class Type : uint8_t { kDM8009 }; // 如需其他型号在此扩展
+    enum class Type : uint8_t { kDM8009 };
 
     struct Config {
         explicit Config(Type motor_type, std::uint8_t id = 1)
@@ -58,10 +44,9 @@ public:
         }
         Config& set_reversed() { return reversed = true, *this; }
         Config& set_reversed(bool value) { return reversed = value, *this; }
-        /// angle_bias is in the motor feedback frame; API angle = sign*(raw_angle - angle_bias).
-        /// Motor zero and the policy model's joint zero are separate calibrations.
+        // API angle = sign * (raw_angle - angle_bias); the bias lives in the feedback frame.
         Config& set_angle_bias(double angle_bias) { return this->angle_bias = angle_bias, *this; }
-        /// 设置 MIT 定标范围，必须与电机内寄存器（调试助手设定）一致
+        // MIT calibration range, must match the drive registers.
         Config& set_limits(double position_max, double velocity_max, double torque_max) {
             return this->position_max = position_max, this->velocity_max = velocity_max,
                    this->torque_max = torque_max, *this;
@@ -71,19 +56,17 @@ public:
         }
 
         Type motor_type;
-        std::uint8_t id;               // 电机 CAN ID（MIT 命令帧 ID；帧内 ID 仅占低 4 位）
-        std::uint16_t feedback_id = 0; // 反馈帧 ID（MST_ID，调试助手设置，默认 0）
+        std::uint8_t id;
+        std::uint16_t feedback_id = 0;
         bool reversed = false;
-        double angle_bias = 0.0;       // rad
-        double position_max = 12.5;    // P_MAX [rad]，须与电机寄存器一致
-        double velocity_max = 45.0;    // V_MAX [rad/s]，须与电机寄存器一致
-        double torque_max = 54.0;      // T_MAX [Nm]，须与电机寄存器一致
-        // Software command bound; motor-local effort between CAN frames still
-        // requires the drive's independently configured current protection.
+        double angle_bias = 0.0;    // rad
+        double position_max = 12.5; // [rad]
+        double velocity_max = 45.0; // [rad/s]
+        double torque_max = 54.0;   // [Nm]
+        // Software bound; the drive's own current protection still applies between frames.
         double control_torque_max = 40.0;
     };
 
-    // ---- 系统命令字节（达妙驱动控制协议；说明书 V1.0 未列出，装车前用调试助手确认）----
     static constexpr std::uint8_t kCommandEnable = 0xFC;
     static constexpr std::uint8_t kCommandDisable = 0xFD;
     static constexpr std::uint8_t kCommandClearError = 0xFB;
@@ -142,9 +125,6 @@ public:
         fault_code_ = 0;
     }
 
-    // ---- 命令帧生成 ----
-
-    /// 纯力矩（kp=kd=0, p_des=v_des=0, t_ff=τ）
     CanPacket8 generate_command() const { return generate_command(control_torque()); }
 
     CanPacket8 generate_command(double torque) const {
@@ -161,7 +141,6 @@ public:
         return packet;
     }
 
-    /// Feed-forward torque actually encoded in a MIT frame, in API coordinates.
     double command_frame_torque(CanPacket8 packet) const {
         const auto bytes = packet.as_bytes();
         const auto encoded = static_cast<std::uint16_t>(
@@ -177,13 +156,9 @@ public:
             || (static_cast<std::uint8_t>(bytes[6]) & 0xF0) != 0;
     }
 
-    // ---- 系统命令 ----
-
     CanPacket8 enable_command() const { return system_command(kCommandEnable); }
     CanPacket8 disable_command() const { return system_command(kCommandDisable); }
     CanPacket8 clear_error_command() const { return system_command(kCommandClearError); }
-
-    // ---- 反馈接收与状态更新 ----
 
     bool match_then_store_status(std::uint32_t can_id, std::span<const std::byte> can_data) {
         if (!matches_feedback(can_id, can_data))
@@ -197,7 +172,7 @@ public:
             return false;
         if (can_data.size() != 8)
             return false;
-        // D[0] 低 4 位为电机 ID（说明书："ID 取 CAN_ID 的低 8 位"，但帧内仅 4 位可用）
+        // The motor id occupies only the low 4 bits of D[0].
         const auto d0 = static_cast<std::uint8_t>(can_data[0]);
         return (d0 & 0x0F) == (id_ & 0x0F);
     }
@@ -209,7 +184,7 @@ public:
 
         const auto d0 = static_cast<std::uint8_t>(bytes[0]);
         status_code_ = static_cast<int>(d0 >> 4);
-        // 官方调试协议 V1.4：0=失能、1=使能、8..E=故障。
+        // 0 = disabled, 1 = enabled, 8..E = fault.
         fault_code_ = status_code_ <= 1 ? 0 : status_code_;
 
         const auto pos_u = static_cast<std::uint16_t>(
@@ -245,12 +220,9 @@ public:
         *status_code_output_ = status_code_;
     }
 
-    // ---- 查询 ----
-
     double control_torque() const { return *control_torque_; }
 
     std::uint8_t id() const noexcept { return id_; }
-    /// MIT 命令帧 ID == 电机 CAN ID
     std::uint32_t send_id() const noexcept { return id_; }
     std::uint32_t feedback_id() const noexcept { return feedback_id_; }
     double angle() const { return angle_; }
@@ -264,9 +236,6 @@ public:
     int fault_code() const { return fault_code_; }
     int status_code() const { return status_code_; }
 
-    // ---- MIT 定标 ----
-
-    /// 线性映射：u = (x − x_min) / (x_max − x_min) * (2^N − 1)
     static std::uint16_t float_to_uint(double x, double x_min, double x_max, int bits) {
         const double span = x_max - x_min;
         if (span <= 0.0)
@@ -276,7 +245,6 @@ public:
         return static_cast<std::uint16_t>(std::round(u));
     }
 
-    /// 逆映射：x = x_min + u / (2^N − 1) * (x_max − x_min)
     static double uint_to_float(std::uint16_t u, double x_min, double x_max, int bits) {
         const double max_u = static_cast<double>((std::uint32_t{1} << bits) - 1);
         return x_min + static_cast<double>(u) / max_u * (x_max - x_min);

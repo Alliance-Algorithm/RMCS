@@ -41,6 +41,7 @@ public:
         vx_max_ = get_parameter_or("vx_max", .5);
         vy_max_ = get_parameter_or("vy_max", 0.);
         spin_rate_ = get_parameter_or("spin_yaw_rate", 1.);
+        yaw_stick_rate_ = get_parameter_or("yaw_stick_rate", std::numbers::pi);
         deadzone_ = get_parameter_or("deadzone", .05);
         height_min_ = get_parameter_or("command_height_min", .23);
         height_max_ = get_parameter_or("command_height_max", .42);
@@ -56,7 +57,8 @@ public:
         arm_dwell_ = get_parameter_or("arm_dwell_seconds", 0.);
         knob_step_ = get_parameter_or("rotary_knob_step", .1);
         for (double value :
-             {vx_max_, yaw_max_, spin_rate_, height_min_, height_max_, height_step_})
+             {vx_max_, yaw_max_, spin_rate_, yaw_stick_rate_, height_min_, height_max_,
+              height_step_})
             if (!std::isfinite(value) || value <= 0.)
                 throw std::invalid_argument("Invalid chassis command limits");
         if (height_max_ < height_min_ || nominal_height_ < height_min_
@@ -91,8 +93,10 @@ public:
                 arm_started_.reset();
             const bool continuation = armed_ && l == Switch::MIDDLE && r == Switch::DOWN;
             if (!middle && !continuation) {
+                if ((l != Switch::DOWN && l != Switch::MIDDLE)
+                    || (r != Switch::DOWN && r != Switch::MIDDLE))
+                    pending_ = false;
                 disarm();
-                pending_ = false;
             }
             if (armed_) {
                 const bool spin_edge =
@@ -113,9 +117,7 @@ public:
                     command_->vector = Eigen::Vector3d{
                         0., 0., (spin_forward_ ? 1. : -1.) * spin_rate_ * (yaw_invert_ ? -1. : 1.)};
                 else {
-                    Eigen::Vector2d xy{
-                        channel(right_->x()) + keyboard_->w - keyboard_->s,
-                        channel(right_->y()) + keyboard_->a - keyboard_->d};
+                    Eigen::Vector2d xy{channel(right_->x()) + keyboard_->w - keyboard_->s, 0.};
                     if (xy.norm() > 1.)
                         xy.normalize();
                     // Like the shared chassis controller, translation is
@@ -124,9 +126,6 @@ public:
                     const auto rotated =
                         Eigen::Rotation2Dd{gimbal_yaw_angle_.ready() ? *gimbal_yaw_angle_ : 0.}
                         * xy;
-                    // AUTO keeps the chassis straight; STEP_DOWN is the follow
-                    // mode reached after one spin cycle, where the gimbal
-                    // heading drags the chassis around.
                     double yaw = 0.;
                     if (*mode_ == rmcs_msgs::ChassisMode::STEP_DOWN) {
                         const double gimbal_yaw =
@@ -135,6 +134,10 @@ public:
                                 : 0.;
                         yaw = following_velocity_controller_.update(gimbal_yaw)
                             * (yaw_invert_ ? -1. : 1.);
+                    } else if (*mode_ == rmcs_msgs::ChassisMode::AUTO) {
+                        const double yaw_stick =
+                            std::clamp(channel(right_->y()) + keyboard_->a - keyboard_->d, -1., 1.);
+                        yaw = yaw_stick * yaw_stick_rate_ * (yaw_invert_ ? -1. : 1.);
                     }
                     command_->vector =
                         Eigen::Vector3d{rotated.x() * vx_max_, rotated.y() * vy_max_, yaw};
@@ -205,7 +208,7 @@ private:
     OutputInterface<bool> enable_;
     OutputInterface<std::size_t> reset_;
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
-    double vx_max_, vy_max_, yaw_max_, spin_rate_, deadzone_, height_min_,
+    double vx_max_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_, height_min_,
         height_max_, nominal_height_, height_step_, arm_dwell_;
     bool yaw_invert_, armed_ = false, pending_ = false,
                                                        reset_active_ = false, spin_forward_ = true;
