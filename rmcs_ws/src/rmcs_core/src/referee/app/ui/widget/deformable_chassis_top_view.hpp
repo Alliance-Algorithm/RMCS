@@ -115,7 +115,6 @@ private:
         Arc& leg, double body_angle, uint16_t near_radius, uint16_t far_radius, double leg_angle,
         bool active_suspension) const {
         const double normalized_extension = normalized_leg_extension_(leg_angle);
-        // Min angle looks like a thin leg stretching radially outward from the center ring.
         const uint16_t radius = static_cast<uint16_t>(
             std::lround(far_radius - normalized_extension * (far_radius - near_radius)));
         const uint16_t half_angle = static_cast<uint16_t>(std::lround(

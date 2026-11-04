@@ -28,9 +28,6 @@ inline GasSpringCompensation gas_spring_compensation(const std::array<double, 4>
         return result;
     }
     for (std::size_t side = 0; side < 2; ++side) {
-        // Deployment's 110-degree zero lies beyond the trained table's 108.5
-        // endpoint. Append CAD-solved geometry while keeping the measured
-        // force curve and all inherited knots unchanged.
         const std::span<const gas_spring_model::GeometryKnot> geometry{
             side == 0 ? full_vehicle_calibration110::kLeft : full_vehicle_calibration110::kRight};
         const double delta = side == 0 ? q[1] - q[0] : q[2] - q[3];
@@ -60,8 +57,6 @@ inline GasSpringCompensation gas_spring_compensation(const std::array<double, 4>
         double force = std::lerp(
             f_low.force_n, f_high.force_n,
             (s - f_low.compression_m) / (f_high.compression_m - f_low.compression_m));
-        // User-authorized trend extension keeps the measured section unchanged
-        // and joins its endpoint slope with continuous positive axial force.
         const bool low_extension = compression < curve.front().compression_m;
         const bool high_extension = compression > curve.back().compression_m;
         if (low_extension)

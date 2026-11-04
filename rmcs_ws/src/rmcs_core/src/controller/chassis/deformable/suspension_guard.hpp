@@ -77,7 +77,6 @@ public:
             const Eigen::Vector3d derivative = (velocity - velocity_) / dt;
             const double alpha = -std::expm1(-dt / config_.acceleration_tau_s);
             acceleration_ += alpha * (derivative + gyro.cross(velocity) - acceleration_);
-            // Match filter phase on both signals before subtracting acceleration.
             force_filter_ += alpha * (specific_force - force_filter_);
             velocity_ = velocity;
             const double angle = gyro.norm() * dt;

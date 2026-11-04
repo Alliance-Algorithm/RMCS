@@ -29,8 +29,6 @@ inline std::array<double, 6> measured_policy_history(const std::array<double, 6>
             static_cast<float>(position[hip]) - static_cast<float>(kNominalPosition[hip]);
         const float second =
             static_cast<float>(position[hip + 1]) - static_cast<float>(kNominalPosition[hip + 1]);
-        // paired_recovery.paired_offsets retains its authenticated relative
-        // projection chart when the full-vehicle absolute nominal changes.
         const float nominal_delta =
             static_cast<float>(frozen_nominal[hip + 1] - frozen_nominal[hip]);
         const auto& bounds = kProneWindingBounds[side];
@@ -64,8 +62,6 @@ public:
         }
         frame[3] = 5.F * static_cast<float>(height);
         for (std::size_t i = 0; i < 6; ++i) {
-            // V4 subtracts float64 wheel origins in LocalStandingOdometry;
-            // never round the cumulative wheel angles into this float frame.
             q[i] = i < 4 ? static_cast<float>(position[i]) : 0.F;
             frame[16 + i] = .1F * static_cast<float>(velocity[i]);
             frame[22 + i] = static_cast<float>(applied_action[i]);
@@ -79,12 +75,9 @@ public:
             std::all_of(
                 frame.begin(), frame.end(), [](float value) { return std::isfinite(value); })
             && std::all_of(q.begin(), q.end(), [](float value) { return std::isfinite(value); });
-        // Training reconstructs geometry legs from the wrapped actor channels;
-        // only the wheel angles retain their continuous encoder turns.
         for (std::size_t i = 0; i < 4; ++i)
             q[i] = frame[10 + i] + static_cast<float>(kNominalPosition[i]);
         {
-            // ChassisEnv builds/clips the float32 sensor frame before odometry.
             for (auto& value : frame)
                 value = std::clamp(value, -100.F, 100.F);
             std::array<float, 4> nominal{};

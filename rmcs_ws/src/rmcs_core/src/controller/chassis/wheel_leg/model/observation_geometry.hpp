@@ -9,8 +9,6 @@
 #include <stdexcept>
 #include <vector>
 
-// Sensor-only standing observation; no actuator commands. Ported from the
-// frozen training observer and validated against recorded policy frames.
 namespace rmcs_core::controller::chassis::standing_reference {
 
 using Vector3 = std::array<float, 3>;

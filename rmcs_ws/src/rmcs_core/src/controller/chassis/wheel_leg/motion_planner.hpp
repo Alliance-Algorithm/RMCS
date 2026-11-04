@@ -258,13 +258,6 @@ private:
 
         double shank = kNaN;
         if (gamma > kEpsilon) {
-            // P sin(phi) + Q cos(phi) = m_b c_b has TWO branches. The physically
-            // correct one (matching the real-robot encoder / bench convention,
-            // axle_line(beta, hip) ~ -90 deg at the nominal stance) is
-            //   phi = pi - asin(m_b c_b / Gamma) - atan2(Q, P),
-            // NOT asin(...) - atan2(...) (that is the pi-opposite branch, which
-            // drove the real leg "straight up"). Wrap into (-pi, pi] so the
-            // per-leg plan does not take the long way.
             shank = std::remainder(
                 std::numbers::pi
                     - std::asin(

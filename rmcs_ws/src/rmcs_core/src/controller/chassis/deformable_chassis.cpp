@@ -233,10 +233,6 @@ private:
         const double max_deg = joint_mode_mgr_.max_angle();
         const double reference_deg = (min_deg + max_deg) / 2.0;
         *suspension_reference_angle_deg_ = reference_deg;
-        // Always true: reference_deg == (min_deg + max_deg) / 2.0
-        // > (min_deg - 5.0 + max_deg) / 2.0 == reference_deg - 2.5.
-        // Under auto-aim low-prone override the correction direction is
-        // intentionally always inverted.
         *correction_inverted_ = reference_deg > (min_deg - 5.0 + max_deg) / 2.0;
     }
 

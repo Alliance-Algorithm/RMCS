@@ -182,8 +182,6 @@ private:
         }
 
         void request_hard_sync_read() {
-            // RMCS-lite top board variant currently has no GPIO hard-sync request
-            // path.
         }
 
         void update() {
@@ -352,8 +350,6 @@ private:
                         .enable_multi_turn_angle());
 
             imu_.set_coordinate_mapping([](double x, double y, double z) {
-                // Keep the existing chassis yaw axis mapping explicit until the bottom-board IMU
-                // installation is re-validated on hardware.
                 return std::make_tuple(-y, x, z);
             });
 
@@ -440,9 +436,6 @@ private:
                 *chassis_imu_pitch_rate_ = -imu_.gy();
                 *chassis_imu_roll_rate_ = imu_.gx();
 
-                // Raw attitude quaternion for the RL bridge (projected gravity). Same frame
-                // convention as the other RL hardware (body -> world, Z-up after the IMU
-                // coordinate mapping above).
                 *chassis_imu_quaternion_ = Eigen::Quaterniond{q0, q1, q2, q3}.normalized();
             }
 

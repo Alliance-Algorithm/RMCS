@@ -73,8 +73,6 @@ public:
     }
 
 private:
-    // Joint controller owns only the local angle-servo execution. Chassis publishes the
-    // higher-level target angle trajectory; this controller turns that target into motor torque.
     struct ControllerConfig {
         rmcs_core::controller::adrc::TD::Config td;
         rmcs_core::controller::adrc::ESO::Config eso;
