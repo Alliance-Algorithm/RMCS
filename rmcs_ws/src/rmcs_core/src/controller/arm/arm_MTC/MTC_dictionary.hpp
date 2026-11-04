@@ -268,6 +268,9 @@ inline void validate(const TaskConfig& task) {
 }
 
 using ObjectBindings = std::unordered_map<std::string, std::string>;
+using StageTargetOverride =
+    std::variant<geometry_msgs::msg::PoseStamped, RotationDirectionTarget>;
+using StageTargetOverrides = std::unordered_map<std::string, StageTargetOverride>;
 
 inline void bind_task_objects(TaskConfig& task, const ObjectBindings& bindings = {}) {
     const auto bind = [&](std::string& object) {
@@ -325,7 +328,8 @@ public:
     }
 
     TaskConfig helper_build_chunk(
-        const std::vector<std::string>& composed, const ObjectBindings& bindings = {}) const {
+        const std::vector<std::string>& composed, const ObjectBindings& bindings = {},
+        const StageTargetOverrides& targets = {}) const {
         if (composed.empty())
             throw std::invalid_argument(shell_.name + ": composition is empty");
 
@@ -354,6 +358,28 @@ public:
         }
 
         bind_task_objects(result, bindings);
+        const auto override_targets = [&](auto&& self, std::vector<NodeConfig>& children) -> void {
+            for (auto& node : children) {
+                if (auto* container = std::get_if<ContainerConfig>(&node.config)) {
+                    self(self, container->children);
+                    continue;
+                }
+                auto& stage = std::get<StageConfig>(node.config);
+                const auto found = targets.find(stage.name);
+                if (found == targets.end())
+                    continue;
+                std::visit(
+                    [&](const auto& target) {
+                        using Target = std::decay_t<decltype(target)>;
+                        if constexpr (std::is_same_v<Target, geometry_msgs::msg::PoseStamped>)
+                            std::get<MoveToConfig>(stage.config).goal = target;
+                        else
+                            std::get<MoveRelativeConfig>(stage.config).direction = target;
+                    },
+                    found->second);
+            }
+        };
+        override_targets(override_targets, result.children);
         validate(result);
         return result;
     }

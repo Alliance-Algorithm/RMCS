@@ -20,7 +20,7 @@
           rgba="1 1 1 1" />
       </material>
     </visual>
-    <collision>
+    <!-- <collision>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
@@ -28,7 +28,7 @@
         <mesh
           filename="package://arm_description/meshes/base_link.STL" />
       </geometry>
-    </collision>
+    </collision> -->
   </link>
   <link
     name="link_1">

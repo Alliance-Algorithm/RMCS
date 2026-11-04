@@ -1,6 +1,5 @@
-import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
@@ -10,14 +9,10 @@ from launch.substitutions import (
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from ament_index_python.packages import get_package_share_directory
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
 def generate_launch_description():
-    package_path = get_package_share_directory("arm_moveit_config")
-
-  
     moveit_group_node_config = (
         MoveItConfigsBuilder("arm_description", package_name="arm_moveit_config")
         .robot_description(file_path="config/arm_description.urdf.xacro")
@@ -66,7 +61,6 @@ def generate_launch_description():
         parameters=[
             moveit_group_node_config.to_dict(),
             {"robot_description_planning.default_robot_padding": 0.00},
-             
         ],
         arguments=["--ros-args", "--log-level", "info"],
     )
@@ -82,6 +76,16 @@ def generate_launch_description():
         default_value="false",
         description="Start RViz if true",
     )
+    scene_topic_arg = DeclareLaunchArgument(
+        "rviz_scene_topic",
+        default_value="/monitored_planning_scene",
+        description="Planning scene displayed by RViz",
+    )
+    trajectory_topic_arg = DeclareLaunchArgument(
+        "rviz_trajectory_topic",
+        default_value="/display_planned_path",
+        description="Independent trajectory animation displayed by RViz",
+    )
     rviz_config = PathJoinSubstitution(
         [
             FindPackageShare("arm_moveit_config"),
@@ -96,6 +100,10 @@ def generate_launch_description():
         output="log",
         arguments=["-d", rviz_config],
         condition=IfCondition(LaunchConfiguration("use_rviz")),
+        remappings=[
+            ("monitored_planning_scene", LaunchConfiguration("rviz_scene_topic")),
+            ("display_planned_path", LaunchConfiguration("rviz_trajectory_topic")),
+        ],
         parameters=[
             moveit_group_node_config.robot_description,
             moveit_group_node_config.robot_description_semantic,
@@ -128,10 +136,11 @@ def generate_launch_description():
         [
             rviz_config_arg,
             use_rviz_arg,
+            scene_topic_arg,
+            trajectory_topic_arg,
             rviz_node,
             static_tf,
             robot_state_publisher_node,
             move_group_node,
-           
         ]
     )

@@ -1,4 +1,6 @@
+#include "hardware/device/JimiDynamic.hpp"
 #include "hardware/device/bmi088.hpp"
+#include "hardware/device/dr16.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -15,6 +17,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/imu_snapshot.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
+#include <rmcs_msgs/switch.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <string>
 
@@ -60,7 +63,7 @@ private:
     std::shared_ptr<EngineerCommand> engineer_command_;
 
     class ArmBoard final
-        : public librmcs::board::CBoard::Callback
+        : public librmcs::board::RmcsBoardLite::Callback
         , rclcpp::Node {
     public:
         friend class TEST;
@@ -68,11 +71,17 @@ private:
             TEST& engineer, [[maybe_unused]] EngineerCommand& engineer_command,
             const std::string& serial_filter)
             : rclcpp::Node{"arm_board"}
-            , bmi088_(1000, 0.2, 0) {
+            , bmi088_(1000, 0.2, 0)
+            , G6618_(engineer, engineer_command, "/arm/motor") {
+
             using namespace device;
 
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, +z); });
+            G6618_.configure(JimiDynamicConfig(JimiDynamicType::G6618)
+                                 .set_node_id(0)
+                                 .set_encoder_zero_point(32767)
+                                 .set_gear_ratio(1.0));
 
             engineer.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             engineer.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
@@ -83,7 +92,14 @@ private:
 
             engineer.register_output("/gimbal/auto_aim/imu_snapshot", imu_snapshot);
 
-            board_ = std::make_unique<librmcs::board::CBoard>(
+            engineer.register_output(
+                "/remote/joystick/right", joystick_right_, Eigen::Vector2d::Zero());
+            engineer.register_output(
+                "/remote/switch/right", switch_right_, rmcs_msgs::Switch::UNKNOWN);
+            engineer.register_output(
+                "/remote/switch/left", switch_left_, rmcs_msgs::Switch::UNKNOWN);
+
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(
                 *this, static_cast<std::string>(serial_filter), librmcs::board::AdvancedOptions{});
         }
         ~ArmBoard() final {}
@@ -91,8 +107,25 @@ private:
         void update() {
             using namespace device;
             update_imu();
+            dr16_.update_status();
+            update_motor();
+            *joystick_right_ = dr16_.joystick_right();
+            *switch_left_ = dr16_.switch_left();
+            *switch_right_ = dr16_.switch_right();
         }
-        void command() {}
+        void command() {
+            auto tx = board_->start_transmit();
+            static bool once = false;
+            if (!once) {
+                tx.can_transmit(
+                    Spec::kCans.kCan0,
+                    {.can_id = 0x150, .can_data = G6618_.jimi_enable_command().as_bytes()});
+                once = !once;
+            }
+            tx.can_transmit(
+                Spec::kCans.kCan0, {.can_id = G6618_.get_torque_command_id(),
+                                    .can_data = G6618_.generate_torque_command().as_bytes()});
+        }
 
     private:
         void update_imu() {
@@ -113,10 +146,24 @@ private:
             *yaw_imu_angle = std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
         }
 
+        void update_motor() { G6618_.update(); }
+
     protected:
         void can_receive_callback(
             [[maybe_unused]] const Spec::Can& can,
-            [[maybe_unused]] const View::Can& data) override {}
+            [[maybe_unused]] const View::Can& data) override {
+
+            if (data.is_fdcan || data.is_extended_can_id || data.is_remote_transmission)
+                [[unlikely]]
+                return;
+
+            if (can == Spec::kCans.kCan0) {
+                if (data.can_id == 0x180) {
+                    // RCLCPP_INFO(this->get_logger(), "1212312312");
+                    G6618_.store_status(data.can_data);
+                }
+            }
+        }
         void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
             bmi088_.store_accelerometer_status(data.x, data.y, data.z);
         }
@@ -125,8 +172,21 @@ private:
             bmi088_.store_gyroscope_status(data.x, data.y, data.z);
         }
 
+        void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
+            if (uart == Spec::kUarts.kDbus) {
+                dr16_.store_status(data.uart_data);
+            }
+        }
+
     private:
+        device::Dr16 dr16_;
+
         device::Bmi088 bmi088_;
+        device::JimiDynamic G6618_;
+
+        OutputInterface<Eigen::Vector2d> joystick_right_;
+        OutputInterface<rmcs_msgs::Switch> switch_right_;
+        OutputInterface<rmcs_msgs::Switch> switch_left_;
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
@@ -135,7 +195,8 @@ private:
         OutputInterface<double> roll_imu_velocity;
         OutputInterface<double> roll_imu_angle;
         EventOutputInterface<rmcs_msgs::ImuSnapshot> imu_snapshot;
-        std::unique_ptr<librmcs::board::CBoard> board_;
+
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
 
     } armboard_;
 

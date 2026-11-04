@@ -24,14 +24,16 @@ inline auto make_mtc_parameter_map() {
                          .goal = makePoseGoal(
                              PoseTarget{
                                  .frame_id = "base_link",
-                                 .x = 0.246,
-                                 .y = -0.316,
-                                 .z = 0.353,
-                                 .roll = -2.233,
-                                 .pitch = -0.313,
-                                 .yaw = 1.635}),
+                                 .x = 0.238,
+                                 .y = -0.113,
+                                 .z = 0.352,
+                                 .roll = -1.809,
+                                 .pitch = -0.769,
+                                 .yaw = 1.571}),
+                         .motion{.timeout = 20.0},
                          .group = "alliance_arm",
-                         .ik_frame = "link_6"})}}}},
+                         .ik_frame = "link_6",
+                     })}}}},
             {"extra_left_front",
              {ContainerConfig{
                  .name = "extra_left_front",
@@ -148,12 +150,13 @@ inline auto make_mtc_parameter_map() {
                          Step::makeMoveRelative(
                              "retreat",
                              MoveRelativeConfig{
-                                 .direction = makeDirection(
-                                     DirectionTarget{
-                                         .frame_id = "link_6",
-                                         .dir_x = 0.0,
-                                         .dir_y = 0.0,
-                                         .dir_z = 1.0}),
+                                 .direction =
+                                     makeDirection(
+                                         DirectionTarget{
+                                             .frame_id = "link_6",
+                                             .dir_x = 0.0,
+                                             .dir_y = 0.0,
+                                             .dir_z = 1.0}),
                                  .min_distance = 0.1,
                                  .max_distance = 0.1,
                                  .motion =
@@ -184,8 +187,8 @@ inline auto make_mtc_parameter_map() {
                                              .dir_x = -1.0,
                                              .dir_y = 0.0,
                                              .dir_z = 0.0}),
-                                 .min_distance = 0.11,
-                                 .max_distance = 0.11,
+                                 .min_distance = 0.075,
+                                 .max_distance = 0.20,
                                  .motion =
                                      {.solver = CartesianPathConfig{.step_size = 0.001},
                                       .velocity_scaling = 0.3,
@@ -251,13 +254,13 @@ inline auto make_mtc_parameter_map() {
                                  .direction =
                                      makeRotationDirection(
                                          {.frame_id = "base_link",
-                                          .axis_point = {0.4254, -0.5498, 0.4083},
+                                          .axis_point = {0.4547, -0.3480, 0.1983},
                                           .axis_direction =
-                                              {-0.5980, -0.2818, 0.7503}}),
-                                 .min_distance = -std::numbers::pi / 4 * 0,
+                                              {-0.2358, -0.6758, 0.6983}}),
+                                 .min_distance = -std::numbers::pi / 4 * 2,
                                  .max_distance = -std::numbers::pi / 4 * 2,
                                  .motion =
-                                     {.solver = CartesianPathConfig{.step_size = 0.001},
+                                     {.solver = CartesianPathConfig{.step_size = 0.005},
                                       .velocity_scaling = 0.3,
                                       .acceleration_scaling = 0.1,
                                       .timeout = 100.0},
@@ -286,11 +289,11 @@ inline auto make_mtc_parameter_map() {
                                  .direction =
                                      makeRotationDirection(
                                          {.frame_id = "base_link",
-                                          .axis_point = {0.4374, -0.5519, 0.4171},
+                                          .axis_point = {0.4547, -0.3113, 0.2338},
                                           .axis_direction =
-                                              {-0.0610, 0.9495, 0.3079}}),
+                                              {-0.0001, 0.7186, 0.6954}}),
                                  .min_distance = 0,
-                                 .max_distance = std::numbers::pi / 4,
+                                 .max_distance = std::numbers::pi / 2,
                                  .motion =
                                      {.solver = CartesianPathConfig{.step_size = 0.001},
                                       .velocity_scaling = 0.3,
@@ -302,7 +305,7 @@ inline auto make_mtc_parameter_map() {
                          Step::makeDetachObject("unit"),
                      }}}},
 
-        };
+        }; // namespace rmcs_core::controller::arm::MTC
 }
 
 inline auto make_default_dictionary() { return Dictionary(make_mtc_parameter_map()); }

@@ -71,4 +71,7 @@
   <class type="rmcs_core::hardware::TEST" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_core::controller::arm::G6618TestController" base_class_type="rmcs_executor::Component">
+    <description>G6618 motor test controller.</description>
+  </class>
 </library>

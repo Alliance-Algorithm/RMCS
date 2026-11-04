@@ -1,46 +1,36 @@
-#include "controller/arm/arm_action/action_dictionary.hpp"
-#include "controller/arm/arm_action/arm_action_machine.hpp"
-#include "controller/arm/obstacle/obstacle.hpp"
-#include "obstacle/obstacle_coordinates_map.hpp"
-#include "obstacle/obstacle_course.hpp"
-#include <Eigen/Geometry>
-#include <algorithm>
+#include "axis_transform.hpp"
+#include "controller/arm/arm_MTC/MTC_machine.hpp"
+#include "controller/arm/arm_MTC/MTC_parameter_map.hpp"
+#include "controller/arm/arm_MTC/MTC_preview.hpp"
+#include "controller/arm/arm_MTC/MTC_step.hpp"
+#include "controller/arm/obstacle/obstacle_coordinates_map.hpp"
+#include "controller/arm/obstacle/obstacle_course.hpp"
+#include "controller/arm/obstacle/obstacle_types.hpp"
+
+#include <geometry_msgs/msg/pose.hpp>
+#include <moveit/robot_state/conversions.hpp>
+#include <moveit_msgs/msg/planning_scene.hpp>
+#include <moveit_visual_tools/moveit_visual_tools.h>
+#include <numbers>
+#include <rclcpp/node.hpp>
+#include <rmcs_executor/component.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <sensor_msgs/msg/joy.hpp>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <visualization_msgs/msg/interactive_marker_update.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
+
 #include <array>
-#include <atomic>
 #include <chrono>
-#include <cmath>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <deque>
-#include <geometry_msgs/msg/point.hpp>
-#include <geometry_msgs/msg/pose.hpp>
-#include <moveit/move_group_interface/move_group_interface.hpp>
-#include <moveit/robot_state/conversions.hpp>
-#include <moveit/robot_state/robot_state.hpp>
-#include <moveit_msgs/msg/display_trajectory.hpp>
-#include <moveit_msgs/msg/robot_trajectory.hpp>
-#include <moveit_visual_tools/moveit_visual_tools.h>
+#include <exception>
+#include <memory>
 #include <mutex>
-#include <optional>
-#include <rclcpp/duration.hpp>
-#include <rclcpp/logging.hpp>
-#include <rclcpp/node.hpp>
-#include <rclcpp/subscription.hpp>
-#include <rclcpp/timer.hpp>
-#include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/switch.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
-#include <sensor_msgs/msg/joy.hpp>
 #include <string>
-#include <tf2/LinearMath/Matrix3x3.hpp>
-#include <thread>
-#include <trajectory_msgs/msg/joint_trajectory_point.hpp>
-#include <vector>
-#include <visualization_msgs/msg/interactive_marker_update.hpp>
-#include <visualization_msgs/msg/marker.hpp>
-#include <visualization_msgs/msg/marker_array.hpp>
+#include <variant>
 
 namespace rmcs_core::controller::arm {
 
@@ -49,379 +39,357 @@ class ArmVisual final
     , public rclcpp::Node {
 public:
     ArmVisual()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , action_dictionary_(make_action_parameter_map(get_parameter("action_profile").as_string()))
-        , arm_action_machine_()
-        , move_group_(arm_action_machine_.moveit_group_getter().get())
+        : Node(get_component_name())
+        , P_({0, -1, 0}, {-0.118 - 0.051, 0, -0.208})
+        , Q_({1, 0, 0}, {-0.118 - 0.051, 0, -0.208 - 0.015})
+        , point_place_({1, 0, 0}, {0.11, 0, 0})
+        , mtc_dictionary_(MTC::make_default_dictionary())
+        , mtc_machine_()
+        , preview_(mtc_machine_.robot_model())
         , moveit_visual_tools_(
-              arm_action_machine_.node(), move_group_->getPlanningFrame(),
-              rviz_visual_tools::RVIZ_MARKER_TOPIC, move_group_->getRobotModel())
-        , obstacle_coordinates_map_()
-        , obstacle_course_(move_group_, obstacle_coordinates_map_) {
+              mtc_machine_.node(), mtc_machine_.robot_model()->getModelFrame(),
+              rviz_visual_tools::RVIZ_MARKER_TOPIC, mtc_machine_.robot_model())
+        , obstacle_course_(mtc_machine_.moveit_group_getter().get(), obstacle_coordinates_map_) {
+        initial_setting();
+        initial_scene_ = mtc_machine_.fetch_scene();
+        auto& state = initial_scene_->getCurrentStateNonConst();
+        state.setToDefaultValues();
+        for (const auto* joint_name :
+             {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"})
+            state.setVariablePosition(joint_name, 0.0);
+        state.update();
 
-        moveit_visual_tools_.loadTrajectoryPub("/display_planned_path", false);
+        plan_from_preview_ = declare_parameter<bool>("plan_from_preview", false);
 
-        register_input("/auto_aim/pillar_pose", pillar_pose_, false);
-        register_input("/auto_aim/pillar_pose_sequence", pillar_pose_sequence_, false);
-        register_input("/remote/switch/left", switch_left_, false);
-        register_input("/remote/switch/right", switch_right_, false);
-
-        gui_sub_ = arm_action_machine_.node()->create_subscription<sensor_msgs::msg::Joy>(
-            "/rviz_visual_tools_gui", 100,
-            [this](const sensor_msgs::msg::Joy::ConstSharedPtr msg) { gui_callback(msg); });
-
-        simulated_state_ = std::make_shared<moveit::core::RobotState>(move_group_->getRobotModel());
-        simulated_state_->setToDefaultValues();
-
+        const auto& node = mtc_machine_.node();
         joint_states_pub_ =
-            arm_action_machine_.node()->create_publisher<sensor_msgs::msg::JointState>(
-                "/joint_states", 10);
-        joint_states_timer_ = arm_action_machine_.node()->create_wall_timer(
-            std::chrono::milliseconds(20), [this] { publish_simulated_joint_state(); });
-
-        simulated_state_->update();
-        pose_text_pub_ =
-            arm_action_machine_.node()->create_publisher<visualization_msgs::msg::MarkerArray>(
-                "/rviz_visual_tools", 10);
-        pose_text_timer_ = arm_action_machine_.node()->create_wall_timer(
-            std::chrono::milliseconds(100), [this] { publish_ee_pose_text(); });
-
+            node->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
+        scene_pub_ = node->create_publisher<moveit_msgs::msg::PlanningScene>(
+            "/arm_mtc_preview/planning_scene", rclcpp::QoS(1).reliable().transient_local());
+        ee_pose_pub_ = node->create_publisher<visualization_msgs::msg::MarkerArray>(
+            rviz_visual_tools::RVIZ_MARKER_TOPIC, 10);
+        publish_current_state(std::chrono::steady_clock::now(), true);
+        gui_sub_ = node->create_subscription<sensor_msgs::msg::Joy>(
+            "/rviz_visual_tools_gui", 10,
+            [this](sensor_msgs::msg::Joy::ConstSharedPtr message) { gui_callback(*message); });
         goal_marker_sub_ =
-            arm_action_machine_.node()
-                ->create_subscription<visualization_msgs::msg::InteractiveMarkerUpdate>(
-                    kGoalMarkerTopic, 10,
-                    [this](
-                        const visualization_msgs::msg::InteractiveMarkerUpdate::ConstSharedPtr
-                            msg) { goal_marker_callback(msg); });
-
-        running_.store(true, std::memory_order_release);
-        visual_thread_ = std::thread([this] { visual_loop(); });
+            node->create_subscription<visualization_msgs::msg::InteractiveMarkerUpdate>(
+                kGoalMarkerTopic, 10,
+                [this](visualization_msgs::msg::InteractiveMarkerUpdate::ConstSharedPtr message) {
+                    goal_marker_callback(*message);
+                });
+        timer_ = node->create_wall_timer(std::chrono::milliseconds(20), [this] { preview_tick(); });
     }
 
-    ~ArmVisual() {
-        {
-            std::lock_guard lock(mutex_);
-            quit_ = true;
-        }
-        running_.store(false, std::memory_order_release);
-        cv_.notify_all();
-
-        if (visual_thread_.joinable())
-            visual_thread_.join();
+    ~ArmVisual() override {
+        if (timer_)
+            timer_->cancel();
+        gui_sub_.reset();
+        goal_marker_sub_.reset();
+        mtc_machine_.stop();
     }
 
-    void update() override {
-        if (!pillar_pose_.ready() || !pillar_pose_sequence_.ready()
-            || *pillar_pose_sequence_ == last_pillar_pose_sequence_) {
-            return;
-        }
-
-        last_pillar_pose_sequence_ = *pillar_pose_sequence_;
-        if (!switch_left_.ready() || !switch_right_.ready()
-            || *switch_left_ != rmcs_msgs::Switch::UP
-            || *switch_right_ != rmcs_msgs::Switch::DOWN) {
-            return;
-        }
-
-        const auto& pose = *pillar_pose_;
-        if (!std::ranges::all_of(pose, [](double value) { return std::isfinite(value); })) {
-            RCLCPP_WARN(get_logger(), "Ignoring non-finite pillar pose");
-            return;
-        }
-
-        const Action::PoseTarget target{
-            .x = pose[0],
-            .y = pose[1],
-            .z = pose[2],
-            .roll = pose[3],
-            .pitch = pose[4],
-            .yaw = pose[5],
-        };
-        {
-            std::lock_guard lock(mutex_);
-            pose_targets_pending_.push_back(target);
-        }
-        cv_.notify_one();
-    }
+    void update() override {}
 
 private:
     static constexpr const char* kGoalMarkerTopic =
         "/rviz_moveit_motion_planning_display/robot_interaction_interactive_marker_topic/update";
     static constexpr const char* kGoalMarkerPrefix = "EE:goal";
 
-    void gui_callback(const sensor_msgs::msg::Joy::ConstSharedPtr& msg) {
-        if (msg->buttons.size() > 1 && msg->buttons[1]) {
-            std::lock_guard lock(mutex_);
-            start_pending_ = true;
-            cv_.notify_all();
-        } else if (msg->buttons.size() > 4 && msg->buttons[4]) {
-            std::lock_guard lock(mutex_);
-            reset_pending_ = true;
-            cv_.notify_all();
-        }
+    void initial_setting() {
+        initial_pose_ = {0.050,
+                         -0.200,
+                         0.300,
+                         -std::numbers::pi / 4 * 3,
+                         -std::numbers::pi / 4,
+                         std::numbers::pi / 2};
+        P_result_ = P_.transform(initial_pose_);
+        Q_result_ = Q_.transform(initial_pose_);
+        point_result_ = point_place_.transform(initial_pose_);
+
+        obstacle_course_.set_pose("exchange", initial_pose_);
+        obstacle_course_.set_pose("pillar", initial_pose_);
     }
 
-    void visual_loop() {
-        while (true) {
-            bool start = false;
-            bool reset = false;
-            bool quit = false;
-            std::optional<Action::PoseTarget> target;
-            {
-                std::unique_lock lock(mutex_);
-                cv_.wait(lock, [this] {
-                    return quit_ || start_pending_ || reset_pending_
-                        || !pose_targets_pending_.empty();
-                });
-                quit = quit_;
-                if (reset_pending_) {
-                    reset = true;
-                    reset_pending_ = false;
-                } else if (!pose_targets_pending_.empty()) {
-                    target = pose_targets_pending_.front();
-                    pose_targets_pending_.pop_front();
-                } else {
-                    start = start_pending_;
-                    start_pending_ = false;
-                }
-            }
-            if (quit)
-                break;
-            if (reset) {
-                reset_visual();
-                continue;
-            }
-            if (target) {
-                plan_and_visualize({Action::Step::makePose(*target, Action::MotionParams{})});
-            } else if (start) {
-                plan_and_visualize(action_dictionary_.helper_build_chunk(
-                    {"extract_lf", "extract_mine", "auto_walk"}));
-            }
-        }
-    }
-
-    void plan_and_visualize(const std::vector<Action::Step>& steps) {
-        obstacle_course_.set_operation(
-            "energy_unit_left_back", obstacle::CollisionObjectOperation::IDLE);
-
-        obstacle_course_.apply_collision();
-
-        uint64_t previous_id = 0;
-        if (const auto current = arm_action_machine_.get_trajectory())
-            previous_id = current->request_id;
-
-        arm_action_machine_.process(steps);
-
-        const auto result = wait_for_plan(previous_id);
-        if (!result) {
-            RCLCPP_ERROR(get_logger(), "Timed out waiting for planning result");
-            moveit_visual_tools_.publishText(
-                geometry_msgs::msg::Pose().set__position(
-                    geometry_msgs::msg::Point().set__x(0.3).set__y(0.0).set__z(0.6)),
-                "Planning result timeout", rviz_visual_tools::RED, rviz_visual_tools::XXLARGE);
-            moveit_visual_tools_.trigger();
-            return;
-        }
-        if (!result->plan_success) {
-            RCLCPP_ERROR(get_logger(), "MoveIt returned a failed planning result");
-            moveit_visual_tools_.publishText(
-                geometry_msgs::msg::Pose().set__position(
-                    geometry_msgs::msg::Point().set__x(0.3).set__y(0.0).set__z(0.6)),
-                "Planning failed", rviz_visual_tools::RED, rviz_visual_tools::XXLARGE);
-            moveit_visual_tools_.trigger();
-            return;
-        }
-
-        auto trajectory_msg = build_trajectory_msg(*result);
-        if (trajectory_msg.joint_trajectory.points.empty()) {
-            RCLCPP_WARN(get_logger(), "Empty trajectory");
-            return;
-        }
-
-        moveit_visual_tools_.publishTrajectoryLine(
-            trajectory_msg, move_group_->getRobotModel()->getLinkModel("link_6"),
-            move_group_->getRobotModel()->getJointModelGroup("alliance_arm"),
-            rviz_visual_tools::LIME_GREEN);
-        moveit_visual_tools_.trigger();
-
-        RCLCPP_INFO(get_logger(), "Visualized trajectory");
-    }
-
-    void reset_visual() {
-        moveit_visual_tools_.deleteAllMarkers();
-
-        moveit_msgs::msg::DisplayTrajectory reset_msg;
-        reset_msg.model_id = move_group_->getRobotModel()->getName();
-
-        moveit_msgs::msg::RobotTrajectory reset_trajectory;
-        reset_trajectory.joint_trajectory.joint_names = move_group_->getJointNames();
-        {
-            std::lock_guard lock(state_mutex_);
-            moveit::core::robotStateToRobotStateMsg(*simulated_state_, reset_msg.trajectory_start);
-            trajectory_msgs::msg::JointTrajectoryPoint point;
-            simulated_state_->copyJointGroupPositions("alliance_arm", point.positions);
-            reset_trajectory.joint_trajectory.points.push_back(point);
-        }
-        reset_msg.trajectory.push_back(reset_trajectory);
-
-        moveit_visual_tools_.publishTrajectoryPath(reset_msg);
-        moveit_visual_tools_.trigger();
-
-        RCLCPP_INFO(get_logger(), "Visualization reset");
-    }
-
-    void publish_simulated_joint_state() {
-        sensor_msgs::msg::JointState msg;
-        msg.header.stamp = arm_action_machine_.node()->now();
-        msg.header.frame_id = "rmcs_arm_visual_sim";
-        msg.name = move_group_->getJointNames();
-        msg.position.reserve(msg.name.size());
-        {
-            std::lock_guard lock(state_mutex_);
-            for (const auto& name : msg.name)
-                msg.position.push_back(simulated_state_->getVariablePosition(name));
-        }
-        joint_states_pub_->publish(msg);
-    }
-
-    void goal_marker_callback(
-        const visualization_msgs::msg::InteractiveMarkerUpdate::ConstSharedPtr& msg) {
+    void goal_marker_callback(const visualization_msgs::msg::InteractiveMarkerUpdate& message) {
         std::lock_guard lock(goal_mutex_);
-        for (const auto& marker : msg->markers)
+        for (const auto& name : message.erases)
+            if (name.rfind(kGoalMarkerPrefix, 0) == 0)
+                has_goal_pose_ = false;
+        for (const auto& marker : message.markers)
             if (marker.name.rfind(kGoalMarkerPrefix, 0) == 0) {
                 goal_pose_ = marker.pose;
+                goal_frame_ = marker.header.frame_id;
                 has_goal_pose_ = true;
             }
-        for (const auto& pose : msg->poses)
+        for (const auto& pose : message.poses)
             if (pose.name.rfind(kGoalMarkerPrefix, 0) == 0) {
                 goal_pose_ = pose.pose;
+                goal_frame_ = pose.header.frame_id;
                 has_goal_pose_ = true;
             }
     }
 
-    void publish_ee_pose_text() {
-        Eigen::Vector3d p;
-        double roll, pitch, yaw;
+    void gui_callback(const sensor_msgs::msg::Joy& message) {
+        try {
+            if (message.buttons.size() > 4 && message.buttons[4]) {
+                request_id_ = 0;
+                preview_.reset();
+                moveit_visual_tools_.deleteAllMarkers();
+                moveit_visual_tools_.trigger();
+                force_full_scene_ = true;
+                publish_current_state(std::chrono::steady_clock::now(), true);
+            } else if (message.buttons.size() > 1 && message.buttons[1]) {
+                preview_.cancel();
+                request_id_ = mtc_machine_.process(
+                    mtc_dictionary_.helper_build_chunk(
+                        {"current_start", "extra_left_front", "extra", "tech_core_test",
+                         "tech_core_place", "push", "rotate_P", "rotate_Q"},
+                        {{"unit", "energy_unit_left_front"}},
+                        {
+                            {"tech_core_test_pre_place", MTC::makePoseGoal(
+                                                             {.frame_id = "base_link",
+                                                              .x = point_result_.point.x(),
+                                                              .y = point_result_.point.y(),
+                                                              .z = point_result_.point.z(),
+                                                              .roll = initial_pose_.roll,
+                                                              .pitch = initial_pose_.pitch,
+                                                              .yaw = initial_pose_.yaw})},
+                            {"tech_core_rotate_P",
+                             MTC::makeRotationDirection({
+                                 .frame_id = "base_link",
+                                 .axis_point =
+                                     {P_result_.point.x(), P_result_.point.y(),
+                                      P_result_.point.z()},
+                                 .axis_direction =
+                                     {P_result_.direction.x(), P_result_.direction.y(),
+                                      P_result_.direction.z()},
 
-        geometry_msgs::msg::Pose goal_pose;
-        bool have_goal = false;
-        {
-            std::lock_guard lock(goal_mutex_);
-            have_goal = has_goal_pose_;
-            goal_pose = goal_pose_;
+                             })},
+                            {"tech_core_rotate_Q",
+                             MTC::makeRotationDirection({
+                                 .frame_id = "base_link",
+                                 .axis_point =
+                                     {Q_result_.point.x(), Q_result_.point.y(),
+                                      Q_result_.point.z()},
+                                 .axis_direction =
+                                     {Q_result_.direction.x(), Q_result_.direction.y(),
+                                      Q_result_.direction.z()},
+
+                             })},
+                        }),
+                    plan_from_preview_ ? preview_.scene()
+                                       : planning_scene::PlanningSceneConstPtr{});
+            }
+        } catch (const std::exception& error) {
+            RCLCPP_ERROR(get_logger(), "MTC request failed: %s", error.what());
         }
+    }
 
-        if (have_goal) {
-            p = Eigen::Vector3d(goal_pose.position.x, goal_pose.position.y, goal_pose.position.z);
-            tf2::Matrix3x3(
-                tf2::Quaternion(
-                    goal_pose.orientation.x, goal_pose.orientation.y, goal_pose.orientation.z,
-                    goal_pose.orientation.w))
-                .getRPY(roll, pitch, yaw);
+    void preview_tick() {
+        try {
+            const auto now = std::chrono::steady_clock::now();
+            double elapsed = std::chrono::duration<double>(now - last_tick_).count();
+            last_tick_ = now;
+            bool force_ee_pose = false;
+
+            const auto result = mtc_machine_.get_trajectory();
+            if (result && result->request_id == request_id_
+                && result->request_id != consumed_request_id_) {
+                consumed_request_id_ = result->request_id;
+                if (result->plan_success && result->plan) {
+                    preview_.start(*result->plan);
+                    elapsed = 0.0;
+                    force_full_scene_ = true;
+                    force_ee_pose = true;
+                    publish_plan_trajectory(*result->plan);
+                    RCLCPP_INFO(
+                        get_logger(), "%s", MTC::describe_execution_plan(*result->plan).c_str());
+                } else {
+                    RCLCPP_ERROR(
+                        get_logger(), "MTC planning failed: %s", result->diagnostic.c_str());
+                }
+            }
+
+            const auto previous_status = preview_.status();
+            preview_.advance(elapsed);
+            if (preview_.status() != previous_status) {
+                force_full_scene_ = true;
+                if (preview_.status() == MTC::PreviewStatus::Failed)
+                    RCLCPP_ERROR(
+                        get_logger(), "MTC playback failed: %s", preview_.diagnostic().c_str());
+            }
+
+            publish_current_state(now, force_ee_pose);
+        } catch (const std::exception& error) {
+            preview_.cancel();
+            RCLCPP_ERROR(get_logger(), "MTC preview failed: %s", error.what());
+        }
+    }
+
+    void publish_plan_trajectory(const MTC::ExecutionPlan& plan) {
+        moveit_visual_tools_.deleteAllMarkers();
+
+        const auto* ee_link = mtc_machine_.robot_model()->getLinkModel("link_6");
+        std::size_t line_count = 0;
+        for (const auto& step : plan.steps) {
+            const auto* motion = std::get_if<MTC::MotionSegment>(&step.action);
+            if (!motion)
+                continue;
+            if (motion->trajectory.joint_trajectory.points.empty()) {
+                RCLCPP_WARN(
+                    get_logger(), "Skipping empty trajectory line at %s", step.stage_path.c_str());
+                continue;
+            }
+            const auto* group = mtc_machine_.robot_model()->getJointModelGroup(motion->group);
+            if (moveit_visual_tools_.publishTrajectoryLine(
+                    motion->trajectory, ee_link, group, rviz_visual_tools::LIME_GREEN))
+                ++line_count;
+            else
+                RCLCPP_WARN(
+                    get_logger(), "Failed to publish trajectory line at %s",
+                    step.stage_path.c_str());
+        }
+        moveit_visual_tools_.trigger();
+        RCLCPP_INFO(get_logger(), "Displayed %zu trajectory line(s) from MTC plan", line_count);
+    }
+
+    void publish_current_state(
+        std::chrono::steady_clock::time_point now, bool force_ee_pose = false) {
+        const auto scene = preview_.scene() ? preview_.scene() : initial_scene_;
+        const auto& state = scene->getCurrentState();
+        const std::array<double, 6> joint_angles{
+            state.getVariablePosition("joint_1"), state.getVariablePosition("joint_2"),
+            state.getVariablePosition("joint_3"), state.getVariablePosition("joint_4"),
+            state.getVariablePosition("joint_5"), state.getVariablePosition("joint_6"),
+        };
+        const auto gripper = preview_.gripper_action();
+
+        sensor_msgs::msg::JointState joints;
+        joints.header.stamp = mtc_machine_.node()->now();
+        joints.header.frame_id = "rmcs_arm_visual_sim";
+        joints.name = {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"};
+        joints.position.assign(joint_angles.begin(), joint_angles.end());
+        joint_states_pub_->publish(joints);
+
+        RCLCPP_INFO_THROTTLE(
+            get_logger(), *mtc_machine_.node()->get_clock(), 1000,
+            "MTC preview rad=[%.3f, %.3f, %.3f, %.3f, %.3f, %.3f] gripper=%s", joint_angles[0],
+            joint_angles[1], joint_angles[2], joint_angles[3], joint_angles[4], joint_angles[5],
+            !gripper                               ? "unknown"
+            : *gripper == MTC::GripperAction::Open ? "open"
+                                                   : "close");
+
+        moveit_msgs::msg::PlanningScene scene_message;
+        const bool full_scene = force_full_scene_ || scene_revision_ != preview_.scene_revision()
+                             || now - last_full_scene_ >= std::chrono::seconds(1);
+        if (full_scene) {
+            scene->getPlanningSceneMsg(scene_message);
+            last_full_scene_ = now;
+            scene_revision_ = preview_.scene_revision();
+            force_full_scene_ = false;
         } else {
-            Eigen::Isometry3d tf;
+            scene_message.is_diff = true;
+            moveit::core::robotStateToRobotStateMsg(state, scene_message.robot_state, false);
+            scene_message.robot_state.is_diff = true;
+        }
+        scene_message.robot_state.joint_state.header.stamp = joints.header.stamp;
+        scene_pub_->publish(scene_message);
+
+        if (force_ee_pose || now - last_ee_pose_ >= std::chrono::milliseconds(100)) {
+            geometry_msgs::msg::Pose goal_pose;
+            std::string goal_frame;
+            bool has_goal = false;
             {
-                std::lock_guard lock(state_mutex_);
-                tf = simulated_state_->getGlobalLinkTransform("link_6");
+                std::lock_guard lock(goal_mutex_);
+                has_goal = has_goal_pose_;
+                goal_pose = goal_pose_;
+                goal_frame = goal_frame_;
             }
-            p = tf.translation();
-            Eigen::Quaterniond q(tf.rotation());
-            tf2::Matrix3x3(tf2::Quaternion(q.x(), q.y(), q.z(), q.w())).getRPY(roll, pitch, yaw);
-        }
 
-        char text[160];
-        std::snprintf(
-            text, sizeof(text), "xyz:%.3f,%.3f,%.3f rpy:%.3f,%.3f,%.3f", p.x(), p.y(), p.z(), roll,
-            pitch, yaw);
+            const bool was_published = goal_text_published_;
+            visualization_msgs::msg::Marker marker;
+            marker.header.frame_id =
+                goal_frame.empty() ? mtc_machine_.robot_model()->getModelFrame() : goal_frame;
+            marker.header.stamp = joints.header.stamp;
+            marker.ns = "ee_goal_pose";
+            marker.id = 0;
+            marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+            marker.pose.orientation.w = 1.0;
+            marker.scale.z = 0.05;
+            marker.color.r = 1.0;
+            marker.color.g = 0.5;
+            marker.color.b = 0.0;
+            marker.color.a = 1.0;
 
-        visualization_msgs::msg::Marker marker;
-        marker.header.frame_id = "base_link";
-        marker.header.stamp = arm_action_machine_.node()->now();
-        marker.ns = "ee_pose";
-        marker.id = 0;
-        marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-        marker.action = visualization_msgs::msg::Marker::ADD;
-        marker.pose.position.x = p.x();
-        marker.pose.position.y = p.y();
-        marker.pose.position.z = p.z() + 0.15;
-        marker.pose.orientation.w = 1.0;
-        marker.scale.z = 0.05;
-        marker.color.r = marker.color.g = marker.color.b = marker.color.a = 1.0;
-        marker.text = text;
-
-        visualization_msgs::msg::MarkerArray arr;
-        arr.markers.push_back(marker);
-        pose_text_pub_->publish(arr);
-    }
-
-    std::shared_ptr<const ActionMachine::PlannedTrajectory> wait_for_plan(uint64_t previous_id) {
-        while (running_.load(std::memory_order_acquire)) {
-            const auto result = arm_action_machine_.get_trajectory();
-            if (result && result->request_id > previous_id)
-                return result;
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-        return nullptr;
-    }
-
-    moveit_msgs::msg::RobotTrajectory
-        build_trajectory_msg(const ActionMachine::PlannedTrajectory& result) const {
-        moveit_msgs::msg::RobotTrajectory msg;
-        msg.joint_trajectory.joint_names = move_group_->getJointNames();
-
-        double time_from_start = 0.0;
-        for (const auto& entry : result.step_position_map) {
-            const auto& positions = entry.second;
-            for (std::size_t i = 0; i < positions.size(); ++i) {
-                trajectory_msgs::msg::JointTrajectoryPoint point;
-                point.positions = positions[i];
-                point.time_from_start = rclcpp::Duration::from_seconds(time_from_start);
-                msg.joint_trajectory.points.push_back(std::move(point));
-                time_from_start += 0.1;
+            if (has_goal) {
+                double roll = 0.0;
+                double pitch = 0.0;
+                double yaw = 0.0;
+                tf2::Matrix3x3(
+                    tf2::Quaternion(
+                        goal_pose.orientation.x, goal_pose.orientation.y, goal_pose.orientation.z,
+                        goal_pose.orientation.w))
+                    .getRPY(roll, pitch, yaw);
+                char text[192];
+                std::snprintf(
+                    text, sizeof(text), "xyz:%.3f,%.3f,%.3f\nrpy:%.3f,%.3f,%.3f",
+                    goal_pose.position.x, goal_pose.position.y, goal_pose.position.z, roll, pitch,
+                    yaw);
+                marker.action = visualization_msgs::msg::Marker::ADD;
+                marker.pose = goal_pose;
+                marker.pose.position.z += 0.15;
+                marker.text = text;
+            } else {
+                marker.action = visualization_msgs::msg::Marker::DELETE;
             }
+            goal_text_published_ = has_goal;
+
+            if (has_goal || was_published) {
+                visualization_msgs::msg::MarkerArray markers;
+                markers.markers.push_back(marker);
+                ee_pose_pub_->publish(markers);
+            }
+            last_ee_pose_ = now;
         }
-        return msg;
     }
 
-    ActionDictionary action_dictionary_;
-    ActionMachine arm_action_machine_;
-    moveit::planning_interface::MoveGroupInterface* move_group_;
+    AxisTransform P_;
+    AxisTransform Q_;
+    AxisTransform point_place_;
+
+    AxisTransform::Result P_result_;
+    AxisTransform::Result Q_result_;
+    AxisTransform::Result point_result_;
+    obstacle::Pose initial_pose_ = {0, 0, 0, 0, 0, 0};
+
+    MTC::Dictionary mtc_dictionary_;
+    MTC::Machine mtc_machine_;
+    MTC::PreviewPlayer preview_;
     moveit_visual_tools::MoveItVisualTools moveit_visual_tools_;
     obstacle::ObstacleCoordinatesMap obstacle_coordinates_map_;
     obstacle::ObstacleCourse obstacle_course_;
-
-    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr gui_sub_;
-    std::thread visual_thread_;
-    std::atomic_bool running_{false};
-
-    std::mutex mutex_;
-    std::condition_variable cv_;
-    bool start_pending_{false};
-    bool reset_pending_{false};
-    bool quit_{false};
-    std::deque<Action::PoseTarget> pose_targets_pending_;
-
-    InputInterface<std::array<double, 6>> pillar_pose_;
-    InputInterface<std::uint64_t> pillar_pose_sequence_;
-    InputInterface<rmcs_msgs::Switch> switch_left_;
-    InputInterface<rmcs_msgs::Switch> switch_right_;
-    std::uint64_t last_pillar_pose_sequence_{0};
-
-    moveit::core::RobotStatePtr simulated_state_;
+    planning_scene::PlanningScenePtr initial_scene_;
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_states_pub_;
-    rclcpp::TimerBase::SharedPtr joint_states_timer_;
-
-    std::mutex state_mutex_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pose_text_pub_;
-    rclcpp::TimerBase::SharedPtr pose_text_timer_;
-
+    rclcpp::Publisher<moveit_msgs::msg::PlanningScene>::SharedPtr scene_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr ee_pose_pub_;
+    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr gui_sub_;
     rclcpp::Subscription<visualization_msgs::msg::InteractiveMarkerUpdate>::SharedPtr
         goal_marker_sub_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    std::uint64_t request_id_ = 0;
+    std::uint64_t consumed_request_id_ = 0;
+    std::size_t scene_revision_ = 0;
+    bool force_full_scene_ = true;
+    bool plan_from_preview_ = false;
+    std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point last_full_scene_{};
+    std::chrono::steady_clock::time_point last_ee_pose_{};
     std::mutex goal_mutex_;
     geometry_msgs::msg::Pose goal_pose_;
-    bool has_goal_pose_{false};
+    std::string goal_frame_;
+    bool has_goal_pose_ = false;
+    bool goal_text_published_ = false;
 };
 
 } // namespace rmcs_core::controller::arm

@@ -4,6 +4,7 @@ rmcs_executor:
     components:
 
       # - rmcs_core::hardware::TEST ->test
+      # - rmcs_core::controller::arm::G6618TestController -> g6618_test_controller
 
       # - rmcs::AutoAimPlayerComponent -> auto_aim_player
       # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
@@ -13,13 +14,11 @@ rmcs_executor:
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       # - rmcs::AutoAimComponent -> auto_aim_component
 
+      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
 test:
   ros__parameters:
-    board_serial_arm_board: "D4-2418-9DD3-9A8B-B5BD-DF64-CE71"
-
-arm_visual:
-  ros__parameters:
-    action_profile: lunar_rover
+    board_serial_arm_board: ""
 
 auto_aim_capturer:
   ros__parameters:
@@ -55,3 +54,11 @@ auto_aim_component:
       pitch_tolerance: 0.04
       rune_idle_duration: 0.4
       rune_shoot_duration: 0.2
+
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - "/arm/motor/torque"
+      - "/arm/motor/angle"
+      - "/arm/motor/velocity"

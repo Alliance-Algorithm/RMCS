@@ -6,13 +6,14 @@ from launch import (
     LaunchDescription,
     LaunchDescriptionEntity,
 )
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.actions import LogInfo, IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from moveit_configs_utils import MoveItConfigsBuilder
+
 
 class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
     def visit(
@@ -34,17 +35,34 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         )
 
+        executor_parameters = [
+            os.path.join(
+                FindPackageShare("rmcs_bringup").perform(context),
+                "config",
+                robot_name + ".yaml",
+            )
+        ]
+        if robot_name in ("visual_mining_test", "lunar_rover_engineer", "climber_engineer"):
+            moveit_config = (
+                MoveItConfigsBuilder("arm_description", package_name="arm_moveit_config")
+                .robot_description(file_path="config/arm_description.urdf.xacro")
+                .robot_description_semantic(file_path="config/arm_description.srdf")
+                .robot_description_kinematics(file_path="config/kinematics.yaml")
+                .planning_pipelines(
+                    pipelines=["ompl", "chomp", "pilz_industrial_motion_planner"],
+                    default_planning_pipeline="ompl",
+                )
+                .joint_limits(file_path="config/joint_limits.yaml")
+                .pilz_cartesian_limits(file_path="config/pilz_cartesian_limits.yaml")
+                .to_moveit_configs()
+            )
+            executor_parameters.append(moveit_config.to_dict())
+
         entities.append(
             Node(
                 package="rmcs_executor",
                 executable="rmcs_executor",
-                parameters=[
-                    os.path.join(
-                        FindPackageShare("rmcs_bringup").perform(context),
-                        "config",
-                        robot_name + ".yaml",
-                    ),
-                ],
+                parameters=executor_parameters,
                 respawn=True,
                 respawn_delay=1.0,
                 output="screen",
@@ -53,19 +71,24 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
         demo_launch_path = os.path.join(
             FindPackageShare("arm_moveit_config").perform(context),
             "launch",
-            "demo.launch.py"
+            "demo.launch.py",
         )
-        
+
+        demo_arguments = {"use_rviz": LaunchConfiguration("use_rviz")}
+        if robot_name == "visual_mining_test":
+            demo_arguments.update(
+                {
+                    "rviz_scene_topic": "/arm_mtc_preview/planning_scene",
+                    # Scene playback includes gripper delays and attach/detach boundaries.
+                    "rviz_trajectory_topic": "/arm_mtc_preview/disabled_trajectory",
+                }
+            )
         entities.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(demo_launch_path),
-                launch_arguments={
-                    "use_rviz": LaunchConfiguration("use_rviz")
-                }.items(),
+                launch_arguments=demo_arguments.items(),
             )
         )
-       
-
         return entities
 
 
