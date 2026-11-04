@@ -44,7 +44,6 @@ public:
         register_input("/wheel_leg/state/com_offset", com_offset_);
         register_input("/wheel_leg/dm_control_ready", drives_ready_);
         register_input("/chassis/control_enable", requested_);
-        register_input("/chassis/balance_enable", balance_enabled_);
         register_input("/chassis/control_velocity", command_);
         register_input("/chassis/control_height", height_);
         register_input("/chassis/reset_count", reset_);
@@ -59,6 +58,9 @@ public:
         register_output("/wheel_leg/control/fault", fault_, false);
         register_output("/wheel_leg/recovery/phase", recovery_phase_, 0);
         register_output("/wheel_leg/recovery/fault", recovery_fault_, 0);
+        recovery_.configure_speed_protection(
+            get_parameter_or("self_righting_overspeed_fault_enabled", true),
+            get_parameter_or("self_righting_speed_braking_enabled", true));
         dt_ = get_parameter_or("dt", .001);
         leg_kp_ = get_parameter_or("leg_kp", 160.);
         leg_kd_ = get_parameter_or("leg_kd", 2.5);
@@ -270,8 +272,8 @@ public:
             }
             JointVector effort;
             std::copy_n(output.torque.begin(), 4, effort.begin());
-            effort[4] = *balance_enabled_ ? output.wheel_torque[0] : 0.;
-            effort[5] = *balance_enabled_ ? output.wheel_torque[1] : 0.;
+            effort[4] = output.wheel_torque[0];
+            effort[5] = output.wheel_torque[1];
             write_effort(effort);
             if (output.phase == wheel_leg::SelfRightingCore::Complete) {
                 *phase_ = 3;
@@ -307,7 +309,7 @@ public:
         const auto reference = trajectory_.step(state, motion.velocity, *height_);
         const auto balance = balance_.step(
             state.pitch, gyro_->y(), state.velocity, state.distance, attitude_->z(), gyro_->z(),
-            attitude_->y(), motion.yaw, motion.bank, motion.roll_feedforward, *balance_enabled_,
+            attitude_->y(), motion.yaw, motion.bank, motion.roll_feedforward, true,
             reference.balance_feedforward);
         JointVector target{};
         for (int side = 0; side < 2; ++side) {
@@ -379,7 +381,7 @@ private:
     InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_;
     InputInterface<std::array<double, 2>> knee_, knee_rate_, shank_, shank_rate_, length_;
     InputInterface<double> velocity_, distance_, com_offset_, height_, rate_;
-    InputInterface<bool> valid_, drives_ready_, requested_, balance_enabled_, simulation_;
+    InputInterface<bool> valid_, drives_ready_, requested_, simulation_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> command_;
     InputInterface<std::size_t> reset_;
     std::array<InputInterface<double>, 6> caps_;

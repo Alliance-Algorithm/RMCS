@@ -1,3 +1,4 @@
+#include "wheel_leg/joint_coordinates.hpp"
 #include "wheel_leg/leg_kinematics.hpp"
 #include "wheel_leg/model/mechanics.hpp"
 #include "wheel_leg/policy/selection.hpp"
@@ -30,7 +31,7 @@ public:
         }
         register_input("/wheel_leg/imu/quaternion", orientation_);
         register_input("/wheel_leg/imu/angular_velocity", gyro_);
-        register_input("/wheel_leg/feedback_fresh", fresh_);
+        register_input("/wheel_leg/feedback_available", available_);
         register_input("/chassis/reset_count", reset_);
         register_output("/wheel_leg/state/position", q_, JointVector{});
         register_output("/wheel_leg/state/velocity", dq_, JointVector{});
@@ -46,6 +47,13 @@ public:
         register_output("/wheel_leg/state/distance", distance_output_, 0.);
         register_output("/wheel_leg/state/com_offset", com_offset_, 0.);
         register_output("/wheel_leg/state/base_height", height_, 0.);
+        register_output("/wheel_leg/state/model_offsets", model_offsets_, kMotorOffsets);
+        register_output(
+            "/wheel_leg/state/calibration_sha256", calibration_sha256_,
+            std::string{full_vehicle_calibration110::kCalibrationSha256});
+        register_output(
+            "/wheel_leg/state/calibration_model_spec_sha256", calibration_model_spec_sha256_,
+            std::string{full_vehicle_calibration110::kModelSpecSha256});
         const auto policy = get_parameter_or<std::string>("policy", "traditional");
         bounds_ =
             policy == "traditional" ? kMechanicalBounds : policy_parameters(policy).winding_bounds;
@@ -70,7 +78,7 @@ public:
                 return;
             }
         }
-        if (!*fresh_ || !gyro_->allFinite() || !orientation_->coeffs().allFinite()
+        if (!*available_ || !gyro_->allFinite() || !orientation_->coeffs().allFinite()
             || orientation_->norm() == 0.) {
             initialized_ = false;
             return;
@@ -148,13 +156,15 @@ private:
     std::array<InputInterface<double>, 6> angle_, velocity_;
     InputInterface<Eigen::Quaterniond> orientation_;
     InputInterface<Eigen::Vector3d> gyro_;
-    InputInterface<bool> fresh_;
+    InputInterface<bool> available_;
     InputInterface<std::size_t> reset_;
     OutputInterface<JointVector> q_, dq_;
     OutputInterface<bool> valid_;
     OutputInterface<Eigen::Vector3d> gravity_, attitude_;
     OutputInterface<std::array<double, 2>> knee_, knee_rate_, shank_, shank_rate_, length_;
     OutputInterface<double> forward_velocity_, distance_output_, com_offset_, height_;
+    OutputInterface<LegVector> model_offsets_;
+    OutputInterface<std::string> calibration_sha256_, calibration_model_spec_sha256_;
     wheel_leg::LegLinkage linkage_;
     wheel_leg::WheelLegLegModel model_;
     double dt_ = 0.001, velocity_sign_ = -1., distance_ = 0., last_yaw_ = 0., unwrapped_yaw_ = 0.;

@@ -24,14 +24,18 @@ bool wheel_leg_feedback_fresh(Now read_now, std::int64_t timeout_ns, const Stamp
     return true;
 }
 
-constexpr bool wheel_leg_drive_allowed(
-    bool dr16_fresh, rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool require_request,
-    bool requested, bool allow_spin_switch = false) noexcept {
-    const bool middle = left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::MIDDLE;
-    // The production RL graph opts in and supplies proof of its armed session.
-    const bool spin = allow_spin_switch && require_request && requested
-                   && left == rmcs_msgs::Switch::MIDDLE && right == rmcs_msgs::Switch::DOWN;
-    return dr16_fresh && (middle || spin) && (!require_request || requested);
+template <typename Now, typename... Stamps>
+bool wheel_leg_feedback_available(Now read_now, const Stamps&... stamps) {
+    static_assert(sizeof...(Stamps) > 0);
+    // Availability is the one-time startup gate. Once every channel has
+    // supplied a valid sample, the controller may continue using the last
+    // sample; age remains exposed through wheel_leg_feedback_fresh().
+    const std::array captured{stamps.load(std::memory_order_relaxed)...};
+    const auto now = read_now();
+    for (const auto stamp : captured)
+        if (stamp <= 0 || now < stamp)
+            return false;
+    return true;
 }
 
 class WheelLegDmCommandScheduler {
@@ -84,7 +88,7 @@ private:
 };
 
 // Retry a gated clear/enable system command at 10 Hz in a 500 Hz side slot. The
-// caller validates remote state, drive health and fresh feedback separately.
+// caller validates remote state, drive health and feedback availability separately.
 class WheelLegDmFaultClearScheduler {
 public:
     bool next(bool requested) noexcept {
@@ -109,34 +113,24 @@ struct WheelLegDmPairFeedback {
     int knee_status = -1;
     int hip_fault = -1;
     int knee_fault = -1;
-    bool fresh = false;
+    // True after both motors have supplied at least one valid status frame.
+    // Age is a diagnostic signal and is not an arm/stop gate here.
+    bool available = false;
 };
 
 constexpr bool wheel_leg_dm_pair_safe_to_arm(const WheelLegDmPairFeedback& pair) noexcept {
-    return pair.fresh && pair.hip_fault == 0 && pair.knee_fault == 0
+    return pair.available && pair.hip_fault == 0 && pair.knee_fault == 0
         && (pair.hip_status == 0 || pair.hip_status == 1)
         && (pair.knee_status == 0 || pair.knee_status == 1);
 }
 
 constexpr bool wheel_leg_dm_pair_confirmed_disabled(const WheelLegDmPairFeedback& pair) noexcept {
-    return pair.fresh && pair.hip_fault == 0 && pair.knee_fault == 0 && pair.hip_status == 0
+    return pair.available && pair.hip_fault == 0 && pair.knee_fault == 0 && pair.hip_status == 0
         && pair.knee_status == 0;
 }
 
-// FB is sent as soon as a fresh double-MIDDLE request arrives; an already
-// disabled status is not a precondition for clearing faults or asking for FC.
-// Nonzero torque remains guarded by confirmed enabled feedback and first MIT.
-constexpr bool wheel_leg_normal_enable_request(
-    bool dr16_fresh, rmcs_msgs::Switch left, rmcs_msgs::Switch right, bool require_request,
-    bool requested, bool feedback_fresh, const std::array<WheelLegDmPairFeedback, 2>& pairs,
-    bool allow_spin_switch = false) noexcept {
-    return wheel_leg_drive_allowed(
-               dr16_fresh, left, right, require_request, requested, allow_spin_switch)
-        && feedback_fresh && pairs[0].fresh && pairs[1].fresh;
-}
-
 constexpr bool wheel_leg_dm_pair_enabled(const WheelLegDmPairFeedback& pair) noexcept {
-    return pair.fresh && pair.hip_fault == 0 && pair.knee_fault == 0 && pair.hip_status == 1
+    return pair.available && pair.hip_fault == 0 && pair.knee_fault == 0 && pair.hip_status == 1
         && pair.knee_status == 1;
 }
 

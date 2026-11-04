@@ -160,6 +160,12 @@ public:
         balance_wheel_speed_limit_ = value;
         balance_distance_gain_ = distance_gain;
     }
+    void configure_speed_protection(bool fault_enabled, bool braking_enabled) {
+        if (phase_ != Disabled)
+            throw std::invalid_argument("Configure speed protection while disabled");
+        speed_fault_enabled_ = fault_enabled;
+        speed_braking_enabled_ = braking_enabled;
+    }
     void configure_flip_handoff(double tilt_deg, double gyro, double dwell) {
         if (phase_ != Disabled || !std::isfinite(tilt_deg) || !std::isfinite(gyro)
             || !std::isfinite(dwell) || tilt_deg < 1. || tilt_deg > 60. || gyro <= 0. || gyro > 3.
@@ -289,7 +295,7 @@ public:
                     fail(7);
             }
         for (double v : f.velocity)
-            if (std::abs(v) > settings_.speed_limit + 1e-6)
+            if (speed_fault_enabled_ && std::abs(v) > settings_.speed_limit + 1e-6)
                 fail(3);
         if (phase_ == Fault) {
             out.position.fill(0.);
@@ -512,7 +518,8 @@ public:
             // Keep headroom below it without clipping the acceleration needed
             // to catch a falling body after the wheels first touch the ground.
             for (std::size_t i = 0; i < 2; ++i)
-                if (std::abs(f.wheel_velocity[i]) > balance_wheel_speed_limit_
+                if (speed_braking_enabled_
+                    && std::abs(f.wheel_velocity[i]) > balance_wheel_speed_limit_
                     && out.wheel_torque[i] * f.wheel_velocity[i] > 0.)
                     out.wheel_torque[i] = std::clamp(-.15 * f.wheel_velocity[i], -4.5, 4.5);
             bool quiet = (phase_ == Capture || phase_ == Complete) && segment_done_
@@ -557,8 +564,8 @@ public:
                 integral_[i] = previous_integral;
                 torque = settings_.velocity_gain * error + integral_[i] + feedforward;
             }
-            // Brake before the measured-speed guard; never mask an actual overspeed.
-            if (std::abs(f.velocity[i]) > settings_.speed_limit - .12
+            // Optionally brake before the measured-speed guard; never mask an actual overspeed.
+            if (speed_braking_enabled_ && std::abs(f.velocity[i]) > settings_.speed_limit - .12
                 && torque * f.velocity[i] > 0.) {
                 integral_[i] = previous_integral;
                 out.servo_velocity[i] = 0.;
@@ -934,6 +941,7 @@ private:
     std::size_t program_index_ = 0, lower_side_ = 0;
     double program_hold_time_ = 0., tracking_speed_ = 0., segment_acceleration_ = 0.;
     double balance_wheel_speed_limit_ = 20., balance_distance_gain_ = .98;
+    bool speed_fault_enabled_ = true, speed_braking_enabled_ = true;
     double flip_capture_gravity_z_ = -.85, flip_capture_gyro_ = 2., flip_capture_dwell_ = 0.,
            flip_capture_time_ = 0.;
     double flip_handoff_orbit_limit_ = 0.;
