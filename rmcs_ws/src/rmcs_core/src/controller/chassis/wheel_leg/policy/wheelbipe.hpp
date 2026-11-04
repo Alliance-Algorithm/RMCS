@@ -24,8 +24,7 @@ public:
         const std::array<double, 3>& gyro, const std::array<double, 3>& gravity,
         const std::array<double, 3>& command, double height, const JointVector& previous_action,
         bool) {
-        // V14 clips physical inputs before scaling; raw relative leg positions
-        // are deliberately not wrapped. Its policy order is LH,RH,LK,RK,LW,RW.
+        // Policy order: LH,RH,LK,RK,LW,RW.
         constexpr std::array<std::size_t, 6> order{0, 2, 1, 3, 4, 5};
         const auto bounded = [](double value, float limit) {
             return std::clamp(static_cast<float>(value), -limit, limit);

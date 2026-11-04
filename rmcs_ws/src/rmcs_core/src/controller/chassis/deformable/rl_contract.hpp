@@ -22,8 +22,6 @@ inline double suspension_target(double action, double baseline, double lower, do
     return baseline + action * (action < 0.0 ? baseline - lower : upper - baseline);
 }
 
-// RF, LF, LB, RB order. Encoder odometry uses the same per-leg geometry and
-// regularized least-squares inverse as the training observation, including slip.
 inline Eigen::Vector3d encoder_twist(const Eigen::Vector4d& q, const Eigen::Vector4d& speed) {
     if (!q.array().isFinite().all() || !speed.array().isFinite().all())
         return Eigen::Vector3d::Constant(std::numeric_limits<double>::quiet_NaN());

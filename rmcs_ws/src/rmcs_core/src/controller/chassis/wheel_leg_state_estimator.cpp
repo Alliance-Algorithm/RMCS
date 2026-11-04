@@ -125,7 +125,6 @@ public:
                 + shape[0].axle_z * gravity_->z(),
             wheel_leg::mechanics::kWheelRadius + shape[1].axle_x * gravity_->x()
                 + shape[1].axle_z * gravity_->z());
-        // Same reduced mass model as the traditional estimator; wheel encoders provide velocity.
         const auto rot = [](double a, double x, double z) {
             return std::array{std::cos(a) * x - std::sin(a) * z, std::sin(a) * x + std::cos(a) * z};
         };

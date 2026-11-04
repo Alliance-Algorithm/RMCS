@@ -155,9 +155,6 @@ public:
             fail("wheel-leg state estimate invalid");
             return;
         } else if (!*drives_ready_) {
-            // The hardware already zeroes torque and retries the enable while a
-            // drive is unready, so a short dropout is recoverable. Latch the
-            // fault only once the loss outlives the debounce window.
             const auto now = Clock::now();
             if (!drive_loss_started_)
                 drive_loss_started_ = now;

@@ -46,10 +46,6 @@ public:
         : Node{get_component_name(), node::options()}
         , command_(create_partner_component<Command>(get_component_name() + "_command", *this)) {
         remote_control_ = std::make_unique<device::RemoteControl>(*this);
-        // The gimbal board's IMU publishes the tf tree; the yaw encoder angle
-        // comes from this board's BottomBoard to complete GimbalCenterLink ->
-        // YawLink. It is read through an accessor because one component may not
-        // register both an input and an output under the same interface name.
         register_output("/tf", tf_);
         bottom_board_ = std::make_unique<BottomBoard>(
             *this, *command_, get_parameter("serial_filter_bottom_board").as_string());
@@ -90,8 +86,6 @@ private:
     private:
         WheelLeg& hardware_;
     };
-    // Chassis board: wheels, both DM leg pairs, gimbal yaw (CAN3), feeder and
-    // supercap (CAN0). It also owns the chassis BMI088.
     struct BottomBoard final : librmcs::board::RmcsBoardLite::Callback {
         using Clock = std::chrono::steady_clock;
         using Action = WheelLegDmCommandScheduler::Action;
@@ -117,8 +111,6 @@ private:
                       Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitY()}
                           .toRotationMatrix(),
               }) {
-            // The yaw LkMotor already publishes /gimbal/yaw/angle; the top board
-            // reads it to place YawLink in the tree.
             status.register_output(
                 "/wheel_leg/imu/quaternion", imu_quaternion_, Eigen::Quaterniond::Identity());
             status.register_output(
@@ -135,7 +127,6 @@ private:
             status.register_output(
                 "/wheel_leg/imu/acceleration_sequence", acceleration_sequence_output_,
                 std::uint64_t{0});
-            // Referee serial: same UART and framing as the deformable infantry.
             status.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
@@ -194,9 +185,6 @@ private:
             const bool ready = available && enabled_[0] && enabled_[1] && mit_sent_[0]
                             && mit_sent_[1] && wheel_leg_dm_pair_enabled(pair_feedback(0))
                             && wheel_leg_dm_pair_enabled(pair_feedback(1));
-            // The controller latches a fault on the first unready tick and then
-            // drops the enable request, which disables the drives and erases the
-            // evidence. Capture the cause at the falling edge instead.
             if (ready_ && !ready && requested_snapshot_.load(std::memory_order_relaxed))
                 RCLCPP_WARN(
                     status_.get_logger(), "WheelLeg drive readiness lost: %s",
@@ -217,11 +205,6 @@ private:
             last_reset_ = *reset_count_;
             const std::array pairs{pair_feedback(0), pair_feedback(1)};
             const bool available = feedback_available();
-            // The board owns only the safety interlock: the remote must be live
-            // and must not be commanding a both-down stop. Which switch gesture
-            // arms the chassis is the controller's decision, delivered through
-            // /chassis/control_enable, so the traditional and RL stacks share
-            // this board build without either one leaking its gestures here.
             const bool requested = *enable_request_ && dr16_fresh() && available && !both_down;
             requested_snapshot_.store(requested, std::memory_order_relaxed);
             const std::array requests{requested, requested};
@@ -275,8 +258,7 @@ private:
                 enabled_[side] = requested;
             }
         }
-        // Called with status_mutex_ held. Keeps the labels stable because
-        // .script/remote-status parses them; a missing field prints as '-'.
+        // Called with status_mutex_ held.
         [[nodiscard]] std::string readiness_text() const {
             const auto now = now_ns();
             const auto age_ms = [now](const auto& stamp) {
@@ -306,8 +288,6 @@ private:
             }
             return text.str();
         }
-        // Same keys as the pre-refactor hardware status; the operator's
-        // .script/remote-status table and this block must stay in sync.
         [[nodiscard]] std::string status_text() const {
             const std::lock_guard lock{status_mutex_};
             const auto now = now_ns();
@@ -387,9 +367,6 @@ private:
         }
         void update_feedback_warning() {
             const auto now = now_ns();
-            // The aggregate flag only trips once every channel is stale, so a
-            // single drive dropping off its bus hid behind it. Watch each
-            // channel, and name the first casualty.
             for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
                 const auto stamp = motor_last_ns_[i].load(std::memory_order_relaxed);
                 const bool silent = stamp > 0 && now - stamp >= kChannelSilentNs;
@@ -565,8 +542,7 @@ private:
             gimbal_yaw_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(yaw_zero_point)));
-            // Feeder M3508 drives through an external 27:1 reducer. Mechanical
-            // constants stay in code; only per-robot zero points live in YAML.
+            // Feeder M3508 drives through an external 27:1 reducer.
             feeder_motor_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}.set_reduction_ratio(27.));
             RCLCPP_INFO(
@@ -658,7 +634,6 @@ private:
                     bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp))
                 imu_feedback_.publish(
                     *snapshot, static_cast<std::uint64_t>(now_ns()), data.timestamp_quarter_us);
-            // With an offset, the gyro callback completes the earlier accelerometer sample.
             publish_acceleration_snapshot();
         }
 
@@ -673,7 +648,6 @@ private:
                 || (published_acceleration_time_
                     && acceleration->timestamp <= *published_acceleration_time_))
                 return;
-            // Keep the accelerometer's board tick, even when a later gyro completes correction.
             acceleration_feedback_.publish(
                 *acceleration, static_cast<std::uint64_t>(now_ns()),
                 static_cast<std::uint32_t>(acceleration->timestamp.time_since_epoch().count()));
@@ -715,7 +689,6 @@ private:
             "right_hip_joint", "left_knee_joint", "right_knee_joint"};
         static constexpr std::array<const char*, 6> kChannelBuses{
             "CAN0", "CAN0", "CAN1", "CAN1", "CAN2", "CAN2"};
-        // Report a single silent drive long before the aggregate timeout.
         static constexpr std::int64_t kChannelSilentNs = 100'000'000;
         std::array<bool, 6> channel_silent_{};
         std::array<std::int64_t, 6> channel_silent_since_{};
@@ -727,7 +700,6 @@ private:
         std::int64_t timeout_ns_ = 40'000'000;
         std::array<bool, 2> enabled_{}, mit_sent_{};
         bool ready_ = false;
-        // Written by the command component, read by the status component.
         std::atomic<bool> requested_snapshot_{false};
         WheelLegDmSideSchedulers command_schedulers_;
         WheelLegNormalActionGate normal_action_gate_;
@@ -738,18 +710,14 @@ private:
     };
 
     // Gimbal board: pitch LK4010i10 on CAN0 (0x142), both friction M3508 on
-    // CAN1 sharing one 0x200 frame, and the gimbal-mounted BMI088 that places
-    // PitchLink/YawLink in the tf tree.
+    // CAN1 sharing one 0x200 frame, and the gimbal-mounted BMI088.
     struct TopBoard final : librmcs::board::RmcsBoardLite::Callback {
         TopBoard(WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
             : status_(status)
             , pitch_motor_(status, command, "/gimbal/pitch")
             , left_friction_(status, command, "/gimbal/left_friction")
             , right_friction_(status, command, "/gimbal/right_friction")
-            // Gimbal BMI088: mounted rotated 180 degrees about body Z. That is a
-            // rotation about the gravity axis, so a wrong mount leaves a static
-            // roll/pitch reading correct and only corrupts the yaw-rate bearing;
-            // verify it by pushing the gimbal rather than by reading attitude.
+            // Gimbal BMI088: mounted rotated 180 degrees about body Z.
             , bmi088_(device::Bmi088Ekf::Config{
                   .body_to_sensor =
                       Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
@@ -762,8 +730,6 @@ private:
             pitch_motor_.configure(
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(pitch_zero_point)));
-            // Friction wheels stay at reduction 1.0 like the other infantry
-            // gimbals: the velocity interface is the motor shaft speed.
             left_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reduction_ratio(1.));
             right_friction_.configure(
@@ -792,8 +758,6 @@ private:
             }
             status_.tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 pitch_angle);
-            // The yaw encoder lives on the chassis board and is read here only
-            // to complete GimbalCenterLink -> YawLink.
             if (status_.bottom_board_)
                 status_.tf_->set_state<
                     rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
