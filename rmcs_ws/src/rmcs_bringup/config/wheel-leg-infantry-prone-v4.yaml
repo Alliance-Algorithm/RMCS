@@ -9,18 +9,29 @@ rmcs_executor:
       - rmcs_core::controller::chassis::WheelLegRlController -> wheel_leg_rl_controller
 
       - rmcs_core::controller::chassis::WheelLegObservation -> wheel_leg_observation
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
       - rmcs_rl::RlBridge -> rl_bridge
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      - rmcs_core::broadcaster::WheelLegTelemetry -> wheel_leg_telemetry
+      - rmcs_rl::WheelLegMirrorComponent -> wheel_leg_mirror
 
 wheel_leg:
   ros__parameters:
-    board_serial: ""
+    serial_filter_bottom_board: "AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1"
+    serial_filter_top_board: "AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75"
+    yaw_motor_zero_point: 58379
+    pitch_motor_zero_point: 12637
 
-    imu_to_base: [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
-    imu_position: [0.0, 0.0, 0.0]
-    imu_angular_acceleration_filter_tau_s: 0.01
 
     dm_master_ids: [1, 2, 1, 2]
     dm_mit_position_max: [12.5, 12.5, 12.5, 12.5]
@@ -29,7 +40,94 @@ wheel_leg:
     dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
 
     feedback_timeout_s: 0.04
-    allow_balance_switch: false
+
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.6109 # up 35 deg
+    lower_limit: 0.5236 # down 30 deg
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    output_max: 10.0
+    output_min: -10.0
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 15.0
+    ki: 0.0
+    kd: 0.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 4.4
+    ki: 0.00011
+    kd: 0.0011
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    output_max: 6.0
+    output_min: -6.0
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_torque
+    kp: 12.0
+    ki: 0.0
+    kd: 0.3
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 660.0
+      - 660.0
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 10000
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.20
+    single_shot_max_stop_delay: 2.0
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 1.583
+    ki: 0.0
+    kd: 0.0
 
 wheel_leg_chassis_controller:
   ros__parameters:
@@ -37,6 +135,9 @@ wheel_leg_chassis_controller:
     vy_max: 0.0
     yaw_rate_max: 10.471975511965978
     spin_yaw_rate: 10.471975511965978
+    following_velocity_kp: 8.0
+    following_velocity_ki: 0.0
+    following_velocity_kd: 0.0
 
     deadzone: 0.05
     angular_z_invert: false
@@ -44,11 +145,9 @@ wheel_leg_chassis_controller:
     command_height_min: 0.23
     command_height_max: 0.42
     default_command_height: 0.305
-    height_rate_max: 0.6666666666666666
     height_step: 0.01
-    height_invert: false
 
-    balance_switch: false
+    rotary_knob_step: 0.1
     arm_dwell_seconds: 0.0
 
 wheel_leg_state_estimator:
@@ -116,7 +215,7 @@ rl_bridge:
       - index=4 output=/wheel_leg/rl/raw/left_wheel scale=1.0
       - index=5 output=/wheel_leg/rl/raw/right_wheel scale=1.0
 
-wheel_leg_telemetry:
+wheel_leg_mirror:
   ros__parameters:
     enabled: true
     update_rate: 100.0
@@ -129,7 +228,7 @@ value_broadcaster:
       - /wheel_leg/rl/fault_latched
       - /wheel_leg/feedback_fresh
       - /wheel_leg/dm_control_ready
-      - /wheel_leg/rl/input/frame_sequence
+      # frame_sequence 是 std::size_t，ValueBroadcaster 只转发 double/bool/int/uint8
       - /wheel_leg/recovery/phase
       - /wheel_leg/recovery/fault
       - /wheel_leg/left_hip_joint/status_code
@@ -140,3 +239,11 @@ value_broadcaster:
       - /wheel_leg/right_hip_joint/fault_code
       - /wheel_leg/right_knee_joint/status_code
       - /wheel_leg/right_knee_joint/fault_code
+      # 云台/发射机构遥测：只转发角度与转速，不转发力矩（torque）。
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/left_friction/velocity
+      - /gimbal/right_friction/velocity
+      - /gimbal/bullet_feeder/velocity

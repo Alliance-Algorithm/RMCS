@@ -28,9 +28,12 @@ public:
         status_component.register_output("/chassis/supercap/voltage", supercap_voltage_, 0.0);
         status_component.register_output("/chassis/supercap/enabled", supercap_enabled_, false);
 
-        command_component.register_input("/referee/chassis/output_status", chassis_output_status_);
+        // Both referee interfaces stay optional so a robot without a referee
+        // component can still monitor and drive the supercap.
         command_component.register_input(
-            "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_);
+            "/referee/chassis/output_status", chassis_output_status_, false);
+        command_component.register_input(
+            "/chassis/supercap/charge_power_limit", supercap_charge_power_limit_, false);
     }
 
     void store_status(std::span<const std::byte> can_data) {
@@ -52,9 +55,11 @@ public:
     CanPacket8::Quarter generate_command() const {
         SupercapCommand command;
 
-        command.enabled = *chassis_output_status_;
+        command.enabled = chassis_output_status_.ready() && *chassis_output_status_;
 
-        const double power_limit = *supercap_charge_power_limit_;
+        const double power_limit =
+            supercap_charge_power_limit_.ready() ? *supercap_charge_power_limit_
+                                                 : std::numeric_limits<double>::quiet_NaN();
         if (std::isnan(power_limit))
             command.power_limit = 0;
         else
@@ -67,7 +72,9 @@ public:
         SupercapCommand command;
 
         command.enabled = false;
-        const double power_limit = *supercap_charge_power_limit_;
+        const double power_limit =
+            supercap_charge_power_limit_.ready() ? *supercap_charge_power_limit_
+                                                 : std::numeric_limits<double>::quiet_NaN();
         if (std::isnan(power_limit))
             command.power_limit = 0;
         else
