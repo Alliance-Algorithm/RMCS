@@ -205,8 +205,6 @@ private:
             } else {
                 next_mode = rmcs_msgs::ChassisMode::WIRELESS_CHARGING;
                 save_posture_state_();
-                // Entering wireless charging: force min-angle posture once, regardless of
-                // the current max/min posture. Q can still toggle freely afterwards.
                 current_target_angle_ = min_angle_;
                 active_suspension_base_angle_ = min_angle_;
                 apply_symmetric_target_ = true;

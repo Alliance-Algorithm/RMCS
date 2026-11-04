@@ -34,7 +34,6 @@ inline JointVector model_velocity(const JointVector& api) {
 }
 inline JointVector motor_effort(const JointVector& model) { return model_velocity(model); }
 
-// Restore encoder turns without hiding a measured mechanism violation.
 inline LegVector
     continuous_legs(const LegVector& measured, const LegVector& previous, const LegBounds& bounds) {
     constexpr double tau = 2 * std::numbers::pi;

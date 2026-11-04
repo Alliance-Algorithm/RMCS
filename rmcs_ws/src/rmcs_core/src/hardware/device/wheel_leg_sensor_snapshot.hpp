@@ -18,9 +18,6 @@ struct WheelLegSensorSnapshot {
     std::uint32_t board_quarter_us = 0;
 };
 
-// One librmcs receive callback producer and one executor consumer. Each side owns its slot;
-// exchanging the third slot transfers ownership of the complete sample and its receive metadata.
-// A reader's reference remains valid until its next read(), even if the producer publishes a burst.
 template <typename T>
 class WheelLegSensorMailbox {
 public:
@@ -51,8 +48,6 @@ private:
     std::uint64_t sequence_ = 0;
 };
 
-// The two BMI088 streams share the board clock, but each has its own sample order. Reject repeats
-// before advancing the timebase or EKF: replayed board ticks must not refresh host-side freshness.
 class WheelLegImuSampleClock {
 public:
     using TimePoint = BoardClockLifter::time_point;

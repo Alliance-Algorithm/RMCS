@@ -24,8 +24,6 @@ struct LocalStandingState {
     std::optional<std::uint64_t> source_tick, last_tick;
 };
 
-// Observation only. Continuous wheel-output radians arrive from the driver's
-// high-rate unwrap, after hardware ratio/sign conversion, still in float64.
 class LocalStandingOdometry {
 public:
     void reset() { state_ = {}; }

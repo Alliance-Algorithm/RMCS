@@ -292,7 +292,6 @@ public:
             fail("invalid chassis command");
             return;
         }
-        // The main controller owns ordering and the only final torque producer.
         const auto motion = motion_.step(command_->vector.x(), command_->vector.z());
         const TrajectoryPlanner::State state{
             .wheel_velocity = .5 * ((*dq_)[4] + (*dq_)[5]),
@@ -324,7 +323,6 @@ public:
             target[2 * side] = hip;
             target[2 * side + 1] = crank;
         }
-        // Preserve the previous drive bridge's per-axis turn latch and hysteresis.
         JointVector api{};
         for (int i = 0; i < 4; ++i) {
             const double measured = kMotorOffsets[i] - (*q_)[i];

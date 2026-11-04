@@ -130,8 +130,6 @@ public:
                 throw std::invalid_argument("Recovery pose lies outside its geometry table");
     }
 
-    // Optional measured-state side recovery program. When relative is true,
-    // pose entries mean lower/upper leg, selected once from initial gravity.
     void set_flip_program(std::vector<FlipWaypoint> program, bool relative) {
         if (phase_ != Disabled || program.size() > 64)
             throw std::invalid_argument("Configure a finite flip program while disabled");
@@ -203,8 +201,6 @@ public:
         flip_first_orbit_hold_mask_ = mask;
     }
 
-    // Opt-in measured-pose routes. Legacy finite programs remain available for
-    // comparison; video headings specify an arc, never an encoder calibration.
     void configure_pose_routes(PoseRouteSettings settings) {
         if (phase_ != Disabled)
             throw std::invalid_argument("Configure pose routes while disabled");
@@ -352,9 +348,6 @@ public:
                     begin(pose(settings_.fold_knee, initial_orbit_), reference_);
             }
         }
-        // Route changes consume one measured snapshot. A flipped body is
-        // reclassified before any standing motion; reaching a timed target
-        // alone can never declare an inverted/side route successful.
         const bool was_routing = route_active_;
         if (was_routing)
             update_pose_route(f, dt);
@@ -405,8 +398,6 @@ public:
             }
             std::array<double, 2> angles{};
             double target = flip_step_ % 2 ? settings_.flip_orbit : settings_.sweep_orbit;
-            // A body resting on a different face may not respond to the same
-            // sagittal sweep. Try front/rear support before asymmetric support.
             if (flip_step_ == 3 || flip_step_ == 4)
                 target = flip_step_ == 3 ? 90. : -90.;
             for (std::size_t s = 0; s < 2; ++s)
@@ -419,10 +410,6 @@ public:
                 goal[s * 2 + 1] = folded[s * 2 + 1];
             }
             if (settings_.flip_asymmetry != 0. && std::abs(f.gravity[1]) > .9 && flip_step_ >= 3) {
-                // Exact side lying has no wheel-ground support. Hold the lower
-                // leg while sweeping the upper one, so symmetric inertial
-                // reactions cannot cancel. This remains a bounded candidate,
-                // not a declaration that side recovery is feasible.
                 const std::size_t lower = f.gravity[1] > 0. ? 0 : 1;
                 goal[lower * 2] = reference_[lower * 2];
                 goal[lower * 2 + 1] = reference_[lower * 2 + 1];
@@ -469,9 +456,6 @@ public:
                     std::sin(angle) * f.gravity[0] - std::cos(angle) * f.gravity[2];
                 legs_below = legs_below && downward > .65;
             }
-        // A gravity-aligned flipping leg can already support a wheel while
-        // the chassis is inverted. Dampen rolling rather than leave that
-        // support free to run away; this does not request forward motion.
         if (route_active_ && flip_route() && legs_below && (phase_ == Thrust || phase_ == Sweep))
             for (std::size_t side = 0; side < 2; ++side)
                 out.wheel_torque[side] = std::clamp(-.25 * f.wheel_velocity[side], -4.5, 4.5);
@@ -500,8 +484,6 @@ public:
             const double velocity_gain = (phase_ == Capture || phase_ == Complete)
                                            ? settings_.balance_kv
                                            : std::min(2., settings_.balance_kv);
-            // Only assist planting arcs below the body; spinning wheels during an
-            // overhead or inverted sweep is neither support nor odometry.
             double plant_assist = 0.;
             if (pose_routes_.enabled && phase_ == Plant)
                 plant_assist = .5 * pose_routes_.plant_wheel_assist_nm
@@ -514,9 +496,6 @@ public:
             const double headroom = 4.5 - std::abs(common);
             const double yaw = std::clamp(settings_.yaw_rate_gain * f.gyro[2], -headroom, headroom);
             out.wheel_torque = {common + yaw, -common + yaw};
-            // The identified wheel response reaches about 59 rad/s unloaded.
-            // Keep headroom below it without clipping the acceleration needed
-            // to catch a falling body after the wheels first touch the ground.
             for (std::size_t i = 0; i < 2; ++i)
                 if (speed_braking_enabled_
                     && std::abs(f.wheel_velocity[i]) > balance_wheel_speed_limit_
@@ -564,7 +543,6 @@ public:
                 integral_[i] = previous_integral;
                 torque = settings_.velocity_gain * error + integral_[i] + feedforward;
             }
-            // Optionally brake before the measured-speed guard; never mask an actual overspeed.
             if (speed_braking_enabled_ && std::abs(f.velocity[i]) > settings_.speed_limit - .12
                 && torque * f.velocity[i] > 0.) {
                 integral_[i] = previous_integral;
@@ -578,8 +556,6 @@ public:
             }
             out.torque[i] = std::clamp(torque, -settings_.torque_limit, settings_.torque_limit);
         }
-        // Project motor effort away from the conservative 41..109 degree
-        // command envelope. Gas and passive friction remain physical loads.
         for (std::size_t side = 0; side < 2; ++side) {
             const std::size_t plus = side == 0 ? 1 : 2, minus = side == 0 ? 0 : 3;
             const double delta = f.position[plus] - f.position[minus];
@@ -661,8 +637,6 @@ private:
             knees[lower] = extended;
             append_route(Tuck, knees, initial);
             support = initial;
-            // One lower-leg stroke, with the upper leg tucked at its own
-            // heading. Do not return the lower leg and undo its roll impulse.
             const double direction = f.gravity[0] < -.1 ? -1. : 1.;
             support[lower] += direction * pose_routes_.side_stroke_deg * pi / 180.;
             append_route(Sweep, knees, support);
@@ -674,8 +648,6 @@ private:
                 support[side] = nearest(ground, initial[side]);
             append_route(Clearance, short_legs, support);
             append_route(Thrust, flip_legs, support);
-            // The stroke has explicit winding. A fresh shortest-arc choice
-            // every tick would reverse a lagging leg near the half-turn.
             const double direction = f.gravity[0] > .1 ? -1. : 1.;
             auto lifting = support;
             for (double& angle : lifting)
@@ -697,8 +669,6 @@ private:
             const double support_angle = pose_routes_.support_orbit_deg * pi / 180.;
             const double direction = route_ == Route::ProneFront ? 1. : -1.;
             for (std::size_t side = 0; side < 2; ++side) {
-                // Keep a leg already below the chassis as a support instead
-                // of sweeping it around merely to match the opposite leg.
                 if (below[side]) {
                     travel_knees[side] = extended;
                     overhead[side] = support[side] = initial[side];
@@ -719,8 +689,6 @@ private:
             for (std::size_t side = 0; side < 2; ++side)
                 if (!below[side])
                     landing[side] -= direction * pose_routes_.landing_orbit_deg * pi / 180.;
-            // Keep the support length through the lifting arc. Flex only in
-            // the final landing arc; early flex leaves the chassis on its rim.
             append_route(Plant, long_legs, landing);
             append_route(
                 Plant, {pose_routes_.landing_knee_deg, pose_routes_.landing_knee_deg},
@@ -737,8 +705,6 @@ private:
             && std::hypot(f.gyro[0], f.gyro[1], f.gyro[2]) < pose_routes_.upright_gyro_rad_s;
         route_upright_time_ = upright ? route_upright_time_ + dt : 0.;
         if (flip_route() && route_upright_time_ >= pose_routes_.upright_dwell_seconds) {
-            // Replan from the new measured body and two independent leg
-            // headings. Preserve the continuous motor references and limits.
             integral_.fill(0.);
             start_pose_route(f);
             return;
@@ -752,8 +718,6 @@ private:
             return;
         }
         if (flip_route()) {
-            // A finite stroke can finish before the body settles. Wait for
-            // actual IMU progress, then stop rather than replay indefinitely.
             route_end_wait_ += dt;
             if (route_end_wait_ > 1.)
                 fail(8);
@@ -892,8 +856,6 @@ private:
             for (std::size_t axis = 0; axis < 4; ++axis)
                 error = std::max(error, std::abs(to_[axis] - f.position[axis]));
             if (phase_ == Flip && program_active_ && !preparing_program_ && !arrived && stopped) {
-                // Require lack of net target progress; instantaneous encoder
-                // jitter under load must not keep a blocked motor energized.
                 if (flip_stall_time_ == 0. || error < flip_stall_error_ - .01) {
                     flip_stall_time_ = dt;
                     flip_stall_error_ = error;
@@ -902,10 +864,6 @@ private:
             } else
                 flip_stall_time_ = 0.;
             if (flip_stall_dwell_ > 0. && flip_stall_time_ >= flip_stall_dwell_) {
-                // A stopped, blocked waypoint is not a successful pose or a
-                // contact sensor. Release the accumulated tracking effort and
-                // try the next finite program target from measured encoders.
-                // This rebases only command state, never the physical state.
                 reference_ = from_ = to_ = f.position;
                 reference_velocity_.fill(0.);
                 integral_.fill(0.);

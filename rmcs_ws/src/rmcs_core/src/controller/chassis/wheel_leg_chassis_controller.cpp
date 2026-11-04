@@ -101,9 +101,6 @@ public:
             if (armed_) {
                 const bool spin_edge =
                     l == Switch::MIDDLE && last_right_ == Switch::MIDDLE && r == Switch::DOWN;
-                // Same cycle as the shared chassis controller: the first spin
-                // enters SPIN_FAST, exiting it lands in STEP_DOWN (follow),
-                // so a chassis that never spun does not follow the gimbal.
                 if (spin_edge || (!last_keyboard_.c && keyboard_->c)) {
                     if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST)
                         *mode_ = rmcs_msgs::ChassisMode::STEP_DOWN;
@@ -120,9 +117,6 @@ public:
                     Eigen::Vector2d xy{channel(right_->x()) + keyboard_->w - keyboard_->s, 0.};
                     if (xy.norm() > 1.)
                         xy.normalize();
-                    // Like the shared chassis controller, translation is
-                    // expressed in the gimbal frame: "forward" is where the
-                    // gimbal looks, and the left stick belongs to the gimbal.
                     const auto rotated =
                         Eigen::Rotation2Dd{gimbal_yaw_angle_.ready() ? *gimbal_yaw_angle_ : 0.}
                         * xy;
@@ -147,9 +141,6 @@ public:
                     height += height_step_;
                 else if (!last_keyboard_.e && keyboard_->e)
                     height -= height_step_;
-                // Incremental knob: accumulate travel and spend it one
-                // height_step per rotary_knob_step, so the knob integrates
-                // instead of acting as an absolute position.
                 if (std::isfinite(*rotary_knob_)) {
                     if (!knob_initialized_) {
                         last_knob_ = *rotary_knob_;
@@ -170,8 +161,6 @@ public:
         }
         last_right_ = r;
         last_keyboard_ = *keyboard_;
-        // Track the knob even while disarmed so re-arming never spends travel
-        // that happened with the drives off.
         if (std::isfinite(*rotary_knob_))
             last_knob_ = *rotary_knob_;
     }
