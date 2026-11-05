@@ -232,6 +232,7 @@ rl_bridge:
 
 wheel_leg_mirror:
   ros__parameters:
+    publish_raw_imu: true
     # Telemetry switch only: publishes even when the chassis/DM drives are disabled.
     enabled: true
     update_rate: 100.0
