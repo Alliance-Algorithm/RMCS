@@ -123,6 +123,9 @@ private:
                 "/wheel_leg/imu/acceleration_steady_ns", acceleration_last_output_,
                 std::uint64_t{0});
             status.register_output(
+                "/wheel_leg/imu/acceleration_sample_ns", acceleration_sample_output_,
+                std::uint64_t{0});
+            status.register_output(
                 "/wheel_leg/imu/sequence", imu_sequence_output_, std::uint64_t{0});
             status.register_output(
                 "/wheel_leg/imu/acceleration_sequence", acceleration_sequence_output_,
@@ -600,8 +603,11 @@ private:
             const auto& acceleration = acceleration_feedback_.read();
             *acceleration_sequence_output_ = acceleration.sequence;
             *acceleration_last_output_ = acceleration.steady_ns;
-            if (acceleration.sequence != 0)
+            if (acceleration.sequence != 0) {
                 *imu_acceleration_ = acceleration.value.specific_force_body_mps2;
+                *acceleration_sample_output_ = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    acceleration.value.timestamp.time_since_epoch()).count();
+            }
         }
 
         template <typename Motor, std::size_t N>
@@ -671,7 +677,7 @@ private:
         OutputInterface<Eigen::Quaterniond> imu_quaternion_;
         OutputInterface<Eigen::Vector3d> imu_angular_velocity_, imu_acceleration_;
         OutputInterface<std::uint64_t> acceleration_last_output_, imu_last_output_,
-            imu_sequence_output_, acceleration_sequence_output_;
+            imu_sequence_output_, acceleration_sequence_output_, acceleration_sample_output_;
         OutputInterface<bool>
             feedback_fresh_output_, feedback_available_output_, dm_control_ready_output_,
             dr16_fresh_output_;
