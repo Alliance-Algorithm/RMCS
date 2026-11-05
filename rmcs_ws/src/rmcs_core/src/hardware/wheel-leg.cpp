@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <numbers>
 #include <optional>
 #include <ranges>
 #include <sstream>
@@ -22,16 +23,22 @@
 #include <std_msgs/msg/int32.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
+#include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
+#include <rmcs_utility/ring_buffer.hpp>
 
 #include "hardware/device/bmi088_ekf.hpp"
+#include "hardware/device/board_clock_lifter.hpp"
 #include "hardware/device/can_packet.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
+#include "hardware/device/lk_motor.hpp"
 #include "hardware/device/remote_control.hpp"
+#include "hardware/device/supercap.hpp"
 #include "hardware/device/wheel_leg_sensor_snapshot.hpp"
 #include "hardware/wheel_leg_control.hpp"
 #include "hardware/wheel_leg_imu.hpp"
@@ -48,8 +55,22 @@ public:
         , command_(create_partner_component<Command>(get_component_name() + "_command", *this)) {
         imu_parameters_callback_ = freeze_wheel_leg_imu_parameters(*this);
         remote_control_ = std::make_unique<device::RemoteControl>(*this);
-        board_ =
-            std::make_unique<Board>(*this, *command_, get_parameter("board_serial").as_string());
+        register_output("/tf", tf_);
+
+        // Two-board vehicle: the bottom board carries the legs, wheels, yaw motor,
+        // bullet feeder, supercap and referee link; the top board carries the
+        // gimbal pitch motor, both friction wheels and the gimbal-mounted BMI088.
+        const auto bottom_serial = board_serial_parameter("serial_filter_bottom_board");
+        const auto top_serial = board_serial_parameter("serial_filter_top_board");
+        board_ = std::make_unique<Board>(*this, *command_, bottom_serial);
+        if (top_serial.empty()) {
+            RCLCPP_WARN(
+                get_logger(),
+                "serial_filter_top_board is empty; gimbal board is disabled and no gimbal "
+                "feedback is published");
+        } else {
+            top_board_ = std::make_unique<TopBoard>(*this, *command_, top_serial);
+        }
 
         using Srv = std_srvs::srv::Trigger;
         status_service_ = create_service<Srv>(
@@ -67,12 +88,28 @@ public:
 
     void update() override {
         board_->update();
+        if (top_board_)
+            top_board_->update();
         remote_control_->update();
     }
 
-    void command_update() { board_->command_update(); }
+    void command_update() {
+        board_->command_update();
+        if (top_board_)
+            top_board_->command_update();
+    }
 
 private:
+    // Accept the split-board names first, then fall back to the legacy single
+    // board_serial entry so older configurations keep working.
+    [[nodiscard]] std::string board_serial_parameter(const std::string& name) const {
+        if (has_parameter(name))
+            return get_parameter(name).as_string();
+        if (name == "serial_filter_bottom_board" && has_parameter("board_serial"))
+            return get_parameter("board_serial").as_string();
+        return {};
+    }
+
     class Command : public rmcs_executor::Component {
     public:
         explicit Command(WheelLeg& wheel_leg)
@@ -122,6 +159,9 @@ private:
             , knee_motors_(
                   {status, command, "/wheel_leg/left_knee_joint"},
                   {status, command, "/wheel_leg/right_knee_joint"})
+            , gimbal_yaw_motor_(status, command, "/gimbal/yaw")
+            , feeder_motor_(status, command, "/gimbal/bullet_feeder")
+            , supercap_(status, command)
             , bmi088_(load_wheel_leg_imu_config(status)) {
 
             register_telemetry(status, command);
@@ -132,6 +172,9 @@ private:
             options.dangerously_skip_version_checks =
                 status.get_parameter_or("dangerously_skip_version_checks", false);
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial_filter, options);
+            // Referee link: 115200 baud on the bottom board's first UART.
+            board_->start_transmit().uart_config(Spec::kUarts.kUart0, {.baudrate = 115200});
+            register_referee_link(status);
 
             status_.remote_control_->register_dr16(&dr16_);
         }
@@ -139,6 +182,9 @@ private:
         void update() {
             publish_last_wheel_submission();
             update_motor_status();
+            gimbal_yaw_motor_.update_status();
+            feeder_motor_.update_status();
+            supercap_.update_status();
             publish_motor_feedback();
             publish_imu_feedback();
             publish_drive_readiness();
@@ -168,6 +214,8 @@ private:
                 },
                 *tx_ns_outputs_[4]);
         }
+
+        [[nodiscard]] double yaw_angle() const { return gimbal_yaw_motor_.angle(); }
 
         void calibrate() {
             using rmcs_msgs::Switch;
@@ -401,6 +449,22 @@ private:
                 configure_joint(hip_motors_[side], side, kMotorIds[side]);
                 configure_joint(knee_motors_[side], side + 2, kMotorIds[side]);
             }
+            // Gimbal yaw: LK MG4010Ei10 on CAN3, feedback and command on 0x141.
+            const auto yaw_zero_point =
+                status.get_parameter_or<std::int64_t>("yaw_motor_zero_point", 0);
+            gimbal_yaw_motor_.configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
+                    static_cast<int>(yaw_zero_point)));
+            // Feeder M3508 drives through an external 27:1 reducer and shares the
+            // wheel 0x200 frame on CAN0 as slot 3.
+            feeder_motor_.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}.set_reduction_ratio(
+                    27.0));
+            RCLCPP_INFO(
+                status_.get_logger(),
+                "Gimbal yaw MG4010Ei10: kCan3 0x141, zero point %d; feeder M3508: kCan0 0x200 "
+                "slot 3, reduction 27",
+                static_cast<int>(yaw_zero_point));
             RCLCPP_INFO(
                 status_.get_logger(), "DM Master IDs [LH,RH,LK,RK]=[%u,%u,%u,%u]",
                 static_cast<unsigned>(feedback_ids[0]), static_cast<unsigned>(feedback_ids[1]),
@@ -643,8 +707,21 @@ private:
                 device::CanPacket8::PaddingQuarter{},
                 device::CanPacket8::PaddingQuarter{},
             };
+            // M3508 IDs 1/2 are the wheels and ID 3 is the feeder: one 0x200 frame.
+            wheel_packet << feeder_motor_;
             builder.can_transmit(
                 Spec::kCans.kCan0, {.can_id = 0x200, .can_data = wheel_packet.as_bytes()});
+            auto supercap_packet = device::CanPacket8{
+                device::CanPacket8::PaddingQuarter{}, device::CanPacket8::PaddingQuarter{},
+                device::CanPacket8::PaddingQuarter{}, supercap_.generate_command()};
+            builder.can_transmit(
+                Spec::kCans.kCan0, {.can_id = 0x1FE, .can_data = supercap_packet.as_bytes()});
+            builder.can_transmit(
+                Spec::kCans.kCan3,
+                {
+                    .can_id = 0x141,
+                    .can_data = gimbal_yaw_motor_.generate_torque_command().as_bytes(),
+                });
             const auto wheel_bytes = wheel_packet.as_bytes();
             const auto wheel_tx_ns = static_cast<std::uint64_t>(now_ns());
             for (std::size_t i = 0; i < 2; ++i) {
@@ -818,30 +895,57 @@ private:
                 [[unlikely]]
                 return;
 
-            if (can == Spec::kCans.kCan0)
-                store_motor_feedback(wheel_motors_, 0, data);
-            else if (can == Spec::kCans.kCan1)
+            if (can == Spec::kCans.kCan0) {
+                // The supercap answers on the chassis CAN bus with its own frame id.
+                if (data.can_id == 0x300) {
+                    supercap_.store_status(data.can_data);
+                    return;
+                }
+                if (!store_motor_feedback(wheel_motors_, 0, data))
+                    feeder_motor_.match_then_store_status(data.can_id, data.can_data);
+            } else if (can == Spec::kCans.kCan1)
                 store_motor_feedback(hip_motors_, 2, data);
             else if (can == Spec::kCans.kCan2)
                 store_motor_feedback(knee_motors_, 4, data);
+            else if (can == Spec::kCans.kCan3 && data.can_id == 0x141)
+                gimbal_yaw_motor_.store_status(data.can_data);
         }
 
         template <typename Motor, std::size_t N>
-        void store_motor_feedback(Motor (&motors)[N], std::size_t offset, const View::Can& data) {
+        bool store_motor_feedback(Motor (&motors)[N], std::size_t offset, const View::Can& data) {
             for (std::size_t side = 0; side < N; ++side) {
                 if (!motors[side].matches_feedback(data.can_id, data.can_data))
                     continue;
                 const auto index = offset + side;
                 motor_feedback_[index].publish(
                     device::CanPacket8{data.can_data}, static_cast<std::uint64_t>(now_ns()));
-                return;
+                return true;
             }
+            return false;
+        }
+
+        void register_referee_link(WheelLeg& status) {
+            status.register_output("/referee/serial", referee_serial_);
+            referee_serial_->read = [this](std::byte* buffer, size_t size) {
+                return referee_ring_buffer_receive_.pop_front_n(
+                    [&buffer](std::byte byte) noexcept { *buffer++ = byte; }, size);
+            };
+            referee_serial_->write = [this](const std::byte* buffer, size_t size) {
+                board_->start_transmit().uart_transmit(
+                    Spec::kUarts.kUart0, {.uart_data = std::span<const std::byte>{buffer, size}});
+                return size;
+            };
         }
 
         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
             if (uart == Spec::kUarts.kDbus && data.uart_data.size() == 18) {
                 dr16_.store_status(data.uart_data.data(), data.uart_data.size());
                 dr16_last_ns_.store(now_ns(), std::memory_order::relaxed);
+            } else if (uart == Spec::kUarts.kUart0) {
+                const std::byte* ptr = data.uart_data.data();
+                referee_ring_buffer_receive_.emplace_back_n(
+                    [&ptr](std::byte* storage) noexcept { *storage = *ptr++; },
+                    data.uart_data.size());
             }
         }
 
@@ -919,6 +1023,11 @@ private:
         device::DjiMotor wheel_motors_[2];
         device::DmMotor hip_motors_[2];
         device::DmMotor knee_motors_[2];
+        device::LkMotor gimbal_yaw_motor_;
+        device::DjiMotor feeder_motor_;
+        device::Supercap supercap_;
+        rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
+        OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;
         device::Dr16 dr16_;
         device::Bmi088Ekf bmi088_;
         device::WheelLegImuSampleClock imu_sample_clock_;
@@ -956,9 +1065,118 @@ private:
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
 
+    // Gimbal board: pitch LK MG4010Ei10 on CAN0 (0x142), both friction M3508 on
+    // CAN1 sharing one 0x200 frame, and the gimbal-mounted BMI088.
+    struct TopBoard final : librmcs::board::RmcsBoardLite::Callback {
+        TopBoard(WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
+            : status_(status)
+            , pitch_motor_(status, command, "/gimbal/pitch")
+            , left_friction_(status, command, "/gimbal/left_friction")
+            , right_friction_(status, command, "/gimbal/right_friction")
+            // Gimbal BMI088: mounted rotated 180 degrees about body Z.
+            , bmi088_(
+                  device::Bmi088Ekf::Config{
+                      .body_to_sensor =
+                          Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
+                              .toRotationMatrix(),
+                  }) {
+            status.register_output("/gimbal/yaw/velocity_imu", yaw_velocity_, 0.0);
+            status.register_output("/gimbal/pitch/velocity_imu", pitch_velocity_, 0.0);
+            const auto pitch_zero_point =
+                status.get_parameter_or<std::int64_t>("pitch_motor_zero_point", 0);
+            pitch_motor_.configure(
+                device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
+                    static_cast<int>(pitch_zero_point)));
+            // Friction wheels run on the bare motor shaft (external wheel, no gearbox):
+            // left is M3508 id 2 and right is id 1, both behind the 0x200 frame.
+            left_friction_.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reduction_ratio(
+                    1.));
+            right_friction_.configure(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}.set_reduction_ratio(
+                    1.));
+            auto options = librmcs::board::AdvancedOptions{};
+            options.dangerously_skip_version_checks =
+                status.get_parameter_or("dangerously_skip_version_checks", true);
+            board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial, options);
+            RCLCPP_INFO(
+                status.get_logger(),
+                "Gimbal pitch MG4010Ei10: kCan0 0x142, zero point %d; friction M3508: kCan1 "
+                "0x200 ids [2,1]",
+                static_cast<int>(pitch_zero_point));
+        }
+
+        void update() {
+            pitch_motor_.update_status();
+            left_friction_.update_status();
+            right_friction_.update_status();
+
+            const double pitch_angle = pitch_motor_.angle();
+            if (const auto snapshot = bmi088_.snapshot()) {
+                *yaw_velocity_ = snapshot->gyro_body.z();
+                *pitch_velocity_ = snapshot->gyro_body.y();
+                status_.tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                    snapshot->orientation.conjugate());
+            }
+            status_.tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
+                pitch_angle);
+            status_.tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+                status_.board_->yaw_angle());
+        }
+
+        void command_update() {
+            auto builder = board_->start_transmit();
+            builder.can_transmit(
+                Spec::kCans.kCan0,
+                {
+                    .can_id = 0x142,
+                    .can_data = pitch_motor_.generate_torque_command().as_bytes(),
+                });
+            // Left friction is ID 2 and right is ID 1; both share 0x200.
+            auto friction = device::CanPacket8{std::uint64_t{0}};
+            friction << right_friction_ << left_friction_;
+            builder.can_transmit(
+                Spec::kCans.kCan1, {.can_id = 0x200, .can_data = friction.as_bytes()});
+        }
+
+        void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
+            if (data.is_extended_can_id || data.is_remote_transmission || data.can_data.size() != 8)
+                return;
+            if (can == Spec::kCans.kCan0) {
+                if (data.can_id == 0x142)
+                    pitch_motor_.store_status(data.can_data);
+            } else if (can == Spec::kCans.kCan1) {
+                if (!left_friction_.match_then_store_status(data.can_id, data.can_data))
+                    right_friction_.match_then_store_status(data.can_id, data.can_data);
+            }
+        }
+
+        void accelerometer_receive_callback(const View::ImuAccelerometer& data) override {
+            const auto timestamp = board_clock_lifter_.advance_timebase(data.timestamp_quarter_us);
+            bmi088_.push_accelerometer_sample(data.x, data.y, data.z, timestamp);
+        }
+
+        void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
+            const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
+            if (!timestamp.has_value())
+                return;
+            bmi088_.try_update_with_gyroscope_sample(data.x, data.y, data.z, *timestamp);
+        }
+
+        WheelLeg& status_;
+        OutputInterface<double> yaw_velocity_, pitch_velocity_;
+        device::LkMotor pitch_motor_;
+        device::DjiMotor left_friction_, right_friction_;
+        device::Bmi088Ekf bmi088_;
+        device::BoardClockLifter board_clock_lifter_;
+        std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
+    };
+
     std::unique_ptr<device::RemoteControl> remote_control_;
     std::shared_ptr<Command> command_;
+    OutputInterface<rmcs_description::Tf> tf_;
     std::unique_ptr<Board> board_;
+    std::unique_ptr<TopBoard> top_board_;
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr imu_parameters_callback_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr calibrate_subscription_;
     std::shared_ptr<rclcpp::Service<std_srvs::srv::Trigger>> status_service_;

@@ -21,7 +21,14 @@ rmcs_executor:
     - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 wheel_leg:
   ros__parameters:
-    board_serial: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    # Two-board vehicle: the bottom board carries the legs, wheels, gimbal yaw,
+    # feeder, supercap and referee link; the top board carries gimbal pitch,
+    # both friction wheels and the gimbal-mounted BMI088.
+    serial_filter_bottom_board: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    serial_filter_top_board: AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75
+    # Gimbal encoder zero points measured on this vehicle.
+    yaw_motor_zero_point: 58379
+    pitch_motor_zero_point: 12637
     # Same board/firmware compatibility option as current RMCS @ 524595dd.
     dangerously_skip_version_checks: true
     imu_to_base: [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
