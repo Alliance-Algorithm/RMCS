@@ -15,7 +15,7 @@ bool wheel_leg_feedback_fresh(Now read_now, std::int64_t timeout_ns, const Stamp
     const std::array captured{stamps.load(std::memory_order_relaxed)...};
     const auto now = read_now();
     for (const auto stamp : captured) {
-        if (stamp <= 0 || now < stamp || now - stamp >= timeout_ns)
+        if (stamp <= 0 || now < stamp || (timeout_ns > 0 && now - stamp >= timeout_ns))
             return false;
     }
     return true;
