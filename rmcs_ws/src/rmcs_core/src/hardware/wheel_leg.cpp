@@ -154,9 +154,18 @@ private:
             command.register_input("/wheel_leg/enable_request", enable_request_);
             command.register_input("/chassis/reset_count", reset_count_);
             const double timeout = status.get_parameter_or("feedback_timeout_s", .04);
-            if (!std::isfinite(timeout) || timeout <= 0. || timeout > 1.)
-                throw std::invalid_argument("feedback_timeout_s must be finite and in (0,1]");
+            if (!std::isfinite(timeout) || timeout < 0. || timeout > 1.)
+                throw std::invalid_argument("feedback_timeout_s must be finite and in [0,1]");
             timeout_ns_ = static_cast<std::int64_t>(timeout * 1e9);
+            if (timeout == 0.)
+                RCLCPP_INFO(
+                    status.get_logger(),
+                    "WheelLeg CAN feedback age check disabled; startup availability and "
+                    "per-channel logging remain");
+            else
+                RCLCPP_INFO(
+                    status.get_logger(), "WheelLeg CAN feedback age warning threshold: %.1f ms",
+                    timeout * 1e3);
             configure_motors(status);
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = true;
@@ -301,8 +310,12 @@ private:
                  << ", dr16 fresh: " << dr16_fresh() << ", dm enable requested [L,R]: ["
                  << static_cast<int>(enabled_[0]) << ',' << static_cast<int>(enabled_[1]) << ']'
                  << ", dm control ready: " << ready_
-                 << ", dm feedback available: " << feedback_available()
-                 << ", joint mode: torque):\n";
+                 << ", dm feedback available: " << feedback_available();
+            if (timeout_ns_ == 0)
+                text << ", CAN age check: disabled";
+            else
+                text << std::format(", CAN age warning: {:.1f} ms", timeout_ns_ / 1e6);
+            text << ", joint mode: torque):\n";
             text << "  switches [left,right]: [" << static_cast<int>(dr16_.switch_left()) << ','
                  << static_cast<int>(dr16_.switch_right()) << "] (down=2, middle=3)"
                  << std::format(", IMU age={:.1f} ms", age_ms(imu_last_ns_))
