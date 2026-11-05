@@ -1,6 +1,6 @@
+#include "wheel_leg/capture.hpp"
 #include "wheel_leg/joint_solver.hpp"
 #include "wheel_leg/policy/selection.hpp"
-#include "wheel_leg/self_righting.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 namespace rmcs_core::controller::chassis {
+static_assert(wheel_leg::kRecoveryModelSpecSha256 == kModelSpecSha256);
 class WheelLegRlController final
     : public rmcs_executor::Component
     , public rclcpp::Node
@@ -24,13 +25,16 @@ public:
     WheelLegRlController()
         : Node{get_component_name(), node::options()}
         , policy_(policy_parameters(get_parameter("policy").as_string()))
-        , recovery_(wheel_leg::make_self_righting()) {
+        , recovery_config_(recovery_configuration())
+        , recovery_(recovery_config_)
+        , support_observer_(wheel_leg::recovery_leg_geometry(), recovery_config_.dt) {
         register_input("/wheel_leg/state/position", q_);
         register_input("/wheel_leg/state/velocity", dq_);
         register_input("/wheel_leg/state/valid", valid_);
         register_input("/wheel_leg/state/gravity", gravity_);
         register_input("/wheel_leg/state/attitude", attitude_);
         register_input("/wheel_leg/imu/angular_velocity", gyro_);
+        register_input("/wheel_leg/imu/acceleration", acceleration_);
         register_input("/wheel_leg/dm_control_ready", drives_ready_);
         register_input("/chassis/control_enable", requested_);
         register_input("/chassis/control_velocity", command_);
@@ -68,9 +72,6 @@ public:
         register_output("/wheel_leg/recovery/fault", recovery_fault_, 0);
         register_output("/wheel_leg/recovery/capture_ready", recovery_capture_ready_, false);
         register_output("/wheel_leg/recovery/capture_blockers", recovery_capture_blockers_, 0);
-        recovery_.configure_speed_protection(
-            get_parameter_or("self_righting_overspeed_fault_enabled", true),
-            get_parameter_or("self_righting_speed_braking_enabled", true));
         timeout_ = get_parameter_or("inference_timeout", .06);
         drive_loss_debounce_ =
             std::chrono::duration<double>(get_parameter_or("drive_loss_debounce", .1));
@@ -165,44 +166,8 @@ public:
         } else {
             drive_loss_started_.reset();
         }
-        const bool pd_due = !last_pd_ || *tick_ - *last_pd_ >= 5;
-        if (*state_ == 4) {
-            if (pd_due) {
-                wheel_leg::SelfRightingCore::Feedback input;
-                std::copy_n(q_->begin(), 4, input.position.begin());
-                std::copy_n(dq_->begin(), 4, input.velocity.begin());
-                input.spring_compensation = wheel_leg::recovery_v202::compensation(input.position);
-                for (int i = 0; i < 3; ++i) {
-                    input.gravity[i] = (*gravity_)[i];
-                    input.gyro[i] = (*gyro_)[i];
-                }
-                input.wheel_velocity = {(*dq_)[4], (*dq_)[5]};
-                recovery_output_ = recovery_.step(input, .005, true);
-                *recovery_phase_ = recovery_output_.phase;
-                *recovery_fault_ = recovery_output_.fault;
-                if (recovery_output_.phase == wheel_leg::SelfRightingCore::Fault) {
-                    *recovery_capture_ready_ = false;
-                    *recovery_capture_blockers_ = capture_blockers();
-                    fail("self-righting protection");
-                    return;
-                }
-                JointVector torque;
-                std::copy_n(recovery_output_.torque.begin(), 4, torque.begin());
-                torque[4] = recovery_output_.wheel_torque[0];
-                torque[5] = recovery_output_.wheel_torque[1];
-                if (!write_effort(torque))
-                    return;
-                last_pd_ = *tick_;
-            }
-            const bool captured = capture_ready();
-            *recovery_capture_ready_ = captured;
-            *recovery_capture_blockers_ = capture_blockers();
-            if (!captured) {
-                if (*policy_enable_)
-                    fail("capture lost while awaiting policy");
-                return;
-            }
-        }
+        // Run inference throughout recovery, as a shadow policy. Only the script
+        // owns the actuators until measured dynamic capture accepts a fresh action.
         if (!*policy_enable_) {
             *policy_enable_ = true;
             wait_started_ = Clock::now();
@@ -233,12 +198,6 @@ public:
             accepted_sequence_ = *action_sequence_;
             accepted_stamp_ = *action_stamp_;
             have_target_ = true;
-            if (*state_ == 4) {
-                *state_ = 3;
-                last_pd_.reset();
-                *recovery_capture_ready_ = false;
-                *recovery_capture_blockers_ = 0;
-            }
         }
         const auto now = Clock::now();
         const double age = have_target_
@@ -249,7 +208,66 @@ public:
             fail("policy result timeout");
             return;
         }
-        if (have_target_ && (!last_pd_ || *tick_ - *last_pd_ >= 5)) {
+        if (*state_ == 3 && recovery_started_ && -gravity_->z() < std::cos(std::numbers::pi / 4.)) {
+            *recovery_fault_ = 5;
+            fail("self-righting lost upright after RL takeover");
+            return;
+        }
+        const bool pd_due = !last_pd_ || *tick_ - *last_pd_ >= 5;
+        if (!pd_due)
+            return;
+        if (*state_ == 4) {
+            if (!acceleration_->allFinite()) {
+                fail("invalid self-righting acceleration");
+                return;
+            }
+            auto feedback = support_observer_.observe(
+                Eigen::Map<const wheel_leg::JointReferenceRecoveryVector6>{q_->data()},
+                Eigen::Map<const wheel_leg::JointReferenceRecoveryVector6>{dq_->data()}, *gravity_,
+                *gyro_, *acceleration_,
+                recovery_started_ ? recovery_.command().phase
+                                  : wheel_leg::JointReferenceRecoveryPhase::kSelect);
+            if (!feedback.q.allFinite()) {
+                fail("invalid self-righting feedback");
+                return;
+            }
+            if (!recovery_started_) {
+                recovery_.reset(feedback.q);
+                recovery_started_ = true;
+            }
+            *recovery_capture_blockers_ = wheel_leg::recovery_capture_blockers(
+                feedback, *acceleration_, recovery_config_.nominal);
+            *recovery_capture_ready_ = *recovery_capture_blockers_ == 0;
+            feedback.rl_capture_ready = *recovery_capture_ready_ && have_target_;
+            const auto& recovery_command = recovery_.update(feedback);
+            *recovery_phase_ = static_cast<int>(recovery_command.phase);
+            *recovery_fault_ = recovery_command.failure_code;
+            if (recovery_command.failed) {
+                fail("self-righting script failed");
+                return;
+            }
+            feedback.wheel_probe_torque = support_observer_.probe_command(
+                recovery_command.scripted && recovery_command.release_finished);
+            if (!recovery_command.pure_rl) {
+                const auto native_torque =
+                    recovery_.torques(feedback, wheel_leg::JointReferenceRecoveryVector6::Zero());
+                JointVector torque;
+                std::copy_n(native_torque.data(), 6, torque.begin());
+                if (!write_effort(torque))
+                    return;
+                last_pd_ = *tick_;
+                return;
+            }
+            // The actor owns all six axes in this very PD tick. Its next command
+            // update also accepts driver motion, without a static standing dwell.
+            *state_ = 3;
+            last_command_tick_.reset();
+            update_command();
+            if (*fault_)
+                return;
+            RCLCPP_INFO(get_logger(), "Self-righting handover: policy owns all six axes");
+        }
+        if (have_target_) {
             const auto torque = JointSolver::pd(
                 target_, *q_, *dq_, policy_.leg_kp, policy_.leg_kd, policy_.gas_gain);
             if (!write_effort(torque))
@@ -262,6 +280,21 @@ public:
 
 private:
     using Clock = std::chrono::steady_clock;
+    wheel_leg::JointReferenceRecoveryConfig recovery_configuration() {
+        auto config = wheel_leg::make_recovery_config();
+        config.prepare_speed_rad_s = get_parameter_or("self_righting.fold_plant_speed_rad_s", 6.);
+        config.insert_speed_rad_s = get_parameter_or("self_righting.insert_speed_rad_s", 10.);
+        config.orbit_speed_rad_s = get_parameter_or("self_righting.orbit_speed_rad_s", 6.);
+        config.push_speed_rad_s = get_parameter_or("self_righting.push_speed_rad_s", 4.);
+        config.capture_speed_rad_s = get_parameter_or("self_righting.capture_speed_rad_s", 4.);
+        config.side_speed_rad_s = get_parameter_or("self_righting.side_speed_rad_s", 6.);
+        if (config.prepare_speed_rad_s > 6. || config.insert_speed_rad_s > 10.
+            || config.orbit_speed_rad_s > 6. || config.push_speed_rad_s > 4.
+            || config.capture_speed_rad_s > 4. || config.side_speed_rad_s > 6.)
+            throw std::invalid_argument(
+                "Recovery reference speed exceeds dev/wheel_leg_rl profile");
+        return config;
+    }
     void reset_runtime() {
         for (auto& output : effort_)
             *output = 0.;
@@ -285,7 +318,10 @@ private:
         drive_loss_started_.reset();
         action_starved_logged_ = false;
         heading_.reset();
-        recovery_.reset();
+        recovery_.reset(wheel_leg::JointReferenceRecoveryVector6::Zero(), false);
+        support_observer_.reset();
+        recovery_started_ = false;
+        target_ = pending_history_ = JointVector{};
     }
     void fail(const char* reason) {
         RCLCPP_ERROR(get_logger(), "Wheel-leg RL stopped: %s", reason);
@@ -312,32 +348,6 @@ private:
         for (int i = 0; i < 6; ++i)
             *effort_[i] = api[i];
         return true;
-    }
-    static constexpr int kCapturePhase = 1 << 0;
-    static constexpr int kCaptureGravity = 1 << 1;
-    static constexpr int kCaptureGyro = 1 << 2;
-    static constexpr int kCaptureWheelVelocity = 1 << 3;
-    static constexpr int kCaptureLegVelocity = 1 << 4;
-    static constexpr int kCaptureTarget = 1 << 5;
-    int capture_blockers() const {
-        int blockers = 0;
-        if (recovery_output_.phase != wheel_leg::SelfRightingCore::Complete)
-            blockers |= kCapturePhase;
-        if (gravity_->z() >= -.9903)
-            blockers |= kCaptureGravity;
-        if (gyro_->head<2>().norm() >= .35)
-            blockers |= kCaptureGyro;
-        const auto target = action_target(policy_, JointVector{}, *q_);
-        for (int i = 0; i < 6; ++i)
-            if (std::abs((*dq_)[i]) >= (i < 4 ? .6 : 2.))
-                blockers |= i < 4 ? kCaptureLegVelocity : kCaptureWheelVelocity;
-        for (int i = 0; i < 4; ++i)
-            if (std::abs(target[i] - (*q_)[i]) >= .25)
-                blockers |= kCaptureTarget;
-        return blockers;
-    }
-    bool capture_ready() const {
-        return capture_blockers() == 0;
     }
     void update_command() {
         const std::size_t divisor = static_cast<std::size_t>(1000. / policy_.policy_hz);
@@ -374,7 +384,7 @@ private:
     }
     const PolicyParameters& policy_;
     InputInterface<JointVector> q_, dq_;
-    InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_;
+    InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_, acceleration_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> command_;
     InputInterface<rmcs_msgs::ChassisMode> mode_;
     InputInterface<double> height_, rate_, action_valid_, healthy_, policy_rate_;
@@ -390,8 +400,10 @@ private:
     OutputInterface<double> policy_height_;
     OutputInterface<int> state_, recovery_phase_, recovery_fault_, recovery_capture_blockers_;
     OutputInterface<bool> recovery_capture_ready_;
-    wheel_leg::SelfRightingCore recovery_;
-    wheel_leg::SelfRightingCore::Output recovery_output_;
+    const wheel_leg::JointReferenceRecoveryConfig recovery_config_;
+    wheel_leg::JointReferenceRecoveryController recovery_;
+    wheel_leg::ClosedChainSupportObserver support_observer_;
+    bool recovery_started_ = false;
     JointVector target_{}, pending_history_{};
     std::optional<std::size_t> last_pd_, last_command_tick_;
     std::optional<Clock::time_point> wait_started_, drive_loss_started_;
@@ -402,7 +414,7 @@ private:
     bool action_starved_logged_ = false;
     double timeout_, height_rate_;
     bool heading_hold_, recovery_enabled_, simulation_guarded_ = false, have_target_ = false,
-        schedule_checked_ = false;
+                                           schedule_checked_ = false;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

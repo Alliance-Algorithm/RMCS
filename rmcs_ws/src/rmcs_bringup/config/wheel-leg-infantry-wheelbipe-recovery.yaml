@@ -91,9 +91,13 @@ wheel_leg_rl_controller:
       enabled: true
       simulation_only: false
       hardware_mapping_verified: true
-    # 刹车开、超速故障关：落地单帧尖峰不会锁存 fault 3。
-    self_righting_overspeed_fault_enabled: false
-    self_righting_speed_braking_enabled: true
+      # dev/wheel_leg_rl reference rates (rad/s); dynamic RL capture, no standing dwell.
+      fold_plant_speed_rad_s: 6.0
+      insert_speed_rad_s: 10.0
+      orbit_speed_rad_s: 6.0
+      push_speed_rad_s: 4.0
+      capture_speed_rad_s: 4.0
+      side_speed_rad_s: 6.0
     drive_loss_debounce: 0.1
 
 wheel_leg_observation:
@@ -270,7 +274,7 @@ value_broadcaster:
 value_collector:
   ros__parameters:
     # 轮腿全过程记录（1000 Hz executor，每 5 拍落一行 → 200 Hz）
-    # 共 95 个信号 / 161 列（含 index），约 19 MB/分钟，/tmp 若是 tmpfs 请注意容量。
+    # 包含逐轴收帧时间/序号与机身比力，便于区分反馈停更和机械卡滞。
     # 列名规则：标量=信号名；Eigen::Vector3d=name/x,y,z；Quaterniond=name/w,x,y,z；
     # 6 维向量=name[0..5]，顺序固定为 left_hip, left_knee, right_hip, right_knee,
     # left_wheel, right_wheel；2 维向量=name[0], name[1]（左、右腿）。
@@ -290,6 +294,8 @@ value_collector:
       # --- 四个驱动腿关节（DM8009）：反馈 / 下发力矩 / 驱动状态 / 策略原始动作 ---
       - /wheel_leg/left_hip_joint/angle
       - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/feedback_steady_ns
+      - /wheel_leg/left_hip_joint/feedback_sequence
       - /wheel_leg/left_hip_joint/torque
       - /wheel_leg/left_hip_joint/control_torque
       - /wheel_leg/left_hip_joint/max_torque
@@ -301,6 +307,8 @@ value_collector:
 
       - /wheel_leg/left_knee_joint/angle
       - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/feedback_steady_ns
+      - /wheel_leg/left_knee_joint/feedback_sequence
       - /wheel_leg/left_knee_joint/torque
       - /wheel_leg/left_knee_joint/control_torque
       - /wheel_leg/left_knee_joint/max_torque
@@ -312,6 +320,8 @@ value_collector:
 
       - /wheel_leg/right_hip_joint/angle
       - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/feedback_steady_ns
+      - /wheel_leg/right_hip_joint/feedback_sequence
       - /wheel_leg/right_hip_joint/torque
       - /wheel_leg/right_hip_joint/control_torque
       - /wheel_leg/right_hip_joint/max_torque
@@ -323,6 +333,8 @@ value_collector:
 
       - /wheel_leg/right_knee_joint/angle
       - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/feedback_steady_ns
+      - /wheel_leg/right_knee_joint/feedback_sequence
       - /wheel_leg/right_knee_joint/torque
       - /wheel_leg/right_knee_joint/control_torque
       - /wheel_leg/right_knee_joint/max_torque
@@ -335,6 +347,8 @@ value_collector:
       # --- 两个驱动轮（DJI）：反馈 / 下发力矩 / 温度 / 策略原始动作 ---
       - /wheel_leg/left_wheel/angle
       - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/feedback_steady_ns
+      - /wheel_leg/left_wheel/feedback_sequence
       - /wheel_leg/left_wheel/torque
       - /wheel_leg/left_wheel/control_torque
       - /wheel_leg/left_wheel/max_torque
@@ -343,6 +357,8 @@ value_collector:
 
       - /wheel_leg/right_wheel/angle
       - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/feedback_steady_ns
+      - /wheel_leg/right_wheel/feedback_sequence
       - /wheel_leg/right_wheel/torque
       - /wheel_leg/right_wheel/control_torque
       - /wheel_leg/right_wheel/max_torque
@@ -367,6 +383,11 @@ value_collector:
       # --- IMU ---
       - /wheel_leg/imu/quaternion
       - /wheel_leg/imu/angular_velocity
+      - /wheel_leg/imu/last_steady_ns
+      - /wheel_leg/imu/sequence
+      - /wheel_leg/imu/acceleration
+      - /wheel_leg/imu/acceleration_steady_ns
+      - /wheel_leg/imu/acceleration_sequence
 
       # --- RL 闭环：输入 / 施加动作 / 观测帧 / 推理链路 ---
       - /wheel_leg/rl/applied_action
