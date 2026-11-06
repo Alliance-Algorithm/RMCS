@@ -1,12 +1,18 @@
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
 #include "controller/pid/pid_calculator.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
+#include <mutex>
+#include <numbers>
+#include <sstream>
 #include <string>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/keyboard.hpp>
@@ -42,6 +48,27 @@ public:
         get_parameter_or("pitch_velocity_ff_gain", pitch_velocity_ff_gain_, 0.0);
         get_parameter_or("pitch_acceleration_ff_gain", pitch_acceleration_ff_gain_, 0.0);
         get_parameter_or("ctrl_hold_pitch_target_angle", ctrl_hold_pitch_target_angle_, 0.0);
+
+        get_parameter_or("yaw_smc_J", yaw_smc_J_, 0.20);
+        get_parameter_or("yaw_smc_c", yaw_smc_c_, 22.0);
+        get_parameter_or("yaw_smc_epsilon", yaw_smc_epsilon_, 40.0);
+        get_parameter_or("yaw_smc_k", yaw_smc_k_, 5.0);
+        get_parameter_or("yaw_smc_phi", yaw_smc_phi_, 1.2);
+        get_parameter_or("yaw_smc_torque_limit", yaw_smc_torque_limit_, 6.0);
+        if (yaw_smc_phi_ <= 1e-6) {
+            RCLCPP_WARN(get_logger(), "[SMC] yaw_smc_phi <= 0, fallback to 1e-3");
+            yaw_smc_phi_ = 1e-3;
+        }
+        if (yaw_smc_torque_limit_ <= 0.0) {
+            RCLCPP_WARN(get_logger(), "[SMC] yaw_smc_torque_limit <= 0, fallback to 6.0");
+            yaw_smc_torque_limit_ = 6.0;
+        }
+
+        RCLCPP_INFO(
+            get_logger(),
+            "[SMC] yaw 滑模控制: J=%.4f c=%.1f eps=%.1f k=%.1f phi=%.3f limit=%.2f",
+            yaw_smc_J_, yaw_smc_c_, yaw_smc_epsilon_, yaw_smc_k_, yaw_smc_phi_,
+            yaw_smc_torque_limit_);
     }
 
     auto update() -> void override {
@@ -78,17 +105,25 @@ public:
 
         const auto trajectory_ff = trajectory_feedforward(auto_aim_active);
 
+        // yaw轴原 PID 双环（角度环 → 速度环）已停用，原始代码保留在此：
+        //     if (!std::isfinite(angle_error.yaw_angle_error)) {
+        //         yaw_angle_pid_.reset();
+        //         yaw_velocity_pid_.reset();
+        //         *output_.yaw_control_torque = kNaN;
+        //     } else {
+        //         const auto yaw_velocity_ref = yaw_angle_pid_.update(angle_error.yaw_angle_error)
+        //                                     + trajectory_ff.yaw_ref_velocity;
+        //         *output_.yaw_control_torque =
+        //             yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu)
+        //             + trajectory_ff.yaw_velocity + trajectory_ff.yaw_acceleration;
+        //     }
         if (!std::isfinite(angle_error.yaw_angle_error)) {
-            yaw_angle_pid_.reset();
-            yaw_velocity_pid_.reset();
             *output_.yaw_control_torque = kNaN;
         } else {
-            const auto yaw_velocity_ref = yaw_angle_pid_.update(angle_error.yaw_angle_error)
-                                        + trajectory_ff.yaw_ref_velocity;
-            *output_.yaw_control_torque =
-                yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu)
-                + trajectory_ff.yaw_velocity + trajectory_ff.yaw_acceleration;
+            *output_.yaw_control_torque = calculate_yaw_control_torque(
+                angle_error.yaw_angle_error, trajectory_ff, auto_aim_active);
         }
+        // ===================== [SMC] end =====================
 
         if (!ctrl_hold_active_) {
             if (!std::isfinite(angle_error.pitch_angle_error)) {
@@ -141,6 +176,7 @@ private:
             component.register_input("/predefined/update_rate", update_rate, false);
 
             component.register_input("/gimbal/pitch/angle", pitch_angle);
+            component.register_input("/gimbal/yaw/angle", yaw_angle);
             component.register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu);
             component.register_input("/gimbal/pitch/velocity_imu", pitch_velocity_imu);
 
@@ -160,6 +196,7 @@ private:
         InputInterface<double> update_rate;
 
         InputInterface<double> pitch_angle;
+        InputInterface<double> yaw_angle;
         InputInterface<double> yaw_velocity_imu;
         InputInterface<double> pitch_velocity_imu;
 
@@ -179,6 +216,7 @@ private:
             component.register_output("/gimbal/pitch/control_angle", pitch_control_angle, kNaN);
             component.register_output("/gimbal/yaw/control_angle_error", yaw_angle_error, kNaN);
             component.register_output("/gimbal/pitch/control_angle_error", pitch_angle_error, kNaN);
+            // [SMC] 测试记录输出
         }
 
         OutputInterface<double> yaw_control_torque;
@@ -319,6 +357,32 @@ private:
         }
     }
 
+    auto update_rate_value() const -> double { return 1.0 / update_dt(); }
+
+    static auto wrap_to_pi(double x) -> double {
+        return std::remainder(x, 2.0 * std::numbers::pi);
+    }
+
+    auto calculate_yaw_control_torque(
+        double solver_error, const TrajectoryFeedforward& trajectory_ff, bool auto_aim_active)
+        -> double {
+        // 目标角速度：自瞄用视觉前馈，手动用摇杆速率
+        double target_velocity = auto_aim_active ? trajectory_ff.yaw_ref_velocity
+                                                 : manual_yaw_shift() * update_rate_value();
+        target_velocity = std::clamp(target_velocity, -kMaxTargetVelocity, kMaxTargetVelocity);
+
+        const double error = solver_error;
+        const double velocity_error = *input_.yaw_velocity_imu - target_velocity;
+        const double s = yaw_smc_c_ * (-error) + velocity_error;
+
+        // 实车拿不到精确目标角加速度，故不加 J·a* 惯量前馈
+        double torque = -yaw_smc_J_
+                          * (yaw_smc_c_ * velocity_error
+                             + yaw_smc_epsilon_ * std::tanh(s / yaw_smc_phi_) + yaw_smc_k_ * s)
+                      + trajectory_ff.yaw_velocity + trajectory_ff.yaw_acceleration;
+        return std::clamp(torque, -yaw_smc_torque_limit_, yaw_smc_torque_limit_);
+    }
+
     auto reset_control_outputs() -> void {
         yaw_angle_pid_.reset();
         yaw_velocity_pid_.reset();
@@ -382,6 +446,16 @@ private:
     bool suspension_on_by_switch_ = false;
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     bool ctrl_hold_active_ = false;
+
+
+    double yaw_smc_J_ = 0.0125;
+    double yaw_smc_c_ = 50.0;
+    double yaw_smc_epsilon_ = 60.0;
+    double yaw_smc_k_ = 10.0;
+    double yaw_smc_phi_ = 1.5;
+    double yaw_smc_torque_limit_ = 6.0;
+    static constexpr double kMaxTargetVelocity = 20.0; // rad/s，防止异常输入
+    
 };
 
 } // namespace rmcs_core::controller::gimbal
