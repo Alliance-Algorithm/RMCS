@@ -153,7 +153,7 @@ wheel_leg_state_estimator:
   ros__parameters:
     policy: traditional
     dt: 0.001
-    velocity_sign: -1.0
+    velocity_sign: 1.0
 
 wheel_leg_controller:
   ros__parameters:
