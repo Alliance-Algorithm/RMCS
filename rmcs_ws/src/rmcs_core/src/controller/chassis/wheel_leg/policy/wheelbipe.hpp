@@ -1,5 +1,6 @@
 #pragma once
 #include "parameters.hpp"
+#include <cstdint>
 #include <optional>
 namespace rmcs_core::controller::chassis {
 inline constexpr PolicyParameters kWheelbipe{
