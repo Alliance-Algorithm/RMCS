@@ -23,11 +23,10 @@ inline JointReferenceRecoveryConfig make_recovery_config() {
     config.rl_nominal = Eigen::Map<const JointReferenceRecoveryVector6>{kNominalPosition.data()};
     const SelfRightingCore::Axes support{
         config.support[0], config.support[1], config.support[2], config.support[3]};
-    const auto spring = recovery_v202::compensation(support);
     const auto weight = recovery_v202::support_compensation(
         support, {0, -0.0045574624965667261, -0.99998961471386916});
     for (int i = 0; i < 4; ++i)
-        config.support[i] += (spring[i] + weight[i]) / 60.;
+        config.support[i] += weight[i] / 60.;
     config.dt = .005;
     config.blend_seconds = 0.;
     config.dynamic_takeover = true;

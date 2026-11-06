@@ -1,5 +1,6 @@
 #include "recovery.hpp"
 
+#include "gas_spring.hpp"
 #include "model/body_geometry.hpp"
 
 #include <algorithm>
@@ -738,8 +739,11 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::torques(
         return JointReferenceRecoveryVector6::Zero();
     const Vector6f q = project_feedback(feedback.q).cast<float>();
     const Vector6f dq = feedback.dq.cast<float>();
+    const auto spring = gas_spring_compensation({q[0], q[1], q[2], q[3]}, 1.);
     Vector6f script;
     script.head<4>() = 60.0f * (targets_.head<4>() - q.head<4>()) - 2.0f * dq.head<4>();
+    for (int i = 0; i < 4; ++i)
+        script[i] += static_cast<float>(spring.torque[i]);
     script.tail<2>() =
         0.6f * (targets_.tail<2>() - dq.tail<2>()) + feedback.wheel_probe_torque.cast<float>();
     script.head<4>() = script.head<4>().cwiseMax(-40.0f).cwiseMin(40.0f);
