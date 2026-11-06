@@ -8,6 +8,9 @@
   <class type="rmcs_core::hardware::ClimberEngineer" base_class_type="rmcs_executor::Component">
     <description>Climber engineer hardware.</description>
   </class>
+  <class type="rmcs_core::hardware::AdjustableHeavy" base_class_type="rmcs_executor::Component">
+    <description>Adjustable heavy hardware.</description>
+  </class>
   <class type="rmcs_core::controller::arm::ArmConfig" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
