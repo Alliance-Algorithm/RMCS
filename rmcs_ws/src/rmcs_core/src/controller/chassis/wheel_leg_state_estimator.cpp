@@ -58,7 +58,7 @@ public:
         bounds_ =
             policy == "traditional" ? kMechanicalBounds : policy_parameters(policy).winding_bounds;
         dt_ = get_parameter_or("dt", .001);
-        velocity_sign_ = get_parameter_or("velocity_sign", -1.);
+        velocity_sign_ = get_parameter_or("velocity_sign", 1.);
         if (!std::isfinite(dt_) || dt_ <= 0. || (velocity_sign_ != 1. && velocity_sign_ != -1.))
             throw std::invalid_argument("Invalid state estimator timing or velocity sign");
     }
@@ -144,7 +144,7 @@ public:
             / (wheel_leg::mechanics::kBodyMass + wheel_leg::mechanics::kThighMass
                + wheel_leg::mechanics::kShankMass + wheel_leg::mechanics::kWheelMass);
         *forward_velocity_ =
-            velocity_sign_ * wheel_leg::mechanics::kWheelRadius * .5 * (speed[4] + speed[5]);
+            velocity_sign_ * wheel_leg::mechanics::kWheelRadius * .5 * (speed[4] - speed[5]);
         distance_ += *forward_velocity_ * dt_;
         *distance_output_ = distance_;
         initialized_ = true;
@@ -166,7 +166,7 @@ private:
     OutputInterface<std::string> calibration_sha256_, calibration_model_spec_sha256_;
     wheel_leg::LegLinkage linkage_;
     wheel_leg::WheelLegLegModel model_;
-    double dt_ = 0.001, velocity_sign_ = -1., distance_ = 0., last_yaw_ = 0., unwrapped_yaw_ = 0.;
+    double dt_ = 0.001, velocity_sign_ = 1., distance_ = 0., last_yaw_ = 0., unwrapped_yaw_ = 0.;
     std::size_t last_reset_ = 0;
     LegBounds bounds_ = kMechanicalBounds;
     bool initialized_ = false;

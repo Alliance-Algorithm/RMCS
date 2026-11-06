@@ -30,7 +30,6 @@ enum RecoveryCaptureBlocker {
     kCaptureReference = 1 << 5,
     kCaptureHinge = 1 << 6,
     kCaptureSupportingAcceleration = 1 << 7,
-    kCaptureShell = 1 << 8,
     kCaptureOutwardTilt = 1 << 9,
 };
 
@@ -66,8 +65,6 @@ inline int recovery_capture_blockers(
     }
     if (acceleration.dot(-g) < 6.)
         blockers |= kCaptureSupportingAcceleration;
-    if (feedback.estimated_height + .003 < body_geometry::support_depth(g.cast<float>()))
-        blockers |= kCaptureShell;
     if (-g.z() < std::cos(std::numbers::pi / 6.)
         && g.x() * feedback.gyro.y() - g.y() * feedback.gyro.x() > .05 * std::hypot(g.x(), g.y()))
         blockers |= kCaptureOutwardTilt;
