@@ -114,7 +114,7 @@ deformable_infantry:
     serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
     chassis_radius: 0.2341741
     rod_length: 0.140
-    yaw_motor_zero_point: 47488
+    yaw_motor_zero_point: 57459
     pitch_motor_zero_point: 6630
 
 chassis_controller:
@@ -177,15 +177,15 @@ gimbal_controller:
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    yaw_angle_kp: 10.0
-    yaw_angle_ki: 0.0
-    yaw_angle_kd: 0.0
+    # yaw_angle_kp: 10.0
+    # yaw_angle_ki: 0.0
+    # yaw_angle_kd: 0.0
 
-    yaw_velocity_kp: 13.0
-    yaw_velocity_ki: 0.02
-    yaw_velocity_kd: 0.0
-    yaw_velocity_integral_min: -5.0
-    yaw_velocity_integral_max: 5.0
+    # yaw_velocity_kp: 13.0
+    # yaw_velocity_ki: 0.02
+    # yaw_velocity_kd: 0.0
+    # yaw_velocity_integral_min: -5.0
+    # yaw_velocity_integral_max: 5.0
 
     pitch_angle_kp: 35.0
     pitch_angle_ki: 0.02
