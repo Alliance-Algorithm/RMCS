@@ -91,13 +91,13 @@ wheel_leg_rl_controller:
       enabled: true
       simulation_only: false
       hardware_mapping_verified: true
-      # dev/wheel_leg_rl reference rates (rad/s); dynamic RL capture, no standing dwell.
-      fold_plant_speed_rad_s: 6.0
-      insert_speed_rad_s: 10.0
-      orbit_speed_rad_s: 6.0
-      push_speed_rad_s: 4.0
-      capture_speed_rad_s: 4.0
-      side_speed_rad_s: 6.0
+      # Recovery reference rates capped at 2 rad/s; dynamic RL capture, no standing dwell.
+      fold_plant_speed_rad_s: 2.0
+      insert_speed_rad_s: 2.0
+      orbit_speed_rad_s: 2.0
+      push_speed_rad_s: 2.0
+      capture_speed_rad_s: 2.0
+      side_speed_rad_s: 2.0
     drive_loss_debounce: 0.1
 
 wheel_leg_observation:
@@ -236,7 +236,6 @@ rl_bridge:
 
 wheel_leg_mirror:
   ros__parameters:
-    publish_raw_imu: true
     # Telemetry switch only: publishes even when the chassis/DM drives are disabled.
     enabled: true
     update_rate: 100.0

@@ -8,11 +8,6 @@
 
 namespace rmcs_core::controller::chassis::wheel_leg {
 
-// Ported from dev/wheel_leg_rl @ 0fcc9b45 (FSM and wheel/PD arithmetic).
-// Native references: 2778206b5905c2760ccc381f2592b08e1cad611a,
-// wheeled_tasks/chassis/{recovery,recovery_training}.py. Deployment uses a
-// single side stroke and direct measured capture. Public six-vectors use chassis
-// order LH, LA, RH, RA, LW, RW; angles and efforts are output-side.
 using JointReferenceRecoveryVector6 = Eigen::Matrix<double, 6, 1>;
 
 enum class JointReferenceRecoveryPhase : std::uint8_t {
@@ -58,12 +53,12 @@ struct JointReferenceRecoveryConfig {
     bool release_motion_on_takeover = false;
     double stable_seconds = 1.0;
     double max_script_seconds = 8.0;
-    double prepare_speed_rad_s = 1.0;
-    double insert_speed_rad_s = 8.0;
-    double push_speed_rad_s = 4.0;
-    double orbit_speed_rad_s = 4.0;
-    double capture_speed_rad_s = 4.0;
-    double side_speed_rad_s = 6.0;
+    double prepare_speed_rad_s = 2.0;
+    double insert_speed_rad_s = 2.0;
+    double push_speed_rad_s = 2.0;
+    double orbit_speed_rad_s = 2.0;
+    double capture_speed_rad_s = 2.0;
+    double side_speed_rad_s = 2.0;
     double side_angle_rad = std::numbers::pi / 2.0;
     double plant_angle_rad = std::numbers::pi / 9.0;
     double orbit_turns = 1.0;
@@ -193,6 +188,7 @@ private:
     bool phase_reached_(const StepContext& step, double seconds) const;
     float phase_elapsed_() const;
     void enter_(JointReferenceRecoveryPhase phase);
+    void start_upright_(bool grounded);
     void start_thrust_(const Vector4f& reference);
     void fail_(int code);
     void reset_fsm_(const Vector6f& q, bool active);

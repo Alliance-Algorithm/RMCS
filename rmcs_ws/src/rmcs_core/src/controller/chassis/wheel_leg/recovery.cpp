@@ -202,6 +202,18 @@ void JointReferenceRecoveryController::fail_(int code) {
     motion_released_ = false;
 }
 
+void JointReferenceRecoveryController::start_upright_(bool grounded) {
+    route_ = JointReferenceRecoveryRoute::kUpright;
+    grounded_start_ = grounded;
+    push_off_required_ = grounded;
+    orbit_angle_ = 0.0f;
+    unsupported_ticks_ = 0;
+    durations_.unsupported = 0.0;
+    fold_anchor_ =
+        shape_at_heading_(config_.insertion_fold.cast<float>(), continuous_q_.head<4>());
+    enter_(grounded ? JointReferenceRecoveryPhase::kFold : JointReferenceRecoveryPhase::kCapture);
+}
+
 void JointReferenceRecoveryController::start_thrust_(const Vector4f& reference) {
     Vector4f goal = config_.thrust.cast<float>();
     if (push_off_required_) {
@@ -305,6 +317,20 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
     if (enabled_ && phase_ != JointReferenceRecoveryPhase::kFailed) {
         ++phase_ticks_;
         durations_.phase += dt;
+    }
+
+    const bool overturning = route_ == JointReferenceRecoveryRoute::kOrbitPositive
+                          || route_ == JointReferenceRecoveryRoute::kOrbitNegative
+                          || route_ == JointReferenceRecoveryRoute::kSide;
+    if (enabled_ && config_.dynamic_takeover && overturning
+        && phase_ > JointReferenceRecoveryPhase::kSelect
+        && phase_ < JointReferenceRecoveryPhase::kBlend && tilt < radians(30.0)) {
+        // IMU upright detection ends the overturning stroke before another
+        // reference step. Finish with the same fold/insertion as a prone start;
+        // never reselect the old revolution after this one-way route change.
+        start_upright_(
+            !feedback.support
+            || height < body_geometry::support_depth(gravity) + kPushOffClearance);
     }
 
     const bool recapturable = phase_ == JointReferenceRecoveryPhase::kPrepare
@@ -433,10 +459,10 @@ JointReferenceRecoveryController::JointGoal
     if (planting) {
         goal =
             push_off_required_ ? config_.insertion_fold.cast<float>() : config_.fold.cast<float>();
-        if (push_off_required_ && !folded_()) {
-            goal = shape_at_heading_(goal, targets_.head<4>());
-        } else if (push_off_required_) {
-            goal = insert_anchor_ - continuous_pitch_ * axes.cwiseInverse();
+        if (push_off_required_) {
+            // Insertion is relative to the now-upright body. An accumulated
+            // IMU revolution from the overturning stroke must not add a new turn.
+            goal = insert_anchor_ - pitch * axes.cwiseInverse();
         } else if (std::abs(gravity.y()) < 0.5f) {
             const float sign = pitch > 0.0f ? 1.0f : pitch < 0.0f ? -1.0f : 0.0f;
             const float offset = std::clamp(
@@ -460,7 +486,7 @@ JointReferenceRecoveryController::JointGoal
         goal = side_start_ + side_direction_.cwiseProduct(axes.cwiseInverse()) * stroke;
     }
     float speed = static_cast<float>(config_.prepare_speed_rad_s);
-    if (planting && push_off_required_ && folded_()) {
+    if (planting && push_off_required_) {
         // Brake over the last 100 mm of wheel-plane approach. A fast
         // suspended stroke must not hit the floor at its free-space speed.
         const float approach = std::clamp(
@@ -542,8 +568,8 @@ void JointReferenceRecoveryController::update_transitions_(
     // A moving recovery must continue as soon as the measured fold is reached.
     // Holding an unbalanced body here loses the impulse needed by the next stroke.
     const double fold_min_seconds = config_.dynamic_takeover ? 0.06 : 0.3;
-    if (!plant_capture && folding && remaining < 0.02f && measured_error < 0.2f
-        && (!push_off_required_ || folded_()) && phase_reached_(step, fold_min_seconds)) {
+    if (!plant_capture && folding && remaining < 0.02f && measured_error < 0.5f
+        && phase_reached_(step, fold_min_seconds)) {
         if (route_ == JointReferenceRecoveryRoute::kOrbitPositive
             || route_ == JointReferenceRecoveryRoute::kOrbitNegative) {
             orbit_start_ = reference;
@@ -574,7 +600,7 @@ void JointReferenceRecoveryController::update_transitions_(
         fail_(2);
     plant_ticks_ = planting && feedback.support ? plant_ticks_ + 1 : 0;
     durations_.plant = planting && feedback.support ? durations_.plant + dt : 0.0;
-    const bool planted = !plant_capture && planting && remaining < 0.15f && measured_error < 0.2f
+    const bool planted = !plant_capture && planting && remaining < 0.15f && measured_error < 0.5f
                       && reached_(plant_ticks_, durations_.plant, 0.06);
     if (planted) {
         if (push_off_required_)
@@ -713,7 +739,7 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::torques(
     const Vector6f q = project_feedback(feedback.q).cast<float>();
     const Vector6f dq = feedback.dq.cast<float>();
     Vector6f script;
-    script.head<4>() = 160.0f * (targets_.head<4>() - q.head<4>()) - 2.5f * dq.head<4>();
+    script.head<4>() = 60.0f * (targets_.head<4>() - q.head<4>()) - 2.0f * dq.head<4>();
     script.tail<2>() =
         0.6f * (targets_.tail<2>() - dq.tail<2>()) + feedback.wheel_probe_torque.cast<float>();
     script.head<4>() = script.head<4>().cwiseMax(-40.0f).cwiseMin(40.0f);
