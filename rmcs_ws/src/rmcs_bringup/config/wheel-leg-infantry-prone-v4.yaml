@@ -156,7 +156,7 @@ wheel_leg_state_estimator:
   ros__parameters:
     policy: prone_motion
     dt: 0.001
-    velocity_sign: -1.0
+    velocity_sign: 1.0
 
 wheel_leg_rl_controller:
   ros__parameters:

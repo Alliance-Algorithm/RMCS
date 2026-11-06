@@ -1,6 +1,5 @@
 #include "recovery.hpp"
 
-#include "gas_spring.hpp"
 #include "model/body_geometry.hpp"
 
 #include <algorithm>
@@ -654,13 +653,9 @@ void JointReferenceRecoveryController::update_transitions_(
     // Acquire several actual sensor frames before trusting a cold IMU/filter
     // baseline. This is startup sensing time, not a standing-stability dwell.
     const bool captured_for_rl =
-        !plant_capture && !push_off_required_ && enabled_
-        && phase_ < JointReferenceRecoveryPhase::kBlend
+        !plant_capture && enabled_ && phase_ < JointReferenceRecoveryPhase::kBlend
         && reached_(age_ticks_, durations_.age, 0.06) && config_.dynamic_takeover
-        && feedback.rl_capture_ready && feedback.support
-        && height > body_geometry::support_depth(step.gravity) + kCaptureClearance
-        && height > static_cast<float>(config_.dynamic_capture_height_min)
-        && height < static_cast<float>(config_.dynamic_capture_height_max);
+        && feedback.rl_capture_ready && feedback.support;
     if (captured_for_rl
         || (!config_.dynamic_takeover && preparing
             && reached_(ready_ticks_, durations_.ready, 0.1)))
@@ -739,11 +734,8 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::torques(
         return JointReferenceRecoveryVector6::Zero();
     const Vector6f q = project_feedback(feedback.q).cast<float>();
     const Vector6f dq = feedback.dq.cast<float>();
-    const auto spring = gas_spring_compensation({q[0], q[1], q[2], q[3]}, 1.);
     Vector6f script;
     script.head<4>() = 60.0f * (targets_.head<4>() - q.head<4>()) - 2.0f * dq.head<4>();
-    for (int i = 0; i < 4; ++i)
-        script[i] += static_cast<float>(spring.torque[i]);
     script.tail<2>() =
         0.6f * (targets_.tail<2>() - dq.tail<2>()) + feedback.wheel_probe_torque.cast<float>();
     script.head<4>() = script.head<4>().cwiseMax(-40.0f).cwiseMin(40.0f);
