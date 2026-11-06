@@ -282,17 +282,16 @@ private:
     using Clock = std::chrono::steady_clock;
     wheel_leg::JointReferenceRecoveryConfig recovery_configuration() {
         auto config = wheel_leg::make_recovery_config();
-        config.prepare_speed_rad_s = get_parameter_or("self_righting.fold_plant_speed_rad_s", 6.);
-        config.insert_speed_rad_s = get_parameter_or("self_righting.insert_speed_rad_s", 10.);
-        config.orbit_speed_rad_s = get_parameter_or("self_righting.orbit_speed_rad_s", 6.);
-        config.push_speed_rad_s = get_parameter_or("self_righting.push_speed_rad_s", 4.);
-        config.capture_speed_rad_s = get_parameter_or("self_righting.capture_speed_rad_s", 4.);
-        config.side_speed_rad_s = get_parameter_or("self_righting.side_speed_rad_s", 6.);
-        if (config.prepare_speed_rad_s > 6. || config.insert_speed_rad_s > 10.
-            || config.orbit_speed_rad_s > 6. || config.push_speed_rad_s > 4.
-            || config.capture_speed_rad_s > 4. || config.side_speed_rad_s > 6.)
-            throw std::invalid_argument(
-                "Recovery reference speed exceeds dev/wheel_leg_rl profile");
+        config.prepare_speed_rad_s = get_parameter_or("self_righting.fold_plant_speed_rad_s", 2.);
+        config.insert_speed_rad_s = get_parameter_or("self_righting.insert_speed_rad_s", 2.);
+        config.orbit_speed_rad_s = get_parameter_or("self_righting.orbit_speed_rad_s", 2.);
+        config.push_speed_rad_s = get_parameter_or("self_righting.push_speed_rad_s", 2.);
+        config.capture_speed_rad_s = get_parameter_or("self_righting.capture_speed_rad_s", 2.);
+        config.side_speed_rad_s = get_parameter_or("self_righting.side_speed_rad_s", 2.);
+        if (config.prepare_speed_rad_s > 2. || config.insert_speed_rad_s > 2.
+            || config.orbit_speed_rad_s > 2. || config.push_speed_rad_s > 2.
+            || config.capture_speed_rad_s > 2. || config.side_speed_rad_s > 2.)
+            throw std::invalid_argument("Recovery reference speed exceeds 2 rad/s");
         return config;
     }
     void reset_runtime() {
