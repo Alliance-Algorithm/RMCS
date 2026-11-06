@@ -8,6 +8,15 @@ sudo apt update && sudo apt install -y \
   ros-jazzy-moveit-servo \
   ros-jazzy-moveit-resources \
   ros-jazzy-rviz2
+sudo apt-get install ca-certificates curl gnupg lsb-release apt-transport-https
+sudo mkdir -p /etc/apt/keyrings
+curl -sSf https://librealsense.realsenseai.com/Debian/librealsenseai.asc | \
+  gpg --dearmor | sudo tee /etc/apt/keyrings/librealsenseai.gpg > /dev/null
+
+echo "deb [signed-by=/etc/apt/keyrings/librealsenseai.gpg] https://librealsense.realsenseai.com/Debian/apt-repo $(lsb_release -cs) main" | \
+  sudo tee /etc/apt/sources.list.d/librealsense.list
+sudo apt-get update
+sudo apt-get install librealsense2-utils librealsense2-dev
 ```
 ## Dependency
 使用脚本，一键配置开发需要的软件包和插件
