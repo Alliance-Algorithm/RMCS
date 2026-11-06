@@ -85,13 +85,13 @@ wheel_leg_rl_controller:
       enabled: false
       simulation_only: true
       hardware_mapping_verified: false
-      # dev/wheel_leg_rl reference rates (rad/s); dynamic RL capture, no standing dwell.
-      fold_plant_speed_rad_s: 6.0
-      insert_speed_rad_s: 10.0
-      orbit_speed_rad_s: 6.0
-      push_speed_rad_s: 4.0
-      capture_speed_rad_s: 4.0
-      side_speed_rad_s: 6.0
+      # Recovery reference rates capped at 2 rad/s; dynamic RL capture, no standing dwell.
+      fold_plant_speed_rad_s: 2.0
+      insert_speed_rad_s: 2.0
+      orbit_speed_rad_s: 2.0
+      push_speed_rad_s: 2.0
+      capture_speed_rad_s: 2.0
+      side_speed_rad_s: 2.0
 
 wheel_leg_observation:
   ros__parameters:

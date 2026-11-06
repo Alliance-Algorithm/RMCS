@@ -40,6 +40,9 @@ public:
         if (!std::isfinite(height))
             return std::nullopt;
         frame[3] = 5.F * std::clamp(static_cast<float>(height), 0.F, 1.F);
+        const auto nominal = paired_targets(
+            {kNominalPosition[0], kNominalPosition[1], kNominalPosition[2], kNominalPosition[3]},
+            {position[0], position[1], position[2], position[3]}, kWheelbipe.winding_bounds);
         for (std::size_t i = 0; i < order.size(); ++i) {
             const auto j = order[i];
             if (!std::isfinite(position[j]) || !std::isfinite(velocity[j])
@@ -47,7 +50,7 @@ public:
                 return std::nullopt;
             if (i < 4)
                 frame[10 + i] = std::clamp(
-                    static_cast<float>(position[j]) - static_cast<float>(kNominalPosition[j]),
+                    static_cast<float>(position[j] - nominal[j]),
                     -100.F, 100.F);
             frame[16 + i] = .1F * bounded(velocity[j], 200.F);
             frame[22 + i] = bounded(previous_action[j], 100.F);

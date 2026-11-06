@@ -23,6 +23,13 @@ build-rmcs --packages-select rmcs_core rmcs_bringup
 **不要**在仓库根用 `colcon build --base-paths rmcs_ws/src ...` 构建：那会在仓库根
 生成第二棵 `build/`、`install/`、`log/` 树，和 `build-rmcs` 的 `rmcs_ws/` 树互不相干。
 
+## 注释：一行，必要时才写
+
+- 代码注释**只允许一行**，且只写在非显而易见处（协议字节偏移、魔数、与手册/硬件的对应关系）。
+- 禁止多行说明块、分段解释、分点罗列，也禁止把改动理由、历史沿革写进代码：理由进提交信息或
+  `.codex/report/`。`///` 文档注释同样一行。
+- 不要顺手重排未改动代码里的注释。
+
 ## 其它约定
 
 - 重构、部署、训练、验证和审查报告写入本机 `.codex/report/`，不提交到仓库，不放在 `docs/`。
