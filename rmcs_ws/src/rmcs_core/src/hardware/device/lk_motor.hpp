@@ -97,7 +97,8 @@ public:
             break;
         case Type::kMG4010Ei10:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 0.07;
+            // Bench: 50 counts -> 0.12 Nm, 1150 -> 4.38 Nm, i.e. 0.0039 Nm/count (0.0242 Nm/A).
+            torque_constant = 0.0242;
             reduction_ratio = 10.0;
             max_torque_ = 4.5;
             break;
