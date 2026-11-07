@@ -27,6 +27,9 @@ public:
     WheelLegRlController()
         : Node{get_component_name(), node::options()}
         , policy_(policy_parameters(get_parameter("policy").as_string()))
+        , pd_rate_(get_parameter_or("pd_rate", 200.))
+        , leg_kp_(get_parameter_or("leg_kp", policy_.leg_kp))
+        , leg_kd_(get_parameter_or("leg_kd", policy_.leg_kd))
         , recovery_config_(recovery_configuration())
         , recovery_(recovery_config_)
         , support_observer_(wheel_leg::recovery_leg_geometry(), recovery_config_.dt) {
@@ -70,6 +73,11 @@ public:
         register_output("/wheel_leg/rl/action_applied", action_applied_, false);
         register_output("/wheel_leg/rl/state", state_, 0);
         register_output("/wheel_leg/rl/fault_latched", fault_, false);
+        register_output("/wheel_leg/rl/pd_rate", pd_rate_output_, pd_rate_);
+        register_output("/wheel_leg/rl/leg_kp", leg_kp_output_, leg_kp_);
+        register_output("/wheel_leg/rl/leg_kd", leg_kd_output_, leg_kd_);
+        register_output("/wheel_leg/rl/pd_sequence", pd_sequence_, std::size_t{0});
+        register_output("/wheel_leg/rl/pd_steady_ns", pd_stamp_, std::uint64_t{0});
         register_output("/wheel_leg/recovery/phase", recovery_phase_, 0);
         register_output("/wheel_leg/recovery/fault", recovery_fault_, 0);
         register_output("/wheel_leg/recovery/yaw_align_active", recovery_yaw_active_, false);
@@ -115,6 +123,10 @@ public:
         if (!std::isfinite(timeout_) || timeout_ <= 0. || !std::isfinite(height_rate_)
             || height_rate_ <= 0.)
             throw std::invalid_argument("Invalid inference timeout or height rate");
+        RCLCPP_INFO(
+            get_logger(), "Joint PD %.0f Hz: Kp %.1f, Kd %.1f; recovery %.0f Hz: Kp %.1f, Kd %.1f",
+            pd_rate_, leg_kp_, leg_kd_, 1. / recovery_config_.dt, recovery_config_.leg_kp,
+            recovery_config_.leg_kd);
     }
     void before_updating() override {
         if (*policy_rate_ != policy_.policy_hz
@@ -181,6 +193,7 @@ public:
                 return;
             *state_ = recovery_enabled_ ? 4 : 3;
             last_pd_.reset();
+            last_pd_time_.reset();
             last_command_tick_.reset();
         } else if (!*valid_) {
             fail("wheel-leg state estimate invalid");
@@ -244,9 +257,14 @@ public:
             fail("self-righting lost upright after RL takeover");
             return;
         }
-        const bool pd_due = !last_pd_ || *tick_ - *last_pd_ >= 5;
+        const bool pd_due =
+            !last_pd_ || *tick_ - *last_pd_ >= static_cast<std::size_t>(1000. / pd_rate_);
         if (!pd_due)
             return;
+        const double elapsed = last_pd_time_
+                                 ? std::chrono::duration<double>(now - *last_pd_time_).count()
+                                 : recovery_config_.dt;
+        last_pd_time_ = now;
         if (*state_ == 4) {
             if (!acceleration_->allFinite()) {
                 fail("invalid self-righting acceleration");
@@ -257,7 +275,8 @@ public:
                 Eigen::Map<const wheel_leg::JointReferenceRecoveryVector6>{dq_->data()}, *gravity_,
                 *gyro_, *acceleration_,
                 recovery_started_ ? recovery_.command().phase
-                                  : wheel_leg::JointReferenceRecoveryPhase::kSelect);
+                                  : wheel_leg::JointReferenceRecoveryPhase::kSelect,
+                elapsed);
             if (!feedback.q.allFinite()) {
                 fail("invalid self-righting feedback");
                 return;
@@ -281,7 +300,7 @@ public:
                 feedback, *acceleration_, recovery_config_.nominal, limits);
             *recovery_capture_ready_ = *recovery_capture_blockers_ == 0;
             feedback.rl_capture_ready = *recovery_capture_ready_ && have_target_;
-            const auto& recovery_command = recovery_.update(feedback);
+            const auto& recovery_command = recovery_.update(feedback, elapsed);
             *recovery_phase_ = static_cast<int>(recovery_command.phase);
             *recovery_fault_ = recovery_command.failure_code;
             if (recovery_command.failed) {
@@ -289,7 +308,7 @@ public:
                 return;
             }
             feedback.wheel_probe_torque = support_observer_.probe_command(
-                recovery_command.scripted && recovery_command.release_finished);
+                recovery_command.scripted && recovery_command.release_finished, elapsed);
             if (!recovery_command.pure_rl) {
                 const auto native_torque =
                     recovery_.torques(feedback, wheel_leg::JointReferenceRecoveryVector6::Zero());
@@ -311,8 +330,8 @@ public:
             RCLCPP_INFO(get_logger(), "Self-righting handover: policy owns all six axes");
         }
         if (have_target_) {
-            const auto torque = JointSolver::pd(
-                target_, *q_, *dq_, policy_.leg_kp, policy_.leg_kd, policy_.gas_gain);
+            const auto torque =
+                JointSolver::pd(target_, *q_, *dq_, leg_kp_, leg_kd_, policy_.gas_gain);
             if (!write_effort(torque))
                 return;
             *applied_ = pending_history_;
@@ -324,9 +343,14 @@ public:
 private:
     using Clock = std::chrono::steady_clock;
     wheel_leg::JointReferenceRecoveryConfig recovery_configuration() {
+        if ((pd_rate_ != 200. && pd_rate_ != 1000.) || !std::isfinite(leg_kp_) || leg_kp_ <= 0.
+            || !std::isfinite(leg_kd_) || leg_kd_ <= 0.)
+            throw std::invalid_argument(
+                "Joint PD requires 200 or 1000 Hz and positive finite gains");
         auto config = policy_.name == kHistoryPolicy.name
-                        ? wheel_leg::make_recovery_config(policy_.leg_kp, policy_.leg_kd)
+                        ? wheel_leg::make_recovery_config(leg_kp_, leg_kd_)
                         : wheel_leg::make_recovery_config();
+        config.dt = 1. / pd_rate_;
         config.prepare_speed_rad_s = get_parameter_or("self_righting.fold_plant_speed_rad_s", 2.);
         config.insert_speed_rad_s = get_parameter_or("self_righting.insert_speed_rad_s", 2.);
         config.orbit_speed_rad_s = get_parameter_or("self_righting.orbit_speed_rad_s", 2.);
@@ -351,6 +375,8 @@ private:
         *policy_command_ = Eigen::Vector3d::Zero();
         *policy_height_ = policy_.name == kHistoryPolicy.name ? .32 : .305;
         *state_ = 1;
+        *pd_sequence_ = 0;
+        *pd_stamp_ = 0;
         *recovery_phase_ = 0;
         *recovery_fault_ = 0;
         *recovery_capture_ready_ = false;
@@ -359,6 +385,7 @@ private:
         accepted_sequence_ = *action_sequence_;
         accepted_stamp_ = 0;
         last_pd_.reset();
+        last_pd_time_.reset();
         last_command_tick_.reset();
         wait_started_.reset();
         drive_loss_started_.reset();
@@ -406,6 +433,10 @@ private:
         const auto api = JointSolver::constrain(effort, *q_, caps);
         for (int i = 0; i < 6; ++i)
             *effort_[i] = api[i];
+        ++*pd_sequence_;
+        *pd_stamp_ = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch())
+                .count());
         return true;
     }
     void update_command() {
@@ -524,6 +555,10 @@ private:
             fail("jump request estimate or clock invalid");
     }
     const PolicyParameters& policy_;
+    const double pd_rate_, leg_kp_, leg_kd_;
+    OutputInterface<double> pd_rate_output_, leg_kp_output_, leg_kd_output_;
+    OutputInterface<std::size_t> pd_sequence_;
+    OutputInterface<std::uint64_t> pd_stamp_;
     wheel_leg::RequestProtocol request_protocol_;
     struct JumpIntent {
         std::size_t id;
@@ -566,7 +601,7 @@ private:
     bool recovery_started_ = false;
     JointVector target_{}, pending_history_{};
     std::optional<std::size_t> last_pd_, last_command_tick_;
-    std::optional<Clock::time_point> wait_started_, drive_loss_started_;
+    std::optional<Clock::time_point> wait_started_, drive_loss_started_, last_pd_time_;
     std::optional<double> heading_;
     std::size_t last_reset_ = 0, accepted_sequence_ = 0;
     std::uint64_t accepted_stamp_ = 0;

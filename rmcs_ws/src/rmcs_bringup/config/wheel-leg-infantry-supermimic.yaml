@@ -82,6 +82,9 @@ wheel_leg_state_estimator:
 wheel_leg_rl_controller:
   ros__parameters:
     policy: history
+    pd_rate: 1000.0
+    leg_kp: 60.0
+    leg_kd: 2.0
     jump_enabled: true
     inference_timeout: 0.06
     heading_hold_enabled: false
@@ -265,6 +268,9 @@ value_broadcaster:
     forward_list:
       - /wheel_leg/rl/state
       - /wheel_leg/rl/fault_latched
+      - /wheel_leg/rl/pd_rate
+      - /wheel_leg/rl/leg_kp
+      - /wheel_leg/rl/leg_kd
       - /wheel_leg/rl/jump/active
       - /wheel_leg/rl/jump/pending
       - /wheel_leg/rl/jump/clock
@@ -412,6 +418,11 @@ value_collector:
       - /wheel_leg/rl/action_steady_ns
       - /wheel_leg/rl/action_applied
       - /wheel_leg/rl/fault_latched
+      - /wheel_leg/rl/pd_rate
+      - /wheel_leg/rl/leg_kp
+      - /wheel_leg/rl/leg_kd
+      - /wheel_leg/rl/pd_sequence
+      - /wheel_leg/rl/pd_steady_ns
       - /wheel_leg/rl/estimate
       - /wheel_leg/rl/estimate_valid
       - /wheel_leg/rl/jump/active
