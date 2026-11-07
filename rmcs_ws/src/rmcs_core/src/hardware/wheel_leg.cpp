@@ -31,10 +31,10 @@
 #include "hardware/device/dm_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"
+#include "hardware/device/lk_motor_drive.hpp"
 #include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
 #include "hardware/device/wheel_leg_sensor_snapshot.hpp"
-#include "hardware/device/lk_motor_drive.hpp"
 #include "hardware/util/wheel_leg_drive.hpp"
 
 namespace rmcs_core::hardware {
@@ -45,8 +45,8 @@ using LkDriveClock = std::chrono::steady_clock;
 using LkDriveAction = device::LkMotorDriveScheduler::Action;
 
 // Only 0x9A/0x9B echoes advance this stamp, so "replied after clearing" is checkable.
-device::LkMotorDriveScheduler::Feedback lk_feedback(
-    const device::LkMotor& motor, const std::atomic<std::int64_t>& error_stamp_ns) {
+device::LkMotorDriveScheduler::Feedback
+    lk_feedback(const device::LkMotor& motor, const std::atomic<std::int64_t>& error_stamp_ns) {
     device::LkMotorDriveScheduler::Feedback feedback;
     const auto stamp = error_stamp_ns.load(std::memory_order::relaxed);
     if (stamp <= 0)
@@ -140,8 +140,7 @@ private:
     struct BottomBoard final : librmcs::board::RmcsBoardLite::Callback {
         using Clock = std::chrono::steady_clock;
         using Action = WheelLegDmCommandScheduler::Action;
-        BottomBoard(
-            WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
+        BottomBoard(WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
             : status_(status)
             , wheel_motors_(
                   {status, command, "/wheel_leg/left_wheel"},
@@ -157,11 +156,12 @@ private:
             , supercap_(status, command)
             // Chassis BMI088: mounted rotated 180 degrees about body Y, so the
             // sensor axes read (-x, y, -z) relative to the body frame.
-            , bmi088_(device::Bmi088Ekf::Config{
-                  .body_to_sensor =
-                      Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitY()}
-                          .toRotationMatrix(),
-              }) {
+            , bmi088_(
+                  device::Bmi088Ekf::Config{
+                      .body_to_sensor =
+                          Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitY()}
+                              .toRotationMatrix(),
+                  }) {
             status.register_output(
                 "/wheel_leg/imu/quaternion", imu_quaternion_, Eigen::Quaterniond::Identity());
             status.register_output(
@@ -297,13 +297,10 @@ private:
             builder.can_transmit(
                 Spec::kCans.kCan0, {.can_id = 0x200, .can_data = wheels.as_bytes()});
             auto supercap_package = device::CanPacket8{
-                device::CanPacket8::PaddingQuarter{},
-                device::CanPacket8::PaddingQuarter{},
-                device::CanPacket8::PaddingQuarter{},
-                supercap_.generate_command()};
+                device::CanPacket8::PaddingQuarter{}, device::CanPacket8::PaddingQuarter{},
+                device::CanPacket8::PaddingQuarter{}, supercap_.generate_command()};
             builder.can_transmit(
-                Spec::kCans.kCan0,
-                {.can_id = 0x1FE, .can_data = supercap_package.as_bytes()});
+                Spec::kCans.kCan0, {.can_id = 0x1FE, .can_data = supercap_package.as_bytes()});
             // Same sequence as the DM joints: clear -> run -> torque, zero torque while disabled.
             const auto gimbal_action = gimbal_yaw_scheduler_.next(
                 gimbal_requested, lk_feedback(gimbal_yaw_motor_, gimbal_yaw_error_ns_),
@@ -425,6 +422,7 @@ private:
         [[nodiscard]] bool gimbal_drive_requested() const {
             return gimbal_drive_requested_.load(std::memory_order::relaxed);
         }
+
     private:
         mutable std::mutex status_mutex_;
         static std::int64_t now_ns() {
@@ -474,10 +472,9 @@ private:
                 }
                 channel_silent_[i] = silent;
             }
-            const auto state = !motor_feedback_available()
-                                 ? FeedbackWarningState::kMissing
-                                 : !motor_feedback_fresh() ? FeedbackWarningState::kStale
-                                                            : FeedbackWarningState::kFresh;
+            const auto state = !motor_feedback_available() ? FeedbackWarningState::kMissing
+                             : !motor_feedback_fresh()     ? FeedbackWarningState::kStale
+                                                           : FeedbackWarningState::kFresh;
             if (state == feedback_warning_state_)
                 return;
             if (state == FeedbackWarningState::kMissing) {
@@ -635,7 +632,8 @@ private:
                     static_cast<int>(yaw_zero_point)));
             // Feeder M3508 drives through an external 27:1 reducer.
             feeder_motor_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}.set_reduction_ratio(27.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 3}.set_reduction_ratio(
+                    27.));
             RCLCPP_INFO(
                 status_.get_logger(), "DM Master IDs [LH,RH,LK,RK]=[%u,%u,%u,%u]",
                 static_cast<unsigned>(feedback_ids[0]), static_cast<unsigned>(feedback_ids[1]),
@@ -754,9 +752,8 @@ private:
         OutputInterface<Eigen::Vector3d> imu_angular_velocity_, imu_acceleration_;
         OutputInterface<std::uint64_t> acceleration_last_output_, imu_last_output_,
             imu_sequence_output_, acceleration_sequence_output_;
-        OutputInterface<bool>
-            feedback_fresh_output_, feedback_available_output_, dm_control_ready_output_,
-            dr16_fresh_output_;
+        OutputInterface<bool> feedback_fresh_output_, feedback_available_output_,
+            dm_control_ready_output_, dr16_fresh_output_;
         std::array<OutputInterface<std::uint64_t>, 6> feedback_ns_outputs_,
             feedback_sequence_outputs_;
         InputInterface<bool> enable_request_;
@@ -786,10 +783,10 @@ private:
             acceleration_feedback_;
         // Indexed like motor_last_ns_: wheels (CAN0), hips (CAN1), knees (CAN2).
         static constexpr std::array<const char*, 6> kChannelNames{
-            "left_wheel",     "right_wheel",    "left_hip_joint",
+            "left_wheel",      "right_wheel",     "left_hip_joint",
             "right_hip_joint", "left_knee_joint", "right_knee_joint"};
-        static constexpr std::array<const char*, 6> kChannelBuses{
-            "CAN0", "CAN0", "CAN1", "CAN1", "CAN2", "CAN2"};
+        static constexpr std::array<const char*, 6> kChannelBuses{"CAN0", "CAN0", "CAN1",
+                                                                  "CAN1", "CAN2", "CAN2"};
         static constexpr std::int64_t kChannelSilentNs = 100'000'000;
         std::array<bool, 6> channel_silent_{};
         std::array<std::int64_t, 6> channel_silent_since_{};
@@ -819,11 +816,12 @@ private:
             , left_friction_(status, command, "/gimbal/left_friction")
             , right_friction_(status, command, "/gimbal/right_friction")
             // Gimbal BMI088: mounted rotated 180 degrees about body Z.
-            , bmi088_(device::Bmi088Ekf::Config{
-                  .body_to_sensor =
-                      Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
-                          .toRotationMatrix(),
-              }) {
+            , bmi088_(
+                  device::Bmi088Ekf::Config{
+                      .body_to_sensor =
+                          Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
+                              .toRotationMatrix(),
+                  }) {
             status.register_output("/gimbal/yaw/velocity_imu", yaw_velocity_, 0.0);
             status.register_output("/gimbal/pitch/velocity_imu", pitch_velocity_, 0.0);
             const auto pitch_zero_point =
@@ -832,17 +830,17 @@ private:
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(pitch_zero_point)));
             left_friction_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reduction_ratio(1.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reduction_ratio(
+                    1.));
             right_friction_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}.set_reduction_ratio(1.));
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}.set_reduction_ratio(
+                    1.));
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = true;
             board_ = std::make_unique<librmcs::board::RmcsBoardLite>(*this, serial, options);
         }
 
-        [[nodiscard]] std::int64_t pitch_raw_angle() const {
-            return pitch_motor_.last_raw_angle();
-        }
+        [[nodiscard]] std::int64_t pitch_raw_angle() const { return pitch_motor_.last_raw_angle(); }
         [[nodiscard]] std::string status_text() const {
             return std::format(
                 "    gimbal_pitch: can_id=0x142 motor_state=0x{:02X} error=0x{:02X}({}) "
@@ -867,22 +865,21 @@ private:
             if (auto snapshot = bmi088_.snapshot()) {
                 *yaw_velocity_ = snapshot->gyro_body.z();
                 *pitch_velocity_ = snapshot->gyro_body.y();
-                status_.tf_->set_transform<
-                    rmcs_description::PitchLink, rmcs_description::OdomImu>(
+                status_.tf_->set_transform<rmcs_description::PitchLink, rmcs_description::OdomImu>(
                     snapshot->orientation.conjugate());
             }
             status_.tf_->set_state<rmcs_description::YawLink, rmcs_description::PitchLink>(
                 pitch_angle);
             if (status_.bottom_board_)
-                status_.tf_->set_state<
-                    rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
-                    status_.bottom_board_->yaw_angle());
+                status_.tf_
+                    ->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
+                        status_.bottom_board_->yaw_angle());
         }
 
         void command_update() {
             // Gate comes from the bottom board, which already folds in the both-down check.
-            const bool requested = status_.bottom_board_
-                                && status_.bottom_board_->gimbal_drive_requested();
+            const bool requested =
+                status_.bottom_board_ && status_.bottom_board_->gimbal_drive_requested();
             auto builder = board_->start_transmit();
             const auto pitch_action = pitch_scheduler_.next(
                 requested, lk_feedback(pitch_motor_, pitch_error_ns_), LkDriveClock::now());
