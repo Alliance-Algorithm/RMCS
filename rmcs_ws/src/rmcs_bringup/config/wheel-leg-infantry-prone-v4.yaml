@@ -155,10 +155,10 @@ wheel_leg_chassis_controller:
   ros__parameters:
     vx_max: 2.0
     vy_max: 0.0
-    yaw_rate_max: 10.471975511965978
-    spin_yaw_rate: 5.235987755982989
+    yaw_rate_max: 4.0 # Follow yaw cap; was 10.47, i.e. effectively unlimited.
+    spin_yaw_rate: 10.471975511965978
     yaw_stick_rate: 3.141592653589793
-    following_velocity_kp: 8.0
+    following_velocity_kp: 15.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
 

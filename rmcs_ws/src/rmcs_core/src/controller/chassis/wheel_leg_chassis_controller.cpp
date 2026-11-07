@@ -38,7 +38,8 @@ public:
         register_output("/chassis/control_enable", enable_, false);
         register_output("/chassis/reset_count", reset_, std::size_t{0});
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
-        vx_max_ = get_parameter_or("vx_max", .5);
+        vx_max_ = get_parameter_or("vx_max", 2.);
+        vx_bias_ = get_parameter_or("vx_bias", 0.);
         vy_max_ = get_parameter_or("vy_max", 0.);
         spin_rate_ = get_parameter_or("spin_yaw_rate", 1.);
         yaw_stick_rate_ = get_parameter_or("yaw_stick_rate", std::numbers::pi);
@@ -61,6 +62,8 @@ public:
               height_step_})
             if (!std::isfinite(value) || value <= 0.)
                 throw std::invalid_argument("Invalid chassis command limits");
+        if (!std::isfinite(vx_bias_) || std::abs(vx_bias_) > vx_max_)
+            throw std::invalid_argument("Invalid chassis velocity bias");
         if (height_max_ < height_min_ || nominal_height_ < height_min_
             || nominal_height_ > height_max_ || !std::isfinite(deadzone_) || deadzone_ < 0.
             || deadzone_ >= 1. || !std::isfinite(arm_dwell_) || arm_dwell_ < 0.
@@ -133,8 +136,11 @@ public:
                             std::clamp(channel(right_->y()) + keyboard_->a - keyboard_->d, -1., 1.);
                         yaw = yaw_stick * yaw_stick_rate_ * (yaw_invert_ ? -1. : 1.);
                     }
-                    command_->vector =
-                        Eigen::Vector3d{rotated.x() * vx_max_, rotated.y() * vy_max_, yaw};
+                    // Bias fades toward full stick so both directions still reach ±vx_max.
+                    const double stick = rotated.x();
+                    const double vx = std::clamp(
+                        stick * vx_max_ - vx_bias_ * (1. - std::abs(stick)), -vx_max_, vx_max_);
+                    command_->vector = Eigen::Vector3d{vx, rotated.y() * vy_max_, yaw};
                 }
                 double height = *height_;
                 if (!last_keyboard_.q && keyboard_->q)
@@ -197,7 +203,7 @@ private:
     OutputInterface<bool> enable_;
     OutputInterface<std::size_t> reset_;
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
-    double vx_max_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_, height_min_,
+    double vx_max_, vx_bias_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_, height_min_,
         height_max_, nominal_height_, height_step_, arm_dwell_;
     bool yaw_invert_, armed_ = false, pending_ = false,
                                                        reset_active_ = false, spin_forward_ = true;

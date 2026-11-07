@@ -150,12 +150,13 @@ bullet_feeder_velocity_pid_controller:
 
 wheel_leg_chassis_controller:
   ros__parameters:
-    vx_max: 0.5
+    vx_max: 3.0
+    vx_bias: -0.60
     vy_max: 0.0
-    yaw_rate_max: 1.0
-    spin_yaw_rate: 5.235987755982989
+    yaw_rate_max: 4.0 # Follow-mode yaw cap only; at policy training envelope.
+    spin_yaw_rate: 10.471975511965978
     yaw_stick_rate: 3.141592653589793
-    following_velocity_kp: 8.0
+    following_velocity_kp: 15.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
 
