@@ -81,6 +81,15 @@ public:
     [[nodiscard]] double knee_from_encoder_crank(double c_encoder) const {
         return knee_from_crank(c_encoder + crank_motor_zero());
     }
+    [[nodiscard]] double knee_velocity_from_encoder_crank(double c_encoder, double velocity) const {
+        const double crank = c_encoder + crank_motor_zero();
+        if (crank <= kCrankGrid.front() || crank >= kCrankGrid.back())
+            return 0.;
+        const auto upper = static_cast<std::size_t>(
+            std::lower_bound(kCrankGrid.begin(), kCrankGrid.end(), crank) - kCrankGrid.begin());
+        return velocity * (kBetaGrid[upper] - kBetaGrid[upper - 1])
+             / (kCrankGrid[upper] - kCrankGrid[upper - 1]);
+    }
     [[nodiscard]] bool encoder_crank_from_knee(double knee, double& c_encoder) const {
         double crank = 0.0;
         if (!crank_from_knee(knee, crank))

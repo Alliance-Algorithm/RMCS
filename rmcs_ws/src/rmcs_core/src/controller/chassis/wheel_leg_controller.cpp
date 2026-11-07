@@ -1,15 +1,17 @@
 #include "wheel_leg/balance_solver.hpp"
+#include "wheel_leg/capture.hpp"
 #include "wheel_leg/joint_solver.hpp"
 #include "wheel_leg/leg_kinematics.hpp"
 #include "wheel_leg/model/mechanics.hpp"
+#include "wheel_leg/model/recovery_profile.hpp"
 #include "wheel_leg/motion_planner.hpp"
 #include "wheel_leg/recovery_yaw.hpp"
-#include "wheel_leg/self_righting.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <eigen3/Eigen/Core>
 #include <numbers>
+#include <optional>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
@@ -28,13 +30,16 @@ public:
               wheel_leg::mechanics::kThighLength, wheel_leg::mechanics::kShankLength,
               wheel_leg::LegLinkage::knee_limit_min(), wheel_leg::LegLinkage::knee_limit_max(),
               linkage_)
-        , recovery_(wheel_leg::make_self_righting()) {
+        , recovery_config_(recovery_configuration())
+        , recovery_(recovery_config_)
+        , support_observer_(wheel_leg::recovery_leg_geometry(), recovery_config_.dt) {
         register_input("/wheel_leg/state/position", q_);
         register_input("/wheel_leg/state/velocity", dq_);
         register_input("/wheel_leg/state/valid", valid_);
         register_input("/wheel_leg/state/gravity", gravity_);
         register_input("/wheel_leg/state/attitude", attitude_);
         register_input("/wheel_leg/imu/angular_velocity", gyro_);
+        register_input("/wheel_leg/imu/acceleration", acceleration_);
         register_input("/wheel_leg/state/passive_knee", knee_);
         register_input("/wheel_leg/state/passive_knee_rate", knee_rate_);
         register_input("/wheel_leg/state/shank", shank_);
@@ -60,9 +65,8 @@ public:
         register_output("/wheel_leg/recovery/phase", recovery_phase_, 0);
         register_output("/wheel_leg/recovery/fault", recovery_fault_, 0);
         register_output("/wheel_leg/recovery/yaw_align_active", recovery_yaw_active_, false);
-        recovery_.configure_speed_protection(
-            get_parameter_or("self_righting_overspeed_fault_enabled", true),
-            get_parameter_or("self_righting_speed_braking_enabled", true));
+        register_output("/wheel_leg/recovery/capture_ready", recovery_capture_ready_, false);
+        register_output("/wheel_leg/recovery/capture_blockers", recovery_capture_blockers_, 0);
         dt_ = get_parameter_or("dt", .001);
         leg_kp_ = get_parameter_or("leg_kp", 160.);
         leg_kd_ = get_parameter_or("leg_kd", 2.5);
@@ -260,37 +264,55 @@ public:
             return;
         }
         if (*phase_ == 4) {
-            wheel_leg::SelfRightingCore::Feedback feedback;
-            std::copy_n(q_->begin(), 4, feedback.position.begin());
-            std::copy_n(dq_->begin(), 4, feedback.velocity.begin());
-            feedback.spring_compensation =
-                wheel_leg::recovery_v202::compensation(feedback.position);
-            for (int i = 0; i < 3; ++i) {
-                feedback.gravity[i] = (*gravity_)[i];
-                feedback.gyro[i] = (*gyro_)[i];
-            }
-            feedback.wheel_velocity = {(*dq_)[4], (*dq_)[5]};
-            const auto output = recovery_.step(feedback, dt_, true);
-            *recovery_phase_ = output.phase;
-            *recovery_fault_ = output.fault;
-            if (output.phase == wheel_leg::SelfRightingCore::Fault) {
-                fail("self-righting protection");
+            if (++recovery_ticks_ % 5 != 0)
+                return;
+            if (!acceleration_->allFinite()) {
+                fail("invalid self-righting acceleration");
                 return;
             }
-            JointVector effort;
-            std::copy_n(output.torque.begin(), 4, effort.begin());
-            effort[4] = output.wheel_torque[0];
-            effort[5] = output.wheel_torque[1];
-            write_effort(effort);
-            if (output.phase == wheel_leg::SelfRightingCore::Complete) {
-                *phase_ = 3;
-                *recovery_yaw_active_ = false;
-                motion_.reset();
-                trajectory_.reset();
-                balance_.reset();
-                turn_valid_ = false;
+            auto feedback = support_observer_.observe(
+                Eigen::Map<const wheel_leg::JointReferenceRecoveryVector6>{q_->data()},
+                Eigen::Map<const wheel_leg::JointReferenceRecoveryVector6>{dq_->data()}, *gravity_,
+                *gyro_, *acceleration_,
+                recovery_started_ ? recovery_.command().phase
+                                  : wheel_leg::JointReferenceRecoveryPhase::kSelect);
+            if (!feedback.q.allFinite()) {
+                fail("invalid self-righting feedback");
+                return;
             }
-            return;
+            if (!recovery_started_) {
+                recovery_.reset(feedback.q);
+                recovery_started_ = true;
+            }
+            *recovery_capture_blockers_ = wheel_leg::recovery_capture_blockers(
+                feedback, *acceleration_, recovery_config_.nominal);
+            *recovery_capture_ready_ = *recovery_capture_blockers_ == 0;
+            feedback.rl_capture_ready = *recovery_capture_ready_;
+            const auto& output = recovery_.update(feedback);
+            *recovery_phase_ = static_cast<int>(output.phase);
+            *recovery_fault_ = output.failure_code;
+            if (output.failed) {
+                fail("self-righting script failed");
+                return;
+            }
+            if (!output.pure_rl) {
+                feedback.wheel_probe_torque =
+                    support_observer_.probe_command(output.scripted && output.release_finished);
+                const auto native =
+                    recovery_.torques(feedback, wheel_leg::JointReferenceRecoveryVector6::Zero());
+                JointVector effort;
+                std::copy_n(native.data(), 6, effort.begin());
+                write_effort(effort);
+                return;
+            }
+            *phase_ = 3;
+            *recovery_yaw_active_ = false;
+            motion_.reset();
+            trajectory_.reset();
+            balance_.reset();
+            turn_valid_ = false;
+            RCLCPP_INFO(
+                get_logger(), "Self-righting handover: traditional control owns all six axes");
         }
         if (std::abs(attitude_->x()) > max_tilt_) {
             fail("traditional tilt limit");
@@ -301,23 +323,31 @@ public:
             return;
         }
         const auto motion = motion_.step(command_->vector.x(), command_->vector.z());
+        if (!distance_origin_)
+            distance_origin_ = *distance_;
+        std::array<double, 2> world_shank, world_shank_rate;
+        for (int side = 0; side < 2; ++side) {
+            world_shank[side] =
+                std::remainder((*shank_)[side] - attitude_->x(), 2. * std::numbers::pi);
+            world_shank_rate[side] = (*shank_rate_)[side] - gyro_->y();
+        }
         const TrajectoryPlanner::State state{
-            .wheel_velocity = .5 * ((*dq_)[4] + (*dq_)[5]),
+            .wheel_velocity = forward_wheel_velocity(*dq_),
             .pitch = attitude_->x(),
             .pitch_velocity = gyro_->y(),
             .com_offset = *com_offset_,
             .leg_length = .5 * ((*length_)[0] + (*length_)[1]),
             .velocity = *velocity_,
-            .distance = *distance_,
+            .distance = *distance_ - *distance_origin_,
             .knee = *knee_,
-            .shank = *shank_,
+            .shank = world_shank,
             .knee_rate = *knee_rate_,
-            .shank_rate = *shank_rate_};
+            .shank_rate = world_shank_rate};
         const auto reference = trajectory_.step(state, motion.velocity, *height_);
         const auto balance = balance_.step(
-            state.pitch, gyro_->y(), state.velocity, state.distance, attitude_->z(), gyro_->z(),
-            attitude_->y(), motion.yaw, motion.bank, motion.roll_feedforward, true,
-            reference.balance_feedforward);
+            state.pitch, gyro_->y(), state.velocity - reference.velocity,
+            state.distance - reference.distance, attitude_->z(), gyro_->z(), attitude_->y(),
+            motion.yaw, motion.bank, motion.roll_feedforward, true, reference.balance_feedforward);
         JointVector target{};
         for (int side = 0; side < 2; ++side) {
             double hip, crank;
@@ -349,6 +379,20 @@ public:
     }
 
 private:
+    wheel_leg::JointReferenceRecoveryConfig recovery_configuration() {
+        auto config = wheel_leg::make_recovery_config();
+        config.prepare_speed_rad_s = get_parameter_or("self_righting.fold_plant_speed_rad_s", 2.);
+        config.insert_speed_rad_s = get_parameter_or("self_righting.insert_speed_rad_s", 2.);
+        config.orbit_speed_rad_s = get_parameter_or("self_righting.orbit_speed_rad_s", 2.);
+        config.push_speed_rad_s = get_parameter_or("self_righting.push_speed_rad_s", 2.);
+        config.capture_speed_rad_s = get_parameter_or("self_righting.capture_speed_rad_s", 2.);
+        config.side_speed_rad_s = get_parameter_or("self_righting.side_speed_rad_s", 2.);
+        if (config.prepare_speed_rad_s > 2. || config.insert_speed_rad_s > 2.
+            || config.orbit_speed_rad_s > 2. || config.push_speed_rad_s > 2.
+            || config.capture_speed_rad_s > 2. || config.side_speed_rad_s > 2.)
+            throw std::invalid_argument("Recovery reference speed exceeds 2 rad/s");
+        return config;
+    }
     void reset_runtime() {
         *enable_ = false;
         *recovery_yaw_active_ = false;
@@ -360,8 +404,14 @@ private:
         motion_.reset();
         trajectory_.reset();
         balance_.reset();
-        recovery_.reset();
+        recovery_.reset(wheel_leg::JointReferenceRecoveryVector6::Zero(), false);
+        support_observer_.reset();
+        recovery_started_ = false;
+        recovery_ticks_ = 0;
+        *recovery_capture_ready_ = false;
+        *recovery_capture_blockers_ = 0;
         turn_valid_ = false;
+        distance_origin_.reset();
     }
     void fail(const char* reason) {
         RCLCPP_ERROR(get_logger(), "Wheel-leg traditional stopped: %s", reason);
@@ -385,7 +435,7 @@ private:
             *torque_[i] = api[i];
     }
     InputInterface<JointVector> q_, dq_;
-    InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_;
+    InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_, acceleration_;
     InputInterface<std::array<double, 2>> knee_, knee_rate_, shank_, shank_rate_, length_;
     InputInterface<double> velocity_, distance_, com_offset_, height_, rate_;
     InputInterface<double> recovery_yaw_;
@@ -395,15 +445,21 @@ private:
     std::array<InputInterface<double>, 6> caps_;
     std::array<OutputInterface<double>, 6> torque_;
     OutputInterface<bool> enable_, fault_;
-    OutputInterface<bool> recovery_yaw_active_;
+    OutputInterface<bool> recovery_yaw_active_, recovery_capture_ready_;
+    OutputInterface<int> recovery_capture_blockers_;
     OutputInterface<int> phase_, recovery_phase_, recovery_fault_;
     MotionPlanner motion_;
     TrajectoryPlanner trajectory_;
     BalanceSolver balance_;
     wheel_leg::LegLinkage linkage_;
     wheel_leg::WheelLegLegModel leg_model_;
-    wheel_leg::SelfRightingCore recovery_;
+    const wheel_leg::JointReferenceRecoveryConfig recovery_config_;
+    wheel_leg::JointReferenceRecoveryController recovery_;
+    wheel_leg::ClosedChainSupportObserver support_observer_;
+    std::size_t recovery_ticks_ = 0;
+    bool recovery_started_ = false;
     LegVector turns_{};
+    std::optional<double> distance_origin_;
     double dt_, leg_kp_, leg_kd_, gas_gain_, max_tilt_;
     std::size_t last_reset_ = 0;
     bool recovery_enabled_, turn_valid_ = false, schedule_checked_ = false;

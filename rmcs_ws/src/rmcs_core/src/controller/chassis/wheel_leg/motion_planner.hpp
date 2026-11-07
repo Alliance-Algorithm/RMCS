@@ -11,7 +11,7 @@ public:
     struct Settings {
         double dt = .001, max_velocity = 5., max_yaw_rate = 12., channel_kp = 10.;
         double velocity_accel = 1.5, velocity_jerk = 4., yaw_accel = 6.28, yaw_jerk = 40.;
-        double velocity_sign = -1., gravity = 9.81, bank_to_roll_bias = 1.06;
+        double velocity_sign = 1., gravity = 9.81, bank_to_roll_bias = 1.06;
         double friction_mu = 2., track_width = .3966, com_height = .26, lat_accel_safety = .7;
     } config;
     struct Reference {
@@ -96,6 +96,7 @@ public:
     };
     struct Reference {
         double pitch = 0., wheel_velocity = 0., balance_feedforward = 0.;
+        double velocity = 0., distance = 0.;
         std::array<double, 2> hip{}, knee{}, shank{};
     };
     void reset() {
@@ -141,12 +142,15 @@ public:
                 && std::abs(target.leg_length - planned_length_) > config.leg_length_epsilon)) {
             pitch_.reset(state.pitch, state.pitch_velocity, 0., 0., config.transition_time_pitch);
             for (int side = 0; side < 2; ++side) {
-                const double knee_rate = .5 * (state.knee_rate[0] + state.knee_rate[1]);
-                const double shank_rate = .5 * (state.shank_rate[0] + state.shank_rate[1]);
+                const double shank_target =
+                    state.shank[side]
+                    + std::remainder(target.shank - state.shank[side], 2. * std::numbers::pi);
                 knee_[side].reset(
-                    state.knee[side], knee_rate, target.beta, 0., config.transition_time_knee);
+                    state.knee[side], state.knee_rate[side], target.beta, 0.,
+                    config.transition_time_knee);
                 shank_[side].reset(
-                    state.shank[side], shank_rate, target.shank, 0., config.transition_time_shank);
+                    state.shank[side], state.shank_rate[side], shank_target, 0.,
+                    config.transition_time_shank);
             }
             initialized_ = true;
             elapsed_ = 0.;
@@ -155,6 +159,8 @@ public:
             elapsed_ += dt;
         Reference result;
         result.pitch = pitch_.value(elapsed_);
+        result.velocity = velocity_ref_;
+        result.distance = distance_ref_;
         double dx = 0.;
         for (int side = 0; side < 2; ++side) {
             const double knee = knee_[side].value(elapsed_), shank = shank_[side].value(elapsed_);
