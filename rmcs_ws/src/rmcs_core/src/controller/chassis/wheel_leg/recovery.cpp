@@ -34,6 +34,8 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
     : config_(config) {
     const std::array values{
         config.dt,
+        config.leg_kp,
+        config.leg_kd,
         config.dynamic_capture_height_min,
         config.dynamic_capture_height_max,
         config.stable_seconds,
@@ -209,8 +211,7 @@ void JointReferenceRecoveryController::start_upright_(bool grounded) {
     orbit_angle_ = 0.0f;
     unsupported_ticks_ = 0;
     durations_.unsupported = 0.0;
-    fold_anchor_ =
-        shape_at_heading_(config_.insertion_fold.cast<float>(), continuous_q_.head<4>());
+    fold_anchor_ = shape_at_heading_(config_.insertion_fold.cast<float>(), continuous_q_.head<4>());
     enter_(grounded ? JointReferenceRecoveryPhase::kFold : JointReferenceRecoveryPhase::kCapture);
 }
 
@@ -359,7 +360,8 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
         tilt < radians(70.0) ? JointReferenceRecoveryRoute::kPlant
         : pitch >= 0.0f      ? JointReferenceRecoveryRoute::kOrbitPositive
                              : JointReferenceRecoveryRoute::kOrbitNegative;
-    if (tilt >= radians(70.0) && std::abs(gravity.y()) > 0.7f)
+    if (tilt >= radians(30.0) && std::abs(gravity.y()) > 0.5f
+        && std::abs(gravity.y()) > std::abs(gravity.x()))
         selected = JointReferenceRecoveryRoute::kSide;
     if (near_upright)
         selected = JointReferenceRecoveryRoute::kUpright;
@@ -384,6 +386,8 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
             // Rotating to an absolute fold pose can pitch a canted side fall
             // onto its back before the grounded leg has delivered its stroke.
             side_fold_ = config_.thrust.cast<float>();
+            const int upper = 2 * (1 - side_lower_leg_);
+            side_fold_.segment<2>(upper) = config_.insertion_fold.segment<2>(upper).cast<float>();
             for (int side = 0; side < 2; ++side) {
                 const int hip = 2 * side;
                 const float offset =
@@ -437,7 +441,7 @@ JointReferenceRecoveryController::JointGoal
     const Vector4f axes = config_.root_axis_signs.cast<float>();
     Vector4f goal = config_.nominal.cast<float>();
     if (folding) {
-        goal = push_off_required_ ? fold_anchor_ : config_.fold.cast<float>();
+        goal = push_off_required_ || reroute_count_ > 0 ? fold_anchor_ : config_.fold.cast<float>();
         if (route_ == JointReferenceRecoveryRoute::kSide) {
             if (config_.dynamic_takeover) {
                 goal = side_fold_;
@@ -503,7 +507,7 @@ JointReferenceRecoveryController::JointGoal
             grounded_start_ ? config_.insert_speed_rad_s : config_.capture_speed_rad_s);
     if (orbiting)
         speed = static_cast<float>(config_.orbit_speed_rad_s);
-    if (side)
+    if (side || (folding && route_ == JointReferenceRecoveryRoute::kSide))
         speed = static_cast<float>(config_.side_speed_rad_s);
     return {
         goal, speed,
@@ -596,7 +600,20 @@ void JointReferenceRecoveryController::update_transitions_(
     const bool side_upright = side && tilt < radians(65.0);
     if (side_upright)
         enter_(JointReferenceRecoveryPhase::kCapture);
-    if (side && !side_upright && phase_reached_(step, 2.5))
+    const bool side_to_sagittal = side && !side_upright && std::abs(step.gravity.y()) < .65f
+                               && phase_reached_(step, .25)
+                               && reroute_count_ < config_.max_reroutes;
+    if (side_to_sagittal) {
+        ++reroute_count_;
+        route_ = step.pitch >= 0.f ? JointReferenceRecoveryRoute::kOrbitPositive
+                                   : JointReferenceRecoveryRoute::kOrbitNegative;
+        const auto axes = config_.root_axis_signs.cast<float>();
+        const float heading = ((reference - config_.fold.cast<float>()).cwiseProduct(axes)).mean();
+        fold_anchor_ = config_.fold.cast<float>() + heading * axes.cwiseInverse();
+        orbit_angle_ = 0.f;
+        enter_(JointReferenceRecoveryPhase::kFold);
+    }
+    if (side && !side_upright && !side_to_sagittal && phase_reached_(step, 2.5))
         fail_(2);
     plant_ticks_ = planting && feedback.support ? plant_ticks_ + 1 : 0;
     durations_.plant = planting && feedback.support ? durations_.plant + dt : 0.0;
@@ -735,7 +752,8 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::torques(
     const Vector6f q = project_feedback(feedback.q).cast<float>();
     const Vector6f dq = feedback.dq.cast<float>();
     Vector6f script;
-    script.head<4>() = 60.0f * (targets_.head<4>() - q.head<4>()) - 2.0f * dq.head<4>();
+    script.head<4>() = static_cast<float>(config_.leg_kp) * (targets_.head<4>() - q.head<4>())
+                     - static_cast<float>(config_.leg_kd) * dq.head<4>();
     script.tail<2>() =
         0.6f * (targets_.tail<2>() - dq.tail<2>()) + feedback.wheel_probe_torque.cast<float>();
     script.head<4>() = script.head<4>().cwiseMax(-40.0f).cwiseMin(40.0f);

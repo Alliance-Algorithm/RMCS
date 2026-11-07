@@ -6,8 +6,10 @@
 namespace rmcs_core::controller::chassis::wheel_leg {
 inline constexpr std::string_view kRecoveryModelSpecSha256 =
     "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812";
-inline JointReferenceRecoveryConfig make_recovery_config() {
+inline JointReferenceRecoveryConfig make_recovery_config(double leg_kp = 60., double leg_kd = 2.) {
     JointReferenceRecoveryConfig config;
+    config.leg_kp = leg_kp;
+    config.leg_kd = leg_kd;
     config.fold = Eigen::Vector4d{
         -0.25197165154877471, -0.11799796974413002, 0.25197032674734215, 0.11796511585937414};
     config.insertion_fold = Eigen::Vector4d{
@@ -26,7 +28,7 @@ inline JointReferenceRecoveryConfig make_recovery_config() {
     const auto weight = recovery_v202::support_compensation(
         support, {0, -0.0045574624965667261, -0.99998961471386916});
     for (int i = 0; i < 4; ++i)
-        config.support[i] += weight[i] / 60.;
+        config.support[i] += weight[i] / leg_kp;
     config.dt = .005;
     config.blend_seconds = 0.;
     config.dynamic_takeover = true;

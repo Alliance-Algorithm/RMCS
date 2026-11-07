@@ -43,6 +43,8 @@ struct JointReferenceRecoveryConfig {
     Eigen::Vector4d root_axis_signs{1.0, 1.0, -1.0, -1.0};
     Eigen::Vector2d wheel_axis_signs{1.0, -1.0};
     double dt = 0.005;
+    double leg_kp = 60.;
+    double leg_kd = 2.;
     // Frozen simulation uses 200 ms; zero selects direct deployment takeover.
     double blend_seconds = 0.2;
     // End any script at the caller's bounded upright capture before stabilization.

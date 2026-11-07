@@ -2,8 +2,8 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <numbers>
 #include <eigen3/Eigen/Dense>
+#include <numbers>
 #include <optional>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -56,9 +56,19 @@ public:
         following_velocity_controller_.output_min = -yaw_max_;
         yaw_invert_ = get_parameter_or("angular_z_invert", false);
         arm_dwell_ = get_parameter_or("arm_dwell_seconds", 0.);
+        follow_default_ = get_parameter_or("follow_mode_default", false);
+        jump_height_ = get_parameter_or("jump_request_height", .10);
+        rotary_jump_ = get_parameter_or("rotary_jump_enabled", false);
+        register_input("/remote/rotary_knob_switch", rotary_switch_, false);
+        register_output("/chassis/jump_request/id", jump_request_, std::size_t{0});
+        register_output("/chassis/jump_request/height", jump_request_height_, jump_height_);
+        register_output("/chassis/jump_request/cancel_id", jump_cancel_, std::size_t{0});
+        if (!std::isfinite(jump_height_) || jump_height_ < .03 || jump_height_ > .40)
+            throw std::invalid_argument("Invalid jump request height");
+        *mode_ = follow_default_ ? rmcs_msgs::ChassisMode::STEP_DOWN : rmcs_msgs::ChassisMode::AUTO;
         for (double value :
              {vx_max_, yaw_max_, spin_rate_, yaw_stick_rate_, height_min_, height_max_,
-               height_rate_})
+              height_rate_})
             if (!std::isfinite(value) || value <= 0.)
                 throw std::invalid_argument("Invalid chassis command limits");
         if (!std::isfinite(vx_bias_) || std::abs(vx_bias_) > vx_max_)
@@ -96,11 +106,11 @@ public:
                 pending_ = false;
             if (armed_) {
                 const bool spin_edge =
-                    l != Switch::DOWN && last_right_ == Switch::MIDDLE && r == Switch::DOWN;
+                    l == Switch::MIDDLE && last_right_ == Switch::MIDDLE && r == Switch::DOWN;
                 if (spin_edge || (!last_keyboard_.c && keyboard_->c)) {
                     if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST)
                         *mode_ = spin_edge ? rmcs_msgs::ChassisMode::STEP_DOWN
-                                          : rmcs_msgs::ChassisMode::AUTO;
+                                           : rmcs_msgs::ChassisMode::AUTO;
                     else {
                         *mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
                         spin_forward_ = !spin_forward_;
@@ -112,6 +122,16 @@ public:
                                : rmcs_msgs::ChassisMode::STEP_DOWN;
                     following_velocity_controller_.reset();
                 }
+                const auto rotary = rotary_switch_.ready() ? *rotary_switch_ : Switch::UNKNOWN;
+                if (rotary == Switch::MIDDLE)
+                    rotary_ready_ = true;
+                const bool rotary_trigger = rotary_jump_ && rotary_ready_ && rotary == Switch::DOWN;
+                if (rotary_trigger || (!last_keyboard_.r && keyboard_->r)) {
+                    ++*jump_request_;
+                    rotary_ready_ = false;
+                }
+                if (!last_keyboard_.x && keyboard_->x)
+                    *jump_cancel_ = *jump_request_;
                 *enable_ = true;
                 if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST)
                     command_->vector = Eigen::Vector3d{
@@ -143,12 +163,12 @@ public:
                     command_->vector = Eigen::Vector3d{vx, rotated.y() * vy_max_, yaw};
                 }
                 double height = *height_;
-                const double dt = last_height_update_
-                                    ? std::clamp(
-                                          std::chrono::duration<double>(now - *last_height_update_)
-                                              .count(),
-                                          0., .1)
-                                    : 0.;
+                const double dt =
+                    last_height_update_
+                        ? std::clamp(
+                              std::chrono::duration<double>(now - *last_height_update_).count(), 0.,
+                              .1)
+                        : 0.;
                 last_height_update_ = now;
                 if (!last_keyboard_.q && keyboard_->q) {
                     height_preset_ = height_preset_ == 1 ? 0 : 1;
@@ -156,7 +176,7 @@ public:
                 } else if (!last_keyboard_.e && keyboard_->e) {
                     height_preset_ = height_preset_ == -1 ? 0 : -1;
                     height = height_preset_ == -1 ? height_min_ : nominal_height_;
-                } else {
+                } else if (!rotary_jump_) {
                     const double knob = channel(*rotary_knob_);
                     height -= knob * height_rate_ * dt;
                     if (knob != 0.)
@@ -177,10 +197,11 @@ private:
             reset_active_ = true;
         }
         armed_ = false;
+        rotary_ready_ = false;
         *enable_ = false;
         command_->vector.setZero();
         *height_ = nominal_height_;
-        *mode_ = rmcs_msgs::ChassisMode::AUTO;
+        *mode_ = follow_default_ ? rmcs_msgs::ChassisMode::STEP_DOWN : rmcs_msgs::ChassisMode::AUTO;
         spin_forward_ = true;
         height_preset_ = 0;
         last_height_update_.reset();
@@ -202,16 +223,20 @@ private:
     OutputInterface<bool> enable_;
     OutputInterface<std::size_t> reset_;
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
-    double vx_max_, vx_bias_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_, height_min_,
-        height_max_, nominal_height_, height_rate_, arm_dwell_;
-    bool yaw_invert_, armed_ = false, pending_ = false,
-                                                       reset_active_ = false, spin_forward_ = true;
+    double vx_max_, vx_bias_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_,
+        height_min_, height_max_, nominal_height_, height_rate_, arm_dwell_;
+    bool yaw_invert_, armed_ = false, pending_ = false, reset_active_ = false, spin_forward_ = true;
     rmcs_msgs::Switch last_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
     std::optional<Clock::time_point> arm_started_;
     pid::PidCalculator following_velocity_controller_;
     std::optional<Clock::time_point> last_height_update_;
     int height_preset_ = 0;
+    bool follow_default_ = false, rotary_jump_ = false, rotary_ready_ = false;
+    InputInterface<rmcs_msgs::Switch> rotary_switch_;
+    double jump_height_ = .10;
+    OutputInterface<std::size_t> jump_request_, jump_cancel_;
+    OutputInterface<double> jump_request_height_;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

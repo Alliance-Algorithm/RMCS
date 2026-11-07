@@ -2,6 +2,7 @@
 #include "wheel_leg/joint_solver.hpp"
 #include "wheel_leg/policy/selection.hpp"
 #include "wheel_leg/recovery_yaw.hpp"
+#include "wheel_leg/request_protocol.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -74,6 +75,27 @@ public:
         register_output("/wheel_leg/recovery/yaw_align_active", recovery_yaw_active_, false);
         register_output("/wheel_leg/recovery/capture_ready", recovery_capture_ready_, false);
         register_output("/wheel_leg/recovery/capture_blockers", recovery_capture_blockers_, 0);
+        if (policy_.name == kHistoryPolicy.name) {
+            register_input("/wheel_leg/rl/estimate", estimate_);
+            register_input("/wheel_leg/rl/estimate_frame", estimate_frame_);
+            register_input("/wheel_leg/rl/estimate_valid", estimate_valid_);
+            register_input("/chassis/jump_request/id", jump_request_, false);
+            register_input("/chassis/jump_request/height", jump_height_, false);
+            register_input("/chassis/jump_request/cancel_id", jump_cancel_, false);
+            register_output(
+                "/wheel_leg/rl/input/context", context_,
+                std::array<double, 7>{1., 0., 0., 0., 0., 0., 0.});
+            register_output("/wheel_leg/rl/jump/response", jump_response_, 0);
+            register_output("/wheel_leg/rl/jump/pending", jump_pending_, false);
+            register_output("/wheel_leg/rl/jump/end_reason", jump_end_, 0);
+            register_output("/wheel_leg/rl/jump/active", jump_active_, false);
+            register_output("/wheel_leg/rl/jump/clock", jump_clock_, 0.);
+            register_output("/wheel_leg/rl/jump/height", jump_requested_height_, 0.);
+            jump_enabled_ = get_parameter_or("jump_enabled", false);
+            request_protocol_ =
+                wheel_leg::RequestProtocol{wheel_leg::RequestProtocol::Admission::kDirect};
+            *policy_height_ = .32;
+        }
         timeout_ = get_parameter_or("inference_timeout", .06);
         drive_loss_debounce_ =
             std::chrono::duration<double>(get_parameter_or("drive_loss_debounce", .1));
@@ -95,7 +117,8 @@ public:
             throw std::invalid_argument("Invalid inference timeout or height rate");
     }
     void before_updating() override {
-        if (*policy_rate_ != policy_.policy_hz || *model_spec_ != kModelSpecSha256
+        if (*policy_rate_ != policy_.policy_hz
+            || (policy_.name != kHistoryPolicy.name && *model_spec_ != kModelSpecSha256)
             || *observation_sha_ != policy_.observation_sha)
             throw std::invalid_argument("Policy model, cadence or observation contract mismatch");
         for (int i = 0; i < 6; ++i)
@@ -215,7 +238,8 @@ public:
             fail("policy result timeout");
             return;
         }
-        if (*state_ == 3 && recovery_started_ && -gravity_->z() < std::cos(std::numbers::pi / 4.)) {
+        if (policy_.name != kHistoryPolicy.name && *state_ == 3 && recovery_started_
+            && -gravity_->z() < std::cos(std::numbers::pi / 4.)) {
             *recovery_fault_ = 5;
             fail("self-righting lost upright after RL takeover");
             return;
@@ -242,8 +266,19 @@ public:
                 recovery_.reset(feedback.q);
                 recovery_started_ = true;
             }
+            auto limits = wheel_leg::RecoveryCaptureLimits{};
+            if (policy_.name == kHistoryPolicy.name) {
+                limits.tilt = std::numbers::pi / 4.;
+                limits.leg_error = std::numbers::pi;
+                limits.leg_velocity = 8.;
+                limits.wheel_velocity = 50.;
+                limits.gyro = 3.;
+                limits.upright_gyro = 4.;
+                for (int side = 0; side < 2; ++side)
+                    limits.hinge_max[side] = policy_.winding_bounds[side][1];
+            }
             *recovery_capture_blockers_ = wheel_leg::recovery_capture_blockers(
-                feedback, *acceleration_, recovery_config_.nominal);
+                feedback, *acceleration_, recovery_config_.nominal, limits);
             *recovery_capture_ready_ = *recovery_capture_blockers_ == 0;
             feedback.rl_capture_ready = *recovery_capture_ready_ && have_target_;
             const auto& recovery_command = recovery_.update(feedback);
@@ -289,17 +324,20 @@ public:
 private:
     using Clock = std::chrono::steady_clock;
     wheel_leg::JointReferenceRecoveryConfig recovery_configuration() {
-        auto config = wheel_leg::make_recovery_config();
+        auto config = policy_.name == kHistoryPolicy.name
+                        ? wheel_leg::make_recovery_config(policy_.leg_kp, policy_.leg_kd)
+                        : wheel_leg::make_recovery_config();
         config.prepare_speed_rad_s = get_parameter_or("self_righting.fold_plant_speed_rad_s", 2.);
         config.insert_speed_rad_s = get_parameter_or("self_righting.insert_speed_rad_s", 2.);
         config.orbit_speed_rad_s = get_parameter_or("self_righting.orbit_speed_rad_s", 2.);
         config.push_speed_rad_s = get_parameter_or("self_righting.push_speed_rad_s", 2.);
         config.capture_speed_rad_s = get_parameter_or("self_righting.capture_speed_rad_s", 2.);
         config.side_speed_rad_s = get_parameter_or("self_righting.side_speed_rad_s", 2.);
-        if (config.prepare_speed_rad_s > 2. || config.insert_speed_rad_s > 2.
-            || config.orbit_speed_rad_s > 2. || config.push_speed_rad_s > 2.
-            || config.capture_speed_rad_s > 2. || config.side_speed_rad_s > 2.)
-            throw std::invalid_argument("Recovery reference speed exceeds 2 rad/s");
+        constexpr double speed_limit = 2.;
+        if (config.prepare_speed_rad_s > speed_limit || config.insert_speed_rad_s > speed_limit
+            || config.orbit_speed_rad_s > speed_limit || config.push_speed_rad_s > speed_limit
+            || config.capture_speed_rad_s > speed_limit || config.side_speed_rad_s > speed_limit)
+            throw std::invalid_argument("Recovery reference speed exceeds configured policy limit");
         return config;
     }
     void reset_runtime() {
@@ -311,7 +349,7 @@ private:
         *applied_ = JointVector{};
         *action_applied_ = false;
         *policy_command_ = Eigen::Vector3d::Zero();
-        *policy_height_ = .305;
+        *policy_height_ = policy_.name == kHistoryPolicy.name ? .32 : .305;
         *state_ = 1;
         *recovery_phase_ = 0;
         *recovery_fault_ = 0;
@@ -326,6 +364,19 @@ private:
         drive_loss_started_.reset();
         action_starved_logged_ = false;
         heading_.reset();
+        request_protocol_.reset(static_cast<double>(*tick_) / 1000.);
+        pending_jump_.reset();
+        if (policy_.name == kHistoryPolicy.name) {
+            *jump_pending_ = false;
+            *jump_active_ = false;
+            *jump_clock_ = 0.;
+            *jump_requested_height_ = 0.;
+            *jump_response_ = 0;
+            *jump_end_ = 0;
+        }
+        jump_request_seen_ = jump_request_.ready() ? *jump_request_ : 0;
+        if (policy_.name == kHistoryPolicy.name)
+            *context_ = {1., 0., 0., 0., 0., 0., 0.};
         recovery_.reset(wheel_leg::JointReferenceRecoveryVector6::Zero(), false);
         support_observer_.reset();
         recovery_started_ = false;
@@ -364,7 +415,13 @@ private:
         last_command_tick_ = *tick_;
         if (*state_ == 4) {
             *policy_command_ = Eigen::Vector3d::Zero();
-            *policy_height_ = .305;
+            *policy_height_ = policy_.name == kHistoryPolicy.name ? .32 : .305;
+            if (policy_.name == kHistoryPolicy.name) {
+                *context_ = {0., 0., 0., 1., 0., 0., 0.};
+                jump_request_seen_ = jump_request_.ready() ? *jump_request_ : 0;
+                pending_jump_.reset();
+                *jump_pending_ = false;
+            }
             return;
         }
         if (!command_->vector.allFinite() || !std::isfinite(*height_)) {
@@ -384,13 +441,106 @@ private:
                 -policy_.yaw_limit, policy_.yaw_limit);
         } else
             heading_.reset();
-        *policy_command_ =
-            Eigen::Vector3d{vx, 0., std::clamp(yaw, -policy_.yaw_limit, policy_.yaw_limit)};
+        *policy_command_ = Eigen::Vector3d{
+            vx,
+            policy_.name == kHistoryPolicy.name && !spin
+                ? std::clamp(command_->vector.y(), -policy_.forward_limit, policy_.forward_limit)
+                : 0.,
+            std::clamp(yaw, -policy_.yaw_limit, policy_.yaw_limit)};
+        if (policy_.name == kHistoryPolicy.name)
+            update_request();
         const double step = height_rate_ / policy_.policy_hz;
-        *policy_height_ +=
-            std::clamp(std::clamp(*height_, .23, .42) - *policy_height_, -step, step);
+        *policy_height_ += std::clamp(
+            std::clamp(*height_, .23, policy_.name == kHistoryPolicy.name ? .40 : .42)
+                - *policy_height_,
+            -step, step);
+    }
+    void update_request() {
+        wheel_leg::RequestProtocol::Estimate estimate;
+        if (*estimate_valid_ && estimate_->size() == 5 && estimate_frame_->size() == 35) {
+            Eigen::Vector3d gravity, velocity, gyro;
+            for (int i = 0; i < 3; ++i) {
+                gravity[i] = (*estimate_frame_)[7 + i];
+                gyro[i] = (*estimate_frame_)[4 + i] * 2.;
+                velocity[i] = (*estimate_)[i];
+            }
+            const double norm = gravity.norm();
+            if (gravity.allFinite() && velocity.allFinite() && gyro.allFinite() && norm > 1e-6) {
+                gravity /= norm;
+                estimate.valid = true;
+                estimate.age =
+                    std::chrono::duration<double>(Clock::now().time_since_epoch()).count()
+                    - *action_stamp_ * 1e-9;
+                estimate.vertical_velocity = -gravity.dot(velocity);
+                estimate.tilt = std::acos(std::clamp(-gravity.z(), -1., 1.));
+                estimate.angular_speed = gyro.norm();
+                for (int side = 0; side < 2; ++side) {
+                    const double logit = (*estimate_)[3 + side];
+                    estimate.contact[side] = logit >= 0. ? 1. / (1. + std::exp(-logit))
+                                                         : std::exp(logit) / (1. + std::exp(logit));
+                }
+            }
+        }
+        const auto now = static_cast<double>(*tick_) / 1000.;
+        const bool allowed = jump_enabled_ && *state_ == 3 && !rmcs_msgs::is_spining(*mode_);
+        const auto cancel = jump_cancel_.ready() ? *jump_cancel_ : 0;
+        std::size_t request = 0;
+        double height = .10;
+        if (jump_request_.ready() && *jump_request_ != jump_request_seen_) {
+            jump_request_seen_ = *jump_request_;
+            height = jump_height_.ready() ? *jump_height_ : .10;
+            if (request_protocol_.active())
+                request = jump_request_seen_;
+            else if (allowed && !pending_jump_)
+                pending_jump_ = JumpIntent{jump_request_seen_, height};
+        }
+        if (!allowed || (pending_jump_ && cancel == pending_jump_->id))
+            pending_jump_.reset();
+        if (pending_jump_ && request_protocol_.can_accept(now, estimate)) {
+            request = pending_jump_->id;
+            height = pending_jump_->height;
+            pending_jump_.reset();
+        }
+        *jump_pending_ = pending_jump_.has_value();
+        const auto& condition =
+            request_protocol_.update(now, estimate, request, height, cancel, allowed);
+        *jump_response_ = condition.response;
+        *jump_end_ = condition.end_reason;
+        *jump_active_ = condition.active;
+        *jump_clock_ = condition.clock;
+        *jump_requested_height_ = condition.height;
+        if (condition.response == 1)
+            RCLCPP_INFO(
+                get_logger(), "Jump %zu accepted: rise %.3f m, command [%.2f, %.2f, %.2f]",
+                condition.active_id, condition.height, policy_command_->x(), policy_command_->y(),
+                policy_command_->z());
+        else if (condition.end_reason != 0)
+            RCLCPP_INFO(get_logger(), "Jump finished: reason %d", condition.end_reason);
+        *context_ =
+            condition.active
+                ? std::array<double, 7>{0., 0., 0., 0., 1., condition.height * 5., condition.clock}
+                : std::array<double, 7>{1., 0., 0., 0., 0., 0., 0.};
+        if (condition.safety_required && condition.end_reason != 4)
+            fail("jump request estimate or clock invalid");
     }
     const PolicyParameters& policy_;
+    wheel_leg::RequestProtocol request_protocol_;
+    struct JumpIntent {
+        std::size_t id;
+        double height;
+    };
+    std::optional<JumpIntent> pending_jump_;
+    OutputInterface<bool> jump_pending_;
+    OutputInterface<bool> jump_active_;
+    OutputInterface<double> jump_clock_, jump_requested_height_;
+    InputInterface<std::vector<double>> estimate_, estimate_frame_;
+    InputInterface<bool> estimate_valid_;
+    InputInterface<std::size_t> jump_request_, jump_cancel_;
+    InputInterface<double> jump_height_;
+    OutputInterface<std::array<double, 7>> context_;
+    OutputInterface<int> jump_response_, jump_end_;
+    bool jump_enabled_ = false;
+    std::size_t jump_request_seen_ = 0;
     InputInterface<JointVector> q_, dq_;
     InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_, acceleration_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> command_;
