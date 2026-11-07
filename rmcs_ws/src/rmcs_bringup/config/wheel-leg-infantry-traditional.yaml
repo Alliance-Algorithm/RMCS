@@ -181,7 +181,7 @@ wheel_leg_controller:
     dt: 0.001
     leg_kp: 160.0
     leg_kd: 2.5
-    gas_spring_gain: 1.0
+    gas_spring_gain: 0.0
     max_tilt_deg: 60.0
 
     self_righting:
@@ -265,6 +265,8 @@ value_broadcaster:
   ros__parameters:
     update_rate: 50.0
     forward_list:
+      - /chassis/tof/left/distance
+      - /chassis/tof/right/distance
       - /wheel_leg/control/state
       - /wheel_leg/control/fault
       - /wheel_leg/feedback_fresh

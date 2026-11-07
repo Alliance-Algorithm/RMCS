@@ -52,6 +52,8 @@ public:
         register_input("/chassis/control_enable", requested_);
         register_input("/chassis/control_velocity", command_);
         register_input("/chassis/control_height", height_);
+        register_input("/chassis/tof/left/distance", tof_left_distance_);
+        register_input("/chassis/tof/right/distance", tof_right_distance_);
         register_input("/chassis/reset_count", reset_);
         register_input("/predefined/update_rate", rate_);
         for (int i = 0; i < 6; ++i) {
@@ -438,6 +440,7 @@ private:
     InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_, acceleration_;
     InputInterface<std::array<double, 2>> knee_, knee_rate_, shank_, shank_rate_, length_;
     InputInterface<double> velocity_, distance_, com_offset_, height_, rate_;
+    InputInterface<double> tof_left_distance_, tof_right_distance_;
     InputInterface<double> recovery_yaw_;
     InputInterface<bool> valid_, drives_ready_, requested_, simulation_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> command_;
