@@ -9,12 +9,12 @@ rmcs_executor:
       # - rmcs::AutoAimPlayerComponent -> auto_aim_player
       # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      # - rmcs_core::controller::arm::ArmVisual -> arm_visual
+      - rmcs_core::controller::arm::ArmVisual -> arm_visual
       
 
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      - rmcs::RealSenseCapturerComponent -> realsense_capturer
-      - rmcs::AutoMineComponent -> auto_mine_component
+      # - rmcs::RealSenseCapturerComponent -> realsense_capturer
+      # - rmcs::AutoMineComponent -> auto_mine_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 

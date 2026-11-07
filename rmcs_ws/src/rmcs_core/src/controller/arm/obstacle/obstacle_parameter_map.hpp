@@ -63,7 +63,7 @@ inline auto make_obstacle_parameter_map(const ObstacleCoordinatesMap& coordinate
              .scale = {0.001, 0.001, 0.001},
              .compensation = coordinates.get_pose("exchange_compensation"),
              .pose = {0.238, -0.190, 0.278, -1.809, -0.769, 1.571},
-             .initial_operation = CollisionObjectOperation::ADD,
+             .initial_operation = CollisionObjectOperation::IDLE,
              .touch_links = {"link_6"}}},
         {"pillar",
          ObstacleConfig{
@@ -71,7 +71,7 @@ inline auto make_obstacle_parameter_map(const ObstacleCoordinatesMap& coordinate
              .scale = {0.001, 0.001, 0.001},
              .compensation = coordinates.get_pose("pillar_compensation"),
              .pose = {0.238, -0.190, 0.278, -1.809, -0.769, 1.571},
-             .initial_operation = CollisionObjectOperation::ADD,
+             .initial_operation = CollisionObjectOperation::IDLE,
              .touch_links = {"link_6"},
              .attach_link = "link_6"}},
     };

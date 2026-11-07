@@ -120,7 +120,8 @@ private:
                 } else {
                     static_assert(
                         std::is_same_v<Config, CurrentStateConfig>
-                        || std::is_same_v<Config, FixedStateConfig>);
+                        || std::is_same_v<Config, FixedStateConfig>
+                        || std::is_same_v<Config, LogPoseConfig>);
                 }
             },
             stage.config.config);

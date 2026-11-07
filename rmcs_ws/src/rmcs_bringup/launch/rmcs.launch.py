@@ -66,6 +66,7 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 respawn=True,
                 respawn_delay=1.0,
                 output="screen",
+                arguments=["--ros-args", "--log-level", "rmcs_executor:=warn"],
             )
         )
         demo_launch_path = os.path.join(

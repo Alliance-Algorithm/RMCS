@@ -38,12 +38,12 @@ engineer_hardware:
     board_serial_right_board: "AF-EEF5-24BA-6675-F1B1-C797-50AF-869C-870E"
     gripper_zero_point: 26298
     image_pitch_zero_point: 43131
-    joint6_zero_point: 12793
-    joint5_zero_point: 60137
-    joint4_zero_point: 33493
-    joint3_zero_point: 29072
-    joint2_zero_point: 39433
-    joint1_zero_point: 14669
+    joint6_zero_point: 11970
+    joint5_zero_point: 60200
+    joint4_zero_point: 32573
+    joint3_zero_point: 28500
+    joint2_zero_point: 39451
+    joint1_zero_point: 14412
     steering_lf_zero_point: 1343
     steering_lb_zero_point: 4096
     steering_rb_zero_point: 0
@@ -56,7 +56,7 @@ engineer_hardware:
 
 arm_controller:
   ros__parameters:
-    action_profile: lunar_rover
+    chassis_type: lunar_rover
     gripper_step: 7.0
     gripper_open_angle: 7.9
     gripper_close_angle: 0.4

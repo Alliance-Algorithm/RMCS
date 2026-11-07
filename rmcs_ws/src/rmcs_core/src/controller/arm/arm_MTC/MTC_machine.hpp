@@ -24,6 +24,8 @@
 #include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp/node.hpp>
 #include <shape_msgs/msg/solid_primitive.hpp>
+#include <tf2/LinearMath/Matrix3x3.hpp>
+#include <tf2/LinearMath/Quaternion.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -392,6 +394,36 @@ private:
                                                             const mtc::PropertyMap&) {});
                                     command->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
                                     return command;
+                                } else if constexpr (std::is_same_v<Stage, LogPoseConfig>) {
+                                    if (!model->hasLinkModel(stage_config.link))
+                                        throw std::invalid_argument(
+                                            config.name + ": unknown log link "
+                                            + stage_config.link);
+                                    auto log = std::make_unique<mtc::stages::ModifyPlanningScene>(
+                                        config.name);
+                                    log->setCallback(
+                                        [logger = node_->get_logger(), link = stage_config.link](
+                                            const planning_scene::PlanningScenePtr& scene,
+                                            const mtc::PropertyMap&) {
+                                            const auto& pose =
+                                                scene->getCurrentState().getGlobalLinkTransform(
+                                                    link);
+                                            const Eigen::Quaterniond q(pose.linear());
+                                            double roll = 0.0;
+                                            double pitch = 0.0;
+                                            double yaw = 0.0;
+                                            // Inverse of the setRPY used by makePoseGoal.
+                                            tf2::Matrix3x3(tf2::Quaternion(q.x(), q.y(), q.z(), q.w()))
+                                                .getRPY(roll, pitch, yaw);
+                                            RCLCPP_INFO(
+                                                logger,
+                                                ".x = %.3f, .y = %.3f, .z = %.3f, .roll = %.3f, "
+                                                ".pitch = %.3f, .yaw = %.3f",
+                                                pose.translation().x(), pose.translation().y(),
+                                                pose.translation().z(), roll, pitch, yaw);
+                                        });
+                                    log->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
+                                    return log;
                                 } else {
                                     detail::validate_scene_operation_links(
                                         stage_config, *model, config.name);

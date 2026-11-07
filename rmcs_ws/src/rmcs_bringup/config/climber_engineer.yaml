@@ -45,7 +45,7 @@ image_transmission:
 
 arm_controller:
   ros__parameters:
-    action_profile: climber
+    chassis_type: climber
     gripper_step: 65.0
     gripper_open_angle: 270.0
     gripper_close_angle: 52.0

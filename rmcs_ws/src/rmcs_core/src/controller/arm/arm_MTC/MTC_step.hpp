@@ -91,8 +91,8 @@ using SolverConfig = std::variant<PipelineConfig, JointInterpolationConfig, Cart
 
 struct MotionConfig {
     SolverConfig solver = PipelineConfig{};
-    double velocity_scaling = 0.3;
-    double acceleration_scaling = 0.1;
+    double velocity_scaling = 0.7;
+    double acceleration_scaling = 0.5;
     double timeout = 5.0;
 };
 
@@ -177,7 +177,8 @@ inline void resolve_scene_objects(ModifyPlanningSceneConfig& config) {
                         options.links = registered.touch_links;
                     } else {
                         if (registered.attach_link.empty())
-                            throw std::invalid_argument("Obstacle is not attachable: " + options.object);
+                            throw std::invalid_argument(
+                                "Obstacle is not attachable: " + options.object);
                         options.link = registered.attach_link;
                         if constexpr (std::is_same_v<Operation, AttachObjectConfig>)
                             options.touch_links = registered.touch_links;
@@ -195,11 +196,16 @@ struct GripperCommandConfig {
     double timeout = 3.0;
 };
 
+// Logs the link pose of the planned state at this point; exports no execution step.
+struct LogPoseConfig {
+    std::string link = "link_6";
+};
+
 struct StageConfig {
     std::string name;
     std::variant<
         CurrentStateConfig, FixedStateConfig, MoveToConfig, MoveRelativeConfig,
-        ModifyPlanningSceneConfig, GripperCommandConfig>
+        ModifyPlanningSceneConfig, GripperCommandConfig, LogPoseConfig>
         config;
 };
 
@@ -231,6 +237,10 @@ public:
 
     static StageConfig makeCloseGripper(std::string name, double timeout = 3.0) {
         return {std::move(name), GripperCommandConfig{GripperAction::Close, timeout}};
+    }
+
+    static StageConfig makeLogPose(std::string name, std::string link = "link_6") {
+        return {std::move(name), LogPoseConfig{std::move(link)}};
     }
 
     static StageConfig makeAllowCollisions(std::string object) {
@@ -265,8 +275,8 @@ public:
             std::move(name), std::move(object), std::move(other_object));
     }
 
-    static StageConfig makeAllowObjectCollisions(
-        std::string name, std::string object, std::string other_object) {
+    static StageConfig
+        makeAllowObjectCollisions(std::string name, std::string object, std::string other_object) {
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {ObjectCollisionsConfig{
@@ -281,8 +291,8 @@ public:
             std::move(name), std::move(object), std::move(other_object));
     }
 
-    static StageConfig makeForbidObjectCollisions(
-        std::string name, std::string object, std::string other_object) {
+    static StageConfig
+        makeForbidObjectCollisions(std::string name, std::string object, std::string other_object) {
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {ObjectCollisionsConfig{
@@ -300,8 +310,7 @@ public:
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {AttachObjectConfig{
-                                     .object = std::move(object),
-                                      .from_registry = true}}});
+                                     .object = std::move(object), .from_registry = true}}});
     }
 
     static StageConfig makeDetachObject(std::string object) {
@@ -313,7 +322,7 @@ public:
         return makeModifyPlanningScene(
             std::move(name), ModifyPlanningSceneConfig{
                                  .operations = {DetachObjectConfig{
-                                      .object = std::move(object), .from_registry = true}}});
+                                     .object = std::move(object), .from_registry = true}}});
     }
 };
 

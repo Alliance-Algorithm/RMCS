@@ -1,36 +1,31 @@
-#include "controller/arm/arm_action/action_dictionary.hpp"
-#include "controller/arm/arm_action/action_step.hpp"
-#include "controller/arm/arm_action/arm_action_machine.hpp"
+#include "controller/arm/arm_MTC/MTC_execution.hpp"
+#include "controller/arm/arm_MTC/MTC_machine.hpp"
+#include "controller/arm/arm_MTC/MTC_parameter_map.hpp"
 #include "controller/arm/obstacle/obstacle_coordinates_map.hpp"
 #include "controller/arm/obstacle/obstacle_course.hpp"
 #include "filter/low_pass_filter.hpp"
-#include <Eigen/src/Core/Matrix.h>
+#include <Eigen/Dense>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <eigen3/Eigen/Dense>
-#include <eigen3/Eigen/src/Core/util/Meta.h>
-#include <map>
-
-#include <geometry_msgs/msg/point_stamped.hpp>
-#include <geometry_msgs/msg/pose.hpp>
-#include <moveit/kinematic_constraints/utils.hpp>
-#include <moveit/move_group_interface/move_group_interface.hpp>
-#include <moveit/planning_interface/planning_interface.hpp>
-#include <moveit/planning_scene_interface/planning_scene_interface.hpp>
-#include <moveit/robot_state/robot_state.hpp>
-#include <moveit_msgs/msg/move_it_error_codes.hpp>
+#include <functional>
+#include <memory>
 #include <numbers>
-#include <rclcpp/executors/multi_threaded_executor.hpp>
+#include <optional>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <stdexcept>
 #include <string>
-#include <sys/cdefs.h>
-#include <tf2_eigen/tf2_eigen.hpp>
+#include <thread>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include <rmcs_executor/component.hpp>
@@ -38,12 +33,8 @@
 #include <rmcs_msgs/gripper_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/mouse.hpp>
-#include <rmcs_msgs/relay_mode.hpp>
 #include <rmcs_msgs/switch.hpp>
-#include <rmcs_utility/crc/dji_crc.hpp>
 #include <rmcs_utility/normalize_angle.hpp>
-#include <rmcs_utility/package_receive.hpp>
-#include <rmcs_utility/tick_timer.hpp>
 
 namespace rmcs_core::controller::arm {
 
@@ -55,12 +46,12 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , action_dictionary_(make_action_parameter_map(get_parameter("action_profile").as_string()))
-        , chassis_type_(get_parameter("action_profile").as_string())
-        , arm_action_machine_()
+        , mtc_dictionary_(MTC::make_default_dictionary())
+        , mtc_recipes_(make_mtc_recipes())
+        , chassis_type_(get_parameter("chassis_type").as_string())
+        , mtc_machine_()
         , obstacle_coordinates_map_()
-        , obstacle_course_(
-              arm_action_machine_.moveit_group_getter().get(), obstacle_coordinates_map_)
+        , obstacle_course_(mtc_machine_.moveit_group_getter().get(), obstacle_coordinates_map_)
         , custom_joint_filter_(0.2) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
@@ -70,8 +61,6 @@ public:
         register_input("/remote/mouse", mouse_);
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob_switch", rotary_knob_switch);
-        // register_input("/auto_aim/pillar_pose", pillar_pose_, false);
-        // register_input("/auto_aim/pillar_pose_sequence", pillar_pose_sequence_, false);
 
         register_output("/arm/mode", arm_mode_);
         register_output("/arm/enable_flag", is_arm_enable, false);
@@ -95,10 +84,21 @@ public:
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
 
-        register_input("/leg_back/up_stairs_step", up_stairs_layer, false);
+        // Compose every recipe once without runtime targets so unknown blocks and unbound
+        // objects fail at load, not in update().
+        for (const auto& [mode, recipe] : mtc_recipes_)
+            mtc_dictionary_.helper_build_chunk(recipe.blocks, recipe.bindings);
+
+        worker_thread_ = std::thread([this] { execution_worker(); });
     }
 
-    ~ArmController() {}
+    ~ArmController() {
+        requested_generation_.store(0, std::memory_order_release);
+        worker_running_.store(false, std::memory_order_release);
+        if (worker_thread_.joinable())
+            worker_thread_.join();
+        mtc_machine_.stop();
+    }
 
     void update() override {
         auto switch_right = *switch_right_;
@@ -108,8 +108,25 @@ public:
         auto mouse = *mouse_;
         using namespace rmcs_msgs;
 
+        bool feedback_valid = true;
+        for (const auto& joint : theta)
+            feedback_valid = feedback_valid && std::isfinite(*joint);
+        if (!feedback_valid) {
+            feedback_fault_ = true;
+            cancel_execution();
+            *is_arm_enable = false;
+            *gripper_target_theta = NAN;
+            *image_pitch_target_theta_ = NAN;
+            return;
+        }
+        if (feedback_fault_) {
+            reset();
+            if (switch_left == Switch::DOWN && switch_right == Switch::DOWN)
+                feedback_fault_ = false;
+            return;
+        }
+
         static bool initial_check_done{false};
-        static bool collision_apply{false};
         if (!initial_check_done) {
             *is_arm_enable = false;
             if (switch_left == Switch::DOWN && switch_right == Switch::DOWN) {
@@ -128,30 +145,6 @@ public:
             *is_arm_enable = true;
         }
 
-        // if (pillar_pose_sequence_.ready() && pillar_pose_.ready()
-        //     && *pillar_pose_sequence_ != last_pillar_pose_sequence_) {
-        //     last_pillar_pose_sequence_ = *pillar_pose_sequence_;
-        //     const auto& pose = *pillar_pose_;
-        //     if (switch_left == Switch::UP && switch_right == Switch::DOWN
-        //         && std::ranges::all_of(pose, [](double value) { return std::isfinite(value); }))
-        //         { const Action::PoseTarget target{
-        //             .x = pose[0],
-        //             .y = pose[1],
-        //             .z = pose[2],
-        //             .roll = pose[3],
-        //             .pitch = pose[4],
-        //             .yaw = pose[5],
-        //         };
-        //         arm_action_machine_.process(
-        //             {Action::Step::makePose(target, Action::MotionParams{})});
-        //     }
-        // }
-
-        if (!collision_apply) {
-            obstacle_course_.apply_collision();
-            collision_apply = true;
-        }
-
         mode_selection();
         arm_control();
         gripper_control();
@@ -167,9 +160,64 @@ public:
     }
 
 private:
-    void set_arm_mode(rmcs_msgs::ArmMode mode, bool request_arm_action_machine = true) {
+    struct MtcRecipe {
+        std::vector<std::string> blocks;
+        MTC::ObjectBindings bindings{};
+        // Evaluated on the control thread when the task is triggered, so it may read
+        // controller state; the result is composed into the task on the worker.
+        std::function<MTC::StageTargetOverrides()> targets{};
+    };
+    using MtcRecipes = std::unordered_map<rmcs_msgs::ArmMode, MtcRecipe>;
+
+    // Automatic modes without an entry submit nothing.
+    static MtcRecipes make_mtc_recipes() {
+        using rmcs_msgs::ArmMode;
+        return {
+            {ArmMode::Auto_Extract_LF,
+             MtcRecipe{
+                 .blocks = {"current_start", "extra_left_front" /*, "extra", "auto_walk"*/},
+                 .bindings = {{"unit", "energy_unit_left_front"}}}},
+            {ArmMode::Auto_Storage_LF,
+             MtcRecipe{
+                 .blocks = {"current_start", "store_left_front", "store", "auto_walk"},
+                 .bindings = {{"unit", "energy_unit_left_front"}}}},
+            {ArmMode::Auto_Extract_LB,
+             MtcRecipe{
+                 .blocks = {"current_start", "extra_left_back", "extra", "auto_walk"},
+                 .bindings = {{"unit", "energy_unit_left_back"}}}},
+            {ArmMode::Auto_Storage_LB,
+             MtcRecipe{
+                 .blocks = {"current_start", "store_left_back", "store", "auto_walk"},
+                 .bindings = {{"unit", "energy_unit_left_back"}}}},
+            {ArmMode::Auto_Extract_RF,
+             MtcRecipe{
+                 .blocks = {"current_start", "extra_right_front", "extra", "auto_walk"},
+                 .bindings = {{"unit", "energy_unit_right_front"}}}},
+            {ArmMode::Auto_Storage_RF,
+             MtcRecipe{
+                 .blocks = {"current_start", "store_right_front", "store", "auto_walk"},
+                 .bindings = {{"unit", "energy_unit_right_front"}}}},
+            {ArmMode::Auto_Extract_RB,
+             MtcRecipe{
+                 .blocks = {"current_start", "extra_right_back", "extra", "auto_walk"},
+                 .bindings = {{"unit", "energy_unit_right_back"}}}},
+            {ArmMode::Auto_Storage_RB,
+             MtcRecipe{
+                 .blocks = {"current_start", "store_right_back", "store", "auto_walk"},
+                 .bindings = {{"unit", "energy_unit_right_back"}}}},
+            {ArmMode::Auto_Walk, MtcRecipe{.blocks = {"current_start", "auto_walk"}}},
+            {ArmMode::Calibration, MtcRecipe{.blocks = {"current_start", "test"}}},
+            // {ArmMode::Auto_Up_Two_Stairs, MtcRecipe{.blocks = {"current_start",
+            // "auto_up_two_stairs"}}}, {ArmMode::Auto_Up_One_Stairs, MtcRecipe{.blocks =
+            // {"current_start", "auto_up_one_stairs"}}}, {ArmMode::Auto_Down_Stairs,
+            // MtcRecipe{.blocks = {"current_start", "auto_down_stairs"}}},
+
+        };
+    }
+
+    void set_arm_mode(rmcs_msgs::ArmMode mode, bool request_mtc = true) {
         *arm_mode_ = mode;
-        if (request_arm_action_machine) {
+        if (request_mtc) {
             request_trigger_++;
         }
     }
@@ -197,9 +245,13 @@ private:
 
         } else if (switch_left == Switch::DOWN && switch_right == Switch::MIDDLE) {
             if (joystick_right_->y() > 0.8) {
+                if (requested_generation_.load(std::memory_order_acquire) != 0)
+                    cancel_execution();
                 set_gripper_mode(rmcs_msgs::GripperMode::Open);
             }
             if (joystick_right_->y() < -0.8) {
+                if (requested_generation_.load(std::memory_order_acquire) != 0)
+                    cancel_execution();
                 set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
         }
@@ -296,6 +348,8 @@ private:
                 }
             }
             if (keyboard.z && !last_keyboard_.z) {
+                if (requested_generation_.load(std::memory_order_acquire) != 0)
+                    cancel_execution();
                 if (!keyboard.shift && !keyboard.ctrl) {
                     set_gripper_mode(rmcs_msgs::GripperMode::Open);
                 } else if (keyboard.shift && keyboard.ctrl) {
@@ -303,6 +357,8 @@ private:
                 }
             }
             if (keyboard.x && !last_keyboard_.x) {
+                if (requested_generation_.load(std::memory_order_acquire) != 0)
+                    cancel_execution();
                 set_gripper_mode(rmcs_msgs::GripperMode::Close);
             }
             if (keyboard.r && !last_keyboard_.r) {
@@ -320,160 +376,289 @@ private:
         }
     }
     void arm_control() {
+        if (get_arm_mode() != last_arm_mode_
+            && requested_generation_.load(std::memory_order_acquire) != 0)
+            cancel_execution();
+
         if (request_trigger_ != last_processed_trigger_) {
             last_processed_trigger_ = request_trigger_;
-            // obstacle_course_.set_operation(
-            //     "energy_unit_left_front", obstacle::CollisionObjectOperation::ADD);
-
-            switch (get_arm_mode()) {
-                using namespace rmcs_msgs;
-            case ArmMode::Auto_Extract_LF:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_lf"));
-                break;
-            case ArmMode::Auto_Extract_LB:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_lb"));
-                break;
-            case ArmMode::Auto_Extract_RF:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_rf"));
-                break;
-            case ArmMode::Auto_Extract_RB:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("extract_rb"));
-                break;
-            case ArmMode::Auto_Storage_LF:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_lf"));
-                break;
-            case ArmMode::Auto_Storage_LB:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_lb"));
-                break;
-            case ArmMode::Auto_Storage_RF:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_rf"));
-                break;
-            case ArmMode::Auto_Storage_RB:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("storage_rb"));
-                break;
-            case ArmMode::Auto_Five_Mine:
-                arm_action_machine_.process(
-                    action_dictionary_.helper_find_chunk("roll_out_in_five_mines"));
-                break;
-            case ArmMode::Auto_Three_Mine_First:
-                arm_action_machine_.process(
-                    action_dictionary_.helper_find_chunk("roll_out_in_three_mines_first"));
-                break;
-            case ArmMode::Auto_Three_Mine_Second:
-                arm_action_machine_.process(
-                    action_dictionary_.helper_find_chunk("roll_out_in_three_mines_second"));
-                break;
-            case ArmMode::Auto_Walk:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("auto_walk"));
-                break;
-            case ArmMode::Auto_Up_One_Stairs:
-                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                    {"delay", "delay", "up_one_stairs_initial"}));
-                break;
-            case ArmMode::Auto_Up_Two_Stairs:
-                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                    {"delay", "delay", "up_two_stairs_initial"}));
-                break;
-            case ArmMode::Calibration:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("test"));
-                break;
-            case ArmMode::Yaw_Close:
-                arm_action_machine_.process(action_dictionary_.helper_find_chunk("gripper_open"));
-                break;
-            default: break;
-            }
+            cancel_execution();
+            if (const auto recipe = mtc_recipes_.find(get_arm_mode()); recipe != mtc_recipes_.end())
+                submit_mtc_task(recipe->second);
         }
 
-        // every update
-        switch (*arm_mode_) {
+        switch (get_arm_mode()) {
             using namespace rmcs_msgs;
-        case rmcs_msgs::ArmMode::None: break;
+        case ArmMode::None: break;
         case ArmMode::DT7_Control_Position: execute_dt7_position(); break;
         case ArmMode::DT7_Control_Orientation: execute_dt7_orientation(); break;
         case ArmMode::Custome: execute_custom(); break;
-        case ArmMode::Auto_Five_Mine: {
-            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
-                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                    {"transition_to_storage_mine_1", "storage_lb", "transition_to_extract_mine_2",
-                     "storage_lf", "transition_to_extract_mine_3", "storage_rb",
-                     "transition_to_extract_mine_4", "storage_rf",
-                     "transition_to_extract_mine_5"}));
-            }
-            execute_plan_request_and_trajectory_step();
-            break;
-        }
-        case ArmMode::Auto_Three_Mine_First:
-            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
-                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                    {"transition_to_storage_mine_1", "storage_lf", "transition_to_extract_mine_2",
-                     "storage_rf", "transition_to_extract_mine_3"}));
-            }
-            execute_plan_request_and_trajectory_step();
-            break;
-        case ArmMode::Auto_Three_Mine_Second:
-            if ((*keyboard_).ctrl && !last_keyboard_.ctrl) {
-                arm_action_machine_.process(action_dictionary_.helper_build_chunk(
-                    {"transition_to_storage_mine_4", "storage_lf", "transition_to_extract_mine_5",
-                     "storage_rf", "transition_to_extract_mine_6"}));
-            }
-            execute_plan_request_and_trajectory_step();
-            break;
-        case ArmMode::Auto_Up_One_Stairs:
-        case ArmMode::Auto_Up_Two_Stairs: {
-            // Lunar rover only: switch arm actions based on stair-stage feedback from the legs.
-            if (up_stairs_layer.ready() && *up_stairs_layer != last_up_stairs_layer) {
-                last_up_stairs_layer = *up_stairs_layer;
-                if (*up_stairs_layer == "lift_wait") {
-                    arm_action_machine_.process(
-                        action_dictionary_.helper_find_chunk("up_two_stairs_initial_again"));
-                } else if (*up_stairs_layer == "lift_again") {
-                    arm_action_machine_.process(
-                        action_dictionary_.helper_find_chunk("up_two_stairs_lift_again"));
-                }
-            }
-        } // Note that there is no break here.
-        default: execute_plan_request_and_trajectory_step(); break;
+        default: execute_mtc_step(); break;
         }
     }
 
-    void execute_plan_request_and_trajectory_step() {
-        static int current_step_index_{0};
-        static size_t step_position_index_{0};
-        static uint64_t last_executed_request_id_{0};
-        static std::vector<std::vector<double>> positions;
-        const auto result = arm_action_machine_.get_trajectory();
-        if (!result || !result->plan_success || result->step_position_map.empty())
-            return;
+    struct TaskRequest {
+        std::uint64_t generation;
+        const MtcRecipe* recipe; // Owned by mtc_recipes_, immutable after construction.
+        MTC::StageTargetOverrides targets;
+    };
 
-        if (result->request_id != last_executed_request_id_) {
-            current_step_index_ = 0;
-            step_position_index_ = 0;
-            last_executed_request_id_ = result->request_id;
-        }
-        if (static_cast<size_t>(current_step_index_) >= result->step_position_map.size())
-            return;
-        if (step_position_index_ == 0) {
-            auto step = result->step_map.find(current_step_index_);
-            if (step == result->step_map.end())
+    void submit_mtc_task(const MtcRecipe& recipe) {
+        // Snapshot runtime targets here; the worker composes the task off the control loop.
+        MTC::StageTargetOverrides targets;
+        if (recipe.targets) {
+            try {
+                targets = recipe.targets();
+            } catch (const std::exception& error) {
+                fail_execution(std::string("cannot evaluate task targets: ") + error.what());
                 return;
-            if (step->second.type() == Action::MotionType::CloseGripper) {
-                set_gripper_mode(rmcs_msgs::GripperMode::Close);
-            } else if (step->second.type() == Action::MotionType::OpenGripper) {
-                set_gripper_mode(rmcs_msgs::GripperMode::Open);
             }
-            auto pos_it = result->step_position_map.find(current_step_index_);
-            if (pos_it == result->step_position_map.end())
+        }
+        auto request = std::make_shared<TaskRequest>(
+            TaskRequest{++generation_counter_, &recipe, std::move(targets)});
+        pending_task_.store(request, std::memory_order_release);
+        requested_generation_.store(request->generation, std::memory_order_release);
+    }
+
+    struct ExecutionResult {
+        std::uint64_t generation = 0;
+        std::optional<MTC::PreparedExecution> execution;
+        std::string error;
+    };
+
+    struct SceneJob {
+        std::uint64_t generation;
+        std::size_t step;
+        std::shared_ptr<const ExecutionResult> plan;
+    };
+
+    struct SceneResult {
+        std::uint64_t generation;
+        std::size_t step;
+        std::string error;
+    };
+
+    // Control-loop progress through one prepared execution.
+    struct ActiveRun {
+        std::shared_ptr<const ExecutionResult> result;
+        std::size_t step = 0;
+        std::size_t cursor = 0;
+        bool entered = false;
+        std::chrono::steady_clock::time_point started{};
+    };
+
+    void cancel_execution() {
+        requested_generation_.store(0, std::memory_order_release);
+        pending_task_.store(nullptr, std::memory_order_release);
+        run_.reset();
+        for (std::size_t joint = 0; joint < 6; ++joint)
+            if (std::isfinite(*theta[joint]))
+                *target_theta[joint] = *theta[joint];
+        // The gripper keeps its mode so a held unit survives task switches; reset() releases it.
+        // An in-flight scene service cannot be rolled back; its result stays in the world.
+    }
+
+    void fail_execution(const std::string& reason) {
+        const auto path = run_ && run_->step < run_->result->execution->plan.steps.size()
+                            ? run_->result->execution->plan.steps[run_->step].stage_path
+                            : "planning";
+        RCLCPP_ERROR(get_logger(), "MTC execution stopped at %s: %s", path.c_str(), reason.c_str());
+        cancel_execution();
+    }
+
+    bool at_position(const std::array<double, 6>& position, double tolerance) const {
+        for (std::size_t joint = 0; joint < 6; ++joint)
+            if (!std::isfinite(*theta[joint])
+                || std::abs(*theta[joint] - position[joint]) > tolerance)
+                return false;
+        return true;
+    }
+
+    void execute_mtc_step() {
+        const auto generation = requested_generation_.load(std::memory_order_acquire);
+        if (generation == 0)
+            return;
+        if (!run_) {
+            const auto result = prepared_execution_.load(std::memory_order_acquire);
+            if (!result || result->generation != generation)
                 return;
-            positions = pos_it->second;
-            if (positions.empty())
+            if (!result->execution) {
+                fail_execution(result->error);
                 return;
-        } // boundary
-        for (size_t i = 0; i < 6; ++i)
-            *target_theta[i] = positions[step_position_index_][i];
-        step_position_index_++;
-        if (step_position_index_ >= positions.size()) {
-            step_position_index_ = 0;
-            current_step_index_++;
+            }
+            run_.emplace(ActiveRun{.result = result});
+        }
+        auto& run = *run_;
+        const auto& execution = *run.result->execution;
+        if (run.step >= execution.plan.steps.size()) {
+            RCLCPP_INFO(
+                get_logger(), "MTC execution completed: %s", execution.plan.task_name.c_str());
+            requested_generation_.store(0, std::memory_order_release);
+            run_.reset();
+            return;
+        }
+        const auto& step = execution.plan.steps[run.step];
+        const auto& motion = execution.motions[run.step];
+        const auto now = std::chrono::steady_clock::now();
+        if (!run.entered) {
+            run.started = now;
+            run.cursor = 0;
+            if (motion) {
+                if (!at_position(motion->positions.front(), 0.1)) {
+                    fail_execution("measured state does not match motion start (0.1 rad)");
+                    return;
+                }
+            } else if (const auto* command = std::get_if<MTC::GripperCommandConfig>(&step.action)) {
+                set_gripper_mode(
+                    command->action == MTC::GripperAction::Open ? rmcs_msgs::GripperMode::Open
+                                                                : rmcs_msgs::GripperMode::Close);
+            } else {
+                scene_job_.store(
+                    std::make_shared<SceneJob>(SceneJob{generation, run.step, run.result}),
+                    std::memory_order_release);
+            }
+            run.entered = true;
+        }
+        const double elapsed = std::chrono::duration<double>(now - run.started).count();
+        if (motion) {
+            const auto position = motion->sample(elapsed, run.cursor);
+            for (std::size_t joint = 0; joint < 6; ++joint) {
+                if (!std::isfinite(*theta[joint]) || !std::isfinite(*joint_lower_limit_[joint])
+                    || !std::isfinite(*joint_upper_limit_[joint])
+                    || position[joint] < *joint_lower_limit_[joint]
+                    || position[joint] > *joint_upper_limit_[joint]) {
+                    fail_execution("invalid measured state or motion target outside joint limits");
+                    return;
+                }
+            }
+            if (!at_position(position, 1.0)) {
+                fail_execution("measured joints diverged from the trajectory (1.0 rad)");
+                return;
+            }
+            for (std::size_t joint = 0; joint < 6; ++joint)
+                *target_theta[joint] = position[joint];
+            if (elapsed < motion->duration())
+                return;
+            if (!at_position(motion->positions.back(), 0.05)) {
+                if (elapsed > motion->duration() + 2.0)
+                    fail_execution("motion did not reach its endpoint within 2 seconds (0.05 rad)");
+                return;
+            }
+        } else if (const auto* command = std::get_if<MTC::GripperCommandConfig>(&step.action)) {
+            const auto expected = command->action == MTC::GripperAction::Open
+                                    ? rmcs_msgs::GripperMode::Open
+                                    : rmcs_msgs::GripperMode::Close;
+            if (get_gripper_mode() != expected) {
+                fail_execution("gripper command was overridden");
+                return;
+            }
+            // Preserve the old 500-update dwell at 1000 Hz; this is not grasp feedback.
+            if (elapsed < 0.5)
+                return;
+        } else {
+            const auto result = scene_result_.load(std::memory_order_acquire);
+            if (!result || result->generation != generation || result->step != run.step)
+                return;
+            if (!result->error.empty()) {
+                fail_execution(result->error);
+                return;
+            }
+        }
+        ++run.step;
+        run.entered = false;
+    }
+
+    bool apply_scene_operation(
+        const MTC::SceneOperation& operation, const std::function<bool()>& can_apply) {
+        return std::visit(
+            [this, &can_apply](const auto& action) {
+                using Operation = std::decay_t<decltype(action)>;
+                if constexpr (std::is_same_v<Operation, MTC::AllowCollisionsConfig>) {
+                    return obstacle_course_.set_collisions(
+                        action.object, action.links, action.allow, can_apply);
+                } else if constexpr (std::is_same_v<Operation, MTC::ObjectCollisionsConfig>) {
+                    return obstacle_course_.set_object_collisions(
+                        action.object, action.other_object, action.allow, can_apply);
+                } else {
+                    const auto& config = obstacle::get_obstacle_config(action.object);
+                    if (config.attach_link != action.link)
+                        throw std::runtime_error("execution attachment link differs from registry");
+                    if constexpr (std::is_same_v<Operation, MTC::AttachObjectConfig>) {
+                        if (config.touch_links != action.touch_links)
+                            throw std::runtime_error("execution touch links differ from registry");
+                        return obstacle_course_.attach(action.object, can_apply);
+                    } else {
+                        return obstacle_course_.detach(action.object, can_apply);
+                    }
+                }
+            },
+            operation);
+    }
+
+    void execution_worker() {
+        std::uint64_t handled_generation = 0;
+        std::uint64_t planning_request = 0;
+        bool awaiting_plan = false;
+        while (worker_running_.load(std::memory_order_acquire)) {
+            const auto generation = requested_generation_.load(std::memory_order_acquire);
+            const auto request = pending_task_.load(std::memory_order_acquire);
+            if (request && request->generation == generation && generation != 0
+                && generation != handled_generation) {
+                handled_generation = generation;
+                awaiting_plan = false;
+                try {
+                    if (obstacle_course_.scene_uncertain())
+                        throw std::runtime_error(
+                            "global scene outcome is uncertain; restart/reconcile before planning");
+                    planning_request = mtc_machine_.process(mtc_dictionary_.helper_build_chunk(
+                        request->recipe->blocks, request->recipe->bindings, request->targets));
+                    awaiting_plan = true;
+                } catch (const std::exception& error) {
+                    auto result = std::make_shared<ExecutionResult>();
+                    result->generation = generation;
+                    result->error = error.what();
+                    prepared_execution_.store(std::move(result), std::memory_order_release);
+                }
+            }
+            if (awaiting_plan && generation == handled_generation) {
+                const auto planned = mtc_machine_.get_trajectory();
+                if (planned && planned->request_id == planning_request) {
+                    awaiting_plan = false;
+                    auto result = std::make_shared<ExecutionResult>();
+                    result->generation = generation;
+                    try {
+                        if (!planned->plan_success || !planned->plan)
+                            throw std::runtime_error(planned->diagnostic);
+                        result->execution = MTC::prepare_execution(*planned->plan);
+                    } catch (const std::exception& error) {
+                        result->error = error.what();
+                    }
+                    prepared_execution_.store(std::move(result), std::memory_order_release);
+                }
+            }
+            if (const auto job = scene_job_.exchange(nullptr, std::memory_order_acq_rel)) {
+                auto result =
+                    std::make_shared<SceneResult>(SceneResult{job->generation, job->step, {}});
+                const std::function<bool()> can_apply = [this, generation = job->generation] {
+                    return worker_running_.load(std::memory_order_acquire)
+                        && requested_generation_.load(std::memory_order_acquire) == generation;
+                };
+                try {
+                    const auto& update = std::get<MTC::SceneUpdate>(
+                        job->plan->execution->plan.steps.at(job->step).action);
+                    for (const auto& operation : update.operations) {
+                        if (!can_apply())
+                            throw std::runtime_error(
+                                "scene operation cancelled before application");
+                        if (!apply_scene_operation(operation, can_apply))
+                            throw std::runtime_error("global scene operation failed");
+                    }
+                } catch (const std::exception& error) {
+                    result->error = error.what();
+                }
+                scene_result_.store(std::move(result), std::memory_order_release);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
@@ -620,9 +805,11 @@ private:
         *image_pitch_target_theta_ = *image_pitch_theta_ + shortest_error;
     }
     void reset() {
+        cancel_execution();
         *is_arm_enable = false;
         for (std::size_t i = 0; i < std::size(theta); ++i) {
-            *target_theta[i] = *theta[i];
+            if (std::isfinite(*theta[i]))
+                *target_theta[i] = *theta[i];
         }
         *gripper_target_theta = NAN;
         *image_pitch_target_theta_ = NAN;
@@ -636,11 +823,22 @@ private:
         set_arm_mode(rmcs_msgs::ArmMode::None, false);
         set_gripper_mode(rmcs_msgs::GripperMode::None);
     }
-    ActionDictionary action_dictionary_;
+    MTC::Dictionary mtc_dictionary_;
+    MtcRecipes mtc_recipes_;
     std::string chassis_type_;
-    ActionMachine arm_action_machine_;
+    MTC::Machine mtc_machine_;
     obstacle::ObstacleCoordinatesMap obstacle_coordinates_map_;
     obstacle::ObstacleCourse obstacle_course_;
+    std::atomic<bool> worker_running_{true};
+    std::thread worker_thread_;
+    std::atomic<std::uint64_t> requested_generation_{0};
+    std::uint64_t generation_counter_ = 0;
+    std::atomic<std::shared_ptr<const TaskRequest>> pending_task_;
+    std::atomic<std::shared_ptr<const ExecutionResult>> prepared_execution_;
+    std::atomic<std::shared_ptr<const SceneJob>> scene_job_;
+    std::atomic<std::shared_ptr<const SceneResult>> scene_result_;
+    std::optional<ActiveRun> run_;
+    bool feedback_fault_ = false;
 
     rmcs_msgs::Switch last_switch_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch last_switch_right_{rmcs_msgs::Switch::UNKNOWN};
@@ -655,9 +853,6 @@ private:
     InputInterface<Eigen::Vector2d> mouse_velocity_;
     InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
-    InputInterface<std::array<double, 6>> pillar_pose_;
-    InputInterface<std::uint64_t> pillar_pose_sequence_;
-    std::uint64_t last_pillar_pose_sequence_{0};
 
     OutputInterface<bool> is_arm_enable;
     InputInterface<double> theta[6];
@@ -687,9 +882,6 @@ private:
     InputInterface<std::array<uint8_t, 30>> custom_data_;
     OutputInterface<double> custom_big_yaw_output_;
     filter::LowPassFilter<6> custom_joint_filter_;
-
-    InputInterface<std::string> up_stairs_layer;
-    std::string last_up_stairs_layer{"none"};
 };
 
 } // namespace rmcs_core::controller::arm

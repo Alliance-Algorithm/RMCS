@@ -146,6 +146,10 @@ public:
               *this, *engineer_command_, get_parameter("board_serial_left_board").as_string())
         , rightboard_(
               *this, *engineer_command_, get_parameter("board_serial_right_board").as_string()) {
+        gimbal_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/gimbal/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                gimbal_calibrate_subscription_callback(std::move(msg));
+            });
         remote_control_ = std::make_unique<device::RemoteControl>(*this, armboard_.dr16_);
     }
     ~LunarRoverEngineer() override = default;
@@ -164,6 +168,20 @@ public:
     }
 
 private:
+    void gimbal_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
+        RCLCPP_INFO(
+            get_logger(), ".joint_1=%f,.joint_2=%f,.joint_3=%f,.joint_4=%f,.joint_5=%f,.joint_6=%f",
+            armboard_.joint[0].get_angle(), encoderboard_.joint2_encoder.get_angle(),
+            armboard_.joint[2].get_angle(), armboard_.joint[3].get_angle(),
+            armboard_.joint[4].get_angle(), armboard_.joint[5].get_angle());
+
+        RCLCPP_INFO(
+            get_logger(), ".joint_1=%d,.joint_2=%d,.joint_3=%d,.joint_4=%d,.joint_5=%d,.joint_6=%d",
+            armboard_.joint[0].get_raw_angle(), encoderboard_.joint2_encoder.get_raw_angle(),
+            armboard_.joint[2].get_raw_angle(), armboard_.joint[3].get_raw_angle(),
+            armboard_.joint[4].get_raw_angle(), armboard_.joint[5].get_raw_angle());
+    }
+
     rclcpp::Logger logger_;
     class EngineerCommand : public rmcs_executor::Component {
     public:
@@ -1326,6 +1344,8 @@ private:
 
     } rightboard_;
     std::unique_ptr<device::RemoteControl> remote_control_;
+
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr gimbal_calibrate_subscription_;
 };
 
 } // namespace rmcs_core::hardware

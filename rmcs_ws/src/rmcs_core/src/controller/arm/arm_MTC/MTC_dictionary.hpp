@@ -144,6 +144,8 @@ inline void validate(const TaskConfig& task) {
                                     require(
                                         positive(stage.timeout), child_path,
                                         "gripper timeout must be finite and positive");
+                                } else if constexpr (std::is_same_v<Stage, LogPoseConfig>) {
+                                    require(!stage.link.empty(), child_path, "log link is empty");
                                 } else {
                                     const auto& motion = stage.motion;
                                     require(

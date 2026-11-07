@@ -142,42 +142,43 @@ private:
             } else if (message.buttons.size() > 1 && message.buttons[1]) {
                 preview_.cancel();
                 request_id_ = mtc_machine_.process(
-                    mtc_dictionary_.helper_build_chunk(
-                        {"current_start", "extra_left_front", "extra", "tech_core_test",
-                         "tech_core_place", "push", "rotate_P", "rotate_Q"},
-                        {{"unit", "energy_unit_left_front"}},
-                        {
-                            {"tech_core_test_pre_place", MTC::makePoseGoal(
-                                                             {.frame_id = "base_link",
-                                                              .x = point_result_.point.x(),
-                                                              .y = point_result_.point.y(),
-                                                              .z = point_result_.point.z(),
-                                                              .roll = initial_pose_.roll,
-                                                              .pitch = initial_pose_.pitch,
-                                                              .yaw = initial_pose_.yaw})},
-                            {"tech_core_rotate_P",
-                             MTC::makeRotationDirection({
-                                 .frame_id = "base_link",
-                                 .axis_point =
-                                     {P_result_.point.x(), P_result_.point.y(),
-                                      P_result_.point.z()},
-                                 .axis_direction =
-                                     {P_result_.direction.x(), P_result_.direction.y(),
-                                      P_result_.direction.z()},
+                    mtc_dictionary_.helper_build_chunk({"current_start", "auto_walk"}),
+                    // mtc_dictionary_.helper_build_chunk(
+                    // {"current_start", "extra_left_front", "extra", "tech_core_test",
+                    //  "tech_core_place", "push", "rotate_P", "rotate_Q"},
+                    // {{"unit", "energy_unit_left_front"}},
+                    // {
+                    //     {"tech_core_test_pre_place", MTC::makePoseGoal(
+                    //                                      {.frame_id = "base_link",
+                    //                                       .x = point_result_.point.x(),
+                    //                                       .y = point_result_.point.y(),
+                    //                                       .z = point_result_.point.z(),
+                    //                                       .roll = initial_pose_.roll,
+                    //                                       .pitch = initial_pose_.pitch,
+                    //                                       .yaw = initial_pose_.yaw})},
+                    //     {"tech_core_rotate_P",
+                    //      MTC::makeRotationDirection({
+                    //          .frame_id = "base_link",
+                    //          .axis_point =
+                    //              {P_result_.point.x(), P_result_.point.y(),
+                    //               P_result_.point.z()},
+                    //          .axis_direction =
+                    //              {P_result_.direction.x(), P_result_.direction.y(),
+                    //               P_result_.direction.z()},
 
-                             })},
-                            {"tech_core_rotate_Q",
-                             MTC::makeRotationDirection({
-                                 .frame_id = "base_link",
-                                 .axis_point =
-                                     {Q_result_.point.x(), Q_result_.point.y(),
-                                      Q_result_.point.z()},
-                                 .axis_direction =
-                                     {Q_result_.direction.x(), Q_result_.direction.y(),
-                                      Q_result_.direction.z()},
+                    //      })},
+                    //     {"tech_core_rotate_Q",
+                    //      MTC::makeRotationDirection({
+                    //          .frame_id = "base_link",
+                    //          .axis_point =
+                    //              {Q_result_.point.x(), Q_result_.point.y(),
+                    //               Q_result_.point.z()},
+                    //          .axis_direction =
+                    //              {Q_result_.direction.x(), Q_result_.direction.y(),
+                    //               Q_result_.direction.z()},
 
-                             })},
-                        }),
+                    //      })},
+                    // }),
                     plan_from_preview_ ? preview_.scene()
                                        : planning_scene::PlanningSceneConstPtr{});
             }
