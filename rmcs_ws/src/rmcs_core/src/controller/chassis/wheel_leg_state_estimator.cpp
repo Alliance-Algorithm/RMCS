@@ -106,11 +106,16 @@ public:
             unwrapped_yaw_};
         std::array<wheel_leg::LegShape, 2> shape;
         for (int side = 0; side < 2; ++side) {
-            shape[side] = model_.forward(
-                api[2 * side], api[2 * side + 1], wheel_leg::CanonicalCalibration::side(side));
+            const auto calibration = wheel_leg::CanonicalCalibration::side(side);
+            shape[side] = model_.forward(api[2 * side], api[2 * side + 1], calibration);
             const auto& s = shape[side];
-            (*knee_rate_)[side] = initialized_ ? (s.beta - (*knee_)[side]) / dt_ : 0.;
-            (*shank_rate_)[side] = initialized_ ? (s.shank - (*shank_)[side]) / dt_ : 0.;
+            const double crank_velocity =
+                calibration.crank_sign * (speed[2 * side + 1] - speed[2 * side]);
+            (*knee_rate_)[side] =
+                s.beta == s.beta_raw
+                    ? linkage_.knee_velocity_from_encoder_crank(s.crank_rel, crank_velocity)
+                    : 0.;
+            (*shank_rate_)[side] = -(*knee_rate_)[side] - speed[2 * side] / calibration.hip_sign;
             (*knee_)[side] = s.beta;
             (*shank_)[side] = s.shank;
             (*length_)[side] = s.leg_length;
@@ -144,7 +149,7 @@ public:
             / (wheel_leg::mechanics::kBodyMass + wheel_leg::mechanics::kThighMass
                + wheel_leg::mechanics::kShankMass + wheel_leg::mechanics::kWheelMass);
         *forward_velocity_ =
-            velocity_sign_ * wheel_leg::mechanics::kWheelRadius * .5 * (speed[4] - speed[5]);
+            velocity_sign_ * wheel_leg::mechanics::kWheelRadius * forward_wheel_velocity(speed);
         distance_ += *forward_velocity_ * dt_;
         *distance_output_ = distance_;
         initialized_ = true;

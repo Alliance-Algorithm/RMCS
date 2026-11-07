@@ -34,6 +34,7 @@
 #include "hardware/device/lk_motor_drive.hpp"
 #include "hardware/device/remote_control.hpp"
 #include "hardware/device/supercap.hpp"
+#include "hardware/device/tof.hpp"
 #include "hardware/device/wheel_leg_sensor_snapshot.hpp"
 #include "hardware/util/wheel_leg_drive.hpp"
 
@@ -154,6 +155,8 @@ private:
             , gimbal_yaw_motor_(status, command, "/gimbal/yaw")
             , feeder_motor_(status, command, "/gimbal/bullet_feeder")
             , supercap_(status, command)
+            , tof_left_(status, "/chassis/tof/left", device::Tof::Config{}.set_id(5))
+            , tof_right_(status, "/chassis/tof/right", device::Tof::Config{}.set_id(6))
             // Chassis BMI088: mounted rotated 180 degrees about body Y, so the
             // sensor axes read (-x, y, -z) relative to the body frame.
             , bmi088_(
@@ -234,6 +237,8 @@ private:
             gimbal_yaw_phase_.store(gimbal_yaw_scheduler_.phase(), std::memory_order::relaxed);
             feeder_motor_.update_status();
             supercap_.update_status();
+            tof_left_.update_status();
+            tof_right_.update_status();
             constexpr std::array receive_order{2, 4, 3, 5, 0, 1};
             for (std::size_t i = 0; i < receive_order.size(); ++i) {
                 const auto& sample = motor_feedback_[receive_order[i]].latest();
@@ -566,7 +571,10 @@ private:
                 // The supercap answers on CAN0 with its own status frame.
                 if (data.can_id == 0x300)
                     supercap_.store_status(data.can_data);
-                else if (!store_motor_feedback(wheel_motors_, 0, data))
+                else if (
+                    !tof_left_.match_then_store_status(data.can_id, data.can_data)
+                    && !tof_right_.match_then_store_status(data.can_id, data.can_data)
+                    && !store_motor_feedback(wheel_motors_, 0, data))
                     feeder_motor_.match_then_store_status(data.can_id, data.can_data);
             } else if (can == Spec::kCans.kCan1)
                 store_motor_feedback(hip_motors_, 2, data);
@@ -770,6 +778,8 @@ private:
         std::uint8_t gimbal_yaw_last_error_ = 0;
         device::DjiMotor feeder_motor_;
         device::Supercap supercap_;
+        // TOFSense pairs on CAN0 in ACTIVE output: left 0x205, right 0x206.
+        device::Tof tof_left_, tof_right_;
         device::Dr16 dr16_;
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
         OutputInterface<rmcs_msgs::SerialInterface> referee_serial_;

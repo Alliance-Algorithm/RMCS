@@ -47,7 +47,7 @@ public:
         height_min_ = get_parameter_or("command_height_min", .23);
         height_max_ = get_parameter_or("command_height_max", .42);
         nominal_height_ = get_parameter_or("default_command_height", .305);
-        height_step_ = get_parameter_or("height_step", .01);
+        height_rate_ = get_parameter_or("height_rate", .1);
         yaw_max_ = get_parameter_or("yaw_rate_max", 1.);
         following_velocity_controller_.kp = get_parameter_or("following_velocity_kp", 8.0);
         following_velocity_controller_.ki = get_parameter_or("following_velocity_ki", 0.0);
@@ -56,18 +56,16 @@ public:
         following_velocity_controller_.output_min = -yaw_max_;
         yaw_invert_ = get_parameter_or("angular_z_invert", false);
         arm_dwell_ = get_parameter_or("arm_dwell_seconds", 0.);
-        knob_step_ = get_parameter_or("rotary_knob_step", .1);
         for (double value :
              {vx_max_, yaw_max_, spin_rate_, yaw_stick_rate_, height_min_, height_max_,
-              height_step_})
+               height_rate_})
             if (!std::isfinite(value) || value <= 0.)
                 throw std::invalid_argument("Invalid chassis command limits");
         if (!std::isfinite(vx_bias_) || std::abs(vx_bias_) > vx_max_)
             throw std::invalid_argument("Invalid chassis velocity bias");
         if (height_max_ < height_min_ || nominal_height_ < height_min_
             || nominal_height_ > height_max_ || !std::isfinite(deadzone_) || deadzone_ < 0.
-            || deadzone_ >= 1. || !std::isfinite(arm_dwell_) || arm_dwell_ < 0.
-            || !std::isfinite(knob_step_) || knob_step_ <= 0. || knob_step_ > 1.)
+            || deadzone_ >= 1. || !std::isfinite(arm_dwell_) || arm_dwell_ < 0.)
             throw std::invalid_argument("Invalid height, deadzone or arming dwell");
         *height_ = nominal_height_;
     }
@@ -94,23 +92,25 @@ public:
                 }
             } else if (!middle)
                 arm_started_.reset();
-            const bool continuation = armed_ && l == Switch::MIDDLE && r == Switch::DOWN;
-            if (!middle && !continuation) {
-                if ((l != Switch::DOWN && l != Switch::MIDDLE)
-                    || (r != Switch::DOWN && r != Switch::MIDDLE))
-                    pending_ = false;
-                disarm();
-            }
+            if (!armed_ && (l == Switch::UP || r == Switch::UP))
+                pending_ = false;
             if (armed_) {
                 const bool spin_edge =
-                    l == Switch::MIDDLE && last_right_ == Switch::MIDDLE && r == Switch::DOWN;
+                    l != Switch::DOWN && last_right_ == Switch::MIDDLE && r == Switch::DOWN;
                 if (spin_edge || (!last_keyboard_.c && keyboard_->c)) {
                     if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST)
-                        *mode_ = rmcs_msgs::ChassisMode::STEP_DOWN;
+                        *mode_ = spin_edge ? rmcs_msgs::ChassisMode::STEP_DOWN
+                                          : rmcs_msgs::ChassisMode::AUTO;
                     else {
                         *mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
                         spin_forward_ = !spin_forward_;
                     }
+                    following_velocity_controller_.reset();
+                } else if (!last_keyboard_.z && keyboard_->z) {
+                    *mode_ = *mode_ == rmcs_msgs::ChassisMode::STEP_DOWN
+                               ? rmcs_msgs::ChassisMode::AUTO
+                               : rmcs_msgs::ChassisMode::STEP_DOWN;
+                    following_velocity_controller_.reset();
                 }
                 *enable_ = true;
                 if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST)
@@ -143,32 +143,30 @@ public:
                     command_->vector = Eigen::Vector3d{vx, rotated.y() * vy_max_, yaw};
                 }
                 double height = *height_;
-                if (!last_keyboard_.q && keyboard_->q)
-                    height += height_step_;
-                else if (!last_keyboard_.e && keyboard_->e)
-                    height -= height_step_;
-                if (std::isfinite(*rotary_knob_)) {
-                    if (!knob_initialized_) {
-                        last_knob_ = *rotary_knob_;
-                        knob_initialized_ = true;
-                    }
-                    knob_accum_ += *rotary_knob_ - last_knob_;
-                    while (knob_accum_ >= knob_step_) {
-                        height += height_step_;
-                        knob_accum_ -= knob_step_;
-                    }
-                    while (knob_accum_ <= -knob_step_) {
-                        height -= height_step_;
-                        knob_accum_ += knob_step_;
-                    }
+                const double dt = last_height_update_
+                                    ? std::clamp(
+                                          std::chrono::duration<double>(now - *last_height_update_)
+                                              .count(),
+                                          0., .1)
+                                    : 0.;
+                last_height_update_ = now;
+                if (!last_keyboard_.q && keyboard_->q) {
+                    height_preset_ = height_preset_ == 1 ? 0 : 1;
+                    height = height_preset_ == 1 ? height_max_ : nominal_height_;
+                } else if (!last_keyboard_.e && keyboard_->e) {
+                    height_preset_ = height_preset_ == -1 ? 0 : -1;
+                    height = height_preset_ == -1 ? height_min_ : nominal_height_;
+                } else {
+                    const double knob = channel(*rotary_knob_);
+                    height -= knob * height_rate_ * dt;
+                    if (knob != 0.)
+                        height_preset_ = 0;
                 }
                 *height_ = std::clamp(height, height_min_, height_max_);
             }
         }
         last_right_ = r;
         last_keyboard_ = *keyboard_;
-        if (std::isfinite(*rotary_knob_))
-            last_knob_ = *rotary_knob_;
     }
 
 private:
@@ -184,7 +182,8 @@ private:
         *height_ = nominal_height_;
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         spin_forward_ = true;
-        knob_accum_ = 0.;
+        height_preset_ = 0;
+        last_height_update_.reset();
         following_velocity_controller_.reset();
     }
     double channel(double value) const {
@@ -204,15 +203,15 @@ private:
     OutputInterface<std::size_t> reset_;
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     double vx_max_, vx_bias_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_, height_min_,
-        height_max_, nominal_height_, height_step_, arm_dwell_;
+        height_max_, nominal_height_, height_rate_, arm_dwell_;
     bool yaw_invert_, armed_ = false, pending_ = false,
                                                        reset_active_ = false, spin_forward_ = true;
     rmcs_msgs::Switch last_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
     std::optional<Clock::time_point> arm_started_;
     pid::PidCalculator following_velocity_controller_;
-    double last_knob_ = 0., knob_accum_ = 0., knob_step_ = .1;
-    bool knob_initialized_ = false;
+    std::optional<Clock::time_point> last_height_update_;
+    int height_preset_ = 0;
 };
 } // namespace rmcs_core::controller::chassis
 #include <pluginlib/class_list_macros.hpp>

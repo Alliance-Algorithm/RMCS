@@ -9,7 +9,7 @@ class BalanceSolver {
 public:
     struct Settings {
         double dt = .001, pitch_cutoff_hz = 30.;
-        double pitch_gain = -17.6, pitch_rate_gain = -3.6, velocity_gain = -3., distance_gain = 0.;
+        double pitch_gain = 17.6, pitch_rate_gain = 3.6, velocity_gain = 3., distance_gain = 1.;
         double balance_limit = 3.69, yaw_gain = -10.8, yaw_rate_gain = -4.3, yaw_limit = 8.,
                yaw_sign = -1., wheel_limit = 4.88;
         double roll_kp = -1., roll_kd = -50., roll_limit = .5;
@@ -72,7 +72,7 @@ public:
                     config.trim_limit);
             }
         }
-        return {{limited + diff, limited - diff}, bias, trim_};
+        return {{limited + diff, -limited + diff}, bias, trim_};
     }
 
 private:

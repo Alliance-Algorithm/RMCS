@@ -151,7 +151,7 @@ bullet_feeder_velocity_pid_controller:
 wheel_leg_chassis_controller:
   ros__parameters:
     vx_max: 3.0
-    vx_bias: -0.60
+    vx_bias: 0.0
     vy_max: 0.0
     yaw_rate_max: 4.0 # Follow-mode yaw cap only; at policy training envelope.
     spin_yaw_rate: 10.471975511965978
@@ -166,9 +166,8 @@ wheel_leg_chassis_controller:
     command_height_min: 0.23
     command_height_max: 0.42
     default_command_height: 0.334
-    height_step: 0.01
+    height_rate: 0.1
 
-    rotary_knob_step: 0.1
     arm_dwell_seconds: 0.0
 
 wheel_leg_state_estimator:
@@ -186,9 +185,15 @@ wheel_leg_controller:
     max_tilt_deg: 60.0
 
     self_righting:
-      enabled: false
-      simulation_only: true
-      hardware_mapping_verified: false
+      enabled: true
+      simulation_only: false
+      hardware_mapping_verified: true
+      fold_plant_speed_rad_s: 2.0
+      insert_speed_rad_s: 2.0
+      orbit_speed_rad_s: 2.0
+      push_speed_rad_s: 2.0
+      capture_speed_rad_s: 2.0
+      side_speed_rad_s: 2.0
 
     motion:
       max_velocity: 5.0
@@ -199,7 +204,7 @@ wheel_leg_controller:
       velocity_jerk: 4.0
       yaw_accel: 6.28
       yaw_jerk: 40.0
-      velocity_sign: -1.0
+      velocity_sign: 1.0
 
       gravity: 9.81
       bank_to_roll_bias: 1.06
@@ -210,10 +215,10 @@ wheel_leg_controller:
 
     balance:
       pitch_cutoff_hz: 30.0
-      pitch_gain: -17.6
-      pitch_rate_gain: -3.6
-      velocity_gain: -3.0
-      distance_gain: 0.0
+      pitch_gain: 17.6
+      pitch_rate_gain: 3.6
+      velocity_gain: 3.0
+      distance_gain: 1.0
       balance_limit: 3.69
 
       yaw_enabled: false

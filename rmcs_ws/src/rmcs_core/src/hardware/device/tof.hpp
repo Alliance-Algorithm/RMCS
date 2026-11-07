@@ -21,9 +21,11 @@ public:
     using Clock = std::chrono::steady_clock;
 
     struct Config {
+        Config& set_id(uint8_t value) { return id = value, *this; }
         Config& set_reversed() { return reverse_factor = -1.0, *this; }
         Config& mode_to_inquired() { return mode_inquired = true, *this; }
 
+        uint8_t id = 0;
         double reverse_factor = 1.0;
         bool mode_inquired = false;
         std::chrono::milliseconds timeout{200};
@@ -65,6 +67,23 @@ public:
         Package package{};
         std::memcpy(&package, uart_data + 8, 6);
         store_package(package, now);
+        return true;
+    }
+
+    // Module publishes on 0x200 + id and takes queries on 0x402.
+    uint8_t id() const noexcept { return config_.id; }
+    uint32_t recv_id() const noexcept { return can_feedback_base_id + config_.id; }
+
+    bool matches_feedback(uint32_t can_id, std::span<const std::byte> can_data) const noexcept {
+        return can_id == recv_id() && can_data.size() == can_package_length;
+    }
+
+    bool match_then_store_status(
+        uint32_t can_id, std::span<const std::byte> can_data,
+        Clock::time_point now = Clock::now()) {
+        if (!matches_feedback(can_id, can_data))
+            return false;
+        store_status(can_data, now);
         return true;
     }
 
