@@ -69,7 +69,7 @@ auto_aim_recorder:
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 2000.0
+    exposure_us: 1000.0
     gain: 10.0
     framerate: 120.0
     invert_image: false
@@ -83,14 +83,14 @@ auto_aim_component:
     # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
     # 留空或填 unknow 表示禁用。
     dangerous_fallback: ""
-    manual_shoot: false
+    manual_shoot: true
     enable_rune: true
     camera_translation: [0.058, -0.08, 0.0]
     fire_control:
       bullet_speed: 22.5
       shoot_delay: 0.07
       offset_yaw: +0.8
-      offset_pitch: -1.4
+      offset_pitch: 0.0
       attack_window: 120.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.6
@@ -177,15 +177,15 @@ gimbal_controller:
     lower_limit: 0.10 # 8 deg
     ctrl_hold_pitch_target_angle: 0.0
 
-    # yaw_angle_kp: 10.0
-    # yaw_angle_ki: 0.0
-    # yaw_angle_kd: 0.0
+    yaw_angle_kp: 10.0
+    yaw_angle_ki: 0.0
+    yaw_angle_kd: 0.0
 
-    # yaw_velocity_kp: 13.0
-    # yaw_velocity_ki: 0.02
-    # yaw_velocity_kd: 0.0
-    # yaw_velocity_integral_min: -5.0
-    # yaw_velocity_integral_max: 5.0
+    yaw_velocity_kp: 13.0
+    yaw_velocity_ki: 0.02
+    yaw_velocity_kd: 0.0
+    yaw_velocity_integral_min: -5.0
+    yaw_velocity_integral_max: 5.0
 
     pitch_angle_kp: 35.0
     pitch_angle_ki: 0.02
