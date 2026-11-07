@@ -10,6 +10,18 @@ struct PolicyParameters {
 };
 inline constexpr std::string_view kModelSpecSha256 =
     "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812";
+inline JointVector decoded_action_target(
+    const JointVector& decoded, const JointVector& q, const LegBounds& bounds) {
+    LegVector desired{}, current{};
+    for (int i = 0; i < 4; ++i) {
+        desired[i] = kNominalPosition[i] + decoded[i];
+        current[i] = q[i];
+    }
+    const auto legs = paired_targets(desired, current, bounds);
+    auto target = decoded;
+    std::copy(legs.begin(), legs.end(), target.begin());
+    return target;
+}
 inline JointVector
     action_target(const PolicyParameters& p, const JointVector& raw, const JointVector& q) {
     JointVector target;

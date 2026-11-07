@@ -47,52 +47,66 @@ inline std::array<double, 6> measured_policy_history(const std::array<double, 6>
 class ProneMotion {
 public:
     void reset() { odometry_.reset(); }
-    std::optional<std::array<double, 35>> sample(
+    std::optional<WheelLegFeatures> sample(
         std::uint64_t policy_tick, const JointVector& position, const JointVector& velocity,
         const std::array<double, 3>& gyro, const std::array<double, 3>& gravity,
         const std::array<double, 3>& command, double height, const JointVector& applied_action,
         bool active) {
-        std::array<float, 35> frame{};
+        StandingReferenceFeatures features;
         std::array<float, 6> q{};
 
         for (std::size_t i = 0; i < 3; ++i) {
-            frame[i] = static_cast<float>(command[i]);
-            frame[4 + i] = .5F * static_cast<float>(gyro[i]);
-            frame[7 + i] = static_cast<float>(gravity[i]);
+            features.command[i] = static_cast<float>(command[i]);
+            features.gyro[i] = .5F * static_cast<float>(gyro[i]);
+            features.gravity[i] = static_cast<float>(gravity[i]);
         }
-        frame[3] = 5.F * static_cast<float>(height);
+        features.height = 5.F * static_cast<float>(height);
         for (std::size_t i = 0; i < 6; ++i) {
             q[i] = i < 4 ? static_cast<float>(position[i]) : 0.F;
-            frame[16 + i] = .1F * static_cast<float>(velocity[i]);
-            frame[22 + i] = static_cast<float>(applied_action[i]);
+            features.velocity[i] = .1F * static_cast<float>(velocity[i]);
+            features.previous_action[i] = static_cast<float>(applied_action[i]);
             if (i < 4) {
                 const float delta = q[i] - static_cast<float>(kNominalPosition[i]);
-                frame[10 + i] = std::atan2(std::sin(delta), std::cos(delta));
+                features.position[i] = std::atan2(std::sin(delta), std::cos(delta));
             }
         }
-        frame[28] = 1.F;
-        const bool finite_inputs =
-            std::all_of(
-                frame.begin(), frame.end(), [](float value) { return std::isfinite(value); })
+        bool finite_inputs =
+            std::isfinite(features.height)
             && std::all_of(q.begin(), q.end(), [](float value) { return std::isfinite(value); });
-        for (std::size_t i = 0; i < 4; ++i)
-            q[i] = frame[10 + i] + static_cast<float>(kNominalPosition[i]);
-        {
-            for (auto& value : frame)
+        for (auto* values : {&features.command, &features.gyro, &features.gravity})
+            for (auto& value : *values) {
+                finite_inputs &= std::isfinite(value);
                 value = std::clamp(value, -100.F, 100.F);
+            }
+        for (auto* values : {&features.position, &features.velocity, &features.previous_action})
+            for (auto& value : *values) {
+                finite_inputs &= std::isfinite(value);
+                value = std::clamp(value, -100.F, 100.F);
+            }
+        features.height = std::clamp(features.height, -100.F, 100.F);
+        {
             std::array<float, 4> nominal{};
             for (std::size_t i = 0; i < nominal.size(); ++i)
                 nominal[i] = static_cast<float>(kNominalPosition[i]);
-            odometry_.sample(policy_tick, {position[4], position[5]}, nominal, frame, active);
+            odometry_.sample(policy_tick, {position[4], position[5]}, nominal, features, active);
         }
-        if (!finite_inputs || !std::all_of(frame.begin(), frame.end(), [](float value) {
-                return std::isfinite(value);
-            }))
+        if (!finite_inputs
+            || !std::all_of(features.position.begin(), features.position.end(), [](float value) {
+                   return std::isfinite(value);
+               }))
             return std::nullopt;
-        std::array<double, 35> result{};
-        for (std::size_t i = 0; i < frame.size(); ++i)
-            result[i] = static_cast<double>(std::clamp(frame[i], -100.F, 100.F));
-        return result;
+        WheelLegFeatures physical;
+        physical.command = command;
+        physical.height = height;
+        physical.gyro = gyro;
+        physical.gravity = gravity;
+        physical.velocity = velocity;
+        physical.previous_action = applied_action;
+        for (std::size_t i = 0; i < 6; ++i)
+            physical.position[i] = features.position[i];
+        for (std::size_t i = 0; i < 7; ++i)
+            physical.auxiliary[i] = features.auxiliary[i];
+        return physical;
     }
 
 private:

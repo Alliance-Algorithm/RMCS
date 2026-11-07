@@ -57,7 +57,9 @@ public:
             register_output(prefix + "/control_torque", effort_[i], 0.);
             const auto raw = std::string{"/wheel_leg/rl/raw/"} + kMotorNames[i];
             register_input(raw, action_[i]);
+            register_input(raw + "/raw", raw_action_[i]);
             register_input(raw + "/scale", action_scale_[i]);
+            register_input(raw + "/offset", action_offset_[i]);
             register_input(raw + "/clip_min", action_min_[i]);
             register_input(raw + "/clip_max", action_max_[i]);
         }
@@ -80,6 +82,9 @@ public:
         if (!std::isfinite(drive_loss_debounce_.count()) || drive_loss_debounce_.count() < 0.)
             throw std::invalid_argument("Invalid drive loss debounce");
         heading_hold_ = get_parameter_or("heading_hold_enabled", false);
+        history_source_ = get_parameter_or<std::string>("action_history_source", "mapped");
+        if (history_source_ != "raw" && history_source_ != "mapped")
+            throw std::invalid_argument("action_history_source must be raw or mapped");
         height_rate_ = get_parameter_or("height_reference_rate_max", .6666666666666666);
         recovery_enabled_ = get_parameter_or("self_righting.enabled", false);
         if (recovery_enabled_)
@@ -95,14 +100,14 @@ public:
             throw std::invalid_argument("Invalid inference timeout or height rate");
     }
     void before_updating() override {
-        if (*policy_rate_ != policy_.policy_hz || *model_spec_ != kModelSpecSha256
+        if (!std::isfinite(*policy_rate_) || *policy_rate_ <= 0. || *policy_rate_ > 1000.
+            || std::fmod(1000., *policy_rate_) != 0. || *model_spec_ != kModelSpecSha256
             || *observation_sha_ != policy_.observation_sha)
             throw std::invalid_argument("Policy model, cadence or observation contract mismatch");
         for (int i = 0; i < 6; ++i)
-            if (*action_scale_[i] != 1. || !std::isinf(*action_min_[i])
-                || !std::isinf(*action_max_[i]))
-                throw std::invalid_argument(
-                    "Wheel-leg adapters require unscaled raw policy actions");
+            if (!std::isfinite(*action_scale_[i]) || *action_scale_[i] == 0.
+                || !std::isfinite(*action_offset_[i]))
+                throw std::invalid_argument("Wheel-leg action mapping must be invertible and finite");
         if (simulation_guarded_ && (!simulation_.ready() || !*simulation_))
             throw std::invalid_argument(
                 "Self-righting requires an explicit /wheel_leg/simulation=true input until "
@@ -196,8 +201,16 @@ public:
                     return;
                 }
             }
-            target_ = action_target(policy_, raw, *q_);
-            pending_history_ = executed_history(policy_, raw);
+            target_ = decoded_action_target(raw, *q_, policy_.winding_bounds);
+            for (int i = 0; i < 6; ++i)
+                pending_history_[i] = (raw[i] - *action_offset_[i]) / *action_scale_[i];
+            if (history_source_ == "raw")
+                for (int i = 0; i < 6; ++i)
+                    pending_history_[i] = *raw_action_[i];
+            if (!std::ranges::all_of(pending_history_, [](double v) { return std::isfinite(v); })) {
+                fail("invalid policy action feedback");
+                return;
+            }
             if (!std::ranges::all_of(target_, [](double v) { return std::isfinite(v); })) {
                 fail("invalid action target");
                 return;
@@ -358,7 +371,7 @@ private:
         return true;
     }
     void update_command() {
-        const std::size_t divisor = static_cast<std::size_t>(1000. / policy_.policy_hz);
+        const std::size_t divisor = static_cast<std::size_t>(1000. / *policy_rate_);
         if (last_command_tick_ && *tick_ - *last_command_tick_ < divisor)
             return;
         last_command_tick_ = *tick_;
@@ -386,11 +399,12 @@ private:
             heading_.reset();
         *policy_command_ =
             Eigen::Vector3d{vx, 0., std::clamp(yaw, -policy_.yaw_limit, policy_.yaw_limit)};
-        const double step = height_rate_ / policy_.policy_hz;
+        const double step = height_rate_ / *policy_rate_;
         *policy_height_ +=
             std::clamp(std::clamp(*height_, .23, .42) - *policy_height_, -step, step);
     }
     const PolicyParameters& policy_;
+    std::string history_source_;
     InputInterface<JointVector> q_, dq_;
     InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_, acceleration_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> command_;
@@ -401,7 +415,7 @@ private:
     InputInterface<std::size_t> reset_, tick_, action_sequence_;
     InputInterface<std::uint64_t> action_stamp_;
     InputInterface<std::string> model_spec_, observation_sha_;
-    std::array<InputInterface<double>, 6> caps_, action_, action_scale_, action_min_, action_max_;
+    std::array<InputInterface<double>, 6> caps_, action_, raw_action_, action_scale_, action_offset_, action_min_, action_max_;
     std::array<OutputInterface<double>, 6> effort_;
     OutputInterface<bool> enable_, policy_enable_, fault_, action_applied_;
     OutputInterface<JointVector> applied_;

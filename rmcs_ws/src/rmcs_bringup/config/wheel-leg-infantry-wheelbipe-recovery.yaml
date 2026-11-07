@@ -81,6 +81,7 @@ wheel_leg_state_estimator:
 wheel_leg_rl_controller:
   ros__parameters:
     policy: wheelbipe
+    action_history_source: raw
     inference_timeout: 0.06
     heading_hold_enabled: false
     height_reference_rate_max: 0.6666666666666666
@@ -244,16 +245,24 @@ rl_bridge:
       leg_winding_version: paired_full_vehicle110_v1
       leg_target_model_spec_sha256: 8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812
 
-    observation_terms:
-      - index=0 path=/wheel_leg/rl/input/frame take=array type=double_array dim=35 name=frame
-
-    action_terms:
-      - index=0 output=/wheel_leg/rl/raw/left_hip_joint scale=1.0
-      - index=1 output=/wheel_leg/rl/raw/right_hip_joint scale=1.0
-      - index=2 output=/wheel_leg/rl/raw/left_knee_joint scale=1.0
-      - index=3 output=/wheel_leg/rl/raw/right_knee_joint scale=1.0
-      - index=4 output=/wheel_leg/rl/raw/left_wheel scale=1.0
-      - index=5 output=/wheel_leg/rl/raw/right_wheel scale=1.0
+    observations:
+      order: [command, height, gyro, gravity, position, velocity, previous_action, auxiliary]
+      command: {source: /wheel_leg/rl/features/command, type: array, size: 3, precision: float32, clip: [-100.0, 100.0]}
+      height: {source: /wheel_leg/rl/features/height, precision: float32, source_clip: [0.0, 1.0], scale: 5.0}
+      gyro: {source: /wheel_leg/rl/features/gyro, type: array, size: 3, precision: float32, source_clip: [-100.0, 100.0], scale: 0.5}
+      gravity: {source: /wheel_leg/rl/features/gravity, type: array, size: 3, precision: float32, clip: [-100.0, 100.0]}
+      position: {source: /wheel_leg/rl/features/position, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, clip: [-100.0, 100.0]}
+      velocity: {source: /wheel_leg/rl/features/velocity, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, source_clip: [-200.0, 200.0], scale: 0.1}
+      previous_action: {source: /wheel_leg/rl/features/previous_action, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, clip: [-100.0, 100.0]}
+      auxiliary: {source: /wheel_leg/rl/features/auxiliary, type: array, size: 7}
+    actions:
+      order: [left_hip, right_hip, left_knee, right_knee, left_wheel, right_wheel]
+      left_hip: {output: /wheel_leg/rl/raw/left_hip_joint, scale: 0.5}
+      right_hip: {output: /wheel_leg/rl/raw/right_hip_joint, scale: 0.5}
+      left_knee: {output: /wheel_leg/rl/raw/left_knee_joint, scale: 0.5}
+      right_knee: {output: /wheel_leg/rl/raw/right_knee_joint, scale: 0.5}
+      left_wheel: {output: /wheel_leg/rl/raw/left_wheel, scale: 10.0, clip: [-90.0, 90.0]}
+      right_wheel: {output: /wheel_leg/rl/raw/right_wheel, scale: 10.0, clip: [-90.0, 90.0]}
 
 wheel_leg_mirror:
   ros__parameters:
