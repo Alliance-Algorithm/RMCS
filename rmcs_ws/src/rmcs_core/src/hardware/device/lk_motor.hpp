@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cmath>
@@ -9,6 +10,7 @@
 #include <cstring>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -95,7 +97,8 @@ public:
             break;
         case Type::kMG4010Ei10:
             raw_angle_modulus_ = 1 << 16;
-            torque_constant = 0.07;
+            // Bench: 50 counts -> 0.12 Nm, 1150 -> 4.38 Nm, i.e. 0.0039 Nm/count (0.0242 Nm/A).
+            torque_constant = 0.0242;
             reduction_ratio = 10.0;
             max_torque_ = 4.5;
             break;
@@ -150,15 +153,58 @@ public:
         if (can_data.size() != 8) [[unlikely]]
             return;
 
-        const CanPacket8 can_packet{can_data};
+        const auto command = std::to_integer<std::uint8_t>(can_data[0]);
+        if (command != 0x9C && (command < 0xA0 || command > 0xA8))
+            return;
+
+        can_packet_.store(CanPacket8{can_data}, std::memory_order::relaxed);
+    }
+
+    struct Status1 {
+        std::uint8_t command = 0;
+        std::int8_t temperature = 0;
+        std::int16_t voltage_centivolt = 0;
+        std::int16_t current_centiamp = 0;
+        std::uint8_t motor_state = 0x10;
+        std::uint8_t error_state = 0;
+    };
+
+    static std::optional<Status1> parse_status1(std::span<const std::byte> can_data) {
+        if (can_data.size() != 8) [[unlikely]]
+            return std::nullopt;
+
         const struct [[gnu::packed]] {
             uint8_t command;
-            uint8_t placeholder[7];
-        } feedback alignas(CanPacket8) = std::bit_cast<decltype(feedback)>(can_packet);
+            int8_t temperature;
+            int16_t voltage;
+            int16_t current;
+            uint8_t motor_state;
+            uint8_t error_state;
+        } feedback alignas(CanPacket8) = std::bit_cast<decltype(feedback)>(CanPacket8{can_data});
 
-        // Exclude non-motor status messages
-        if ((feedback.command & 0xF0) != 0x80)
-            can_packet_.store(can_packet, std::memory_order::relaxed);
+        if (feedback.command != 0x9A && feedback.command != 0x9B)
+            return std::nullopt;
+
+        return Status1{
+            feedback.command,
+            feedback.temperature,
+            feedback.voltage,
+            feedback.current,
+            feedback.motor_state,
+            feedback.error_state,
+        };
+    }
+
+    bool store_error_status(std::span<const std::byte> can_data) {
+        const auto status = parse_status1(can_data);
+        if (!status)
+            return false;
+
+        motor_state_.store(status->motor_state, std::memory_order::relaxed);
+        error_state_.store(status->error_state, std::memory_order::relaxed);
+        bus_voltage_centivolt_.store(status->voltage_centivolt, std::memory_order::relaxed);
+        bus_current_centiamp_.store(status->current_centiamp, std::memory_order::relaxed);
+        return true;
     }
 
     void update_status() {
@@ -203,6 +249,10 @@ public:
         velocity_ =
             status_velocity_to_velocity_coefficient_ * static_cast<double>(feedback.velocity);
 
+        // Protocol counts oriented along the configured joint axis, without a torque proxy.
+        current_raw_ = std::copysign(1.0, status_velocity_to_velocity_coefficient_)
+                     * static_cast<double>(feedback.current);
+
         // Torque unit: N*m
         torque_ = status_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
@@ -224,8 +274,23 @@ public:
     double angle() const { return angle_; }
     double velocity() const { return velocity_; }
     double torque() const { return torque_; }
+    double current_raw() const { return current_raw_; }
     double max_torque() const { return max_torque_; }
     double temperature() const { return temperature_; }
+
+    std::uint8_t motor_state() const { return motor_state_.load(std::memory_order::relaxed); }
+    std::uint8_t error_state() const { return error_state_.load(std::memory_order::relaxed); }
+    bool running() const { return motor_state() == 0x00; }
+    double bus_voltage() const {
+        return static_cast<double>(
+                   bus_voltage_centivolt_.load(std::memory_order::relaxed))
+             / 100.0;
+    }
+    double bus_current() const {
+        return static_cast<double>(
+                   bus_current_centiamp_.load(std::memory_order::relaxed))
+             / 100.0;
+    }
 
     /// @brief Switch the motor from the startup state (default state after power-on) to the
     /// shutdown state, clearing the motor's rotation count and previously received control
@@ -253,14 +318,27 @@ public:
     /// @brief Disable the motor, but do not clear the motor's running state. Sending control
     /// commands again can control the motor actions.
     constexpr static CanPacket8 generate_disable_command() {
-        // Note: instead of sending a real disable message here, a torque control message with
-        // torque set to 0 is sent, because the disable message does not cause the motor to feedback
-        // its status.
         const struct [[gnu::packed]] {
             uint8_t id = 0xA1;
             uint8_t placeholder0[3]{};
             int16_t current = 0;
             uint8_t placeholder1[2]{};
+        } command alignas(CanPacket8){};
+        return std::bit_cast<CanPacket8>(command);
+    }
+
+    constexpr static CanPacket8 generate_error_status_request() {
+        const struct [[gnu::packed]] {
+            uint8_t id = 0x9A;
+            uint8_t placeholder[7]{};
+        } request alignas(CanPacket8){};
+        return std::bit_cast<CanPacket8>(request);
+    }
+
+    constexpr static CanPacket8 generate_clear_error_command() {
+        const struct [[gnu::packed]] {
+            uint8_t id = 0x9B;
+            uint8_t placeholder[7]{};
         } command alignas(CanPacket8){};
         return std::bit_cast<CanPacket8>(command);
     }
@@ -537,10 +615,15 @@ private:
 
     // Status
     std::atomic<CanPacket8> can_packet_;
+    std::atomic<std::uint8_t> motor_state_{0x10};
+    std::atomic<std::uint8_t> error_state_{0};
+    std::atomic<std::int16_t> bus_voltage_centivolt_{0};
+    std::atomic<std::int16_t> bus_current_centiamp_{0};
 
     int64_t multi_turn_encoder_count_ = 0;
     int last_raw_angle_ = 0;
 
+    double current_raw_ = kNan;
     double angle_;
     double torque_;
     double velocity_;
@@ -561,5 +644,43 @@ private:
 
     bool first_generate_auto_command_ = true;
 };
+
+/// @brief errorState bit meaning, see "read status 1 and error flags" in the LK protocol manual.
+namespace lk_error_flag {
+constexpr std::uint8_t kLowVoltage = 1u << 0;
+constexpr std::uint8_t kHighVoltage = 1u << 1;
+constexpr std::uint8_t kDriveOverTemperature = 1u << 2;
+constexpr std::uint8_t kMotorOverTemperature = 1u << 3;
+constexpr std::uint8_t kOverCurrent = 1u << 4;
+constexpr std::uint8_t kShortCircuit = 1u << 5;
+constexpr std::uint8_t kStall = 1u << 6;
+// Raised by the motor's own CAN input timeout protection: no command arrived in time.
+constexpr std::uint8_t kInputTimeout = 1u << 7;
+} // namespace lk_error_flag
+
+/// @brief Format the errorState flags of a status 1 reply, e.g. "stall|input_timeout".
+inline std::string lk_error_text(std::uint8_t error_state) {
+    if (error_state == 0)
+        return "none";
+    static constexpr std::array<std::pair<std::uint8_t, const char*>, 8> names{{
+        {lk_error_flag::kLowVoltage, "low_voltage"},
+        {lk_error_flag::kHighVoltage, "high_voltage"},
+        {lk_error_flag::kDriveOverTemperature, "drive_over_temperature"},
+        {lk_error_flag::kMotorOverTemperature, "motor_over_temperature"},
+        {lk_error_flag::kOverCurrent, "over_current"},
+        {lk_error_flag::kShortCircuit, "short_circuit"},
+        {lk_error_flag::kStall, "stall"},
+        {lk_error_flag::kInputTimeout, "input_timeout"},
+    }};
+    auto text = std::string{};
+    for (const auto& [flag, name] : names) {
+        if (!(error_state & flag))
+            continue;
+        if (!text.empty())
+            text += '|';
+        text += name;
+    }
+    return text;
+}
 
 } // namespace rmcs_core::hardware::device

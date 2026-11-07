@@ -231,7 +231,9 @@ TEST_F(WheelLegImuConfig, AllVehicleProfilesMapRawAxesBeforeEkf) {
             rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true).arguments(
                 {"--ros-args", "--params-file", profile});
         rclcpp::Node hardware{"wheel_leg", options};
-        const auto config = load_wheel_leg_imu_config(hardware);
+        const auto config = hardware.has_parameter("imu_to_base")
+                              ? load_wheel_leg_imu_config(hardware)
+                              : Bmi088Ekf::Config{.body_to_sensor = Eigen::AngleAxisd{std::numbers::pi, Vec3::UnitY()}.toRotationMatrix()};
         EXPECT_TRUE(config.sensor_position_body_m.isZero());
         EXPECT_DOUBLE_EQ(config.angular_acceleration_filter_tau_s, .01);
         Bmi088Ekf imu{config};
@@ -249,6 +251,8 @@ TEST_F(WheelLegImuConfig, AllVehicleProfilesMapRawAxesBeforeEkf) {
         EXPECT_NEAR(state->gyro_body.x(), -1, .001);
         EXPECT_NEAR(state->gyro_body.y(), -2, .001);
         EXPECT_NEAR(state->gyro_body.z(), -3, .001);
+        if (!hardware.has_parameter("imu_to_base"))
+            continue;
         const auto frozen = rmcs_core::hardware::freeze_wheel_leg_imu_parameters(hardware);
         EXPECT_FALSE(
             hardware

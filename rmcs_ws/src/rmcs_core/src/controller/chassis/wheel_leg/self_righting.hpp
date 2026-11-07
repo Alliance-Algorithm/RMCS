@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace rmcs_core::controller::wheelleg {
+namespace rmcs_core::controller::chassis::wheel_leg {
 
 // All positions, speeds and torques are at the four ACTIVE output axes, in the
 // authenticated CAD frame. The hardware adapter must apply its calibration.
@@ -130,69 +130,85 @@ public:
                 throw std::invalid_argument("Recovery pose lies outside its geometry table");
     }
 
-    // Optional measured-state side recovery program. When relative is true,
-    // pose entries mean lower/upper leg, selected once from initial gravity.
     void set_flip_program(std::vector<FlipWaypoint> program, bool relative) {
-        if (phase_!=Disabled || program.size()>64)
+        if (phase_ != Disabled || program.size() > 64)
             throw std::invalid_argument("Configure a finite flip program while disabled");
-        for (const auto& p:program) {
-            for (double v:{p.knee_deg[0],p.knee_deg[1],p.orbit_deg[0],p.orbit_deg[1],
-                    p.speed,p.acceleration,p.hold_seconds,p.wheel_velocity[0],p.wheel_velocity[1]})
-                if (!std::isfinite(v)) throw std::invalid_argument("Nonfinite flip waypoint");
-            if (p.speed<=0. || p.speed>=settings_.speed_limit || p.acceleration<=0.
-                || p.hold_seconds<0. || p.hold_seconds>5.
-                || std::abs(p.wheel_velocity[0])>55. || std::abs(p.wheel_velocity[1])>55.)
+        for (const auto& p : program) {
+            for (double v :
+                 {p.knee_deg[0], p.knee_deg[1], p.orbit_deg[0], p.orbit_deg[1], p.speed,
+                  p.acceleration, p.hold_seconds, p.wheel_velocity[0], p.wheel_velocity[1]})
+                if (!std::isfinite(v))
+                    throw std::invalid_argument("Nonfinite flip waypoint");
+            if (p.speed <= 0. || p.speed >= settings_.speed_limit || p.acceleration <= 0.
+                || p.hold_seconds < 0. || p.hold_seconds > 5. || std::abs(p.wheel_velocity[0]) > 55.
+                || std::abs(p.wheel_velocity[1]) > 55.)
                 throw std::invalid_argument("Flip waypoint exceeds its speed or time envelope");
-            for (double knee:p.knee_deg)
-                if (knee<table_.front()[0] || knee>table_.back()[0])
+            for (double knee : p.knee_deg)
+                if (knee < table_.front()[0] || knee > table_.back()[0])
                     throw std::invalid_argument("Flip waypoint exceeds knee geometry");
         }
-        flip_program_=std::move(program); program_relative_=relative;
+        flip_program_ = std::move(program);
+        program_relative_ = relative;
     }
     void configure_capture(double value, double distance_gain) {
-        if (phase_!=Disabled || !std::isfinite(value) || value<10. || value>55. || !std::isfinite(distance_gain) || distance_gain<0. || distance_gain>5.)
-            throw std::invalid_argument("Configure wheel speed limit between 10 and 55 rad/s while disabled");
-        balance_wheel_speed_limit_=value; balance_distance_gain_=distance_gain;
+        if (phase_ != Disabled || !std::isfinite(value) || value < 10. || value > 55.
+            || !std::isfinite(distance_gain) || distance_gain < 0. || distance_gain > 5.)
+            throw std::invalid_argument(
+                "Configure wheel speed limit between 10 and 55 rad/s while disabled");
+        balance_wheel_speed_limit_ = value;
+        balance_distance_gain_ = distance_gain;
     }
-    void configure_flip_handoff(double tilt_deg,double gyro,double dwell) {
-        if(phase_!=Disabled || !std::isfinite(tilt_deg) || !std::isfinite(gyro) || !std::isfinite(dwell)
-            || tilt_deg<1. || tilt_deg>60. || gyro<=0. || gyro>3. || dwell<0. || dwell>1.)
+    void configure_speed_protection(bool fault_enabled, bool braking_enabled) {
+        if (phase_ != Disabled)
+            throw std::invalid_argument("Configure speed protection while disabled");
+        speed_fault_enabled_ = fault_enabled;
+        speed_braking_enabled_ = braking_enabled;
+    }
+    void configure_flip_handoff(double tilt_deg, double gyro, double dwell) {
+        if (phase_ != Disabled || !std::isfinite(tilt_deg) || !std::isfinite(gyro)
+            || !std::isfinite(dwell) || tilt_deg < 1. || tilt_deg > 60. || gyro <= 0. || gyro > 3.
+            || dwell < 0. || dwell > 1.)
             throw std::invalid_argument("Invalid flip handoff conditions");
-        flip_capture_gravity_z_=-std::cos(tilt_deg*std::numbers::pi/180.);
-        flip_capture_gyro_=gyro;flip_capture_dwell_=dwell;
+        flip_capture_gravity_z_ = -std::cos(tilt_deg * std::numbers::pi / 180.);
+        flip_capture_gyro_ = gyro;
+        flip_capture_dwell_ = dwell;
     }
     void set_flip_fold_first(bool value) {
-        if (phase_!=Disabled) throw std::invalid_argument("Configure flip preparation while disabled");
-        flip_fold_first_=value;
+        if (phase_ != Disabled)
+            throw std::invalid_argument("Configure flip preparation while disabled");
+        flip_fold_first_ = value;
     }
     void configure_flip_completion(double orbit_limit_deg, bool balance_when_upright) {
-        if (phase_!=Disabled || !std::isfinite(orbit_limit_deg) || orbit_limit_deg<0. || orbit_limit_deg>180.)
-            throw std::invalid_argument("Configure flip handoff orbit limit between zero and 180 degrees while disabled");
-        flip_handoff_orbit_limit_=orbit_limit_deg*std::numbers::pi/180.;
-        flip_balance_when_upright_=balance_when_upright;
+        if (phase_ != Disabled || !std::isfinite(orbit_limit_deg) || orbit_limit_deg < 0.
+            || orbit_limit_deg > 180.)
+            throw std::invalid_argument(
+                "Configure flip handoff orbit limit between zero and 180 degrees while disabled");
+        flip_handoff_orbit_limit_ = orbit_limit_deg * std::numbers::pi / 180.;
+        flip_balance_when_upright_ = balance_when_upright;
     }
     void configure_flip_stall(double dwell_seconds) {
-        if (phase_!=Disabled || !std::isfinite(dwell_seconds) || dwell_seconds<0.
-            || (dwell_seconds>0. && dwell_seconds<.05) || dwell_seconds>2.)
-            throw std::invalid_argument("Configure flip stall dwell as zero or 0.05..2 seconds while disabled");
-        flip_stall_dwell_=dwell_seconds;
+        if (phase_ != Disabled || !std::isfinite(dwell_seconds) || dwell_seconds < 0.
+            || (dwell_seconds > 0. && dwell_seconds < .05) || dwell_seconds > 2.)
+            throw std::invalid_argument(
+                "Configure flip stall dwell as zero or 0.05..2 seconds while disabled");
+        flip_stall_dwell_ = dwell_seconds;
     }
     int stalled_waypoints() const { return stalled_waypoints_; }
     void configure_flip_first_orbit_hold(unsigned mask) {
-        if (phase_!=Disabled || mask>3)
-            throw std::invalid_argument("Configure first-waypoint orbit hold mask between zero and three while disabled");
-        flip_first_orbit_hold_mask_=mask;
+        if (phase_ != Disabled || mask > 3)
+            throw std::invalid_argument(
+                "Configure first-waypoint orbit hold mask between zero and three while disabled");
+        flip_first_orbit_hold_mask_ = mask;
     }
 
-    // Opt-in measured-pose routes. Legacy finite programs remain available for
-    // comparison; video headings specify an arc, never an encoder calibration.
     void configure_pose_routes(PoseRouteSettings settings) {
         if (phase_ != Disabled)
             throw std::invalid_argument("Configure pose routes while disabled");
         for (double value :
              {settings.tuck_knee_deg, settings.support_knee_deg, settings.support_orbit_deg,
               settings.side_stroke_deg, settings.upright_dwell_seconds, settings.upright_gyro_rad_s,
-              settings.plant_wheel_assist_nm, settings.landing_knee_deg, settings.landing_orbit_deg})
+              settings.plant_wheel_assist_nm, settings.landing_knee_deg,
+              settings.landing_orbit_deg})
             if (!std::isfinite(value))
                 throw std::invalid_argument("Nonfinite pose-route setting");
         if (settings.tuck_knee_deg < table_.front()[0]
@@ -275,7 +291,7 @@ public:
                     fail(7);
             }
         for (double v : f.velocity)
-            if (std::abs(v) > settings_.speed_limit + 1e-6)
+            if (speed_fault_enabled_ && std::abs(v) > settings_.speed_limit + 1e-6)
                 fail(3);
         if (phase_ == Fault) {
             out.position.fill(0.);
@@ -332,9 +348,6 @@ public:
                     begin(pose(settings_.fold_knee, initial_orbit_), reference_);
             }
         }
-        // Route changes consume one measured snapshot. A flipped body is
-        // reclassified before any standing motion; reaching a timed target
-        // alone can never declare an inverted/side route successful.
         const bool was_routing = route_active_;
         if (was_routing)
             update_pose_route(f, dt);
@@ -385,8 +398,6 @@ public:
             }
             std::array<double, 2> angles{};
             double target = flip_step_ % 2 ? settings_.flip_orbit : settings_.sweep_orbit;
-            // A body resting on a different face may not respond to the same
-            // sagittal sweep. Try front/rear support before asymmetric support.
             if (flip_step_ == 3 || flip_step_ == 4)
                 target = flip_step_ == 3 ? 90. : -90.;
             for (std::size_t s = 0; s < 2; ++s)
@@ -399,10 +410,6 @@ public:
                 goal[s * 2 + 1] = folded[s * 2 + 1];
             }
             if (settings_.flip_asymmetry != 0. && std::abs(f.gravity[1]) > .9 && flip_step_ >= 3) {
-                // Exact side lying has no wheel-ground support. Hold the lower
-                // leg while sweeping the upper one, so symmetric inertial
-                // reactions cannot cancel. This remains a bounded candidate,
-                // not a declaration that side recovery is feasible.
                 const std::size_t lower = f.gravity[1] > 0. ? 0 : 1;
                 goal[lower * 2] = reference_[lower * 2];
                 goal[lower * 2 + 1] = reference_[lower * 2 + 1];
@@ -449,9 +456,6 @@ public:
                     std::sin(angle) * f.gravity[0] - std::cos(angle) * f.gravity[2];
                 legs_below = legs_below && downward > .65;
             }
-        // A gravity-aligned flipping leg can already support a wheel while
-        // the chassis is inverted. Dampen rolling rather than leave that
-        // support free to run away; this does not request forward motion.
         if (route_active_ && flip_route() && legs_below && (phase_ == Thrust || phase_ == Sweep))
             for (std::size_t side = 0; side < 2; ++side)
                 out.wheel_torque[side] = std::clamp(-.25 * f.wheel_velocity[side], -4.5, 4.5);
@@ -480,8 +484,6 @@ public:
             const double velocity_gain = (phase_ == Capture || phase_ == Complete)
                                            ? settings_.balance_kv
                                            : std::min(2., settings_.balance_kv);
-            // Only assist planting arcs below the body; spinning wheels during an
-            // overhead or inverted sweep is neither support nor odometry.
             double plant_assist = 0.;
             if (pose_routes_.enabled && phase_ == Plant)
                 plant_assist = .5 * pose_routes_.plant_wheel_assist_nm
@@ -494,11 +496,9 @@ public:
             const double headroom = 4.5 - std::abs(common);
             const double yaw = std::clamp(settings_.yaw_rate_gain * f.gyro[2], -headroom, headroom);
             out.wheel_torque = {common + yaw, -common + yaw};
-            // The identified wheel response reaches about 59 rad/s unloaded.
-            // Keep headroom below it without clipping the acceleration needed
-            // to catch a falling body after the wheels first touch the ground.
             for (std::size_t i = 0; i < 2; ++i)
-                if (std::abs(f.wheel_velocity[i]) > balance_wheel_speed_limit_
+                if (speed_braking_enabled_
+                    && std::abs(f.wheel_velocity[i]) > balance_wheel_speed_limit_
                     && out.wheel_torque[i] * f.wheel_velocity[i] > 0.)
                     out.wheel_torque[i] = std::clamp(-.15 * f.wheel_velocity[i], -4.5, 4.5);
             bool quiet = (phase_ == Capture || phase_ == Complete) && segment_done_
@@ -543,8 +543,7 @@ public:
                 integral_[i] = previous_integral;
                 torque = settings_.velocity_gain * error + integral_[i] + feedforward;
             }
-            // Brake before the measured-speed guard; never mask an actual overspeed.
-            if (std::abs(f.velocity[i]) > settings_.speed_limit - .12
+            if (speed_braking_enabled_ && std::abs(f.velocity[i]) > settings_.speed_limit - .12
                 && torque * f.velocity[i] > 0.) {
                 integral_[i] = previous_integral;
                 out.servo_velocity[i] = 0.;
@@ -557,8 +556,6 @@ public:
             }
             out.torque[i] = std::clamp(torque, -settings_.torque_limit, settings_.torque_limit);
         }
-        // Project motor effort away from the conservative 41..109 degree
-        // command envelope. Gas and passive friction remain physical loads.
         for (std::size_t side = 0; side < 2; ++side) {
             const std::size_t plus = side == 0 ? 1 : 2, minus = side == 0 ? 0 : 3;
             const double delta = f.position[plus] - f.position[minus];
@@ -640,8 +637,6 @@ private:
             knees[lower] = extended;
             append_route(Tuck, knees, initial);
             support = initial;
-            // One lower-leg stroke, with the upper leg tucked at its own
-            // heading. Do not return the lower leg and undo its roll impulse.
             const double direction = f.gravity[0] < -.1 ? -1. : 1.;
             support[lower] += direction * pose_routes_.side_stroke_deg * pi / 180.;
             append_route(Sweep, knees, support);
@@ -653,8 +648,6 @@ private:
                 support[side] = nearest(ground, initial[side]);
             append_route(Clearance, short_legs, support);
             append_route(Thrust, flip_legs, support);
-            // The stroke has explicit winding. A fresh shortest-arc choice
-            // every tick would reverse a lagging leg near the half-turn.
             const double direction = f.gravity[0] > .1 ? -1. : 1.;
             auto lifting = support;
             for (double& angle : lifting)
@@ -676,8 +669,6 @@ private:
             const double support_angle = pose_routes_.support_orbit_deg * pi / 180.;
             const double direction = route_ == Route::ProneFront ? 1. : -1.;
             for (std::size_t side = 0; side < 2; ++side) {
-                // Keep a leg already below the chassis as a support instead
-                // of sweeping it around merely to match the opposite leg.
                 if (below[side]) {
                     travel_knees[side] = extended;
                     overhead[side] = support[side] = initial[side];
@@ -698,8 +689,6 @@ private:
             for (std::size_t side = 0; side < 2; ++side)
                 if (!below[side])
                     landing[side] -= direction * pose_routes_.landing_orbit_deg * pi / 180.;
-            // Keep the support length through the lifting arc. Flex only in
-            // the final landing arc; early flex leaves the chassis on its rim.
             append_route(Plant, long_legs, landing);
             append_route(
                 Plant, {pose_routes_.landing_knee_deg, pose_routes_.landing_knee_deg},
@@ -716,8 +705,6 @@ private:
             && std::hypot(f.gyro[0], f.gyro[1], f.gyro[2]) < pose_routes_.upright_gyro_rad_s;
         route_upright_time_ = upright ? route_upright_time_ + dt : 0.;
         if (flip_route() && route_upright_time_ >= pose_routes_.upright_dwell_seconds) {
-            // Replan from the new measured body and two independent leg
-            // headings. Preserve the continuous motor references and limits.
             integral_.fill(0.);
             start_pose_route(f);
             return;
@@ -731,8 +718,6 @@ private:
             return;
         }
         if (flip_route()) {
-            // A finite stroke can finish before the body settles. Wait for
-            // actual IMU progress, then stop rather than replay indefinitely.
             route_end_wait_ += dt;
             if (route_end_wait_ > 1.)
                 fail(8);
@@ -751,13 +736,20 @@ private:
     }
     Row interpolate(double knee) const {
         knee = std::clamp(knee, table_.front()[0], table_.back()[0]);
-        auto upper = std::upper_bound(table_.begin(), table_.end(), knee,
-            [](double value, const Row& row) { return value < row[0]; });
-        if (upper == table_.end()) return table_.back();
-        if (upper == table_.begin()) return table_.front();
-        const Row& a = *(upper-1); const Row& b = *upper;
-        Row result{}; const double t = (knee-a[0])/(b[0]-a[0]);
-        for (std::size_t j = 0; j < 5; ++j) result[j] = a[j]+t*(b[j]-a[j]);
+        auto upper =
+            std::upper_bound(table_.begin(), table_.end(), knee, [](double value, const Row& row) {
+                return value < row[0];
+            });
+        if (upper == table_.end())
+            return table_.back();
+        if (upper == table_.begin())
+            return table_.front();
+        const Row& a = *(upper - 1);
+        const Row& b = *upper;
+        Row result{};
+        const double t = (knee - a[0]) / (b[0] - a[0]);
+        for (std::size_t j = 0; j < 5; ++j)
+            result[j] = a[j] + t * (b[j] - a[j]);
         return result;
     }
     double orbit(const Axes& q, std::size_t side) const {
@@ -779,10 +771,11 @@ private:
         return .5 * sign * (row[hip + 1] + row[knee + 1] - q[hip] - q[knee]);
     }
     Axes pose(double knee, const std::array<double, 2>& angles) const {
-        const Row row = interpolate(knee); Axes q{};
+        const Row row = interpolate(knee);
+        Axes q{};
         for (std::size_t s = 0; s < 2; ++s)
             for (std::size_t j = 0; j < 2; ++j)
-                q[s*2+j] = row[s*2+j+1] - (s == 0 ? 1. : -1.)*angles[s];
+                q[s * 2 + j] = row[s * 2 + j + 1] - (s == 0 ? 1. : -1.) * angles[s];
         return q;
     }
     void
@@ -803,72 +796,92 @@ private:
         arrival_time_ = flip_stall_time_ = flip_stall_error_ = 0.;
     }
     void start_program_waypoint(const Feedback& f) {
-        const auto& p=flip_program_[program_index_];
+        const auto& p = flip_program_[program_index_];
         Axes goal{};
-        for (std::size_t index=0;index<2;++index) {
-            const std::size_t side=program_relative_ ? (index==0 ? lower_side_ : 1-lower_side_) : index;
-            const bool hold_initial=program_index_==0 && (flip_first_orbit_hold_mask_&(1u<<index));
-            const double angle=hold_initial ? initial_orbit_[side]
-                : nearest(p.orbit_deg[index]*std::numbers::pi/180.,orbit(f.position,side));
-            const Row row=interpolate(p.knee_deg[index]);
-            for (std::size_t j=0;j<2;++j)
-                goal[side*2+j]=row[side*2+j+1]-(side==0 ? 1. : -1.)*angle;
+        for (std::size_t index = 0; index < 2; ++index) {
+            const std::size_t side =
+                program_relative_ ? (index == 0 ? lower_side_ : 1 - lower_side_) : index;
+            const bool hold_initial =
+                program_index_ == 0 && (flip_first_orbit_hold_mask_ & (1u << index));
+            const double angle = hold_initial ? initial_orbit_[side]
+                                              : nearest(
+                                                    p.orbit_deg[index] * std::numbers::pi / 180.,
+                                                    orbit(f.position, side));
+            const Row row = interpolate(p.knee_deg[index]);
+            for (std::size_t j = 0; j < 2; ++j)
+                goal[side * 2 + j] = row[side * 2 + j + 1] - (side == 0 ? 1. : -1.) * angle;
         }
-        begin(goal,reference_,p.speed,p.acceleration); program_hold_time_=0.;
+        begin(goal, reference_, p.speed, p.acceleration);
+        program_hold_time_ = 0.;
     }
     void enter(Phase phase, const Axes& goal, const Feedback& f) {
         (void)f;
-        phase_ = phase; begin(goal, reference_);
+        phase_ = phase;
+        begin(goal, reference_);
     }
     void advance(double dt, const Feedback& f) {
         reference_velocity_.fill(0.);
-        if (segment_done_) return;
+        if (segment_done_)
+            return;
         segment_time_ += dt;
         const double t = std::min(segment_time_, duration_);
         double distance = 0., velocity = 0.;
-        if (t < ramp_) { velocity = segment_acceleration_*t; distance = .5*velocity*t; }
-        else if (t <= duration_-ramp_) {
-            velocity = peak_; distance = .5*peak_*ramp_+peak_*(t-ramp_);
+        if (t < ramp_) {
+            velocity = segment_acceleration_ * t;
+            distance = .5 * velocity * t;
+        } else if (t <= duration_ - ramp_) {
+            velocity = peak_;
+            distance = .5 * peak_ * ramp_ + peak_ * (t - ramp_);
         } else {
-            const double remaining = duration_-t;
-            velocity = segment_acceleration_*remaining;
-            distance = distance_-.5*segment_acceleration_*remaining*remaining;
+            const double remaining = duration_ - t;
+            velocity = segment_acceleration_ * remaining;
+            distance = distance_ - .5 * segment_acceleration_ * remaining * remaining;
         }
         for (std::size_t i = 0; i < 4; ++i) {
-            const double direction = distance_ > 0. ? (to_[i]-from_[i])/distance_ : 0.;
-            reference_[i] = from_[i]+direction*distance;
-            reference_velocity_[i] = direction*velocity;
+            const double direction = distance_ > 0. ? (to_[i] - from_[i]) / distance_ : 0.;
+            reference_[i] = from_[i] + direction * distance;
+            reference_velocity_[i] = direction * velocity;
         }
         if (t >= duration_) {
             reference_ = to_;
-            bool arrived=true;
-            for (std::size_t i=0; i<4; ++i)
-                arrived=arrived && std::abs(to_[i]-f.position[i])<.04;
-            arrival_time_=arrived ? arrival_time_+dt : 0.;
-            segment_done_=arrival_time_>=.04;
-            bool stopped=std::hypot(f.gyro[0],f.gyro[1],f.gyro[2])<.5;
-            for(double value:f.velocity)stopped=stopped && std::abs(value)<.6;
-            double error=0.;
-            for(std::size_t axis=0;axis<4;++axis)error=std::max(error,std::abs(to_[axis]-f.position[axis]));
-            if (phase_==Flip && program_active_ && !preparing_program_ && !arrived && stopped) {
-                // Require lack of net target progress; instantaneous encoder
-                // jitter under load must not keep a blocked motor energized.
-                if(flip_stall_time_==0. || error<flip_stall_error_-.01) {
-                    flip_stall_time_=dt;flip_stall_error_=error;
-                } else flip_stall_time_+=dt;
-            } else flip_stall_time_=0.;
-            if (flip_stall_dwell_>0. && flip_stall_time_>=flip_stall_dwell_) {
-                // A stopped, blocked waypoint is not a successful pose or a
-                // contact sensor. Release the accumulated tracking effort and
-                // try the next finite program target from measured encoders.
-                // This rebases only command state, never the physical state.
-                reference_=from_=to_=f.position;reference_velocity_.fill(0.);integral_.fill(0.);
-                segment_done_=true;++stalled_waypoints_;flip_stall_time_=0.;return;
+            bool arrived = true;
+            for (std::size_t i = 0; i < 4; ++i)
+                arrived = arrived && std::abs(to_[i] - f.position[i]) < .04;
+            arrival_time_ = arrived ? arrival_time_ + dt : 0.;
+            segment_done_ = arrival_time_ >= .04;
+            bool stopped = std::hypot(f.gyro[0], f.gyro[1], f.gyro[2]) < .5;
+            for (double value : f.velocity)
+                stopped = stopped && std::abs(value) < .6;
+            double error = 0.;
+            for (std::size_t axis = 0; axis < 4; ++axis)
+                error = std::max(error, std::abs(to_[axis] - f.position[axis]));
+            if (phase_ == Flip && program_active_ && !preparing_program_ && !arrived && stopped) {
+                if (flip_stall_time_ == 0. || error < flip_stall_error_ - .01) {
+                    flip_stall_time_ = dt;
+                    flip_stall_error_ = error;
+                } else
+                    flip_stall_time_ += dt;
+            } else
+                flip_stall_time_ = 0.;
+            if (flip_stall_dwell_ > 0. && flip_stall_time_ >= flip_stall_dwell_) {
+                reference_ = from_ = to_ = f.position;
+                reference_velocity_.fill(0.);
+                integral_.fill(0.);
+                segment_done_ = true;
+                ++stalled_waypoints_;
+                flip_stall_time_ = 0.;
+                return;
             }
-            if (segment_time_>duration_+5.) fail(5);
+            if (segment_time_ > duration_ + 5.)
+                fail(5);
         }
     }
-    void fail(int reason) { if (phase_!=Fault) { phase_ = Fault; fault_ = reason; } }
+    void fail(int reason) {
+        if (phase_ != Fault) {
+            phase_ = Fault;
+            fault_ = reason;
+        }
+    }
     std::vector<Row> table_;
     Settings settings_;
     SupportModel support_model_ = nullptr;
@@ -886,6 +899,7 @@ private:
     std::size_t program_index_ = 0, lower_side_ = 0;
     double program_hold_time_ = 0., tracking_speed_ = 0., segment_acceleration_ = 0.;
     double balance_wheel_speed_limit_ = 20., balance_distance_gain_ = .98;
+    bool speed_fault_enabled_ = true, speed_braking_enabled_ = true;
     double flip_capture_gravity_z_ = -.85, flip_capture_gyro_ = 2., flip_capture_dwell_ = 0.,
            flip_capture_time_ = 0.;
     double flip_handoff_orbit_limit_ = 0.;
@@ -904,4 +918,23 @@ private:
     std::array<double, 2> initial_orbit_{};
 };
 
-} // namespace rmcs_core::controller::wheelleg
+} // namespace rmcs_core::controller::chassis::wheel_leg
+
+#include "model/recovery_geometry.hpp"
+
+namespace rmcs_core::controller::chassis::wheel_leg {
+inline SelfRightingCore make_self_righting() {
+    SelfRightingCore::Settings settings;
+    settings.timeout_seconds = 30.;
+    settings.flip_knee = 55.;
+    settings.balance_kv = 5.2;
+    settings.stand_knee = recovery_v202::stand_knee;
+    settings.stand_orbit = recovery_v202::stand_orbit;
+    SelfRightingCore core{recovery_v202::geometry, settings, recovery_v202::support_compensation};
+    core.configure_capture(40., .98);
+    SelfRightingCore::PoseRouteSettings routes;
+    routes.enabled = true;
+    core.configure_pose_routes(routes);
+    return core;
+}
+} // namespace rmcs_core::controller::chassis::wheel_leg

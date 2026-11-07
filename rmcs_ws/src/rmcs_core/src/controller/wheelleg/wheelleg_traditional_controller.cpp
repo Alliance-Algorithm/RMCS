@@ -149,19 +149,10 @@ public:
                 0.0);
             const std::string recovery = std::string{"/wheelleg/recovery/"} + axes_[i];
             register_input(recovery + "/torque", recovery_torque_[i], false);
-            if (i < 4) {
-                register_output(prefix + "/velocity_control", velocity_mode_[i], false);
-                register_output(prefix + "/control_velocity", velocity_target_[i], 0.);
-                register_output(prefix + "/control_velocity_gain", velocity_gain_[i], 0.);
-                register_input(recovery + "/servo_rad_s", recovery_velocity_[i], false);
-                register_input(recovery + "/servo_feedforward_nm", recovery_feedforward_[i], false);
-            }
         }
         register_input("/wheelleg/recovery/active", recovery_active_, false);
         register_input("/wheelleg/recovery/ready", recovery_ready_, false);
         register_input("/wheelleg/recovery/fault", recovery_fault_, false);
-        register_input("/wheelleg/recovery/motor_velocity_servo", recovery_servo_, false);
-        register_input("/wheelleg/recovery/velocity_gain", recovery_gain_, false);
         register_input("/wheel_leg/imu/quaternion", quaternion_);
         register_input("/wheel_leg/imu/angular_velocity", angular_velocity_);
         register_input("/wheel_leg/imu/acceleration", acceleration_);
@@ -185,6 +176,11 @@ public:
         register_input("/referee/chassis/output_status", referee_output_, false);
         register_output("/wheel_leg/enable_request", enable_, false);
         register_output("/wheel_leg/clear_error_request", clear_error_, false);
+        constexpr std::array auxiliary_names{
+            "/gimbal/yaw", "/gimbal/pitch", "/gimbal/left_friction",
+            "/gimbal/right_friction", "/gimbal/bullet_feeder"};
+        for (std::size_t i = 0; i < auxiliary_names.size(); ++i)
+            register_output(std::string{auxiliary_names[i]} + "/control_torque", auxiliary_torque_[i], 0.);
         register_output("/wheelleg/traditional/failure", failure_, 0.0);
         register_output(
             "/wheelleg/traditional/mapping_admitted", admitted_,
@@ -343,7 +339,7 @@ public:
             finite
             && (recovering
                 || (std::abs(observation[12]) <= maximum_tilt_ && std::abs(roll) <= maximum_tilt_));
-        const bool startup_valid = recovering
+        const bool startup_valid = recovering || (recovery_ready_.ready() && *recovery_ready_)
                                 || (attitude_valid && std::abs(observation[12]) <= startup_tilt_
                                     && std::abs(roll) <= startup_tilt_
                                     && rmcs_core::wheelleg::traditional_start_pose_valid(
@@ -427,36 +423,17 @@ public:
     }
 
 private:
+    std::array<OutputInterface<double>, 5> auxiliary_torque_;
     bool publish_recovery_(bool wheels) {
-        const bool servo = recovery_servo_.ready() && *recovery_servo_;
-        const double gain = recovery_gain_.ready() ? *recovery_gain_ : 0.;
-        if (servo && (!std::isfinite(gain) || gain <= 0. || gain > 5.))
-            return false;
         std::array<double, 6> commands{};
         for (std::size_t i = 0; i < 6; ++i) {
             if (!recovery_torque_[i].ready() || !std::isfinite(*recovery_torque_[i]))
                 return false;
             const double limit = std::min(*max_torque_[i], i < 4 ? leg_limit_ : wheel_limit_);
             commands[i] = i < 4 || wheels ? std::clamp(*recovery_torque_[i], -limit, limit) : 0.;
-            if (i < 4 && servo) {
-                if (!recovery_velocity_[i].ready() || !recovery_feedforward_[i].ready()
-                    || !std::isfinite(*recovery_velocity_[i])
-                    || std::abs(*recovery_velocity_[i]) > 3.14
-                    || !std::isfinite(*recovery_feedforward_[i]))
-                    return false;
-                const double inner = gain * (*recovery_velocity_[i] - *velocity_[i]);
-                const double total = std::clamp(*recovery_feedforward_[i] + inner, -limit, limit);
-                commands[i] = std::clamp(total - inner, -limit, limit);
-            }
         }
         for (std::size_t i = 0; i < 6; ++i)
             *torque_[i] = commands[i];
-        if (servo)
-            for (std::size_t i = 0; i < 4; ++i) {
-                *velocity_mode_[i] = true;
-                *velocity_target_[i] = *recovery_velocity_[i];
-                *velocity_gain_[i] = gain;
-            }
         return true;
     }
 
@@ -475,10 +452,6 @@ private:
     void safe_outputs_() {
         for (auto& torque : torque_)
             *torque = 0.0;
-        for (std::size_t i = 0; i < 4; ++i) {
-            *velocity_mode_[i] = false;
-            *velocity_target_[i] = *velocity_gain_[i] = 0.;
-        }
         *enable_ = false;
         *power_scale_ = *predicted_power_ = *support_ = *estimated_velocity_ = 0.0;
         *reference_length_ = length_nominal_;
@@ -488,12 +461,8 @@ private:
                                       "right_knee_joint", "left_wheel",      "right_wheel"};
     std::array<InputInterface<double>, 6> position_, velocity_;
     std::array<InputInterface<double>, 6> max_torque_, recovery_torque_;
-    std::array<InputInterface<double>, 4> recovery_velocity_, recovery_feedforward_;
-    std::array<OutputInterface<bool>, 4> velocity_mode_;
-    std::array<OutputInterface<double>, 4> velocity_target_, velocity_gain_;
-    InputInterface<bool> recovery_active_, recovery_ready_, recovery_servo_;
+    InputInterface<bool> recovery_active_, recovery_ready_;
     InputInterface<std::uint8_t> recovery_fault_;
-    InputInterface<double> recovery_gain_;
     std::array<InputInterface<std::uint64_t>, 6> feedback_time_;
     std::array<OutputInterface<double>, 6> torque_;
     InputInterface<Eigen::Quaterniond> quaternion_;

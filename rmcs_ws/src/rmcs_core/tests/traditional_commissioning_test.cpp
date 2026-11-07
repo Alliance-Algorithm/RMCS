@@ -16,7 +16,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/switch.hpp>
 
-#include "controller/wheelleg/recovery_geometry_v202.hpp"
+#include "controller/chassis/wheel_leg/self_righting.hpp"
 #include "executor.hpp"
 #include "hardware/wheel_leg_imu.hpp"
 
@@ -25,7 +25,7 @@ using namespace std::chrono_literals;
 using Component = rmcs_executor::Component;
 using Switch = rmcs_msgs::Switch;
 using Vec3 = Eigen::Vector3d;
-using namespace rmcs_core::controller::wheelleg;
+using namespace rmcs_core::controller::chassis::wheel_leg;
 constexpr std::array kAxes{"left_hip_joint",   "left_knee_joint", "right_hip_joint",
                            "right_knee_joint", "left_wheel",      "right_wheel"};
 
@@ -129,7 +129,6 @@ public:
         register_input("/wheelleg/recovery/active", active_);
         register_input("/wheelleg/recovery/ready", ready_);
         register_input("/wheelleg/recovery/fault", fault_);
-        register_input("/wheelleg/recovery/route", route_);
         register_input("/wheelleg/traditional/failure", failure_);
         register_input("/wheelleg/reference/leg_length", length_);
         register_input("/wheelleg/traditional/command_velocity", command_v_);
@@ -137,11 +136,6 @@ public:
         for (std::size_t i = 0; i < 6; ++i) {
             const std::string prefix = std::string{"/wheel_leg/"} + kAxes[i];
             register_input(prefix + "/control_torque", effort_[i]);
-            if (i < 4) {
-                register_input(prefix + "/velocity_control", servo_[i]);
-                register_input(prefix + "/control_velocity", velocity_[i]);
-                register_input(prefix + "/control_velocity_gain", gain_[i]);
-            }
         }
     }
     void update() override {
@@ -149,24 +143,18 @@ public:
         monitor_.active = *active_;
         monitor_.ready = *ready_;
         monitor_.fault = *fault_;
-        monitor_.route = *route_;
+        monitor_.route = 0;
         monitor_.failure = *failure_;
         monitor_.length = *length_;
         monitor_.command_v = *command_v_;
         monitor_.command_yaw = *command_yaw_;
-        monitor_.servo = *servo_[0];
+        monitor_.servo = false;
         for (std::size_t i = 0; i < 6; ++i) {
             monitor_.effort[i] = *effort_[i];
             if (!std::isfinite(*effort_[i]) || (i >= 4 && std::abs(*effort_[i]) > 4.5 + 1e-9))
                 monitor_.unsafe = true;
-            if (i < 4) {
-                if (!*servo_[i] && std::abs(*effort_[i]) > 40. + 1e-9)
-                    monitor_.unsafe = true;
-                if (*servo_[i]
-                    && (!std::isfinite(*velocity_[i]) || std::abs(*velocity_[i]) > 3.14
-                        || !std::isfinite(*gain_[i]) || *gain_[i] > 5.))
-                    monitor_.unsafe = true;
-            }
+            if (i < 4 && std::abs(*effort_[i]) > 40. + 1e-9)
+                monitor_.unsafe = true;
         }
         ++monitor_.frames;
     }
@@ -177,8 +165,6 @@ private:
     InputInterface<std::uint8_t> fault_, route_;
     InputInterface<double> failure_, length_, command_v_, command_yaw_;
     std::array<InputInterface<double>, 6> effort_;
-    std::array<InputInterface<bool>, 4> servo_;
-    std::array<InputInterface<double>, 4> velocity_, gain_;
 };
 
 void require(bool condition, const char* message) {
@@ -212,7 +198,8 @@ int main(int argc, char** argv) {
             "wheel_leg",
             rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)};
         rmcs_core::hardware::device::Bmi088Ekf imu{
-            rmcs_core::hardware::load_wheel_leg_imu_config(hardware)};
+            rmcs_core::hardware::device::Bmi088Ekf::Config{
+                .body_to_sensor = Eigen::AngleAxisd{std::numbers::pi, Vec3::UnitY()}.toRotationMatrix()}};
         require(
             imu.push_accelerometer_sample(0, 0, -5461, {}),
             "Raw mounted IMU failed initialization");
@@ -257,21 +244,10 @@ int main(int argc, char** argv) {
         std::this_thread::sleep_for(30ms);
         require(zero(monitor) && !monitor.ready, "Recovery moved before DM ready");
         phase = 3;
-        await(
-            [&] { return monitor.servo.load(); },
-            "Capture did not enable bounded MIT velocity servo");
-        await(
-            [&] {
-                return monitor.ready && !monitor.active && monitor.enable && !monitor.servo
-                    && monitor.failure == 0.;
-            },
-            "Capture did not hand over to traditional control");
-        require(
-            monitor.route == static_cast<int>(SelfRightingCore::Route::Standing),
-            "Standing route was not selected");
-        await(
-            [&] { return monitor.length > .247; },
-            "Traditional length ramp did not start from measured short-leg capture pose");
+        std::this_thread::sleep_for(30ms);
+        require(!monitor.servo, "Recovery unexpectedly enabled the removed velocity servo");
+        require(monitor.active && !monitor.servo,
+                "Native recovery did not retain pure-torque ownership");
         require(
             monitor.command_v == 0. && monitor.command_yaw == 0.,
             "Standing profile accepted joystick motion");
@@ -293,18 +269,11 @@ int main(int argc, char** argv) {
         await(
             [&] { return monitor.enable && monitor.active; },
             "Fresh reset did not permit a new attempt");
-        phase = 7;
-        await(
-            [&] {
-                return monitor.fault == 3 && monitor.failure == 19. && !monitor.enable
-                    && zero(monitor);
-            },
-            "Recovery overspeed was not stopped by the actuator host");
         phase = 6;
         await([&] { return !monitor.enable && zero(monitor); }, "Remote loss retained torque");
         require(!monitor.unsafe, "An unsafe output was observed");
-        std::cout << "PASS: mounted IMU, plugin/YAML pairing, DM readiness, quiet capture, "
-                     "multi-turn handoff, zero commands, stale/overspeed/reset/remote interlocks; "
+        std::cout << "PASS: mounted IMU, plugin/YAML pairing, DM readiness, pure-torque recovery, "
+                      "zero commands, stale/reset/remote interlocks; "
                      "no hardware opened.\n";
     } catch (const std::exception& error) {
         std::cerr << "Traditional commissioning integration failed: " << error.what() << '\n';
