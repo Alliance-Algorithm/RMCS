@@ -50,7 +50,7 @@ wheel_leg:
 wheel_leg_chassis_controller:
   ros__parameters:
     vx_max: 3.0
-    vx_bias: -0.60
+    vx_bias: -0.32
     vy_max: 0.0
     yaw_rate_max: 4.0 # Follow-mode yaw cap only; at policy training envelope.
     spin_yaw_rate: 10.471975511965978
@@ -65,9 +65,8 @@ wheel_leg_chassis_controller:
     command_height_min: 0.23
     command_height_max: 0.42
     default_command_height: 0.305
-    height_step: 0.01
+    height_rate: 0.1
 
-    rotary_knob_step: 0.1
     arm_dwell_seconds: 0.0
 
 wheel_leg_state_estimator:

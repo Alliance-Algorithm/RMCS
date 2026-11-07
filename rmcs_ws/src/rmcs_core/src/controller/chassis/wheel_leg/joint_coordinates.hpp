@@ -33,6 +33,9 @@ inline JointVector model_velocity(const JointVector& api) {
     return dq;
 }
 inline JointVector motor_effort(const JointVector& model) { return model_velocity(model); }
+inline double forward_wheel_velocity(const JointVector& velocity) {
+    return .5 * (velocity[4] - velocity[5]);
+}
 
 inline LegVector
     continuous_legs(const LegVector& measured, const LegVector& previous, const LegBounds& bounds) {

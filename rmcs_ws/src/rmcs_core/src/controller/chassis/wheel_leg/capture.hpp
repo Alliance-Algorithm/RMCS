@@ -19,6 +19,8 @@ struct RecoveryCaptureLimits {
     double gyro = 1.;
     double upright_gyro = 2.;
     double upright_tilt = .2;
+    std::array<double, 2> hinge_min{kMechanicalBounds[0][0], kMechanicalBounds[1][0]};
+    std::array<double, 2> hinge_max = kRecoveryCaptureHingeMax;
 };
 
 enum RecoveryCaptureBlocker {
@@ -60,7 +62,7 @@ inline int recovery_capture_blockers(
         const int hip = 2 * side;
         const double relative = (side == 0 ? 1. : -1.) * (feedback.q[hip + 1] - feedback.q[hip]);
         if (relative < kMechanicalBounds[side][0] || relative > kMechanicalBounds[side][1]
-            || relative > kRecoveryCaptureHingeMax[side])
+            || relative < limits.hinge_min[side] || relative > limits.hinge_max[side])
             blockers |= kCaptureHinge;
     }
     if (acceleration.dot(-g) < 6.)
