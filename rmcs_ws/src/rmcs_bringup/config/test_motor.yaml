@@ -1,0 +1,11 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+
+      - rmcs_core::hardware::TEST ->test
+
+
+test:
+  ros__parameters:
+    board_serial_chassis_board: ""
