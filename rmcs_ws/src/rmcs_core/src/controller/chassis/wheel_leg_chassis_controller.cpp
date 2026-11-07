@@ -37,6 +37,7 @@ public:
         register_output("/chassis/control_height", height_, .305);
         register_output("/chassis/control_enable", enable_, false);
         register_output("/chassis/reset_count", reset_, std::size_t{0});
+        register_output("/chassis/jump/request_count", jump_request_, std::size_t{0});
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
         vx_max_ = get_parameter_or("vx_max", 2.);
         vx_bias_ = get_parameter_or("vx_bias", 0.);
@@ -95,6 +96,11 @@ public:
             if (!armed_ && (l == Switch::UP || r == Switch::UP))
                 pending_ = false;
             if (armed_) {
+                const bool jump_edge =
+                    last_left_ == Switch::MIDDLE && last_right_ == Switch::MIDDLE
+                    && l == Switch::MIDDLE && r == Switch::UP;
+                if (was_armed_ && (jump_edge || (!last_keyboard_.ctrl && keyboard_->ctrl)))
+                    ++*jump_request_;
                 const bool spin_edge =
                     l != Switch::DOWN && last_right_ == Switch::MIDDLE && r == Switch::DOWN;
                 if (spin_edge || (!last_keyboard_.c && keyboard_->c)) {
@@ -166,7 +172,9 @@ public:
             }
         }
         last_right_ = r;
+        last_left_ = l;
         last_keyboard_ = *keyboard_;
+        was_armed_ = armed_;
     }
 
 private:
@@ -201,12 +209,15 @@ private:
     OutputInterface<double> height_;
     OutputInterface<bool> enable_;
     OutputInterface<std::size_t> reset_;
+    OutputInterface<std::size_t> jump_request_;
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     double vx_max_, vx_bias_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_, height_min_,
         height_max_, nominal_height_, height_rate_, arm_dwell_;
     bool yaw_invert_, armed_ = false, pending_ = false,
                                                        reset_active_ = false, spin_forward_ = true;
     rmcs_msgs::Switch last_right_ = rmcs_msgs::Switch::UNKNOWN;
+    rmcs_msgs::Switch last_left_ = rmcs_msgs::Switch::UNKNOWN;
+    bool was_armed_ = false;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
     std::optional<Clock::time_point> arm_started_;
     pid::PidCalculator following_velocity_controller_;
