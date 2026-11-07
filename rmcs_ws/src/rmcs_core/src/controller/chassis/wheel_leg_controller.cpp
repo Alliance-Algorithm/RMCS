@@ -3,6 +3,7 @@
 #include "wheel_leg/leg_kinematics.hpp"
 #include "wheel_leg/model/mechanics.hpp"
 #include "wheel_leg/motion_planner.hpp"
+#include "wheel_leg/recovery_yaw.hpp"
 #include "wheel_leg/self_righting.hpp"
 #include <algorithm>
 #include <array>
@@ -58,6 +59,7 @@ public:
         register_output("/wheel_leg/control/fault", fault_, false);
         register_output("/wheel_leg/recovery/phase", recovery_phase_, 0);
         register_output("/wheel_leg/recovery/fault", recovery_fault_, 0);
+        register_output("/wheel_leg/recovery/yaw_align_active", recovery_yaw_active_, false);
         recovery_.configure_speed_protection(
             get_parameter_or("self_righting_overspeed_fault_enabled", true),
             get_parameter_or("self_righting_speed_braking_enabled", true));
@@ -67,6 +69,8 @@ public:
         gas_gain_ = get_parameter_or("gas_spring_gain", 1.);
         max_tilt_ = get_parameter_or("max_tilt_deg", 60.) * std::numbers::pi / 180.;
         recovery_enabled_ = get_parameter_or("self_righting.enabled", false);
+        if (recovery_enabled_)
+            register_input("/gimbal/yaw/angle", recovery_yaw_);
         if (recovery_enabled_
             && (get_parameter_or("self_righting.simulation_only", true)
                 || !get_parameter_or("self_righting.hardware_mapping_verified", false)))
@@ -242,10 +246,13 @@ public:
         if (*fault_)
             return;
         *enable_ = true;
+        *recovery_yaw_active_ = recovery_enabled_ && *phase_ != 3;
         if (*phase_ <= 1)
             *phase_ = 2;
         if (*phase_ == 2) {
             if (!*valid_ || !*drives_ready_)
+                return;
+            if (recovery_enabled_ && !wheel_leg::recovery_yaw_aligned(*recovery_yaw_))
                 return;
             *phase_ = recovery_enabled_ ? 4 : 3;
         } else if (!*valid_ || !*drives_ready_) {
@@ -277,6 +284,7 @@ public:
             write_effort(effort);
             if (output.phase == wheel_leg::SelfRightingCore::Complete) {
                 *phase_ = 3;
+                *recovery_yaw_active_ = false;
                 motion_.reset();
                 trajectory_.reset();
                 balance_.reset();
@@ -343,6 +351,7 @@ public:
 private:
     void reset_runtime() {
         *enable_ = false;
+        *recovery_yaw_active_ = false;
         *phase_ = 1;
         *recovery_phase_ = 0;
         *recovery_fault_ = 0;
@@ -379,12 +388,14 @@ private:
     InputInterface<Eigen::Vector3d> gravity_, gyro_, attitude_;
     InputInterface<std::array<double, 2>> knee_, knee_rate_, shank_, shank_rate_, length_;
     InputInterface<double> velocity_, distance_, com_offset_, height_, rate_;
+    InputInterface<double> recovery_yaw_;
     InputInterface<bool> valid_, drives_ready_, requested_, simulation_;
     InputInterface<rmcs_description::BaseLink::DirectionVector> command_;
     InputInterface<std::size_t> reset_;
     std::array<InputInterface<double>, 6> caps_;
     std::array<OutputInterface<double>, 6> torque_;
     OutputInterface<bool> enable_, fault_;
+    OutputInterface<bool> recovery_yaw_active_;
     OutputInterface<int> phase_, recovery_phase_, recovery_fault_;
     MotionPlanner motion_;
     TrajectoryPlanner trajectory_;
