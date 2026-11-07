@@ -40,6 +40,8 @@ public:
     class SetDisabled : public Operation {
         PitchLink::DirectionVector update(TwoAxisGimbalSolver& super) const override {
             super.control_enabled_ = false;
+            super.control_direction_ = OdomImu::DirectionVector{Eigen::Vector3d::UnitX()};
+            super.yaw_axis_filtered_ = OdomImu::DirectionVector{Eigen::Vector3d::UnitZ()};
             return {};
         }
     };
@@ -168,16 +170,14 @@ private:
 
     void clamp_control_direction(YawLink::DirectionVector& control_direction) {
         const auto& [x, y, z] = *control_direction;
-
         Eigen::Vector2d projection{x, y};
-        double norm = projection.norm();
+        const double norm = projection.norm();
         if (norm > 0)
             projection /= norm;
         else {
             control_enabled_ = false;
             return;
         }
-
         if (z > upper_limit_.y())
             *control_direction << upper_limit_.x() * projection, upper_limit_.y();
         else if (z < lower_limit_.y())

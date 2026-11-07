@@ -14,6 +14,8 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
@@ -104,32 +106,51 @@ gimbal_controller:
 
 yaw_angle_pid_controller:
   ros__parameters:
-    output_max: 10.0
-    output_min: -10.0
+    reset_interface: /chassis/reset_count
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 15.0
+    kp: 5.0
     ki: 0.0
     kd: 0.0
 
 yaw_velocity_pid_controller:
   ros__parameters:
+    output_min: -4.5
+    output_max: 4.5
+    reset_interface: /chassis/reset_count
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 4.4
-    ki: 0.00011
-    kd: 0.0011
+    kp: 1.5
+    ki: 0.0
+    kd: 0.0
 
 pitch_angle_pid_controller:
   ros__parameters:
-    output_max: 6.0
-    output_min: -6.0
+    reset_interface: /chassis/reset_count
     measurement: /gimbal/pitch/control_angle_error
-    control: /gimbal/pitch/control_torque
-    kp: 12.0
+    control: /gimbal/pitch/control_velocity
+    kp: 6.0
     ki: 0.0
-    kd: 0.3
+    kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    output_min: -4.5
+    output_max: 4.5
+    reset_interface: /chassis/reset_count
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    feedforward: /gimbal/pitch/torque_ff
+    kp: 1.5
+    ki: 0.0
+    kd: 0.0
+
+pitch_gravity_ff:
+  ros__parameters:
+    pitch_gravity_ff_gain: 0.9
+    pitch_gravity_ff_phase: 0.75
 
 friction_wheel_controller:
   ros__parameters:
