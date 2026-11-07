@@ -83,8 +83,8 @@ wheel_leg_rl_controller:
   ros__parameters:
     policy: history
     pd_rate: 1000.0
-    leg_kp: 60.0
-    leg_kd: 2.0
+    leg_kp: 160.0
+    leg_kd: 2.5
     jump_enabled: true
     inference_timeout: 0.06
     heading_hold_enabled: false
