@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "../model/prone_odometry.hpp"
+#include "features.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -30,21 +31,21 @@ public:
 
     void sample(
         std::uint64_t tick, const std::array<double, 2>& wheels,
-        const std::array<float, 4>& nominal, std::array<float, 35>& frame, bool enabled) {
+        const std::array<float, 4>& nominal, StandingReferenceFeatures& features, bool enabled) {
         if (state_.last_tick && tick < *state_.last_tick)
             throw std::invalid_argument("Policy clock moved backwards; reset local odometry");
-        const bool requested = enabled && std::isfinite(frame[0]) && std::isfinite(frame[1])
-                            && std::isfinite(frame[2]) && std::abs(frame[0]) < .001F
-                            && std::abs(frame[1]) < .001F && std::abs(frame[2]) < .001F;
-        const auto local = local_wheel_angles_(tick, wheels, frame, requested);
+        const bool requested = enabled && std::isfinite(features.command[0]) && std::isfinite(features.command[1])
+                            && std::isfinite(features.command[2]) && std::abs(features.command[0]) < .001F
+                            && std::abs(features.command[1]) < .001F && std::abs(features.command[2]) < .001F;
+        const auto local = local_wheel_angles_(tick, wheels, features, requested);
         std::array<float, 6> q{};
         std::array<float, 6> velocity{};
         for (std::size_t i = 0; i < 6; ++i) {
-            q[i] = i < 4 ? frame[10 + i] + nominal[i] : local[i - 4];
-            velocity[i] = 10.F * frame[16 + i];
+            q[i] = i < 4 ? features.position[i] + nominal[i] : local[i - 4];
+            velocity[i] = 10.F * features.velocity[i];
         }
-        const standing_reference::Vector3 gravity{frame[7], frame[8], frame[9]};
-        const standing_reference::Vector3 gyro{2.F * frame[4], 2.F * frame[5], 2.F * frame[6]};
+        const standing_reference::Vector3 gravity = features.gravity;
+        const standing_reference::Vector3 gyro{2.F * features.gyro[0], 2.F * features.gyro[1], 2.F * features.gyro[2]};
         const float magnitude = standing_reference::norm(gravity);
         const bool imu_valid = standing_reference::finite(gravity)
                             && standing_reference::finite(gyro) && magnitude > .5F
@@ -114,18 +115,18 @@ public:
         }
         state_.displacement_m = state_.valid ? state_.filtered_m : std::array<float, 2>{};
         state_.last_tick = tick;
-        frame[14] = 5.F * state_.displacement_m[0];
-        frame[15] = 5.F * state_.displacement_m[1];
-        frame[31] = state_.valid ? 1.F : 0.F;
+        features.position[4] = 5.F * state_.displacement_m[0];
+        features.position[5] = 5.F * state_.displacement_m[1];
+        features.auxiliary[3] = state_.valid ? 1.F : 0.F;
     }
 
     const LocalStandingState& state() const { return state_; }
 
 private:
     std::array<float, 2> local_wheel_angles_(
-        std::uint64_t tick, const std::array<double, 2>& wheel, const std::array<float, 35>& frame,
+        std::uint64_t tick, const std::array<double, 2>& wheel, const StandingReferenceFeatures& features,
         bool requested) {
-        const std::array<float, 2> speed{10.F * frame[20], 10.F * frame[21]};
+        const std::array<float, 2> speed{10.F * features.velocity[4], 10.F * features.velocity[5]};
         const bool finite = std::isfinite(wheel[0]) && std::isfinite(wheel[1])
                          && std::isfinite(speed[0]) && std::isfinite(speed[1]);
         const bool start = requested && !state_.source_active && finite;
