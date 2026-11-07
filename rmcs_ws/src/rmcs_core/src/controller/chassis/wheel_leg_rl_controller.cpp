@@ -1,6 +1,7 @@
 #include "wheel_leg/capture.hpp"
 #include "wheel_leg/joint_solver.hpp"
 #include "wheel_leg/policy/selection.hpp"
+#include "wheel_leg/recovery_yaw.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -70,6 +71,7 @@ public:
         register_output("/wheel_leg/rl/fault_latched", fault_, false);
         register_output("/wheel_leg/recovery/phase", recovery_phase_, 0);
         register_output("/wheel_leg/recovery/fault", recovery_fault_, 0);
+        register_output("/wheel_leg/recovery/yaw_align_active", recovery_yaw_active_, false);
         register_output("/wheel_leg/recovery/capture_ready", recovery_capture_ready_, false);
         register_output("/wheel_leg/recovery/capture_blockers", recovery_capture_blockers_, 0);
         timeout_ = get_parameter_or("inference_timeout", .06);
@@ -80,6 +82,8 @@ public:
         heading_hold_ = get_parameter_or("heading_hold_enabled", false);
         height_rate_ = get_parameter_or("height_reference_rate_max", .6666666666666666);
         recovery_enabled_ = get_parameter_or("self_righting.enabled", false);
+        if (recovery_enabled_)
+            register_input("/gimbal/yaw/angle", recovery_yaw_);
         const bool sim_only = get_parameter_or("self_righting.simulation_only", true);
         const bool hardware_verified =
             get_parameter_or("self_righting.hardware_mapping_verified", false);
@@ -142,6 +146,7 @@ public:
                 action_starved_logged_ = false;
         }
         *enable_ = true;
+        *recovery_yaw_active_ = recovery_enabled_ && *state_ != 3;
         if (*state_ <= 1)
             *state_ = 2;
         if (*state_ == 2) {
@@ -149,6 +154,8 @@ public:
                 drive_loss_started_.reset();
                 return;
             }
+            if (recovery_enabled_ && !wheel_leg::recovery_yaw_aligned(*recovery_yaw_))
+                return;
             *state_ = recovery_enabled_ ? 4 : 3;
             last_pd_.reset();
             last_command_tick_.reset();
@@ -261,6 +268,7 @@ public:
             // The actor owns all six axes in this very PD tick. Its next command
             // update also accepts driver motion, without a static standing dwell.
             *state_ = 3;
+            *recovery_yaw_active_ = false;
             last_command_tick_.reset();
             update_command();
             if (*fault_)
@@ -298,6 +306,7 @@ private:
         for (auto& output : effort_)
             *output = 0.;
         *enable_ = false;
+        *recovery_yaw_active_ = false;
         *policy_enable_ = false;
         *applied_ = JointVector{};
         *action_applied_ = false;
@@ -387,6 +396,7 @@ private:
     InputInterface<rmcs_description::BaseLink::DirectionVector> command_;
     InputInterface<rmcs_msgs::ChassisMode> mode_;
     InputInterface<double> height_, rate_, action_valid_, healthy_, policy_rate_;
+    InputInterface<double> recovery_yaw_;
     InputInterface<bool> valid_, drives_ready_, requested_, simulation_;
     InputInterface<std::size_t> reset_, tick_, action_sequence_;
     InputInterface<std::uint64_t> action_stamp_;
@@ -399,6 +409,7 @@ private:
     OutputInterface<double> policy_height_;
     OutputInterface<int> state_, recovery_phase_, recovery_fault_, recovery_capture_blockers_;
     OutputInterface<bool> recovery_capture_ready_;
+    OutputInterface<bool> recovery_yaw_active_;
     const wheel_leg::JointReferenceRecoveryConfig recovery_config_;
     wheel_leg::JointReferenceRecoveryController recovery_;
     wheel_leg::ClosedChainSupportObserver support_observer_;

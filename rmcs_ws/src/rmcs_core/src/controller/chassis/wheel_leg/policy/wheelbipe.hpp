@@ -15,7 +15,7 @@ inline constexpr PolicyParameters kWheelbipe{
     2.,
     0.,
     2.7,
-    2. * std::numbers::pi,
+    10.471975511965978,
     {{{-.1408932677945942, 1.4282761689185115}, {-.14084732125908495, 1.4283102010168576}}}};
 class Wheelbipe {
 public:
