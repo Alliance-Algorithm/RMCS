@@ -35,27 +35,32 @@ rmcs_executor:
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs_core::referee::app::ui::AutoAimUi -> auto_aim_ui
 
-      # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-      # - rmcs_core::debug::ValueCollector -> value_collector
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::debug::ValueCollector -> value_collector
 
 value_collector:
   ros__parameters:
-    csv_path: "/tmp/pitch_<timestamp>.csv"
+    csv_path: "/root/yaw_smc_<timestamp>.csv"
     signals:
-      - /gimbal/pitch/angle
-      - /gimbal/pitch/velocity
-      - /gimbal/pitch/velocity_imu
-      - /gimbal/pitch/angle_error
-      - /gimbal/pitch/control_torque
-      - /gimbal/pitch/control_velocity
-    write_interval: 5
-    flush_interval: 1000
+      - /gimbal/yaw/elapsed_time
+      - /gimbal/yaw/stimulus
+      - /gimbal/yaw/target_angle
+      - /gimbal/yaw/angle_unwrapped
+      - /gimbal/yaw/velocity_imu
+      - /gimbal/yaw/control_torque
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+    write_interval: 1
+    flush_interval: 100
 
 value_broadcaster:
   ros__parameters:
+    publish_interval: 10
     forward_list:
-      - /gimbal/pitch/angle
-      - /gimbal/pitch/velocity
+      - /gimbal/yaw/target_angle
+      - /gimbal/yaw/angle_unwrapped
+      - /gimbal/yaw/control_torque
+      - /gimbal/yaw/velocity_imu
 
 auto_aim_recorder:
   ros__parameters:
@@ -112,6 +117,7 @@ deformable_infantry:
   ros__parameters:
     serial_filter_bottom_board: "AF-C1C3-DFE8-40A8-FC4B-B853-6ED7-AC9F-1DED"
     serial_filter_top_board: "AF-ABAC-786D-1B53-99F6-00A2-42A6-AA95-9D69"
+    chassis_motor_output_enabled: true # 测试云台时关闭底盘 8 个电机的 CAN 输出
     chassis_radius: 0.2341741
     rod_length: 0.140
     yaw_motor_zero_point: 57459
@@ -212,12 +218,12 @@ gimbal_controller:
 
     # ---- [SMC] yaw 滑模控制 ----
     yaw_smc_J: 0.20
-    yaw_smc_c: 22.0
-    yaw_smc_epsilon: 40.0
-    yaw_smc_k: 6.0
-    yaw_smc_phi: 1.2
-    yaw_smc_torque_limit: 7.0 
-    #力矩限幅为电机峰值力矩    
+    yaw_smc_c: 32.0
+    yaw_smc_epsilon: 60.0
+    yaw_smc_k: 10.0
+    yaw_smc_phi: 2.25
+    yaw_smc_torque_limit: 20.0
+    #此处力矩限幅不是真实力矩，因为5010i10电机力矩虚高    
 
 friction_wheel_controller:
   ros__parameters:
