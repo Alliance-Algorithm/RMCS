@@ -95,8 +95,7 @@ launch-rmcs
 
 在本机上运行代码。在首次运行代码前，需要调用 `set-robot` 脚本设置机器人类型。
 
-轮腿使用三个独立启动入口：`wheel-leg-infantry-traditional`（传统控制）、
-`wheel-leg-infantry-prone-v4`（ProneMotion，100 Hz 策略）和
+当前分支轮腿使用两个策略启动入口：`wheel-leg-infantry-prone-v4`（ProneMotion，100 Hz 策略）和
 `wheel-leg-infantry-wheelbipe`（WheelBipe，50 Hz 策略）。它们共用
 `hardware::WheelLeg`，RL 均采用 200 Hz PC 侧 PD；每次只加载一个主控制器。
 
