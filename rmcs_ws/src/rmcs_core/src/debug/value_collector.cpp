@@ -1,5 +1,6 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_description/tf_description.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include <array>
@@ -249,6 +250,13 @@ private:
                 name, type, {name + "/x", name + "/y", name + "/z"},
                 [](std::ostream& os, const Eigen::Vector3d& value) {
                     os << "," << value.x() << "," << value.y() << "," << value.z();
+                }))
+            return true;
+        if (register_typed<rmcs_description::BaseLink::DirectionVector>(
+                name, type, {name + "/x", name + "/y", name + "/z"},
+                [](std::ostream& os, const rmcs_description::BaseLink::DirectionVector& value) {
+                    os << "," << value.vector.x() << "," << value.vector.y() << ","
+                       << value.vector.z();
                 }))
             return true;
         if (register_typed<Eigen::Quaterniond>(
