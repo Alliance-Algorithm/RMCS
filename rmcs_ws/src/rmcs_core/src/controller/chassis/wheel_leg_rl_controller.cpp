@@ -60,8 +60,6 @@ public:
             register_input(raw + "/raw", raw_action_[i]);
             register_input(raw + "/scale", action_scale_[i]);
             register_input(raw + "/offset", action_offset_[i]);
-            register_input(raw + "/clip_min", action_min_[i]);
-            register_input(raw + "/clip_max", action_max_[i]);
         }
         register_output("/wheel_leg/enable_request", enable_, false);
         register_output("/wheel_leg/rl/input/enable", policy_enable_, false);
@@ -415,7 +413,7 @@ private:
     InputInterface<std::size_t> reset_, tick_, action_sequence_;
     InputInterface<std::uint64_t> action_stamp_;
     InputInterface<std::string> model_spec_, observation_sha_;
-    std::array<InputInterface<double>, 6> caps_, action_, raw_action_, action_scale_, action_offset_, action_min_, action_max_;
+    std::array<InputInterface<double>, 6> caps_, action_, raw_action_, action_scale_, action_offset_;
     std::array<OutputInterface<double>, 6> effort_;
     OutputInterface<bool> enable_, policy_enable_, fault_, action_applied_;
     OutputInterface<JointVector> applied_;
