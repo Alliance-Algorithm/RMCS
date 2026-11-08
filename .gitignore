@@ -79,13 +79,3 @@ develop_ws
 .codex/
 .mimo/
 CLAUDE.md
-
-# Local simulation and verification scripts
-/.script/simulation/
-/.script/tests/
-/.script/identification/test_*.py
-
-# Local validation/report artifacts (kept on disk, never committed)
-/reports/
-
-/rmcs_ws/symlink_install_manifest.txt
