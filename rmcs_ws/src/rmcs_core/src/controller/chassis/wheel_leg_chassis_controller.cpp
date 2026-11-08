@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <numbers>
+#include <memory>
 #include <eigen3/Eigen/Dense>
 #include <optional>
 #include <rclcpp/node.hpp>
@@ -17,6 +18,32 @@
 #include "controller/chassis/stand_drift_hold.hpp"
 #include "controller/pid/pid_calculator.hpp"
 namespace rmcs_core::controller::chassis {
+class WheelLegResetSource final : public rmcs_executor::Component {
+public:
+    explicit WheelLegResetSource(bool& reset_active) : reset_active_(reset_active) {
+        register_input("/remote/switch/left", left_);
+        register_input("/remote/switch/right", right_);
+        register_input("/wheel_leg/dr16_fresh", fresh_);
+        register_output("/chassis/reset_count", reset_, std::size_t{0});
+    }
+
+    void update() override {
+        using rmcs_msgs::Switch;
+        const bool reset = !*fresh_ || *left_ == Switch::UNKNOWN || *right_ == Switch::UNKNOWN
+                        || (*left_ == Switch::DOWN && *right_ == Switch::DOWN);
+        if (reset && !reset_active_) {
+            ++*reset_;
+            reset_active_ = true;
+        }
+    }
+
+private:
+    InputInterface<rmcs_msgs::Switch> left_, right_;
+    InputInterface<bool> fresh_;
+    OutputInterface<std::size_t> reset_;
+    bool& reset_active_;
+};
+
 class WheelLegChassisController final
     : public rmcs_executor::Component
     , public rclcpp::Node
@@ -36,12 +63,14 @@ public:
         register_input("/wheel_leg/state/distance", distance_, false);
         register_input("/wheel_leg/state/valid", state_valid_, false);
         register_input("/wheel_leg/feedback_fresh", feedback_fresh_, false);
+        register_input("/chassis/reset_count", reset_count_);
         register_output(
             "/chassis/control_velocity", command_,
             rmcs_description::BaseLink::DirectionVector{0., 0., 0.});
         register_output("/chassis/control_height", height_, .305);
         register_output("/chassis/control_enable", enable_, false);
-        register_output("/chassis/reset_count", reset_, std::size_t{0});
+        reset_source_ = create_partner_component<WheelLegResetSource>(
+            get_component_name() + "_reset", reset_active_);
         register_output("/chassis/jump/request_count", jump_request_, std::size_t{0});
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
         register_output("/chassis/stand_drift_hold/active", stand_drift_hold_active_, false);
@@ -237,10 +266,6 @@ public:
 private:
     using Clock = std::chrono::steady_clock;
     void disarm() {
-        if (!reset_active_) {
-            ++*reset_;
-            reset_active_ = true;
-        }
         armed_ = false;
         *enable_ = false;
         command_->vector.setZero();
@@ -276,7 +301,8 @@ private:
     OutputInterface<rmcs_description::BaseLink::DirectionVector> command_;
     OutputInterface<double> height_;
     OutputInterface<bool> enable_;
-    OutputInterface<std::size_t> reset_;
+    std::shared_ptr<WheelLegResetSource> reset_source_;
+    InputInterface<std::size_t> reset_count_;
     OutputInterface<std::size_t> jump_request_;
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<bool> stand_drift_hold_active_;
