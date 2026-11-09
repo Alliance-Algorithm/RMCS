@@ -3,6 +3,8 @@ RoboMaster Control System based on ROS2.
 
 快速开始: [quick-start](https://github.com/Alliance-Algorithm/RMCS/wiki/Quick-Start)
 
+轮腿跳跃策略的模型导出、控制合同与离线验证见 [WheelBipe jump-v4 部署](docs/WHEELBIPE_JUMP_DEPLOYMENT.md)。
+
 ## Development
 
 ### Pre-requirements:

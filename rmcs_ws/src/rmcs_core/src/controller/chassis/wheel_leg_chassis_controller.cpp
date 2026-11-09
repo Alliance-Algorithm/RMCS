@@ -1,10 +1,11 @@
+#include "wheel_leg/jump_trigger.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <numbers>
-#include <memory>
 #include <eigen3/Eigen/Dense>
+#include <memory>
+#include <numbers>
 #include <optional>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -19,7 +20,8 @@
 namespace rmcs_core::controller::chassis {
 class WheelLegResetSource final : public rmcs_executor::Component {
 public:
-    explicit WheelLegResetSource(bool& reset_active) : reset_active_(reset_active) {
+    explicit WheelLegResetSource(bool& reset_active)
+        : reset_active_(reset_active) {
         register_input("/remote/switch/left", left_);
         register_input("/remote/switch/right", right_);
         register_input("/wheel_leg/dr16_fresh", fresh_);
@@ -88,7 +90,7 @@ public:
         arm_dwell_ = get_parameter_or("arm_dwell_seconds", 0.);
         for (double value :
              {vx_max_, yaw_max_, spin_rate_, yaw_stick_rate_, height_min_, height_max_,
-               height_rate_})
+              height_rate_})
             if (!std::isfinite(value) || value <= 0.)
                 throw std::invalid_argument("Invalid chassis command limits");
         if (!std::isfinite(vx_bias_) || std::abs(vx_bias_) > vx_max_)
@@ -125,17 +127,17 @@ public:
             if (!armed_ && (l == Switch::UP || r == Switch::UP))
                 pending_ = false;
             if (armed_) {
-                const bool jump_edge =
-                    last_left_ == Switch::MIDDLE && last_right_ == Switch::MIDDLE
-                    && l == Switch::MIDDLE && r == Switch::UP;
-                if (was_armed_ && (jump_edge || (!last_keyboard_.ctrl && keyboard_->ctrl)))
+                if (wheel_leg::jump_requested(
+                        was_armed_, keyboard_->ctrl, last_keyboard_.ctrl,
+                        last_left_ == Switch::MIDDLE && last_right_ == Switch::MIDDLE,
+                        l == Switch::MIDDLE, r == Switch::UP))
                     ++*jump_request_;
                 const bool spin_edge =
                     l != Switch::DOWN && last_right_ == Switch::MIDDLE && r == Switch::DOWN;
                 if (spin_edge || (!last_keyboard_.c && keyboard_->c)) {
                     if (*mode_ == rmcs_msgs::ChassisMode::SPIN_FAST)
                         *mode_ = spin_edge ? rmcs_msgs::ChassisMode::STEP_DOWN
-                                          : rmcs_msgs::ChassisMode::AUTO;
+                                           : rmcs_msgs::ChassisMode::AUTO;
                     else {
                         *mode_ = rmcs_msgs::ChassisMode::SPIN_FAST;
                         spin_forward_ = !spin_forward_;
@@ -178,12 +180,12 @@ public:
                     command_->vector = Eigen::Vector3d{vx, rotated.y() * vy_max_, yaw};
                 }
                 double height = *height_;
-                const double dt = last_height_update_
-                                    ? std::clamp(
-                                          std::chrono::duration<double>(now - *last_height_update_)
-                                              .count(),
-                                          0., .1)
-                                    : 0.;
+                const double dt =
+                    last_height_update_
+                        ? std::clamp(
+                              std::chrono::duration<double>(now - *last_height_update_).count(), 0.,
+                              .1)
+                        : 0.;
                 last_height_update_ = now;
                 if (!last_keyboard_.q && keyboard_->q) {
                     height_preset_ = height_preset_ == 1 ? 0 : 1;

@@ -1,0 +1,102 @@
+{
+  "schema": "wheelbipe-jump-v4-deployment-v1",
+  "training_source_commit": "0f5cbd3805c2dab0c0595fe43ae61ad34d6f5a29",
+  "training_profile": "foundation-jump-v4",
+  "source_files_sha256": {
+    "contracts/wheelbipe_foundation_jump_v4.json": "c0f89adf0e83aa11557e2a29a3183309a9cca227f8d66848e7926a61c60865e7",
+    "model/wheel_leg_v2.0.2/friction_v1/isaac/gas_spring_model.json": "13db9ada6fa0e111a51406fc950ca0b970d1fd3de0d9ceeac07b22053a952aa6",
+    "model/wheel_leg_v2.0.2/friction_v1/isaac/manifest.json": "6f6c8ec5b4ec6b4345670a272a1e162111b369013a8f07dd1ed17254a5edb9b2",
+    "model/wheel_leg_v2.0.2/friction_v1/isaac/model_spec.json": "67f824bc29b05647e381f8584528d686955c2cfd99fd783ba40f382279bf2284",
+    "model/gas_spring_identified_symmetric_20261028/model.json": "eb0c709e8915c14a4cb852551a6079af89a6f4b8a9d135751fdf86cc98c1baf0"
+  },
+  "model_spec_sha256": "67f824bc29b05647e381f8584528d686955c2cfd99fd783ba40f382279bf2284",
+  "gas_model_sha256": "13db9ada6fa0e111a51406fc950ca0b970d1fd3de0d9ceeac07b22053a952aa6",
+  "policy_hz": 50,
+  "feedback_pd_hz": 200,
+  "control": {
+    "leg_kp_nm_per_rad": 80.0,
+    "leg_kd_nm_s_per_rad": 1.5,
+    "virtual_pair_overtravel_rad": 0.2,
+    "virtual_pair_overtravel_scope": "jump-request",
+    "tuck_spring_compensation": {
+      "mode": "model",
+      "gain": 0.75,
+      "cap_nm": 16.0,
+      "error_on_rad": 0.02,
+      "error_full_rad": 0.1,
+      "inward_pd_full_nm": 2.0
+    }
+  },
+  "request": {
+    "standing_height_m": 0.305,
+    "crouch_height_m": 0.25,
+    "release_height_m": 0.39,
+    "crouch_seconds": 0.35,
+    "apex_range_m": [
+      0.42,
+      0.54
+    ],
+    "nominal_request_delay_s": 0.8,
+    "outcome_seconds": 4.5,
+    "moving_vx_max_m_s": 0.5
+  },
+  "nominal_position": [
+    -0.42,
+    0.13722330866417465,
+    0.42,
+    -0.13721605817245947,
+    0.0,
+    0.0
+  ],
+  "winding_bounds_rad": [
+    [
+      -0.1408932677945942,
+      1.4282761689185115
+    ],
+    [
+      -0.14084732125908495,
+      1.4283102010168576
+    ]
+  ],
+  "real_state_soft_limits_rad": [
+    -0.14084732125908495,
+    1.4282761689185115
+  ],
+  "real_state_margin_rad": 0.03,
+  "leg_torque_cap_nm": 40.0,
+  "wheel_torque_cap_nm": 4.5,
+  "observation_version": "wheelbipe-v202-foundation-jump-v4",
+  "observation": {
+    "size": 35,
+    "action_size": 6,
+    "normalization": "none",
+    "joint_select": [
+      0,
+      2,
+      1,
+      3,
+      4,
+      5
+    ],
+    "order": [
+      "command",
+      "height",
+      "gyro",
+      "gravity",
+      "position",
+      "velocity",
+      "previous_action",
+      "auxiliary"
+    ],
+    "jump_context": "ordinary=[1,0,0,0,0,0,0]; request=[0,0,0,0,1,apex,elapsed_s]",
+    "command_inputs": "external request and elapsed time only; no contact or measured apex"
+  },
+  "landing_buffer": {
+    "seconds": 0.3,
+    "scope": "training reward only; actor controls deployment landing"
+  },
+  "behavior_qualified": false,
+  "hardware_tested": false,
+  "observation_contract_sha256": "f907a791b3d47f0f5e6a17a095dc51841f8085cadf1bbfda9ba273ade70efedd",
+  "deployment_contract_sha256": "8ce02510cc775eb5c8ab1118aa2830d6eb8a5c2cd4c4d30a967b5c329c092102"
+}

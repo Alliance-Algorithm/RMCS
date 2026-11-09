@@ -1,5 +1,7 @@
 #include "wheel_leg/capture.hpp"
 #include "wheel_leg/joint_solver.hpp"
+#include "wheel_leg/jump_command.hpp"
+#include "wheel_leg/jump_control.hpp"
 #include "wheel_leg/policy/selection.hpp"
 #include "wheel_leg/recovery_yaw.hpp"
 #include <algorithm>
@@ -16,6 +18,7 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 #include <stdexcept>
 #include <string>
+#include <vector>
 namespace rmcs_core::controller::chassis {
 static_assert(wheel_leg::kRecoveryModelSpecSha256 == kModelSpecSha256);
 class WheelLegRlController final
@@ -42,6 +45,7 @@ public:
         register_input("/chassis/control_height", height_);
         register_input("/chassis/control_mode", mode_);
         register_input("/chassis/reset_count", reset_);
+        register_input("/chassis/jump/request_count", jump_request_, false);
         register_input("/predefined/update_count", tick_);
         register_input("/predefined/update_rate", rate_);
         register_input("/wheel_leg/rl/valid", action_valid_);
@@ -60,11 +64,29 @@ public:
             register_input(raw + "/raw", raw_action_[i]);
             register_input(raw + "/scale", action_scale_[i]);
             register_input(raw + "/offset", action_offset_[i]);
+            if (policy_.jump_control) {
+                register_input(raw + "/clip_min", action_min_[i]);
+                register_input(raw + "/clip_max", action_max_[i]);
+            }
         }
         register_output("/wheel_leg/enable_request", enable_, false);
         register_output("/wheel_leg/rl/input/enable", policy_enable_, false);
         register_output("/wheel_leg/rl/input/command", policy_command_, Eigen::Vector3d::Zero());
         register_output("/wheel_leg/rl/input/height", policy_height_, .305);
+        register_output(
+            "/wheel_leg/rl/input/context", policy_context_,
+            std::vector<double>{1., 0., 0., 0., 0., 0., 0.});
+        register_output("/chassis/jump/active", jump_active_, false);
+        register_output("/chassis/jump/state", jump_state_, 0);
+        register_output("/chassis/jump/elapsed", jump_elapsed_, 0.);
+        register_output("/chassis/jump/target_apex", jump_apex_, .46);
+        register_output("/chassis/jump/reference_height", jump_height_, .305);
+        register_output("/chassis/jump/accepted_count", jump_accepted_, 0);
+        register_output("/wheel_leg/rl/pd_target", pd_target_, JointVector{});
+        register_output("/wheel_leg/rl/pd_requested_effort", pd_requested_, JointVector{});
+        register_output("/wheel_leg/rl/tuck_compensation", tuck_compensation_, JointVector{});
+        register_output("/chassis/jump/tuck_gate_left", tuck_gate_left_, 0.);
+        register_output("/chassis/jump/tuck_gate_right", tuck_gate_right_, 0.);
         register_output("/wheel_leg/rl/applied_action", applied_, JointVector{});
         register_output("/wheel_leg/rl/action_applied", action_applied_, false);
         register_output("/wheel_leg/rl/state", state_, 0);
@@ -84,6 +106,11 @@ public:
         if (history_source_ != "raw" && history_source_ != "mapped")
             throw std::invalid_argument("action_history_source must be raw or mapped");
         height_rate_ = get_parameter_or("height_reference_rate_max", .6666666666666666);
+        jump_enabled_ = get_parameter_or("jump.enabled", false);
+        jump_ = wheel_leg::JumpCommand(get_parameter_or("jump.target_apex", .46));
+        if (jump_enabled_ != policy_.jump_control)
+            throw std::invalid_argument(
+                "Jump requires the explicit wheelbipe-jump-v4 policy profile");
         recovery_enabled_ = get_parameter_or("self_righting.enabled", false);
         if (recovery_enabled_)
             register_input("/gimbal/yaw/angle", recovery_yaw_);
@@ -99,13 +126,27 @@ public:
     }
     void before_updating() override {
         if (!std::isfinite(*policy_rate_) || *policy_rate_ <= 0. || *policy_rate_ > 1000.
-            || std::fmod(1000., *policy_rate_) != 0. || *model_spec_ != kModelSpecSha256
+            || std::fmod(1000., *policy_rate_) != 0. || *model_spec_ != policy_.model_spec_sha256
             || *observation_sha_ != policy_.observation_sha)
             throw std::invalid_argument("Policy model, cadence or observation contract mismatch");
         for (int i = 0; i < 6; ++i)
             if (!std::isfinite(*action_scale_[i]) || *action_scale_[i] == 0.
                 || !std::isfinite(*action_offset_[i]))
-                throw std::invalid_argument("Wheel-leg action mapping must be invertible and finite");
+                throw std::invalid_argument(
+                    "Wheel-leg action mapping must be invertible and finite");
+        if (policy_.jump_control) {
+            if (!jump_request_.ready() || *policy_rate_ != policy_.policy_hz)
+                throw std::invalid_argument(
+                    "Jump requires a request source and its trained policy cadence");
+            for (int i = 0; i < 6; ++i) {
+                const bool leg = i < 4;
+                if (*action_scale_[i] != (leg ? .5 : 10.) || *action_offset_[i] != 0.
+                    || (leg && (*action_min_[i] != -INFINITY || *action_max_[i] != INFINITY))
+                    || (!leg && (*action_min_[i] != -90. || *action_max_[i] != 90.)))
+                    throw std::invalid_argument(
+                        "Jump action scale, offset or clipping differs from training");
+            }
+        }
         if (simulation_guarded_ && (!simulation_.ready() || !*simulation_))
             throw std::invalid_argument(
                 "Self-righting requires an explicit /wheel_leg/simulation=true input until "
@@ -122,6 +163,9 @@ public:
             *fault_ = false;
             last_reset_ = *reset_;
         }
+        const auto jump_request = jump_request_.ready() ? *jump_request_ : 0;
+        const bool jump_requested = jump_request != last_jump_request_;
+        last_jump_request_ = jump_request;
         if (!*requested_) {
             if (*state_ != 1)
                 reset_runtime();
@@ -166,6 +210,14 @@ public:
             fail("wheel-leg state estimate invalid");
             return;
         } else if (!*drives_ready_) {
+            jump_.reset();
+            publish_jump();
+            clear_tuck_effort();
+            if (policy_.jump_control) {
+                for (auto& output : effort_)
+                    *output = 0.;
+                *action_applied_ = false;
+            }
             const auto now = Clock::now();
             if (!drive_loss_started_)
                 drive_loss_started_ = now;
@@ -183,6 +235,7 @@ public:
             wait_started_ = Clock::now();
             accepted_sequence_ = *action_sequence_;
         }
+        update_jump(jump_requested);
         update_command();
         if (*fault_)
             return;
@@ -199,7 +252,8 @@ public:
                     return;
                 }
             }
-            target_ = decoded_action_target(raw, *q_, policy_.winding_bounds);
+            decoded_ = raw;
+            target_ = decoded_action_target(raw, *q_, target_bounds());
             for (int i = 0; i < 6; ++i)
                 pending_history_[i] = (raw[i] - *action_offset_[i]) / *action_scale_[i];
             if (history_source_ == "raw")
@@ -287,8 +341,26 @@ public:
             RCLCPP_INFO(get_logger(), "Self-righting handover: policy owns all six axes");
         }
         if (have_target_) {
-            const auto torque = JointSolver::pd(
+            if (policy_.jump_control)
+                target_ = decoded_action_target(decoded_, *q_, target_bounds());
+            auto torque = JointSolver::pd(
                 target_, *q_, *dq_, policy_.leg_kp, policy_.leg_kd, policy_.gas_gain);
+            *pd_target_ = target_;
+            *pd_requested_ = torque;
+            clear_tuck_effort();
+            if (policy_.jump_control) {
+                const auto extra = wheel_leg::jump_tuck_effort(
+                    {(*q_)[0], (*q_)[1], (*q_)[2], (*q_)[3]},
+                    {target_[0], target_[1], target_[2], target_[3]},
+                    {torque[0], torque[1], torque[2], torque[3]},
+                    jump_.state(jump_now()) == wheel_leg::JumpCommand::FLIGHT_REFERENCE);
+                for (int i = 0; i < 4; ++i) {
+                    (*tuck_compensation_)[i] = extra.torque[i];
+                    torque[i] += extra.torque[i];
+                }
+                *tuck_gate_left_ = extra.gate[0];
+                *tuck_gate_right_ = extra.gate[1];
+            }
             if (!write_effort(torque))
                 return;
             *applied_ = pending_history_;
@@ -314,6 +386,13 @@ private:
         return config;
     }
     void reset_runtime() {
+        jump_.reset();
+        jump_velocity_ = 0.;
+        *jump_accepted_ = 0;
+        last_jump_request_ = jump_request_.ready() ? *jump_request_ : 0;
+        publish_jump();
+        clear_tuck_effort();
+        *pd_target_ = *pd_requested_ = JointVector{};
         for (auto& output : effort_)
             *output = 0.;
         *enable_ = false;
@@ -340,7 +419,7 @@ private:
         recovery_.reset(wheel_leg::JointReferenceRecoveryVector6::Zero(), false);
         support_observer_.reset();
         recovery_started_ = false;
-        target_ = pending_history_ = JointVector{};
+        target_ = decoded_ = pending_history_ = JointVector{};
     }
     void fail(const char* reason) {
         RCLCPP_ERROR(get_logger(), "Wheel-leg RL stopped: %s", reason);
@@ -363,7 +442,11 @@ private:
             fail("invalid actuator effort or limits");
             return false;
         }
-        const auto api = JointSolver::constrain(effort, *q_, caps);
+        const auto mechanical =
+            policy_.jump_control
+                ? LegBounds{{{wheelbipe_jump_v4::kMechanicalMin, wheelbipe_jump_v4::kMechanicalMax}, {wheelbipe_jump_v4::kMechanicalMin, wheelbipe_jump_v4::kMechanicalMax}}}
+                : kMechanicalBounds;
+        const auto api = JointSolver::constrain(effort, *q_, caps, .03, mechanical);
         for (int i = 0; i < 6; ++i)
             *effort_[i] = api[i];
         return true;
@@ -397,9 +480,55 @@ private:
             heading_.reset();
         *policy_command_ =
             Eigen::Vector3d{vx, 0., std::clamp(yaw, -policy_.yaw_limit, policy_.yaw_limit)};
+        if (jump_.active()) {
+            *policy_command_ = Eigen::Vector3d{jump_velocity_, 0., 0.};
+            *policy_height_ = jump_.height(jump_now());
+            return;
+        }
         const double step = height_rate_ / *policy_rate_;
         *policy_height_ +=
             std::clamp(std::clamp(*height_, .23, .42) - *policy_height_, -step, step);
+    }
+    double jump_now() const { return static_cast<double>(*tick_) / *rate_; }
+    LegBounds target_bounds() const {
+        return policy_.jump_control ? wheel_leg::jump_target_bounds(jump_.active())
+                                    : policy_.winding_bounds;
+    }
+    void clear_tuck_effort() {
+        *tuck_compensation_ = JointVector{};
+        *tuck_gate_left_ = *tuck_gate_right_ = 0.;
+    }
+    void publish_jump() {
+        const double now = jump_now();
+        const auto context = jump_.context(now);
+        policy_context_->assign(context.begin(), context.end());
+        *jump_active_ = jump_.active();
+        *jump_state_ = jump_.state(now);
+        *jump_elapsed_ = jump_.elapsed(now);
+        *jump_apex_ = jump_.apex();
+        *jump_height_ = jump_.height(now);
+    }
+    void update_jump(bool requested) {
+        const double now = jump_now();
+        const bool busy = jump_.active();
+        jump_.update(now);
+        if (*state_ != 3)
+            jump_.reset();
+        if (requested && jump_enabled_ && !busy && *state_ == 3 && have_target_
+            && *action_valid_ > 0. && *healthy_ > 0. && *valid_ && *drives_ready_
+            && command_->vector.allFinite()
+            && std::abs(command_->vector.x()) <= wheelbipe_jump_v4::kMovingVxMax
+            && std::abs(command_->vector.y()) < 1e-6 && std::abs(command_->vector.z()) < 1e-6
+            && !rmcs_msgs::is_spining(*mode_) && gravity_->allFinite()
+            && gravity_->z() < -std::cos(std::numbers::pi / 15.) && gyro_->allFinite()
+            && gyro_->norm() < .8 && jump_.request(now)) {
+            jump_velocity_ = command_->vector.x();
+            ++*jump_accepted_;
+            last_command_tick_.reset();
+        }
+        if (busy && !jump_.active())
+            last_command_tick_.reset();
+        publish_jump();
     }
     const PolicyParameters& policy_;
     std::string history_source_;
@@ -411,14 +540,27 @@ private:
     InputInterface<double> recovery_yaw_;
     InputInterface<bool> valid_, drives_ready_, requested_, simulation_;
     InputInterface<std::size_t> reset_, tick_, action_sequence_;
+    InputInterface<std::size_t> jump_request_;
     InputInterface<std::uint64_t> action_stamp_;
     InputInterface<std::string> model_spec_, observation_sha_;
-    std::array<InputInterface<double>, 6> caps_, action_, raw_action_, action_scale_, action_offset_;
+    std::array<InputInterface<double>, 6> caps_, action_, raw_action_, action_scale_,
+        action_offset_;
+    std::array<InputInterface<double>, 6> action_min_, action_max_;
     std::array<OutputInterface<double>, 6> effort_;
     OutputInterface<bool> enable_, policy_enable_, fault_, action_applied_;
     OutputInterface<JointVector> applied_;
     OutputInterface<Eigen::Vector3d> policy_command_;
     OutputInterface<double> policy_height_;
+    OutputInterface<std::vector<double>> policy_context_;
+    OutputInterface<bool> jump_active_;
+    OutputInterface<int> jump_state_, jump_accepted_;
+    OutputInterface<double> jump_elapsed_, jump_apex_, jump_height_, tuck_gate_left_,
+        tuck_gate_right_;
+    OutputInterface<JointVector> pd_target_, pd_requested_, tuck_compensation_;
+    wheel_leg::JumpCommand jump_;
+    std::size_t last_jump_request_ = 0;
+    double jump_velocity_ = 0.;
+    bool jump_enabled_ = false;
     OutputInterface<int> state_, recovery_phase_, recovery_fault_, recovery_capture_blockers_;
     OutputInterface<bool> recovery_capture_ready_;
     OutputInterface<bool> recovery_yaw_active_;
@@ -426,7 +568,7 @@ private:
     wheel_leg::JointReferenceRecoveryController recovery_;
     wheel_leg::ClosedChainSupportObserver support_observer_;
     bool recovery_started_ = false;
-    JointVector target_{}, pending_history_{};
+    JointVector target_{}, decoded_{}, pending_history_{};
     std::optional<std::size_t> last_pd_, last_command_tick_;
     std::optional<Clock::time_point> wait_started_, drive_loss_started_;
     std::optional<double> heading_;
