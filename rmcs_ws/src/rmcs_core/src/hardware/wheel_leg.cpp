@@ -73,7 +73,11 @@ std::optional<device::CanPacket8> lk_command(device::LkMotor& motor, LkDriveActi
 
 void log_lk_fault_transition(
     const rclcpp::Logger& logger, const char* name, std::uint8_t motor_state,
-    std::uint8_t error_state, std::uint8_t& previous) {
+    std::uint8_t error_state, std::uint8_t& previous, bool startup_input_timeout) {
+    // Idle input timeout is expected before clear/enable/torque streaming. Do not
+    // advertise it as an active drive fault, or log a spurious "error cleared".
+    if (startup_input_timeout && previous == 0)
+        return;
     if (error_state == previous)
         return;
     if (error_state == 0)
@@ -233,7 +237,9 @@ private:
             gimbal_yaw_motor_.update_status();
             log_lk_fault_transition(
                 status_.get_logger(), "/gimbal/yaw", gimbal_yaw_motor_.motor_state(),
-                gimbal_yaw_motor_.error_state(), gimbal_yaw_last_error_);
+                gimbal_yaw_motor_.error_state(), gimbal_yaw_last_error_,
+                gimbal_yaw_scheduler_.startup_input_timeout(
+                    lk_feedback(gimbal_yaw_motor_, gimbal_yaw_error_ns_)));
             gimbal_yaw_phase_.store(gimbal_yaw_scheduler_.phase(), std::memory_order::relaxed);
             feeder_motor_.update_status();
             supercap_.update_status();
@@ -457,6 +463,31 @@ private:
         }
         void update_feedback_warning() {
             const auto now = now_ns();
+            auto missing = std::string{};
+            for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
+                if (motor_last_ns_[i].load(std::memory_order_relaxed) > 0)
+                    continue;
+                if (!missing.empty())
+                    missing += ", ";
+                missing += std::format("{} ({})", kChannelNames[i], kChannelBuses[i]);
+            }
+            if (imu_last_ns_.load(std::memory_order_relaxed) <= 0) {
+                if (!missing.empty())
+                    missing += ", ";
+                missing += "IMU";
+            }
+            const bool startup_blocked = *enable_request_ && !missing.empty();
+            if (startup_blocked
+                && (!startup_blocked_ || now - last_startup_warning_ns_ >= 2'000'000'000)) {
+                RCLCPP_WARN(
+                    status_.get_logger(),
+                    "WheelLeg startup blocked: no first feedback from [%s]; "
+                    "leg enable and recovery remain gated", missing.c_str());
+                last_startup_warning_ns_ = now;
+            } else if (startup_blocked_ && !startup_blocked && missing.empty()) {
+                RCLCPP_INFO(status_.get_logger(), "WheelLeg startup feedback complete");
+            }
+            startup_blocked_ = startup_blocked;
             for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
                 const auto stamp = motor_last_ns_[i].load(std::memory_order_relaxed);
                 const bool silent = stamp > 0 && now - stamp >= kChannelSilentNs;
@@ -486,7 +517,8 @@ private:
                 RCLCPP_WARN(
                     status_.get_logger(),
                     "WheelLeg CAN joint feedback has not completed its first sample; "
-                    "control remains gated until all six motors report once");
+                    "control remains gated until all six motors report once; missing [%s]",
+                    missing.c_str());
             } else if (state == FeedbackWarningState::kStale) {
                 auto stale = std::string{};
                 for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
@@ -813,6 +845,8 @@ private:
         WheelLegNormalActionGate normal_action_gate_;
         enum class FeedbackWarningState { kFresh, kMissing, kStale };
         FeedbackWarningState feedback_warning_state_ = FeedbackWarningState::kFresh;
+        bool startup_blocked_ = false;
+        std::int64_t last_startup_warning_ns_ = 0;
         bool previous_both_down_ = false;
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };
@@ -866,7 +900,8 @@ private:
             pitch_motor_.update_status();
             log_lk_fault_transition(
                 status_.get_logger(), "/gimbal/pitch", pitch_motor_.motor_state(),
-                pitch_motor_.error_state(), pitch_last_error_);
+                pitch_motor_.error_state(), pitch_last_error_,
+                pitch_scheduler_.startup_input_timeout(lk_feedback(pitch_motor_, pitch_error_ns_)));
             pitch_phase_.store(pitch_scheduler_.phase(), std::memory_order::relaxed);
             left_friction_.update_status();
             right_friction_.update_status();

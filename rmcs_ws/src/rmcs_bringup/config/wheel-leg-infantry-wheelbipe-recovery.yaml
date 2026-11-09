@@ -53,7 +53,7 @@ wheel_leg:
 wheel_leg_chassis_controller:
   ros__parameters:
     vx_max: 3.0
-    vx_bias: 0.0
+    vx_bias: -0.32
     vy_max: 0.0
     yaw_rate_max: 4.0 # Follow-mode yaw cap only; at policy training envelope.
     spin_yaw_rate: 10.471975511965978
@@ -61,15 +61,6 @@ wheel_leg_chassis_controller:
     following_velocity_kp: 15.0
     following_velocity_ki: 0.0
     following_velocity_kd: 0.0
-
-    stand_drift_hold_enabled: true
-    stand_drift_position_kp: 0.8
-    stand_drift_velocity_kp: 0.5
-    stand_drift_command_limit: 0.1
-    stand_drift_command_rate: 0.2
-    stand_drift_velocity_filter_hz: 3.0
-    stand_drift_yaw_deadzone: 0.08
-    stand_drift_height_deadzone: 0.005
 
     deadzone: 0.05
     angular_z_invert: false
@@ -308,6 +299,8 @@ value_broadcaster:
       - /gimbal/left_friction/velocity
       - /gimbal/right_friction/velocity
       - /gimbal/bullet_feeder/velocity
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/left_wheel/velocity
 
 value_collector:
   ros__parameters:
@@ -453,10 +446,6 @@ value_collector:
       - /wheel_leg/dm_control_ready
       - /wheel_leg/dr16_fresh
       - /chassis/control_velocity
-      - /chassis/stand_drift_hold/active
-      - /chassis/stand_drift_hold/command
-      - /chassis/stand_drift_hold/distance_error
-      - /chassis/stand_drift_hold/filtered_velocity
       - /chassis/control_height
       - /chassis/control_enable
       - /chassis/reset_count
