@@ -1,9 +1,12 @@
 #pragma once
 
 #include <atomic>
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <numbers>
 #include <tuple>
 #include <utility>
@@ -31,10 +34,20 @@ public:
 
     void store_accelerometer_status(int16_t x, int16_t y, int16_t z) {
         accelerometer_data_.store({x, y, z}, std::memory_order::relaxed);
+        accelerometer_time_ns_.store(now_ns_(), std::memory_order_release);
     }
 
     void store_gyroscope_status(int16_t x, int16_t y, int16_t z) {
         gyroscope_data_.store({x, y, z}, std::memory_order::relaxed);
+        gyroscope_time_ns_.store(now_ns_(), std::memory_order_release);
+    }
+
+    double sample_age_seconds() const {
+        const auto acc = accelerometer_time_ns_.load(std::memory_order_acquire);
+        const auto gyro = gyroscope_time_ns_.load(std::memory_order_acquire);
+        if (acc == 0 || gyro == 0)
+            return std::numeric_limits<double>::quiet_NaN();
+        return static_cast<double>(now_ns_() - std::min(acc, gyro)) * 1e-9;
     }
 
     void update_status() {
@@ -71,6 +84,10 @@ public:
     double& q3() { return q3_; }
 
 private:
+    static std::int64_t now_ns_() {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
     void mahony_ahrs_update_imu(double ax, double ay, double az, double gx, double gy, double gz) {
         // Madgwick's implementation of Mayhony's AHRS algorithm.
         // See: http://www.x-io.co.uk/node/8#open_source_ahrs_and_imu_algorithms
@@ -152,6 +169,7 @@ private:
     };
     std::atomic<ImuData> accelerometer_data_{{.x = 0, .y = 0, .z = 0}};
     std::atomic<ImuData> gyroscope_data_{{.x = 0, .y = 0, .z = 0}};
+    std::atomic<std::int64_t> accelerometer_time_ns_{0}, gyroscope_time_ns_{0};
     static_assert(std::atomic<ImuData>::is_always_lock_free);
 
     double ax_ = 0, ay_ = 0, az_ = 0, gx_ = 0, gy_ = 0, gz_ = 0;

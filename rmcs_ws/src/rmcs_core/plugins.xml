@@ -1,4 +1,5 @@
 <library path="rmcs_core">
+  <class type="rmcs_core::controller::pid::NnPidController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
@@ -6,7 +7,6 @@
   <class type="rmcs_core::hardware::DeformableInfantryOmniB" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmniC" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::WheelLegInfantryRL" base_class_type="rmcs_executor::Component" />
   
   <class type="rmcs_core::hardware::Px4VisionBridge" base_class_type="rmcs_executor::Component" />
 
@@ -25,10 +25,9 @@
   <class type="rmcs_core::controller::chassis::DeformableSuspension" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformablePostureTrajectory" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableRlSuspension" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::DeformableSuspensionGuard" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableSuspensionArbiter" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::WheelLegChassisController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::WheelLegRlConsumer" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />

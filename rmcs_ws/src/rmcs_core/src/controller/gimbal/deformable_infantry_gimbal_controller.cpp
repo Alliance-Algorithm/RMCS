@@ -1,9 +1,7 @@
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
-#include "controller/pid/pid_calculator.hpp"
 
 #include <cmath>
 #include <limits>
-#include <string>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/node.hpp>
@@ -24,12 +22,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
 
-        configure_pid("yaw_angle", yaw_angle_pid_);
-        configure_pid("yaw_velocity", yaw_velocity_pid_);
-        configure_pid("pitch_angle", pitch_angle_pid_);
-        configure_pid("pitch_velocity", pitch_velocity_pid_);
-
-        get_parameter("pitch_torque_control", pitch_torque_control_enabled_);
         get_parameter("manual_joystick_sensitivity", joystick_sensitivity_);
         get_parameter("manual_mouse_sensitivity", mouse_sensitivity_);
 
@@ -76,59 +68,25 @@ public:
         if (!ctrl_hold_active_)
             *output_.pitch_angle_error = angle_error.pitch_angle_error;
 
+        if (clear_pitch_integrals_pending_) {
+            *output_.pitch_angle_error = kNaN;
+            clear_pitch_integrals_pending_ = false;
+        }
+
         const auto trajectory_ff = trajectory_feedforward(auto_aim_active);
 
-        if (!std::isfinite(angle_error.yaw_angle_error)) {
-            yaw_angle_pid_.reset();
-            yaw_velocity_pid_.reset();
-            *output_.yaw_control_torque = kNaN;
-        } else {
-            const auto yaw_velocity_ref = yaw_angle_pid_.update(angle_error.yaw_angle_error)
-                                        + trajectory_ff.yaw_ref_velocity;
-            *output_.yaw_control_torque =
-                yaw_velocity_pid_.update(yaw_velocity_ref - *input_.yaw_velocity_imu)
-                + trajectory_ff.yaw_velocity + trajectory_ff.yaw_acceleration;
-        }
-
-        if (!ctrl_hold_active_) {
-            if (!std::isfinite(angle_error.pitch_angle_error)) {
-                pitch_angle_pid_.reset();
-                pitch_velocity_pid_.reset();
-                *output_.pitch_control_velocity = kNaN;
-                *output_.pitch_control_torque = kNaN;
-            } else {
-                const auto pitch_gravity_ff = pitch_gravity_feedforward();
-                const auto pitch_velocity_ref =
-                    pitch_angle_pid_.update(angle_error.pitch_angle_error)
-                    + trajectory_ff.pitch_ref_velocity;
-
-                if (pitch_torque_control_enabled_) {
-                    *output_.pitch_control_velocity = kNaN;
-                    *output_.pitch_control_torque =
-                        pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
-                        + pitch_gravity_ff + trajectory_ff.pitch_velocity
-                        + trajectory_ff.pitch_acceleration;
-                } else {
-                    pitch_velocity_pid_.reset();
-                    *output_.pitch_control_velocity = pitch_velocity_ref;
-                    *output_.pitch_control_torque = kNaN;
-                }
-            }
-        }
+        *output_.yaw_ref_velocity_ff = trajectory_ff.yaw_ref_velocity;
+        *output_.yaw_torque_ff = trajectory_ff.yaw_velocity + trajectory_ff.yaw_acceleration;
+        *output_.pitch_ref_velocity_ff = ctrl_hold_active_ ? 0.0 : trajectory_ff.pitch_ref_velocity;
+        *output_.pitch_torque_ff = ctrl_hold_active_
+                                     ? 0.0
+                                     : pitch_gravity_feedforward() + trajectory_ff.pitch_velocity
+                                           + trajectory_ff.pitch_acceleration;
     }
 
 private:
     static constexpr auto kNaN = std::numeric_limits<double>::quiet_NaN();
     static constexpr auto kDefaultDt = 1e-3;
-
-    auto configure_pid(const std::string& prefix, pid::PidCalculator& calculator) -> void {
-        get_parameter(prefix + "_integral_min", calculator.integral_min);
-        get_parameter(prefix + "_integral_max", calculator.integral_max);
-        get_parameter(prefix + "_integral_split_min", calculator.integral_split_min);
-        get_parameter(prefix + "_integral_split_max", calculator.integral_split_max);
-        get_parameter(prefix + "_output_min", calculator.output_min);
-        get_parameter(prefix + "_output_max", calculator.output_max);
-    }
 
     struct Input {
         explicit Input(rmcs_executor::Component& component) {
@@ -141,8 +99,6 @@ private:
             component.register_input("/predefined/update_rate", update_rate, false);
 
             component.register_input("/gimbal/pitch/angle", pitch_angle);
-            component.register_input("/gimbal/yaw/velocity_imu", yaw_velocity_imu);
-            component.register_input("/gimbal/pitch/velocity_imu", pitch_velocity_imu);
 
             component.register_input("/auto_aim/should_control", auto_aim_should_control, false);
             component.register_input(
@@ -160,8 +116,6 @@ private:
         InputInterface<double> update_rate;
 
         InputInterface<double> pitch_angle;
-        InputInterface<double> yaw_velocity_imu;
-        InputInterface<double> pitch_velocity_imu;
 
         InputInterface<bool> auto_aim_should_control;
         InputInterface<Eigen::Vector3d> auto_aim_control_direction;
@@ -171,23 +125,32 @@ private:
 
     struct Output {
         explicit Output(rmcs_executor::Component& component) {
-            component.register_output("/gimbal/yaw/control_torque", yaw_control_torque, kNaN);
-            component.register_output("/gimbal/yaw/control_angle", yaw_control_angle, kNaN);
-            component.register_output(
-                "/gimbal/pitch/control_velocity", pitch_control_velocity, kNaN);
-            component.register_output("/gimbal/pitch/control_torque", pitch_control_torque, kNaN);
-            component.register_output("/gimbal/pitch/control_angle", pitch_control_angle, kNaN);
             component.register_output("/gimbal/yaw/control_angle_error", yaw_angle_error, kNaN);
             component.register_output("/gimbal/pitch/control_angle_error", pitch_angle_error, kNaN);
+
+            component.register_output("/gimbal/yaw/velocity_ref", yaw_velocity_ref, kNaN);
+            component.register_output("/gimbal/pitch/velocity_ref", pitch_velocity_ref, kNaN);
+
+            component.register_output("/gimbal/yaw/ref_velocity_ff", yaw_ref_velocity_ff, kNaN);
+            component.register_output("/gimbal/pitch/ref_velocity_ff", pitch_ref_velocity_ff, kNaN);
+
+            component.register_output("/gimbal/yaw/torque_ff", yaw_torque_ff, kNaN);
+            component.register_output("/gimbal/pitch/torque_ff", pitch_torque_ff, kNaN);
+
+            component.register_output("/gimbal/yaw/control_angle", yaw_control_angle, kNaN);
+            component.register_output("/gimbal/pitch/control_angle", pitch_control_angle, kNaN);
         }
 
-        OutputInterface<double> yaw_control_torque;
-        OutputInterface<double> yaw_control_angle;
-        OutputInterface<double> pitch_control_velocity;
-        OutputInterface<double> pitch_control_torque;
-        OutputInterface<double> pitch_control_angle;
         OutputInterface<double> yaw_angle_error;
         OutputInterface<double> pitch_angle_error;
+        OutputInterface<double> yaw_velocity_ref;
+        OutputInterface<double> pitch_velocity_ref;
+        OutputInterface<double> yaw_ref_velocity_ff;
+        OutputInterface<double> pitch_ref_velocity_ff;
+        OutputInterface<double> yaw_torque_ff;
+        OutputInterface<double> pitch_torque_ff;
+        OutputInterface<double> yaw_control_angle;
+        OutputInterface<double> pitch_control_angle;
     } output_{*this};
 
     auto ctrl_hold_requested() const -> bool { return pitch_lock_active_; }
@@ -274,8 +237,7 @@ private:
 
     auto activate_ctrl_hold() -> void {
         ctrl_hold_active_ = true;
-        pitch_angle_pid_.reset();
-        pitch_velocity_pid_.reset();
+        clear_pitch_integrals_pending_ = true;
     }
 
     auto deactivate_ctrl_hold() -> void {
@@ -283,8 +245,7 @@ private:
             return;
 
         ctrl_hold_active_ = false;
-        pitch_angle_pid_.reset();
-        pitch_velocity_pid_.reset();
+        clear_pitch_integrals_pending_ = true;
         *output_.pitch_control_angle = kNaN;
     }
 
@@ -293,8 +254,6 @@ private:
             activate_ctrl_hold();
 
         *output_.yaw_control_angle = kNaN;
-        *output_.pitch_control_velocity = kNaN;
-        *output_.pitch_control_torque = kNaN;
         *output_.pitch_control_angle = kNaN;
 
         if (input_.pitch_angle.ready() && std::isfinite(*input_.pitch_angle)) {
@@ -305,29 +264,19 @@ private:
                 pitch_target_error += 2 * std::numbers::pi;
 
             *output_.pitch_angle_error = pitch_target_error;
-            const auto pitch_velocity_ref = pitch_angle_pid_.update(pitch_target_error);
-            if (pitch_torque_control_enabled_) {
-                *output_.pitch_control_velocity = kNaN;
-                *output_.pitch_control_torque =
-                    pitch_velocity_pid_.update(pitch_velocity_ref - *input_.pitch_velocity_imu)
-                    + pitch_gravity_feedforward();
-            } else {
-                pitch_velocity_pid_.reset();
-                *output_.pitch_control_velocity = pitch_velocity_ref;
-                *output_.pitch_control_torque = kNaN;
-            }
         }
     }
 
     auto reset_control_outputs() -> void {
-        yaw_angle_pid_.reset();
-        yaw_velocity_pid_.reset();
-        pitch_angle_pid_.reset();
-        pitch_velocity_pid_.reset();
-        *output_.yaw_control_torque = kNaN;
+        *output_.yaw_angle_error = kNaN;
+        *output_.pitch_angle_error = kNaN;
+        *output_.yaw_velocity_ref = kNaN;
+        *output_.pitch_velocity_ref = kNaN;
+        *output_.yaw_ref_velocity_ff = kNaN;
+        *output_.pitch_ref_velocity_ff = kNaN;
+        *output_.yaw_torque_ff = kNaN;
+        *output_.pitch_torque_ff = kNaN;
         *output_.yaw_control_angle = kNaN;
-        *output_.pitch_control_velocity = kNaN;
-        *output_.pitch_control_torque = kNaN;
         *output_.pitch_control_angle = kNaN;
     }
 
@@ -337,38 +286,14 @@ private:
         suspension_on_by_switch_ = false;
         last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
         gimbal_solver_.update(TwoAxisGimbalSolver::SetDisabled{});
-        *output_.yaw_angle_error = kNaN;
-        *output_.pitch_angle_error = kNaN;
         reset_control_outputs();
     }
 
     TwoAxisGimbalSolver gimbal_solver_{
         *this, get_parameter("upper_limit").as_double(), get_parameter("lower_limit").as_double()};
 
-    pid::PidCalculator yaw_angle_pid_{
-        get_parameter("yaw_angle_kp").as_double(),
-        get_parameter("yaw_angle_ki").as_double(),
-        get_parameter("yaw_angle_kd").as_double(),
-    };
-    pid::PidCalculator yaw_velocity_pid_{
-        get_parameter("yaw_velocity_kp").as_double(),
-        get_parameter("yaw_velocity_ki").as_double(),
-        get_parameter("yaw_velocity_kd").as_double(),
-    };
-    pid::PidCalculator pitch_angle_pid_{
-        get_parameter("pitch_angle_kp").as_double(),
-        get_parameter("pitch_angle_ki").as_double(),
-        get_parameter("pitch_angle_kd").as_double(),
-    };
-    pid::PidCalculator pitch_velocity_pid_{
-        get_parameter("pitch_velocity_kp").as_double(),
-        get_parameter("pitch_velocity_ki").as_double(),
-        get_parameter("pitch_velocity_kd").as_double(),
-    };
-
     double joystick_sensitivity_ = 0.003;
     double mouse_sensitivity_ = 0.5;
-    bool pitch_torque_control_enabled_ = false;
     double ctrl_hold_pitch_target_angle_ = 0.0;
     double pitch_gravity_ff_gain_ = 0.0;
     double pitch_gravity_ff_phase_ = 0.0;
@@ -382,6 +307,7 @@ private:
     bool suspension_on_by_switch_ = false;
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     bool ctrl_hold_active_ = false;
+    bool clear_pitch_integrals_pending_ = false;
 };
 
 } // namespace rmcs_core::controller::gimbal

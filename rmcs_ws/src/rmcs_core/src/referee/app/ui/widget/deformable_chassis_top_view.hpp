@@ -65,8 +65,8 @@ private:
     static constexpr double rear_pair_offset_deg_ = 28.0;
     static constexpr double degrees_to_radians_ = std::numbers::pi_v<double> / 180.0;
 
-    static constexpr double default_min_angle_deg_ = 8.0;
-    static constexpr double default_max_angle_deg_ = 58.0;
+    static constexpr double default_min_angle_deg_ = 17.0;
+    static constexpr double default_max_angle_deg_ = 75.0;
 
     static constexpr double deg_to_rad_(double degrees) { return degrees * degrees_to_radians_; }
 
@@ -115,7 +115,6 @@ private:
         Arc& leg, double body_angle, uint16_t near_radius, uint16_t far_radius, double leg_angle,
         bool active_suspension) const {
         const double normalized_extension = normalized_leg_extension_(leg_angle);
-        // Min angle looks like a thin leg stretching radially outward from the center ring.
         const uint16_t radius = static_cast<uint16_t>(
             std::lround(far_radius - normalized_extension * (far_radius - near_radius)));
         const uint16_t half_angle = static_cast<uint16_t>(std::lround(

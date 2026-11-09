@@ -44,8 +44,8 @@ public:
         , chassis_direction_indicator_(Shape::Color::PINK, 8, x_center, y_center, 0, 0, 84, 84)
         , time_reminder_(Shape::Color::PINK, 50, 5, x_center + 150, y_center + 65, 0, false) {
 
-        double deformable_leg_min_angle_deg = 8.0;
-        double deformable_leg_max_angle_deg = 58.0;
+        double deformable_leg_min_angle_deg = 17.0;
+        double deformable_leg_max_angle_deg = 75.0;
         get_parameter_or(
             "deformable_leg_min_angle_deg", deformable_leg_min_angle_deg,
             deformable_leg_min_angle_deg);
@@ -145,7 +145,6 @@ private:
         case rmcs_msgs::ChassisMode::SPIN_FAST: return Shape::Color::GREEN;
         case rmcs_msgs::ChassisMode::AUTO: return Shape::Color::CYAN;
         case rmcs_msgs::ChassisMode::STEP_DOWN: return Shape::Color::PINK;
-        case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: return Shape::Color::BLACK;
         default: return Shape::Color::WHITE;
         }
     }

@@ -25,6 +25,7 @@
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/ring_buffer.hpp>
 
+#include "controller/chassis/deformable/rl_contract.hpp"
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/bmi088_ekf.hpp"
 #include "hardware/device/board_clock_lifter.hpp"
@@ -183,8 +184,6 @@ private:
         }
 
         void request_hard_sync_read() {
-            // RMCS-lite top board variant currently has no GPIO hard-sync request
-            // path.
         }
 
         void update() {
@@ -352,8 +351,6 @@ private:
                         .enable_multi_turn_angle());
 
             imu_.set_coordinate_mapping([](double x, double y, double z) {
-                // Keep the existing chassis yaw axis mapping explicit until the bottom-board IMU
-                // installation is re-validated on hardware.
                 return std::make_tuple(-y, x, z);
             });
 
@@ -368,19 +365,31 @@ private:
             status.register_output("/chassis/imu/roll_rate", chassis_imu_roll_rate_, 0.0);
             status.register_output(
                 "/chassis/imu/quaternion", chassis_imu_quaternion_, Eigen::Quaterniond::Identity());
-            rl_high_physical_angle_rad_ = status.get_parameter_or("rl_high_physical_angle_deg", 59.0)
+            status.register_output("/chassis/rl/gyro_b", rl_gyro_b_, Eigen::Vector3d::Zero());
+            status.register_output("/chassis/imu/specific_force_b", specific_force_b_, Eigen::Vector3d::Constant(kNaN));
+            status.register_output("/chassis/imu/sample_age", imu_sample_age_, kNaN);
+            status.register_output(
+                "/chassis/rl/encoder_twist_b", rl_encoder_twist_b_, Eigen::Vector3d::Constant(kNaN));
+            rl_high_physical_angle_rad_ = status.get_parameter_or("rl_high_physical_angle_deg", 75.0)
                 * std::numbers::pi / 180.0;
-            rl_low_physical_angle_rad_ = status.get_parameter_or("rl_low_physical_angle_deg", 5.0)
+            rl_low_physical_angle_rad_ = status.get_parameter_or("rl_low_physical_angle_deg", 17.0)
                 * std::numbers::pi / 180.0;
             rl_q_max_rad_ = status.get_parameter_or("rl_q_max_rad", 1.36);
             if (!(rl_high_physical_angle_rad_ > rl_low_physical_angle_rad_)) {
-                rl_high_physical_angle_rad_ = 59.0 * std::numbers::pi / 180.0;
-                rl_low_physical_angle_rad_  = 5.0 * std::numbers::pi / 180.0;
+                rl_high_physical_angle_rad_ = 75.0 * std::numbers::pi / 180.0;
+                rl_low_physical_angle_rad_  = 17.0 * std::numbers::pi / 180.0;
             }
             if (!(rl_q_max_rad_ > 0.0))
                 rl_q_max_rad_ = 1.36;
 
             for (size_t i = 0; i < 4; ++i) {
+                const auto base = std::format("/chassis/{}_joint", DeformableInfantryOmniC::kJointName[i]);
+                status.register_output(base + "/urdf_angle", joint_urdf_angle_[i], kNaN);
+                status.register_output(base + "/urdf_velocity", joint_urdf_velocity_[i], kNaN);
+                status.register_output(base + "/feedback_current_raw", joint_current_raw_[i], kNaN);
+                status.register_output(
+                    std::format("/chassis/{}_wheel/rl_velocity", DeformableInfantryOmniC::kJointName[i]),
+                    wheel_rl_velocity_[i], kNaN);
                 status.register_output(
                     std::format(
                         "/chassis/{}_joint/physical_angle", DeformableInfantryOmniC::kJointName[i]),
@@ -421,6 +430,10 @@ private:
         void update() {
             imu_.update_status();
             *chassis_yaw_velocity_imu_ = imu_.gz();
+            *rl_gyro_b_ = Eigen::Vector3d{imu_.gx(), imu_.gy(), imu_.gz()};
+            // Bmi088's mapped acceleration getters are in g; expose SI specific force.
+            *specific_force_b_ = 9.80665 * Eigen::Vector3d{imu_.ax(), imu_.ay(), imu_.az()};
+            *imu_sample_age_ = imu_.sample_age_seconds();
             {
                 const double q0 = imu_.q0();
                 const double q1 = imu_.q1();
@@ -441,9 +454,6 @@ private:
                 *chassis_imu_pitch_rate_ = -imu_.gy();
                 *chassis_imu_roll_rate_ = imu_.gx();
 
-                // Raw attitude quaternion for the RL bridge (projected gravity). Same frame
-                // convention as the other RL hardware (body -> world, Z-up after the IMU
-                // coordinate mapping above).
                 *chassis_imu_quaternion_ = Eigen::Quaterniond{q0, q1, q2, q3}.normalized();
             }
 
@@ -456,6 +466,16 @@ private:
                 update_joint_physical_feedback_(
                     i, joint_physical_angle_[i], joint_physical_velocity_[i]);
 
+            Eigen::Vector4d urdf_q, wheel_speed;
+            constexpr std::size_t kCornerForLeg[4] = {3, 0, 1, 2};
+            for (std::size_t leg = 0; leg < 4; ++leg) {
+                const auto corner = kCornerForLeg[leg];
+                *wheel_rl_velocity_[corner] = wheel_status_received_[corner].load(std::memory_order_relaxed)
+                    ? chassis_wheel_motors_[corner].velocity() : kNaN;
+                urdf_q[leg] = *joint_urdf_angle_[corner];
+                wheel_speed[leg] = *wheel_rl_velocity_[corner];
+            }
+            *rl_encoder_twist_b_ = deformable_rl::encoder_twist(urdf_q, wheel_speed);
             update_geometry_feedback_();
 
             dr16_.update_status();
@@ -603,6 +623,14 @@ private:
         OutputInterface<double> chassis_imu_roll_rate_;
         OutputInterface<Eigen::Quaterniond> chassis_imu_quaternion_;
 
+        OutputInterface<Eigen::Vector3d> rl_gyro_b_;
+        OutputInterface<Eigen::Vector3d> specific_force_b_;
+        OutputInterface<double> imu_sample_age_;
+        OutputInterface<Eigen::Vector3d> rl_encoder_twist_b_;
+        std::array<OutputInterface<double>, 4> joint_urdf_angle_;
+        std::array<OutputInterface<double>, 4> joint_urdf_velocity_;
+        std::array<OutputInterface<double>, 4> joint_current_raw_;
+        std::array<OutputInterface<double>, 4> wheel_rl_velocity_;
         std::array<OutputInterface<double>, 4> joint_physical_angle_;
         std::array<OutputInterface<double>, 4> joint_physical_velocity_;
         std::array<OutputInterface<double>, 4> joint_rl_angle_;
@@ -612,8 +640,8 @@ private:
         OutputInterface<double> rl_low_physical_angle_;
         OutputInterface<double> rl_q_max_;
 
-        double rl_high_physical_angle_rad_ = 59.0 * std::numbers::pi / 180.0;
-        double rl_low_physical_angle_rad_  = 5.0 * std::numbers::pi / 180.0;
+        double rl_high_physical_angle_rad_ = 75.0 * std::numbers::pi / 180.0;
+        double rl_low_physical_angle_rad_  = 17.0 * std::numbers::pi / 180.0;
         double rl_q_max_rad_               = 1.36;
 
         OutputInterface<double> encoder_alpha_;
@@ -626,6 +654,7 @@ private:
         // State
 
         std::atomic<bool> joint_status_received_[4] = {false, false, false, false};
+        std::atomic<bool> wheel_status_received_[4] = {false, false, false, false};
 
         const double kChassisRadiusBase;
         const double kRodLength;
@@ -660,6 +689,7 @@ private:
                 return;
             if (data.can_id == 0x201) {
                 chassis_wheel_motors_[index].store_status(data.can_data);
+                wheel_status_received_[index].store(true, std::memory_order_relaxed);
             } else if (data.can_id == 0x141) {
                 chassis_joint_motors_[index].store_status(data.can_data);
                 joint_status_received_[index].store(true, std::memory_order_relaxed);
@@ -675,6 +705,9 @@ private:
                 *velocity_output = kNaN;
                 *joint_rl_angle_[index] = kNaN;
                 *joint_rl_velocity_[index] = kNaN;
+                *joint_urdf_angle_[index] = kNaN;
+                *joint_urdf_velocity_[index] = kNaN;
+                *joint_current_raw_[index] = kNaN;
                 return;
             }
 
@@ -689,6 +722,9 @@ private:
 
             *angle_output = physical_angle;
             *velocity_output = physical_velocity;
+            *joint_urdf_angle_[index] = deformable_rl::kPhysicalZero - physical_angle;
+            *joint_urdf_velocity_[index] = -physical_velocity;
+            *joint_current_raw_[index] = chassis_joint_motors_[index].current_raw();
 
             // RL coordinate: 0 at the highest posture, rl_q_max_rad at the lowest posture.
             const double rl_scale =

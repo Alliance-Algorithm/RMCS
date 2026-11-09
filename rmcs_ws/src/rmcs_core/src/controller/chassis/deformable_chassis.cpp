@@ -16,7 +16,7 @@
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
 
-#include "controller/chassis/deformable_mode.hpp"
+#include "controller/chassis/deformable/mode.hpp"
 #include "controller/pid/pid_calculator.hpp"
 
 namespace rmcs_core::controller::chassis {
@@ -30,9 +30,6 @@ public:
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , following_velocity_controller_(10.0, 0.0, 0.0)
-        , wireless_charging_speed_limit_(get_parameter_or("wireless_charging_speed_limit", 0.2))
-        , wireless_charging_angular_velocity_limit_(
-              get_parameter_or("wireless_charging_angular_velocity_limit", 3.0))
         , joint_mode_mgr_(*this) {
 
         following_velocity_controller_.output_max = angular_velocity_max_;
@@ -57,6 +54,7 @@ public:
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
         register_output("/chassis/pitch_lock_active", pitch_lock_active_, false);
+        register_output("/chassis/joint_control_active", joint_control_active_, false);
         register_output("/chassis/active_suspension/active", active_suspension_active_, false);
         register_output("/chassis/deformable/low_prone_active", low_prone_active_, false);
         register_output("/chassis/deformable/rl_q_cmd", rl_q_cmd_, rl_q_cmd_high_rad_);
@@ -127,6 +125,8 @@ public:
             const bool both_down =
                 switch_left == Switch::DOWN && switch_right == Switch::DOWN;
 
+            *joint_control_active_ = !any_unknown && !both_down;
+
             if (!(any_unknown || both_down))
                 reset_active_ = false;
 
@@ -185,6 +185,7 @@ private:
 
         *mode_ = rmcs_msgs::ChassisMode::AUTO;
         *pitch_lock_active_ = false;
+        *joint_control_active_ = false;
         *active_suspension_active_ = false;
         *low_prone_active_ = false;
         *rl_q_cmd_ = rl_q_cmd_high_rad_;
@@ -229,10 +230,6 @@ private:
         const double max_deg = joint_mode_mgr_.max_angle();
         const double reference_deg = (min_deg + max_deg) / 2.0;
         *suspension_reference_angle_deg_ = reference_deg;
-        // Always true: reference_deg == (min_deg + max_deg) / 2.0
-        // > (min_deg - 5.0 + max_deg) / 2.0 == reference_deg - 2.5.
-        // Under auto-aim low-prone override the correction direction is
-        // intentionally always inverted.
         *correction_inverted_ = reference_deg > (min_deg - 5.0 + max_deg) / 2.0;
     }
 
@@ -258,10 +255,7 @@ private:
         if (translational_velocity.norm() > 1.0)
             translational_velocity.normalize();
 
-        const double max_speed = *mode_ == rmcs_msgs::ChassisMode::WIRELESS_CHARGING
-                                   ? wireless_charging_speed_limit_
-                                   : translational_velocity_max_;
-        translational_velocity *= max_speed;
+        translational_velocity *= translational_velocity_max_;
         return translational_velocity;
     }
 
@@ -295,24 +289,6 @@ private:
                 }
 
                 angular_velocity = following_velocity_controller_.update(chassis_angle_error);
-            } break;
-
-            case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: {
-                const double wireless_charging_offset_rad =
-                    joint_mode_mgr_.wireless_charging_offset_rad();
-                double chassis_angle_error =
-                    calculate_unsigned_chassis_angle_error(chassis_control_angle);
-
-                chassis_control_angle =
-                    normalize_positive_angle(chassis_control_angle - wireless_charging_offset_rad);
-                chassis_angle_error =
-                    normalize_positive_angle(chassis_angle_error - wireless_charging_offset_rad);
-                chassis_angle_error = normalize_signed_angle(chassis_angle_error);
-
-                angular_velocity = following_velocity_controller_.update(chassis_angle_error);
-                angular_velocity = std::clamp(
-                    angular_velocity, -wireless_charging_angular_velocity_limit_,
-                    wireless_charging_angular_velocity_limit_);
             } break;
 
             default: break;
@@ -413,6 +389,7 @@ private:
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<bool> pitch_lock_active_;
+    OutputInterface<bool> joint_control_active_;
     OutputInterface<bool> active_suspension_active_;
     OutputInterface<bool> low_prone_active_;
     OutputInterface<double> rl_q_cmd_;
@@ -428,9 +405,6 @@ private:
     std::array<OutputInterface<double>, kJointCount> joint_posture_target_angle_rad_;
 
     pid::PidCalculator following_velocity_controller_;
-
-    double wireless_charging_speed_limit_;
-    double wireless_charging_angular_velocity_limit_;
 
     DeformableChassisModeManager joint_mode_mgr_;
 

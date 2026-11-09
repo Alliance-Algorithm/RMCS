@@ -38,6 +38,7 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
         register_input(get_parameter("measurement_angle").as_string(), measurement_angle_);
         register_input(get_parameter("setpoint_angle").as_string(), setpoint_angle_);
+        register_input("/chassis/joint_control_active", joint_control_active_);
         if (has_parameter("setpoint_velocity")) {
             register_input(
                 get_parameter("setpoint_velocity").as_string(), setpoint_velocity_, false);
@@ -50,6 +51,11 @@ public:
     }
 
     void update() override {
+        if (!*joint_control_active_) {
+            disable_output_();
+            return;
+        }
+
         InputSnapshot inputs;
         if (!read_inputs_(inputs)) {
             disable_output_();
@@ -67,8 +73,6 @@ public:
     }
 
 private:
-    // Joint controller owns only the local angle-servo execution. Chassis publishes the
-    // higher-level target angle trajectory; this controller turns that target into motor torque.
     struct ControllerConfig {
         rmcs_core::controller::adrc::TD::Config td;
         rmcs_core::controller::adrc::ESO::Config eso;
@@ -188,6 +192,7 @@ private:
 
     InputInterface<double> measurement_angle_;
     InputInterface<double> setpoint_angle_;
+    InputInterface<bool> joint_control_active_;
     InputInterface<double> setpoint_velocity_;
 
     OutputInterface<double> control_torque_;

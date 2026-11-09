@@ -124,15 +124,14 @@ deformable_infantry:
     rod_length: 0.140
     yaw_motor_zero_point: 57900
     pitch_motor_zero_point: 56354
+    rl_high_physical_angle_deg: 75.0
+    rl_low_physical_angle_deg: 17.0
 
 chassis_controller:
   ros__parameters:
     min_angle: 17.0
     max_angle: 75.0
     active_suspension_enable: true
-    wireless_charging_offset_deg: 225.0
-    wireless_charging_speed_limit: 0.6
-    wireless_charging_angular_velocity_limit: 10.0
 
 deformable_suspension:
   ros__parameters:
