@@ -2,14 +2,19 @@
 #include "../joint_coordinates.hpp"
 #include <string_view>
 namespace rmcs_core::controller::chassis {
+inline constexpr std::string_view kModelSpecSha256 =
+    "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812";
 struct PolicyParameters {
     std::string_view name, observation_version, observation_sha;
     double policy_hz, leg_scale, leg_bound, wheel_bound, leg_kp, leg_kd, gas_gain;
     double forward_limit, yaw_limit;
     LegBounds winding_bounds;
+    std::string_view model_spec_sha256 = kModelSpecSha256;
+    bool jump_control = false;
 };
-inline constexpr std::string_view kModelSpecSha256 =
-    "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812";
+inline bool wheelbipe_policy(const PolicyParameters& p) {
+    return p.name == "wheelbipe" || p.jump_control;
+}
 inline JointVector decoded_action_target(
     const JointVector& decoded, const JointVector& q, const LegBounds& bounds) {
     LegVector desired{}, current{};
@@ -38,7 +43,7 @@ inline JointVector
     return target;
 }
 inline JointVector executed_history(const PolicyParameters& p, const JointVector& raw) {
-    if (p.name == "wheelbipe")
+    if (wheelbipe_policy(p))
         return raw;
     auto result = raw;
     for (int i = 0; i < 6; ++i) {
