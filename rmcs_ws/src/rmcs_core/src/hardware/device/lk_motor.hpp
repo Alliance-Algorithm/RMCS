@@ -249,10 +249,6 @@ public:
         velocity_ =
             status_velocity_to_velocity_coefficient_ * static_cast<double>(feedback.velocity);
 
-        // Protocol counts oriented along the configured joint axis, without a torque proxy.
-        current_raw_ = std::copysign(1.0, status_velocity_to_velocity_coefficient_)
-                     * static_cast<double>(feedback.current);
-
         // Torque unit: N*m
         torque_ = status_current_to_torque_coefficient_ * static_cast<double>(feedback.current);
 
@@ -274,7 +270,6 @@ public:
     double angle() const { return angle_; }
     double velocity() const { return velocity_; }
     double torque() const { return torque_; }
-    double current_raw() const { return current_raw_; }
     double max_torque() const { return max_torque_; }
     double temperature() const { return temperature_; }
 
@@ -623,7 +618,6 @@ private:
     int64_t multi_turn_encoder_count_ = 0;
     int last_raw_angle_ = 0;
 
-    double current_raw_ = kNan;
     double angle_;
     double torque_;
     double velocity_;
