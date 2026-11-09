@@ -127,16 +127,6 @@ public:
 
     bool enabled() const { return control_enabled_; }
 
-    double gimbal_world_pitch() const {
-        auto dir =
-            fast_tf::cast<OdomImu>(PitchLink::DirectionVector{Eigen::Vector3d::UnitX()}, *tf_);
-        return std::asin(std::clamp(dir->z(), -1.0, 1.0));
-    }
-
-    YawLink::DirectionVector odom_to_yaw_link(const OdomImu::DirectionVector& vector) const {
-        return fast_tf::cast<YawLink>(vector, *tf_);
-    }
-
 private:
     void update_yaw_axis() {
         auto yaw_axis =
@@ -170,14 +160,16 @@ private:
 
     void clamp_control_direction(YawLink::DirectionVector& control_direction) {
         const auto& [x, y, z] = *control_direction;
+
         Eigen::Vector2d projection{x, y};
-        const double norm = projection.norm();
+        double norm = projection.norm();
         if (norm > 0)
             projection /= norm;
         else {
             control_enabled_ = false;
             return;
         }
+
         if (z > upper_limit_.y())
             *control_direction << upper_limit_.x() * projection, upper_limit_.y();
         else if (z < lower_limit_.y())
