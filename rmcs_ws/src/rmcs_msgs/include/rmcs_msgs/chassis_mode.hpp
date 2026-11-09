@@ -12,7 +12,6 @@ enum class ChassisMode : uint8_t {
     LAUNCH_RAMP,
     ALIGNMENT,
     ALIGNMENT_POWERED,
-    WIRELESS_CHARGING,
     CLIMB,
 };
 
