@@ -19,7 +19,8 @@ public:
         return effort;
     }
     static JointVector constrain(
-        JointVector effort, const JointVector& q, const JointVector& caps, double margin = .03) {
+        JointVector effort, const JointVector& q, const JointVector& caps, double margin = .03,
+        const LegBounds& mechanical_bounds = kMechanicalBounds) {
         for (int i = 0; i < 4; ++i)
             effort[i] = std::clamp(effort[i], -40., 40.);
         for (int side = 0; side < 2; ++side) {
@@ -27,8 +28,8 @@ public:
             const double sign = side == 0 ? 1. : -1.;
             const double relative = sign * (q[crank] - q[hip]);
             const double outward = sign * (effort[crank] - effort[hip]);
-            if ((relative >= kMechanicalBounds[side][1] - margin && outward > 0.)
-                || (relative <= kMechanicalBounds[side][0] + margin && outward < 0.)) {
+            if ((relative >= mechanical_bounds[side][1] - margin && outward > 0.)
+                || (relative <= mechanical_bounds[side][0] + margin && outward < 0.)) {
                 effort[hip] += sign * outward / 2.;
                 effort[crank] -= sign * outward / 2.;
             }

@@ -19,7 +19,7 @@ public:
     WheelLegObservation()
         : Node{get_component_name(), node::options()}
         , policy_(policy_parameters(get_parameter("policy").as_string())) {
-        if (policy_.name == kWheelbipe.name)
+        if (wheelbipe_policy(policy_))
             adapter_.emplace<Wheelbipe>();
         register_input("/wheel_leg/state/position", q_);
         register_input("/wheel_leg/state/velocity", dq_);
@@ -29,6 +29,7 @@ public:
         register_input("/wheel_leg/rl/input/enable", enable_);
         register_input("/wheel_leg/rl/input/command", command_);
         register_input("/wheel_leg/rl/input/height", height_);
+        register_input("/wheel_leg/rl/input/context", context_, false);
         register_input("/wheel_leg/rl/applied_action", applied_);
         register_input("/wheel_leg/rl/action_applied", action_applied_);
         register_input("/wheel_leg/rl/state", state_);
@@ -81,7 +82,7 @@ public:
         const auto history =
             *action_applied_
                 ? *applied_
-                : (policy_.name == kWheelbipe.name ? JointVector{} : measured_policy_history(*q_));
+                : (wheelbipe_policy(policy_) ? JointVector{} : measured_policy_history(*q_));
         const auto frame = std::visit(
             [&](auto& a) {
                 return a.sample(
@@ -104,6 +105,15 @@ public:
         std::copy(
             frame->previous_action.begin(), frame->previous_action.end(), feature_action_->begin());
         std::copy(frame->auxiliary.begin(), frame->auxiliary.end(), feature_auxiliary_->begin());
+        if (policy_.jump_control) {
+            if (!context_.ready() || context_->size() != 7
+                || !std::ranges::all_of(*context_, [](double v) { return std::isfinite(v); })) {
+                clear_features();
+                *sequence_ = 0;
+                return;
+            }
+            std::copy(context_->begin(), context_->end(), feature_auxiliary_->begin());
+        }
         *sequence_ = policy_tick_;
     }
 
@@ -121,6 +131,7 @@ private:
     InputInterface<JointVector> q_, dq_, applied_;
     InputInterface<Eigen::Vector3d> gravity_, gyro_, command_;
     InputInterface<double> height_, rate_, policy_rate_;
+    InputInterface<std::vector<double>> context_;
     InputInterface<bool> enable_, valid_, action_applied_;
     InputInterface<int> state_;
     InputInterface<std::size_t> reset_, tick_;
