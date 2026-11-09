@@ -116,9 +116,6 @@ chassis_controller:
     min_angle: 17.0
     max_angle: 75.0
     active_suspension_enable: true
-    wireless_charging_offset_deg: 135.0
-    wireless_charging_speed_limit: 0.6
-    wireless_charging_angular_velocity_limit: 10.0
     # V3 训练使用固定 17° 基准；传统 Q/min-max 姿态逻辑仍由上游管理。
     rl_q_cmd_high_rad: 1.0646473192622632
     rl_q_cmd_low_rad: 1.0646473192622632

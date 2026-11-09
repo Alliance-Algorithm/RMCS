@@ -1,115 +1,65 @@
-#!/usr/bin/env python3
+#!/bin/env bash
 
-import ast
-import re
-import subprocess
-import sys
+set -euo pipefail
 
-
-remote_command = (
-    "if [ -f ~/env_setup.bash ]; then source ~/env_setup.bash; fi\n"
-    "ros2 service call /rmcs/service/robot_status std_srvs/srv/Trigger '{}'\n"
+# 定义需要查询的服务列表
+services=(
+    "/rmcs/service/robot_status"
 )
 
-try:
-    result = subprocess.run(
-        ["ssh", "remote", "bash", "-s"],
-        input=remote_command,
-        text=True,
-        capture_output=True,
-        timeout=15,
-        check=False,
-    )
-except (OSError, subprocess.TimeoutExpired) as error:
-    sys.exit(f"Robot status request failed: {error}")
+# 使用 bash 远程执行，并传递服务列表作为参数
+ssh remote bash -s -- "${services[@]}" <<'EOF'
+set -euo pipefail
 
-response = re.search(
-    r"std_srvs\.srv\.Trigger_Response\(success=(True|False), message=(.*)\)\s*$",
-    result.stdout,
-    re.DOTALL,
-)
-if result.returncode != 0 or response is None:
-    sys.exit("Robot status request failed:\n" + (result.stderr.strip() or result.stdout.strip()))
+# 1. 环境准备
+set +u
+if [ -f ~/env_setup.bash ]; then
+    source ~/env_setup.bash
+fi
+set -u
 
-try:
-    message = ast.literal_eval(response.group(2))
-except (SyntaxError, ValueError) as error:
-    sys.exit(f"Robot status response could not be decoded: {error}")
+# 获取所有可用服务列表
+all_services="$(ros2 service list 2>/dev/null || true)"
+input_services=("${@}")
 
-if not response.group(1) == "True":
-    sys.exit(f"Robot status failed: {message}")
+# 2. 定义单个服务查询函数
+call_status_service() {
+    local service="$1"
 
-fresh = re.search(r"feedback fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
-dm_fresh = re.search(r"dm feedback fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
-dr16 = re.search(r"dr16 fresh:\s*(true|false|0|1)", message, re.IGNORECASE)
-enable = re.search(r"dm enable requested \[L,R\]: \[(\d+),(\d+)\]", message)
-mode = re.search(r"joint mode:\s*(torque|position_pd)", message)
-switches = re.search(r"switches \[left,right\]: \[(\d+),(\d+)\]", message)
-pd_age = re.search(r"last position PD age=([-\d.]+) ms", message)
+    if ! printf "%s\n" "$all_services" | grep -Fxq "$service"; then
+        printf "[warn] service not found: %s\n\n" "$service"
+        return
+    fi
 
-summary = []
-if fresh:
-    summary.append(f"feedback: {fresh.group(1)}")
-if dm_fresh:
-    summary.append(f"DM feedback: {dm_fresh.group(1)}")
-if dr16:
-    summary.append(f"DR16: {dr16.group(1)}")
-if enable:
-    summary.append(f"DM enable request L/R: {enable.group(1)}/{enable.group(2)}")
-if mode:
-    summary.append(f"joint mode: {mode.group(1)}")
-if switches:
-    summary.append(f"switches L/R: {switches.group(1)}/{switches.group(2)}")
-if pd_age:
-    summary.append(f"last position PD: {pd_age.group(1)} ms ago")
-if summary:
-    print("Robot status | " + " | ".join(summary))
+    printf "Robot Status [%s]:\n\n" "$service"
+    local raw
+    raw="$(ros2 service call "$service" std_srvs/srv/Trigger "{}" 2>&1 || true)"
 
-matched = False
-# Zero-point lines keep their YAML indentation so they paste straight into the
-# wheel-leg config; deformable-infantry / sentry print them the same way.
-for line in message.splitlines():
-    if "_zero_point:" in line:
-        print(line.rstrip())
-        matched = True
-for line in message.splitlines():
-    if line.lstrip().startswith("CAN[kCan"):
-        print(line.strip())
-        matched = True
+    local msg
+    msg="$(printf "%s\n" "$raw" | sed -n "s/.*message='\(.*\)'.*/\1/p")"
 
+    if [[ -z "$msg" ]]; then
+        printf "[warn] failed to parse message: %s\n%s\n" "$service" "$raw"
+    else
+        printf "%b\n" "$msg"
+    fi
+    printf "\n"
+}
 
-def field(fields, name):
-    return fields.get(name, "-")
+# 3. 并发执行逻辑
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "${tmp_dir}"' EXIT
 
+for i in "${!input_services[@]}"; do
+    call_status_service "${input_services[$i]}" > "${tmp_dir}/${i}" 2>&1 &
+done
 
-rows = []
-for line in message.splitlines():
-    match = re.match(
-        r"\s*(left_hip_joint|right_hip_joint|left_knee_joint|right_knee_joint|wheel\[[01]\]):\s*(.*)",
-        line,
-    )
-    if match is None:
-        continue
-    fields = dict(re.findall(r"(\w+)=([^\s]+)", match.group(2)))
-    rows.append(
-        f"{match.group(1):<20} {field(fields, 'can_id'):>3} "
-        f"{field(fields, 'master_id'):>6} {field(fields, 'status'):>6} "
-        f"{field(fields, 'angle'):>11} {field(fields, 'vel'):>11} "
-        f"{field(fields, 'torque'):>11} {field(fields, 'fault'):>6} "
-        f"{field(fields, 'feedback_age_ms'):>8} "
-        f"{field(fields, 'last_system_cmd'):>7} "
-        f"{field(fields, 'last_system_age_ms'):>10}"
-    )
-if rows:
-    print(
-        f"{'Motor':<20} {'CAN':>3} {'Master':>6} {'Status':>6} {'Angle(rad)':>11} "
-        f"{'Vel(rad/s)':>11} {'Torque(Nm)':>11} {'Fault':>6} {'Age(ms)':>8} "
-        f"{'LastSys':>7} {'SysAge(ms)':>10}"
-    )
-    for row in rows:
-        print(row)
-    matched = True
+wait
 
-# Unknown layout: show the raw service text instead of an empty table.
-if not matched and not summary:
-    print(message.strip())
+# 4. 按原始顺序汇总输出
+for i in "${!input_services[@]}"; do
+    if [ -f "${tmp_dir}/${i}" ]; then
+        cat "${tmp_dir}/${i}"
+    fi
+done
+EOF

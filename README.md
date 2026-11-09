@@ -95,14 +95,6 @@ launch-rmcs
 
 在本机上运行代码。在首次运行代码前，需要调用 `set-robot` 脚本设置机器人类型。
 
-当前分支轮腿使用两个策略启动入口：`wheel-leg-infantry-prone-v4`（ProneMotion，100 Hz 策略）和
-`wheel-leg-infantry-wheelbipe`（WheelBipe，50 Hz 策略）。它们共用
-`hardware::WheelLeg`，RL 均采用 200 Hz PC 侧 PD；每次只加载一个主控制器。
-
-当前策略快照尚未完成行为和实车验收；
-脚本自起默认关闭，启用限制仍保留。旧 `wheel-leg-infantry-rl` 和
-`wheel-leg-infantry-unified-rl` 入口已删除。
-
 #### 确认设备接入
 
 可以使用 `lsusb` 确定 [下位机](https://github.com/Alliance-Algorithm/rmcs_slave) 是否已接入，若已接入，则 `lsusb` 输出类似：
