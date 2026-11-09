@@ -124,9 +124,6 @@ chassis_controller:
     min_angle: 17.0
     max_angle: 75.0
     active_suspension_enable: true
-    wireless_charging_offset_deg: 45.0
-    wireless_charging_speed_limit: 0.6
-    wireless_charging_angular_velocity_limit: 10.0
 
 deformable_suspension:
   ros__parameters:
