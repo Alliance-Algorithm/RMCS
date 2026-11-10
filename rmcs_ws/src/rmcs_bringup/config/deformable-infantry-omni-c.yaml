@@ -42,10 +42,6 @@ value_collector:
   ros__parameters:
     csv_path: "/root/yaw_smc_<timestamp>.csv"
     signals:
-      - /gimbal/yaw/elapsed_time
-      - /gimbal/yaw/stimulus
-      - /gimbal/yaw/target_angle
-      - /gimbal/yaw/angle_unwrapped
       - /gimbal/yaw/velocity_imu
       - /gimbal/yaw/control_torque
       - /gimbal/yaw/angle

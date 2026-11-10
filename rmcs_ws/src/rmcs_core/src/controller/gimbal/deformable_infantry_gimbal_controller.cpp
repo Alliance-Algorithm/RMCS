@@ -216,7 +216,6 @@ private:
             component.register_output("/gimbal/pitch/control_angle", pitch_control_angle, kNaN);
             component.register_output("/gimbal/yaw/control_angle_error", yaw_angle_error, kNaN);
             component.register_output("/gimbal/pitch/control_angle_error", pitch_angle_error, kNaN);
-            // [SMC] 测试记录输出
         }
 
         OutputInterface<double> yaw_control_torque;
@@ -359,19 +358,16 @@ private:
 
     auto update_rate_value() const -> double { return 1.0 / update_dt(); }
 
-    static auto wrap_to_pi(double x) -> double {
-        return std::remainder(x, 2.0 * std::numbers::pi);
-    }
-
     auto calculate_yaw_control_torque(
         double solver_error, const TrajectoryFeedforward& trajectory_ff, bool auto_aim_active)
         -> double {
-        // 目标角速度：自瞄用视觉前馈，手动用摇杆速率
         double target_velocity = auto_aim_active ? trajectory_ff.yaw_ref_velocity
                                                  : manual_yaw_shift() * update_rate_value();
-        target_velocity = std::clamp(target_velocity, -kMaxTargetVelocity, kMaxTargetVelocity);
+        double torque_feedforward = trajectory_ff.yaw_velocity + trajectory_ff.yaw_acceleration;
 
         const double error = solver_error;
+
+        target_velocity = std::clamp(target_velocity, -kMaxTargetVelocity, kMaxTargetVelocity);
         const double velocity_error = *input_.yaw_velocity_imu - target_velocity;
         const double s = yaw_smc_c_ * (-error) + velocity_error;
 
@@ -379,7 +375,7 @@ private:
         double torque = -yaw_smc_J_
                           * (yaw_smc_c_ * velocity_error
                              + yaw_smc_epsilon_ * std::tanh(s / yaw_smc_phi_) + yaw_smc_k_ * s)
-                      + trajectory_ff.yaw_velocity + trajectory_ff.yaw_acceleration;
+                      + torque_feedforward;
         return std::clamp(torque, -yaw_smc_torque_limit_, yaw_smc_torque_limit_);
     }
 
@@ -455,7 +451,8 @@ private:
     double yaw_smc_phi_ = 1.5;
     double yaw_smc_torque_limit_ = 6.0;
     static constexpr double kMaxTargetVelocity = 20.0; // rad/s，防止异常输入
-    
+
+
 };
 
 } // namespace rmcs_core::controller::gimbal
