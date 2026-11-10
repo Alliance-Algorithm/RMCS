@@ -88,22 +88,22 @@ auto_aim_component:
     # 将强行绑定为对应阵营哨兵，仅供调试，严禁比赛启用。
     # 留空或填 unknow 表示禁用。
     dangerous_fallback: ""
-    manual_shoot: true
+    manual_shoot: false
     enable_rune: true
     camera_translation: [0.058, -0.08, 0.0]
     fire_control:
-      bullet_speed: 22.5
-      shoot_delay: 0.07
+      bullet_speed: 22.0
+      shoot_delay: 0.04
       offset_yaw: +0.8
-      offset_pitch: 0.0
+      offset_pitch: -0.5
       attack_window: 120.0
       degraded_angle_speed: 12.0
-      window_redundancy: 0.6
+      window_redundancy: 0.4
       window_hysteresis: 0.2
       attack_preaim: false
       require_stable_command: false
-      yaw_tolerance: 0.21
-      pitch_tolerance: 0.12
+      yaw_tolerance: 0.06
+      pitch_tolerance: 0.06
       rune_idle_duration: 0.6
       rune_shoot_duration: 0.2
 
@@ -120,7 +120,7 @@ deformable_infantry:
     chassis_motor_output_enabled: true # 测试云台时关闭底盘 8 个电机的 CAN 输出
     chassis_radius: 0.2341741
     rod_length: 0.140
-    yaw_motor_zero_point: 57459
+    yaw_motor_zero_point: 41730
     pitch_motor_zero_point: 6630
 
 chassis_controller:
@@ -218,11 +218,11 @@ gimbal_controller:
 
     # ---- [SMC] yaw 滑模控制 ----
     yaw_smc_J: 0.20
-    yaw_smc_c: 32.0
-    yaw_smc_epsilon: 60.0
-    yaw_smc_k: 10.0
-    yaw_smc_phi: 2.25
-    yaw_smc_torque_limit: 20.0
+    yaw_smc_c: 36.0
+    yaw_smc_epsilon: 100.0
+    yaw_smc_k: 30.0
+    yaw_smc_phi: 3.75
+    yaw_smc_torque_limit: 25.0
     #此处力矩限幅不是真实力矩，因为5010i10电机力矩虚高    
 
 friction_wheel_controller:

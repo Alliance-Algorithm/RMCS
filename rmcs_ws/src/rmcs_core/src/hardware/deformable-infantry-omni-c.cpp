@@ -324,6 +324,12 @@ private:
             , kRodLength(status.get_parameter("rod_length").as_double())
             , kDefaultRadius(kChassisRadiusBase + kRodLength) {
 
+            chassis_motor_output_enabled_ =
+                status.get_parameter_or("chassis_motor_output_enabled", true);
+            RCLCPP_INFO(
+                status.get_logger(), "[chassis] motor output %s",
+                chassis_motor_output_enabled_ ? "ENABLED" : "DISABLED (轮子/关节 CAN 已停止)");
+
             status.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
@@ -436,6 +442,8 @@ private:
         void command_update(bool even) {
             auto builder = board_->start_transmit();
             if (even) {
+                // ---- 底盘轮电机（可由 chassis_motor_output_enabled 关闭）----
+                if (chassis_motor_output_enabled_) {
                 builder.can_transmit(
                     Spec::kCans.kCan0,         //
                     {
@@ -487,6 +495,7 @@ private:
                             }
                                 .as_bytes(),
                     });
+                } // chassis_motor_output_enabled_
                 auto packet_can2_142 = gimbal_yaw_motor_.generate_command();
                 builder.can_transmit(
                     Spec::kCans.kCan2,         //
@@ -508,6 +517,8 @@ private:
                                 .as_bytes(),
                     });
             } else {
+                // ---- 底盘关节电机（可由 chassis_motor_output_enabled 关闭）----
+                if (chassis_motor_output_enabled_) {
                 for (size_t i = 0; i < 4; ++i) {
                     switch (i) {
                     case kLeftFront:
@@ -547,6 +558,7 @@ private:
                     default: break;
                     }
                 }
+                } // chassis_motor_output_enabled_
             }
         }
 
@@ -554,6 +566,8 @@ private:
 
         DeformableInfantryOmniC& status_;
         Component& command_;
+
+        bool chassis_motor_output_enabled_ = true;
 
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
 
