@@ -1,3 +1,4 @@
+#include "wheel_leg/encoder_unwrap.hpp"
 #include "wheel_leg/joint_coordinates.hpp"
 #include "wheel_leg/leg_kinematics.hpp"
 #include "wheel_leg/model/mechanics.hpp"
@@ -28,6 +29,8 @@ public:
             const auto prefix = std::string{"/wheel_leg/"} + kMotorNames[i];
             register_input(prefix + "/angle", angle_[i]);
             register_input(prefix + "/velocity", velocity_[i]);
+            if (i < 4)
+                register_input(prefix + "/angle_wrap_span", angle_wrap_span_[i]);
         }
         register_input("/wheel_leg/imu/quaternion", orientation_);
         register_input("/wheel_leg/imu/angular_velocity", gyro_);
@@ -62,9 +65,15 @@ public:
         if (!std::isfinite(dt_) || dt_ <= 0. || (velocity_sign_ != 1. && velocity_sign_ != -1.))
             throw std::invalid_argument("Invalid state estimator timing or velocity sign");
     }
+    void before_updating() override {
+        for (const auto& span : angle_wrap_span_)
+            if (!std::isfinite(*span) || *span <= std::numbers::pi)
+                throw std::invalid_argument("Joint angle_wrap_span must be finite and exceed pi");
+    }
     void update() override {
         if (*reset_ != last_reset_) {
             initialized_ = false;
+            unwrap_ = {};
             distance_ = 0.;
             last_reset_ = *reset_;
         }
@@ -84,12 +93,16 @@ public:
             return;
         }
         const auto orientation = orientation_->normalized();
+        // The drive reports position modulo 2 * P_MAX; use the configured span
+        // before the closed-chain relative-angle branch is selected below.
+        for (int i = 0; i < 4; ++i) {
+            unwrap_[i].update(api[i], *angle_wrap_span_[i]);
+            api[i] = unwrap_[i].value();
+        }
         auto q = model_position(api);
-        LegVector measured{}, previous{};
+        LegVector measured{};
         std::copy_n(q.begin(), 4, measured.begin());
-        std::copy_n(q_->begin(), 4, previous.begin());
-        const auto continuous =
-            continuous_legs(measured, initialized_ ? previous : measured, bounds_);
+        const auto continuous = continuous_legs(measured, bounds_);
         std::copy(continuous.begin(), continuous.end(), q.begin());
         *q_ = q;
         *dq_ = model_velocity(speed);
@@ -158,6 +171,8 @@ public:
 
 private:
     std::array<InputInterface<double>, 6> angle_, velocity_;
+    std::array<InputInterface<double>, 4> angle_wrap_span_;
+    std::array<WheelLegEncoderUnwrap, 4> unwrap_;
     InputInterface<Eigen::Quaterniond> orientation_;
     InputInterface<Eigen::Vector3d> gyro_;
     InputInterface<bool> available_;
