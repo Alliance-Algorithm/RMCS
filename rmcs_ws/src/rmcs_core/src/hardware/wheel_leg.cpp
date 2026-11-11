@@ -464,30 +464,38 @@ private:
         void update_feedback_warning() {
             const auto now = now_ns();
             auto missing = std::string{};
+            auto silent_motors = std::string{};
             for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
-                if (motor_last_ns_[i].load(std::memory_order_relaxed) > 0)
-                    continue;
-                if (!missing.empty())
-                    missing += ", ";
-                missing += std::format("{} ({})", kChannelNames[i], kChannelBuses[i]);
+                const auto stamp = motor_last_ns_[i].load(std::memory_order_relaxed);
+                if (stamp <= 0) {
+                    if (!missing.empty())
+                        missing += ", ";
+                    missing += std::format("{} ({})", kChannelNames[i], kChannelBuses[i]);
+                } else if (now - stamp >= kChannelSilentNs) {
+                    if (!silent_motors.empty())
+                        silent_motors += ", ";
+                    silent_motors += std::format(
+                        "{} {:.1f} ms ({})", kChannelNames[i],
+                        static_cast<double>(now - stamp) / 1'000'000.0, kChannelBuses[i]);
+                }
             }
             if (imu_last_ns_.load(std::memory_order_relaxed) <= 0) {
                 if (!missing.empty())
                     missing += ", ";
                 missing += "IMU";
             }
-            const bool startup_blocked = *enable_request_ && !missing.empty();
-            if (startup_blocked
-                && (!startup_blocked_ || now - last_startup_warning_ns_ >= 2'000'000'000)) {
-                RCLCPP_WARN(
+            const bool feedback_error = !missing.empty() || !silent_motors.empty();
+            if (feedback_error
+                && (!feedback_error_active_ || now - last_feedback_error_ns_ >= 200'000'000)) {
+                RCLCPP_ERROR(
                     status_.get_logger(),
-                    "WheelLeg startup blocked: no first feedback from [%s]; "
-                    "leg enable and recovery remain gated", missing.c_str());
-                last_startup_warning_ns_ = now;
-            } else if (startup_blocked_ && !startup_blocked && missing.empty()) {
-                RCLCPP_INFO(status_.get_logger(), "WheelLeg startup feedback complete");
+                    "WheelLeg feedback unavailable: no first sample [%s], silent motors [%s]",
+                    missing.c_str(), silent_motors.c_str());
+                last_feedback_error_ns_ = now;
+            } else if (feedback_error_active_ && !feedback_error) {
+                RCLCPP_INFO(status_.get_logger(), "WheelLeg feedback restored");
             }
-            startup_blocked_ = startup_blocked;
+            feedback_error_active_ = feedback_error;
             for (std::size_t i = 0; i < kChannelNames.size(); ++i) {
                 const auto stamp = motor_last_ns_[i].load(std::memory_order_relaxed);
                 const bool silent = stamp > 0 && now - stamp >= kChannelSilentNs;
@@ -845,8 +853,8 @@ private:
         WheelLegNormalActionGate normal_action_gate_;
         enum class FeedbackWarningState { kFresh, kMissing, kStale };
         FeedbackWarningState feedback_warning_state_ = FeedbackWarningState::kFresh;
-        bool startup_blocked_ = false;
-        std::int64_t last_startup_warning_ns_ = 0;
+        bool feedback_error_active_ = false;
+        std::int64_t last_feedback_error_ns_ = 0;
         bool previous_both_down_ = false;
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     };

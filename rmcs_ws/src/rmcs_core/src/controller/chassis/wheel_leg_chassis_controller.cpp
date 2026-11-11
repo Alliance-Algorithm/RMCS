@@ -20,8 +20,7 @@
 namespace rmcs_core::controller::chassis {
 class WheelLegResetSource final : public rmcs_executor::Component {
 public:
-    explicit WheelLegResetSource(bool& reset_active)
-        : reset_active_(reset_active) {
+    WheelLegResetSource() {
         register_input("/remote/switch/left", left_);
         register_input("/remote/switch/right", right_);
         register_input("/wheel_leg/dr16_fresh", fresh_);
@@ -34,15 +33,15 @@ public:
                         || (*left_ == Switch::DOWN && *right_ == Switch::DOWN);
         if (reset && !reset_active_) {
             ++*reset_;
-            reset_active_ = true;
         }
+        reset_active_ = reset;
     }
 
 private:
     InputInterface<rmcs_msgs::Switch> left_, right_;
     InputInterface<bool> fresh_;
     OutputInterface<std::size_t> reset_;
-    bool& reset_active_;
+    bool reset_active_ = false;
 };
 
 class WheelLegChassisController final
@@ -66,8 +65,8 @@ public:
             rmcs_description::BaseLink::DirectionVector{0., 0., 0.});
         register_output("/chassis/control_height", height_, .305);
         register_output("/chassis/control_enable", enable_, false);
-        reset_source_ = create_partner_component<WheelLegResetSource>(
-            get_component_name() + "_reset", reset_active_);
+        reset_source_ =
+            create_partner_component<WheelLegResetSource>(get_component_name() + "_reset");
         register_output("/chassis/jump/request_count", jump_request_, std::size_t{0});
         register_output("/chassis/control_mode", mode_, rmcs_msgs::ChassisMode::AUTO);
         vx_max_ = get_parameter_or("vx_max", 2.);
@@ -120,7 +119,6 @@ public:
                 if (std::chrono::duration<double>(now - *arm_started_).count() >= arm_dwell_) {
                     armed_ = true;
                     pending_ = false;
-                    reset_active_ = false;
                 }
             } else if (!middle)
                 arm_started_.reset();
@@ -241,7 +239,7 @@ private:
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     double vx_max_, vx_bias_, vy_max_, yaw_max_, spin_rate_, yaw_stick_rate_, deadzone_,
         height_min_, height_max_, nominal_height_, height_rate_, arm_dwell_;
-    bool yaw_invert_, armed_ = false, pending_ = false, reset_active_ = false, spin_forward_ = true;
+    bool yaw_invert_, armed_ = false, pending_ = false, spin_forward_ = true;
     rmcs_msgs::Switch last_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_left_ = rmcs_msgs::Switch::UNKNOWN;
     bool was_armed_ = false;

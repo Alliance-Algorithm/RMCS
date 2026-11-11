@@ -37,8 +37,10 @@ inline double forward_wheel_velocity(const JointVector& velocity) {
     return .5 * (velocity[4] - velocity[5]);
 }
 
-inline LegVector
-    continuous_legs(const LegVector& measured, const LegVector& previous, const LegBounds& bounds) {
+// The drive span unwrap upstream already returns a continuous hip angle; this
+// only picks the relative (closed-chain) branch, so no 2 pi multiple is ever
+// added to the absolute angle here.
+inline LegVector continuous_legs(const LegVector& measured, const LegBounds& bounds) {
     constexpr double tau = 2 * std::numbers::pi;
     auto result = measured;
     for (int side = 0; side < 2; ++side) {
@@ -47,7 +49,6 @@ inline LegVector
         const double midpoint = (bounds[side][0] + bounds[side][1]) / 2;
         const double delta = sign * (measured[aux] - measured[hip]);
         const double relative = delta + tau * std::nearbyint((midpoint - delta) / tau);
-        result[hip] += tau * std::nearbyint((previous[hip] - measured[hip]) / tau);
         result[aux] = result[hip] + sign * relative;
     }
     return result;

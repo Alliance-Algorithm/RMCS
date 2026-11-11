@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <numbers>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -60,7 +61,7 @@ public:
         std::uint16_t feedback_id = 0;
         bool reversed = false;
         double angle_bias = 0.0;    // rad
-        double position_max = 12.5; // [rad]
+        double position_max = std::numbers::pi; // [rad]
         double velocity_max = 45.0; // [rad/s]
         double torque_max = 54.0;   // [Nm]
         // Software bound; the drive's own current protection still applies between frames.
@@ -82,6 +83,9 @@ public:
         status_component.register_output(
             name_prefix + "/temperature_rotor", temperature_rotor_output_, 0.0);
         status_component.register_output(name_prefix + "/max_torque", max_torque_output_, 0.0);
+        // The 16-bit MIT position wraps every 2 * position_max; consumers need the span.
+        status_component.register_output(
+            name_prefix + "/angle_wrap_span", angle_wrap_span_output_, 2 * position_max_);
         status_component.register_output(name_prefix + "/fault_code", fault_code_output_, 0);
         status_component.register_output(name_prefix + "/status_code", status_code_output_, 0);
 
@@ -122,6 +126,7 @@ public:
         control_torque_max_ = std::min(config.control_torque_max, config.torque_max);
 
         *max_torque_output_ = control_torque_max_;
+        *angle_wrap_span_output_ = 2 * position_max_;
         fault_code_ = 0;
     }
 
@@ -231,6 +236,7 @@ public:
     double velocity() const { return velocity_; }
     double torque() const { return torque_; }
     double max_torque() const { return control_torque_max_; }
+    double angle_wrap_span() const { return 2 * position_max_; }
     double temperature_mos() const { return temperature_mos_; }
     double temperature_rotor() const { return temperature_rotor_; }
     int fault_code() const { return fault_code_; }
@@ -285,7 +291,7 @@ private:
     std::uint16_t feedback_id_ = 0;
     bool reversed_ = false;
     double angle_bias_ = 0.0;
-    double position_max_ = 12.5;
+    double position_max_ = std::numbers::pi;
     double velocity_max_ = 45.0;
     double torque_max_ = 54.0;
     double control_torque_max_ = 40.0;
@@ -308,6 +314,7 @@ private:
     rmcs_executor::Component::OutputInterface<double> temperature_mos_output_;
     rmcs_executor::Component::OutputInterface<double> temperature_rotor_output_;
     rmcs_executor::Component::OutputInterface<double> max_torque_output_;
+    rmcs_executor::Component::OutputInterface<double> angle_wrap_span_output_;
     rmcs_executor::Component::OutputInterface<int> fault_code_output_;
     rmcs_executor::Component::OutputInterface<int> status_code_output_;
 
