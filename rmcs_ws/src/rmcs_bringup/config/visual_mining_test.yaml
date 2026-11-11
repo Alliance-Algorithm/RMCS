@@ -9,12 +9,12 @@ rmcs_executor:
       # - rmcs::AutoAimPlayerComponent -> auto_aim_player
       # - rmcs::AutoAimVideoPlayerComponent -> auto_aim_video_player
       # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      - rmcs_core::controller::arm::ArmVisual -> arm_visual
+      # - rmcs_core::controller::arm::ArmVisual -> arm_visual
       
 
       # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      # - rmcs::RealSenseCapturerComponent -> realsense_capturer
-      # - rmcs::AutoMineComponent -> auto_mine_component
+      - rmcs::RealSenseCapturerComponent -> realsense_capturer
+      - rmcs::AutoMineComponent -> auto_mine_component
 
       # - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 
@@ -43,9 +43,11 @@ realsense_capturer:
     frame_topic: "/visual_mining/rgbd_frame"
     imu_snapshot_topic: ""
 
+auto_mine_component:
   ros__parameters:
     # 输入帧 topic，需与 RealSenseCapturerComponent 的 frame_topic 一致
     frame_topic: "/visual_mining/rgbd_frame"
+    camera_translation: [0.0, 0.0, 0.0]
 
 
 value_broadcaster:
