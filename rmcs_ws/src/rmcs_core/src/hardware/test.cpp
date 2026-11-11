@@ -85,7 +85,10 @@ private:
                   {heavy, heavy_command, "/chassis/steering/left_back"},
                   {heavy, heavy_command, "/chassis/steering/right_back"},
                   {heavy, heavy_command, "/chassis/steering/right_front"})
-            , pid_controller_({0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}) {
+            , dm_(heavy, heavy_command, "/gimbal/big_yaw")
+            , pid_controller_(
+                  {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0},
+                  {0.3, 0.0, 0.0}) {
 
             test_motor_[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
@@ -99,6 +102,7 @@ private:
             test_motor_[3].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     27.));
+            dm_.configure(device::DMMotorConfig{device::DMMotorType::DM8009}.reverse());
 
             heavy.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             heavy.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
@@ -115,6 +119,7 @@ private:
                 "/chassis/steering/right_back/control_torque", control_torque_[2], NAN);
             heavy.register_output(
                 "/chassis/steering/right_front/control_torque", control_torque_[3], NAN);
+            heavy.register_output("/gimbal/big_yaw/control_torque", control_torque_dm_, NAN);
 
             motor_watchdog_.reset(1000);
 
@@ -135,6 +140,15 @@ private:
 
         void command() {
             auto tx = board_->start_transmit();
+            static bool initial{false};
+            if (!initial) {
+                tx.can_transmit(
+                    Spec::kCans.kCan0, {
+                                           .can_id = 0x003,
+                                           .can_data = dm_.dm_enable_command().as_bytes(),
+                                       });
+                initial = !initial;
+            }
 
             tx.can_transmit(
                 Spec::kCans.kCan0, {
@@ -147,6 +161,11 @@ private:
                                                test_motor_[3].generate_command(),
                                            }
                                                .as_bytes(),
+                                   });
+            tx.can_transmit(
+                Spec::kCans.kCan0, {
+                                       .can_id = 0x003,
+                                       .can_data = dm_.generate_torque_command().as_bytes(),
                                    });
         }
 
@@ -172,6 +191,7 @@ private:
                         pid_controller_[2].update(target - test_motor_[2].get_velocity());
                     *control_torque_[3] =
                         pid_controller_[3].update(target - test_motor_[3].get_velocity());
+                    *control_torque_dm_ = pid_controller_[4].update(target - dm_.get_velocity());
                 } else if (dr16_.switch_right() == rmcs_msgs::Switch::UP) {
                     double target = 6.0;
                     *control_torque_[0] =
@@ -182,6 +202,7 @@ private:
                         pid_controller_[2].update(target - test_motor_[2].get_velocity());
                     *control_torque_[3] =
                         pid_controller_[3].update(target - test_motor_[3].get_velocity());
+                    *control_torque_dm_ = pid_controller_[4].update(target - dm_.get_velocity());
                 }
             }
 
@@ -189,24 +210,26 @@ private:
                 RCLCPP_INFO(
                     this->get_logger(),
                     "motor[0]_torque:%lf\nmotor[1]_torque:%lf\nmotor[2]_torque:%lf\nmotor[3]_"
-                    "torque:%lf",
+                    "torque:%lf\n\ndm_motor_torque:%lf",
                     test_motor_[0].get_torque(), test_motor_[1].get_torque(),
-                    test_motor_[2].get_torque(), test_motor_[3].get_torque());
+                    test_motor_[2].get_torque(), test_motor_[3].get_torque(), dm_.get_torque());
                 RCLCPP_INFO(
                     this->get_logger(),
                     "motor[0]_velocity:%lf\nmotor[1]_velocity:%lf\nmotor[2]_velocity:%lf\nmotor[3]_"
-                    "velocity:%lf",
+                    "velocity:%lf\ndm_motor_velocity:%lf",
                     test_motor_[0].get_velocity(), test_motor_[1].get_velocity(),
-                    test_motor_[2].get_velocity(), test_motor_[3].get_velocity());
+                    test_motor_[2].get_velocity(), test_motor_[3].get_velocity(),
+                    dm_.get_velocity());
                 motor_watchdog_.reset(1000);
             }
         }
 
         void reset_all() {
-            *control_torque_[0] = NAN;
-            *control_torque_[1] = NAN;
-            *control_torque_[2] = NAN;
-            *control_torque_[3] = NAN;
+            *control_torque_[0] = 0;
+            *control_torque_[1] = 0;
+            *control_torque_[2] = 0;
+            *control_torque_[3] = 0;
+            *control_torque_dm_ = 0;
         }
 
         void update_imu() {
@@ -230,6 +253,7 @@ private:
         void update_motor() {
             for (auto& motor : test_motor_)
                 motor.update();
+            dm_.update();
         }
 
     protected:
@@ -247,6 +271,7 @@ private:
                 case 0x202: test_motor_[1].store_status(data.can_data); break;
                 case 0x203: test_motor_[2].store_status(data.can_data); break;
                 case 0x204: test_motor_[3].store_status(data.can_data); break;
+                case 0x023: dm_.store_status(data.can_data); break;
                 }
             }
         }
@@ -270,8 +295,9 @@ private:
         device::Bmi088 bmi088_;
 
         device::DjiMotor test_motor_[4];
+        device::DMMotor dm_;
         rmcs_utility::TickTimer motor_watchdog_;
-        controller::pid::PidCalculator pid_controller_[4];
+        controller::pid::PidCalculator pid_controller_[5];
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
@@ -281,6 +307,7 @@ private:
         OutputInterface<double> roll_imu_angle;
 
         OutputInterface<double> control_torque_[4];
+        OutputInterface<double> control_torque_dm_;
 
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     } chassis_board_;
