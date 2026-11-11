@@ -13,6 +13,8 @@
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
+#include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/switch.hpp>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -21,6 +23,11 @@
 namespace rmcs_executor {
 class Executor {
 public:
+    static std::shared_ptr<Component> partner(const std::shared_ptr<Component>& component) {
+        if (component->partner_component_list_.size() != 1)
+            throw std::runtime_error("Expected one chassis reset partner");
+        return component->partner_component_list_.front();
+    }
     static void pair(const std::vector<std::shared_ptr<Component>>& list) {
         Component::OutputInfoMap info;
         for (const auto& component : list)
@@ -60,6 +67,26 @@ public:
 } // namespace rmcs_executor
 
 using namespace rmcs_core::controller::chassis;
+
+class TestRemote final : public rmcs_executor::Component {
+public:
+    TestRemote() {
+        register_output("/remote/joystick/right", joystick, Eigen::Vector2d::Zero());
+        register_output("/remote/switch/left", left, rmcs_msgs::Switch::UNKNOWN);
+        register_output("/remote/switch/right", right, rmcs_msgs::Switch::UNKNOWN);
+        register_output("/remote/keyboard", keyboard, rmcs_msgs::Keyboard::zero());
+        register_output("/remote/rotary_knob", knob, 0.);
+        register_output("/wheel_leg/dr16_fresh", fresh, false);
+        register_output("/predefined/timestamp", timestamp, std::chrono::steady_clock::now());
+    }
+    void update() override {}
+    OutputInterface<Eigen::Vector2d> joystick;
+    OutputInterface<rmcs_msgs::Switch> left, right;
+    OutputInterface<rmcs_msgs::Keyboard> keyboard;
+    OutputInterface<double> knob;
+    OutputInterface<bool> fresh;
+    OutputInterface<std::chrono::steady_clock::time_point> timestamp;
+};
 
 class TestFeedback final : public rmcs_executor::Component {
 public:
@@ -255,9 +282,50 @@ int main(int argc, char** argv) {
             rejected = true;
         }
         require(rejected, "Wrong model identity accepted");
+
+        Component::initializing_component_name = "reset_test_remote";
+        auto remote = std::make_shared<TestRemote>();
+        Component::initializing_component_name = "wheel_leg_chassis_controller";
+        auto chassis = loader.createSharedInstance(
+            "rmcs_core::controller::chassis::WheelLegChassisController");
+        auto reset_source = Executor::partner(chassis);
+        const std::vector<std::shared_ptr<Component>> reset_components{
+            remote, reset_source, chassis};
+        Executor::pair(reset_components);
+        const auto reset_step = [&] {
+            reset_source->update();
+            chassis->update();
+        };
+        const auto count = [&] {
+            return Executor::read<std::size_t>(reset_components, "/chassis/reset_count");
+        };
+        reset_step();
+        require(count() == 1, "Missing remote did not reset");
+        *remote->fresh = true;
+        *remote->left = *remote->right = rmcs_msgs::Switch::MIDDLE;
+        reset_step();
+        *remote->left = *remote->right = rmcs_msgs::Switch::DOWN;
+        reset_step();
+        require(count() == 2, "Double-down after remote recovery did not reset");
+        reset_step();
+        require(count() == 2, "Holding double-down repeated reset");
+        *remote->left = *remote->right = rmcs_msgs::Switch::MIDDLE;
+        reset_step();
+        require(
+            Executor::read<bool>(reset_components, "/chassis/control_enable"),
+            "Double-middle did not rearm");
+        *remote->left = *remote->right = rmcs_msgs::Switch::DOWN;
+        reset_step();
+        require(count() == 3, "Double-down after arming did not reset");
+        *remote->left = *remote->right = rmcs_msgs::Switch::MIDDLE;
+        reset_step();
+        require(
+            Executor::read<bool>(reset_components, "/chassis/control_enable"),
+            "Double-middle after reset did not rearm");
         std::cout
             << "Native components: request, actor context, flight compensation, busy edge, drive "
-               "loss, inference fault, reset and disarm passed; no hardware instantiated\n";
+               "loss, inference fault, reset, double-down rearm and disarm passed; no hardware "
+               "instantiated\n";
         rclcpp::shutdown();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
