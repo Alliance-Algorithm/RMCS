@@ -59,7 +59,7 @@ public:
             state.setVariablePosition(joint_name, 0.0);
         state.update();
 
-        plan_from_preview_ = declare_parameter<bool>("plan_from_preview", false);
+        plan_from_preview_ = declare_parameter<bool>("plan_from_preview", true);
 
         const auto& node = mtc_machine_.node();
         joint_states_pub_ =
@@ -141,8 +141,13 @@ private:
                 publish_current_state(std::chrono::steady_clock::now(), true);
             } else if (message.buttons.size() > 1 && message.buttons[1]) {
                 preview_.cancel();
+                const bool extract = next_extract_;
+                next_extract_ = !next_extract_;
                 request_id_ = mtc_machine_.process(
-                    mtc_dictionary_.helper_build_chunk({"current_start", "auto_walk"}),
+                    mtc_dictionary_.helper_build_chunk(
+                        {"current_start", extract ? "extra_right_back" : "store_right_back",
+                         extract ? "extra" : "store", "auto_walk"},
+                        {{"unit", "energy_unit_right_back"}}),
                     // mtc_dictionary_.helper_build_chunk(
                     // {"current_start", "extra_left_front", "extra", "tech_core_test",
                     //  "tech_core_place", "push", "rotate_P", "rotate_Q"},
@@ -273,13 +278,13 @@ private:
         joints.position.assign(joint_angles.begin(), joint_angles.end());
         joint_states_pub_->publish(joints);
 
-        RCLCPP_INFO_THROTTLE(
-            get_logger(), *mtc_machine_.node()->get_clock(), 1000,
-            "MTC preview rad=[%.3f, %.3f, %.3f, %.3f, %.3f, %.3f] gripper=%s", joint_angles[0],
-            joint_angles[1], joint_angles[2], joint_angles[3], joint_angles[4], joint_angles[5],
-            !gripper                               ? "unknown"
-            : *gripper == MTC::GripperAction::Open ? "open"
-                                                   : "close");
+        // RCLCPP_INFO_THROTTLE(
+        //     get_logger(), *mtc_machine_.node()->get_clock(), 1000,
+        //     "MTC preview rad=[%.3f, %.3f, %.3f, %.3f, %.3f, %.3f] gripper=%s", joint_angles[0],
+        //     joint_angles[1], joint_angles[2], joint_angles[3], joint_angles[4], joint_angles[5],
+        //     !gripper                               ? "unknown"
+        //     : *gripper == MTC::GripperAction::Open ? "open"
+        //                                            : "close");
 
         moveit_msgs::msg::PlanningScene scene_message;
         const bool full_scene = force_full_scene_ || scene_revision_ != preview_.scene_revision()
@@ -383,6 +388,7 @@ private:
     std::size_t scene_revision_ = 0;
     bool force_full_scene_ = true;
     bool plan_from_preview_ = false;
+    bool next_extract_ = true;
     std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point last_full_scene_{};
     std::chrono::steady_clock::time_point last_ee_pose_{};

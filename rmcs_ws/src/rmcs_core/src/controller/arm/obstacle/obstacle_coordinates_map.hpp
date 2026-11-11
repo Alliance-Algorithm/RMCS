@@ -24,13 +24,17 @@ public:
             {-0.01954, -0.057, -0.10918 + 0.06417 - 0.06417, std::numbers::pi, 0, 0});
 
         add_pose(
-            "energy_unit_left_front_store", {-0.23138, 0.12818, 0.084 + 0.0725 + 0.004, 0, 0, 0});
+            "energy_unit_left_front_store",
+            {-0.31178, 0.19618, 0.084 + 0.0725 + 0.004 + 0.0035, 0, 0, 0});
         add_pose(
-            "energy_unit_left_back_store", {-0.35338, 0.19618, 0.084 + 0.0725 + 0.004, 0, 0, 0});
+            "energy_unit_left_back_store",
+            {-0.43378, 0.12818, 0.084 + 0.0725 + 0.004 + 0.0035, 0, 0, 0});
         add_pose(
-            "energy_unit_right_back_store", {-0.35338, -0.19618, 0.084 + 0.0725 + 0.004, 0, 0, 0});
+            "energy_unit_right_back_store",
+            {-0.43378, -0.12818, 0.084 + 0.0725 + 0.004 + 0.0035, 0, 0, 0});
         add_pose(
-            "energy_unit_right_front_store", {-0.23138, -0.12818, 0.084 + 0.0725 + 0.004, 0, 0, 0});
+            "energy_unit_right_front_store",
+            {-0.31178, -0.19618, 0.084 + 0.0725 + 0.004 + 0.0035, 0, 0, 0});
 
         add_pose("gimbal", {0, 0, 0, 0, 0, 0});
         /*TODO: add poses for islands

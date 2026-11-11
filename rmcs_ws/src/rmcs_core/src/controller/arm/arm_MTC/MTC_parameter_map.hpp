@@ -24,12 +24,12 @@ inline auto make_mtc_parameter_map() {
                      .goal = makePoseGoal(
                          PoseTarget{
                              .frame_id = "base_link",
-                             .x = 0.191,
-                             .y = 0.003,
-                             .z = 0.181,
-                             .roll = -2.740,
-                             .pitch = -1.222,
-                             .yaw = 2.763}),
+                             .x = 0.183,
+                             .y = -0.013,
+                             .z = 0.200,
+                             .roll = 2.823,
+                             .pitch = -1.055,
+                             .yaw = -2.883}),
                      .group = "alliance_arm",
                      .ik_frame = "link_6"})}}}},
         {"tech_core_test",
@@ -134,12 +134,12 @@ inline auto make_mtc_parameter_map() {
                      .goal = makePoseGoal(
                          PoseTarget{
                              .frame_id = "base_link",
-                             .x = -0.142,
-                             .y = 0.128,
-                             .z = 0.165,
-                             .roll = 0.001,
-                             .pitch = -1.550,
-                             .yaw = 3.116}),
+                             .x = -0.217,
+                             .y = -0.143,
+                             .z = 0.175,
+                             .roll = 1.490,
+                             .pitch = -1.478,
+                             .yaw = 2.210}),
                      .group = "alliance_arm",
                      .ik_frame = "link_6"})}}}},
         {"store_right_front",
@@ -152,12 +152,12 @@ inline auto make_mtc_parameter_map() {
                      .goal = makePoseGoal(
                          PoseTarget{
                              .frame_id = "base_link",
-                             .x = 0.520,
-                             .y = 0.0,
-                             .z = 0.471,
-                             .roll = -0.785,
-                             .pitch = -1.571,
-                             .yaw = 0.785}),
+                             .x = -0.302,
+                             .y = -0.194,
+                             .z = 0.319,
+                             .roll = 1.840,
+                             .pitch = -1.388,
+                             .yaw = 1.914}),
                      .group = "alliance_arm",
                      .ik_frame = "link_6"})}}}},
         {"extra_right_back",
@@ -170,12 +170,12 @@ inline auto make_mtc_parameter_map() {
                      .goal = makePoseGoal(
                          PoseTarget{
                              .frame_id = "base_link",
-                             .x = -0.142,
-                             .y = 0.128,
-                             .z = 0.165,
-                             .roll = 0.001,
-                             .pitch = -1.550,
-                             .yaw = 3.116}),
+                             .x = -0.351,
+                             .y = -0.057,
+                             .z = 0.181,
+                             .roll = 1.684,
+                             .pitch = -1.450,
+                             .yaw = 1.730}),
                      .group = "alliance_arm",
                      .ik_frame = "link_6"})}}}},
         {"store_right_back",
@@ -188,12 +188,12 @@ inline auto make_mtc_parameter_map() {
                      .goal = makePoseGoal(
                          PoseTarget{
                              .frame_id = "base_link",
-                             .x = 0.520,
-                             .y = 0.0,
-                             .z = 0.471,
-                             .roll = -0.785,
-                             .pitch = -1.571,
-                             .yaw = 0.785}),
+                             .x = -0.438,
+                             .y = -0.087,
+                             .z = 0.297,
+                             .roll = 1.771,
+                             .pitch = -1.318,
+                             .yaw = 1.819}),
                      .group = "alliance_arm",
                      .ik_frame = "link_6"})}}}},
         {"extra",
@@ -203,8 +203,8 @@ inline auto make_mtc_parameter_map() {
              .children =
                  {
                      Step::makeOpenGripper("open_before_extra"),
-                     Step::makeAllowCollisions("unit"),
                      Step::makeAllowCollisions("gimbal"),
+                     Step::makeAllowCollisions("unit"),
                      Step::makeAllowObjectCollisions("unit", "gimbal"),
                      Step::makeMoveRelative(
                          "approach",
@@ -215,9 +215,9 @@ inline auto make_mtc_parameter_map() {
                              .min_distance =
                                  0.09,
                              .max_distance =
-                                 0.09,
+                                 0.10,
                              .motion =
-                                 {.solver = CartesianPathConfig{.step_size = 0.005},
+                                 {.solver = CartesianPathConfig{.step_size = 0.001},
                                   .velocity_scaling =
                                       0.3,
                                   .acceleration_scaling =
@@ -231,7 +231,29 @@ inline auto make_mtc_parameter_map() {
                      Step::makeAttachObject("unit"),
                      Step::
                          makeMoveRelative(
-                             "lift", MoveRelativeConfig{.direction = makeDirection(DirectionTarget{.frame_id = "link_6", .dir_x = 1.0, .dir_y = 0.0, .dir_z = 0.0}), .min_distance = 0.15, .max_distance = 0.15, .motion = {.solver = CartesianPathConfig{.step_size = 0.005}, .velocity_scaling = 0.3, .acceleration_scaling = 0.1, .timeout = 3.0}, .group = "alliance_arm", .ik_frame = "link_6"}),
+                             "lift_mine",
+                             MoveRelativeConfig{
+                                 .direction =
+                                     makeDirection(
+                                         DirectionTarget{
+                                             .frame_id = "link_6",
+                                             .dir_x =
+                                                 1.0,
+                                             .dir_y =
+                                                 0.0,
+                                             .dir_z =
+                                                 0.0}),
+                                 .min_distance = 0.1,
+                                 .max_distance = 0.15,
+                                 .motion =
+                                     {.solver = CartesianPathConfig{.step_size = 0.005},
+                                      .velocity_scaling =
+                                          0.3,
+                                      .acceleration_scaling = 0.1,
+                                      .timeout = 3.0},
+                                 .group =
+                                     "alliance_arm",
+                                 .ik_frame = "link_6"}),
                      Step::makeForbidObjectCollisions("unit", "gimbal"),
                      Step::makeForbidCollisions("gimbal"),
                  }}}},
@@ -241,6 +263,9 @@ inline auto make_mtc_parameter_map() {
              .type = ContainerType::Serial,
              .children =
                  {
+                     Step::makeAllowCollisions("gimbal"),
+                     Step::makeAllowCollisions("unit"),
+                     Step::makeAllowObjectCollisions("unit", "gimbal"),
                      Step::makeMoveRelative(
                          "lower",
                          MoveRelativeConfig{
@@ -254,10 +279,10 @@ inline auto make_mtc_parameter_map() {
                                              0.0,
                                          .dir_z =
                                              0.0}),
-                             .min_distance = 0.1,
-                             .max_distance = 0.1,
+                             .min_distance = 0.05,
+                             .max_distance = 0.15,
                              .motion =
-                                 {.solver = CartesianPathConfig{.step_size = 0.005},
+                                 {.solver = CartesianPathConfig{.step_size = 0.001},
                                   .velocity_scaling = 0.3,
                                   .acceleration_scaling = 0.1,
                                   .timeout = 3.0},
@@ -277,10 +302,10 @@ inline auto make_mtc_parameter_map() {
                                              .dir_x = 0.0,
                                              .dir_y = 0.0,
                                              .dir_z = 1.0}),
-                                 .min_distance = 0.1,
-                                 .max_distance = 0.1,
+                                 .min_distance = 0.05,
+                                 .max_distance = 0.13,
                                  .motion =
-                                     {.solver = CartesianPathConfig{.step_size = 0.005},
+                                     {.solver = CartesianPathConfig{.step_size = 0.001},
                                       .velocity_scaling = 0.3,
                                       .acceleration_scaling = 0.1,
                                       .timeout =
@@ -288,6 +313,8 @@ inline auto make_mtc_parameter_map() {
                                  .group = "alliance_arm",
                                  .ik_frame = "link_6"}),
                      Step::makeForbidCollisions("unit"),
+                     Step::makeForbidCollisions("gimbal"),
+                     Step::makeForbidObjectCollisions("unit", "gimbal"),
                  }}}},
         {"tech_core_place",
          {ContainerConfig{

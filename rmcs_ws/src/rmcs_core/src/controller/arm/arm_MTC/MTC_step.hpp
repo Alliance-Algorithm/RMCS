@@ -91,8 +91,8 @@ using SolverConfig = std::variant<PipelineConfig, JointInterpolationConfig, Cart
 
 struct MotionConfig {
     SolverConfig solver = PipelineConfig{};
-    double velocity_scaling = 0.7;
-    double acceleration_scaling = 0.5;
+    double velocity_scaling = 1.0;
+    double acceleration_scaling = 0.6;
     double timeout = 5.0;
 };
 

@@ -175,7 +175,7 @@ private:
         return {
             {ArmMode::Auto_Extract_LF,
              MtcRecipe{
-                 .blocks = {"current_start", "extra_left_front" /*, "extra", "auto_walk"*/},
+                 .blocks = {"current_start", "extra_left_front", "extra", "auto_walk"},
                  .bindings = {{"unit", "energy_unit_left_front"}}}},
             {ArmMode::Auto_Storage_LF,
              MtcRecipe{
@@ -503,16 +503,11 @@ private:
         if (!run.entered) {
             run.started = now;
             run.cursor = 0;
-            if (motion) {
-                if (!at_position(motion->positions.front(), 0.1)) {
-                    fail_execution("measured state does not match motion start (0.1 rad)");
-                    return;
-                }
-            } else if (const auto* command = std::get_if<MTC::GripperCommandConfig>(&step.action)) {
+            if (const auto* command = std::get_if<MTC::GripperCommandConfig>(&step.action)) {
                 set_gripper_mode(
                     command->action == MTC::GripperAction::Open ? rmcs_msgs::GripperMode::Open
                                                                 : rmcs_msgs::GripperMode::Close);
-            } else {
+            } else if (!motion) {
                 scene_job_.store(
                     std::make_shared<SceneJob>(SceneJob{generation, run.step, run.result}),
                     std::memory_order_release);
@@ -531,26 +526,25 @@ private:
                     return;
                 }
             }
-            if (!at_position(position, 1.0)) {
-                fail_execution("measured joints diverged from the trajectory (1.0 rad)");
-                return;
-            }
             for (std::size_t joint = 0; joint < 6; ++joint)
                 *target_theta[joint] = position[joint];
             if (elapsed < motion->duration())
                 return;
             if (!at_position(motion->positions.back(), 0.05)) {
-                if (elapsed > motion->duration() + 2.0)
-                    fail_execution("motion did not reach its endpoint within 2 seconds (0.05 rad)");
-                return;
+                if (elapsed < motion->duration() + 1.0)
+                    return;
+                RCLCPP_WARN(
+                    get_logger(),
+                    "Motion at %s did not reach its endpoint within 1 second (0.05 rad); "
+                    "continuing task",
+                    step.stage_path.c_str());
             }
         } else if (const auto* command = std::get_if<MTC::GripperCommandConfig>(&step.action)) {
             const auto expected = command->action == MTC::GripperAction::Open
                                     ? rmcs_msgs::GripperMode::Open
                                     : rmcs_msgs::GripperMode::Close;
             if (get_gripper_mode() != expected) {
-                fail_execution("gripper command was overridden");
-                return;
+                set_gripper_mode(expected);
             }
             // Preserve the old 500-update dwell at 1000 Hz; this is not grasp feedback.
             if (elapsed < 0.5)
@@ -560,8 +554,9 @@ private:
             if (!result || result->generation != generation || result->step != run.step)
                 return;
             if (!result->error.empty()) {
-                fail_execution(result->error);
-                return;
+                RCLCPP_WARN(
+                    get_logger(), "Scene update failed at %s: %s; continuing task",
+                    step.stage_path.c_str(), result->error.c_str());
             }
         }
         ++run.step;
@@ -765,7 +760,7 @@ private:
         };
 
         switch (gripper_mode) {
-        case rmcs_msgs::GripperMode::Open:
+        case rmcs_msgs::GripperMode::Close:
             if (!initial_calibration) {
                 calibrate_zero_point();
             } else {
@@ -773,7 +768,7 @@ private:
                     std::min(*gripper_angle_ + gripper_step, gripper_open_angle);
             }
             break;
-        case rmcs_msgs::GripperMode::Close:
+        case rmcs_msgs::GripperMode::Open:
             if (!initial_calibration) {
                 calibrate_zero_point();
             } else {
