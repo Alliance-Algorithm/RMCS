@@ -59,6 +59,7 @@ CATKIN_IGNORE
 # Hik camera log files
 MvFGSdkLog
 MvSdkLog
+$(ALLUSERSPROFILE)/
 
 # SSH key files
 id_rsa
@@ -66,6 +67,8 @@ id_rsa.pub
 
 # Recording files
 record/
+/records/
+/raw_image/
 
 # Docker Compose override (personal config)
 docker-compose.override.yml

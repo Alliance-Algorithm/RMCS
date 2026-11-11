@@ -1,0 +1,49 @@
+# 本机相机采集、录像、网页调参与可选识别预览。
+# 启动 start-streamer 后访问 http://127.0.0.1:18080/autoaim。
+# 曝光和增益由网页实时设置，仅本次运行有效，断线重连沿用最后成功值。
+# 启动不会自动录制，可在网页“远程录制”面板开始/停止。
+# 网页“开始识别”仅标注预览画面，默认关闭，录像仍保存原始图像。
+
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs::AutoAimTunableCapturerComponent -> auto_aim_capturer
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimDetectionPreviewComponent -> auto_aim_detection_preview
+      - rmcs::AutoAimStreamerComponent -> auto_aim_streamer
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 700.0
+    gain: 1.8
+    framerate: 120.0
+    invert_image: false
+    use_hardware_sync: false
+    delay_ms: 0.0
+    imu_snapshot_topic: ""
+    frame_topic: "/gimbal/auto_aim/camera_frame"
+
+auto_aim_recorder:
+  ros__parameters:
+    output_path: "/workspaces/RMCS/records"
+    queue_depth: 16
+    flush_every_n_frames: 64
+    max_duration_seconds: 0
+    max_videos_size_gb: 20.0
+    auto_record: false
+
+auto_aim_detection_preview:
+  ros__parameters:
+    capturer_component: "auto_aim_capturer"
+    frame_topic: "/gimbal/auto_aim/camera_frame"
+    output_frame_topic: "/gimbal/auto_aim/detection_preview_frame"
+
+auto_aim_streamer:
+  ros__parameters:
+    frame_topic: "/gimbal/auto_aim/detection_preview_frame"
+    framerate: 60
+    monitor_host: "127.0.0.1"
+    monitor_port: "5000"
+    stream_type: "RTP_H264"
