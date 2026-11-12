@@ -58,8 +58,14 @@ public:
 
 private:
     void calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr) {
-
-        RCLCPP_INFO(get_logger(), "pitch:%f", *chassis_board_.pitch_imu_angle);
+        RCLCPP_INFO(
+            logger_,
+            "steering_left_front:%d\nsteering_left_back:%d\nsteering_right_back:%d\nsteering_right_"
+            "front:%d\n",
+            chassis_board_.steering_motor_[0].calibrate_zero_point(),
+            chassis_board_.steering_motor_[1].calibrate_zero_point(),
+            chassis_board_.steering_motor_[2].calibrate_zero_point(),
+            chassis_board_.steering_motor_[3].calibrate_zero_point());
     }
 
     rclcpp::Logger logger_;
@@ -97,9 +103,9 @@ private:
                   {heavy, heavy_command, "/chassis/wheel/right_front"})
             , master_lift_motor_(
                   {heavy, heavy_command, "/chassis/lift/master_left_front"},
-                  {heavy, heavy_command, "/chassis/lift/master_right_front"},
                   {heavy, heavy_command, "/chassis/lift/master_left_back"},
-                  {heavy, heavy_command, "/chassis/lift/master_right_back"})
+                  {heavy, heavy_command, "/chassis/lift/master_right_back"},
+                  {heavy, heavy_command, "/chassis/lift/master_right_front"})
             , slave_lift_motor_(
                   {heavy, heavy_command, "/chassis/lift/slave_left"},
                   {heavy, heavy_command, "/chassis/lift/slave_right"}) {
@@ -174,12 +180,12 @@ private:
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(27.));
 
-            heavy.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
-            heavy.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
-            heavy.register_output("pitch_imu_velocity", pitch_imu_velocity, NAN);
-            heavy.register_output("pitch_imu_angle", pitch_imu_angle, NAN);
-            heavy.register_output("roll_imu_velocity", roll_imu_velocity, NAN);
-            heavy.register_output("roll_imu_angle", roll_imu_angle, NAN);
+            heavy.register_output("/chassis/yaw_imu_velocity", yaw_imu_velocity_, NAN);
+            heavy.register_output("/chassis/yaw_imu_angle", yaw_imu_angle_, NAN);
+            heavy.register_output("/chassis/pitch_imu_velocity", pitch_imu_velocity_, NAN);
+            heavy.register_output("/chassis/pitch_imu_angle", pitch_imu_angle_, NAN);
+            heavy.register_output("/chassis/roll_imu_velocity", roll_imu_velocity_, NAN);
+            heavy.register_output("/chassis/roll_imu_angle", roll_imu_angle_, NAN);
 
             bmi088_.set_coordinate_mapping(
                 [](double x, double y, double z) { return std::make_tuple(-x, -y, +z); });
@@ -233,14 +239,15 @@ private:
             const double q2 = bmi088_.q2();
             const double q3 = bmi088_.q3();
 
-            *roll_imu_velocity = bmi088_.gx();
-            *pitch_imu_velocity = bmi088_.gy();
-            *yaw_imu_velocity = bmi088_.gz();
+            *roll_imu_velocity_ = bmi088_.gx();
+            *pitch_imu_velocity_ = bmi088_.gy();
+            *yaw_imu_velocity_ = bmi088_.gz();
 
-            *roll_imu_angle =
+            *roll_imu_angle_ =
                 std::atan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2));
-            *pitch_imu_angle = std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
-            *yaw_imu_angle = std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
+            *pitch_imu_angle_ = std::asin(std::clamp(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0));
+            *yaw_imu_angle_ =
+                std::atan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3));
         }
 
         void update_motor() {
@@ -300,12 +307,12 @@ private:
         device::DjiMotor master_lift_motor_[4];
         device::DjiMotor slave_lift_motor_[2];
 
-        OutputInterface<double> yaw_imu_velocity;
-        OutputInterface<double> yaw_imu_angle;
-        OutputInterface<double> pitch_imu_velocity;
-        OutputInterface<double> pitch_imu_angle;
-        OutputInterface<double> roll_imu_velocity;
-        OutputInterface<double> roll_imu_angle;
+        OutputInterface<double> yaw_imu_velocity_;
+        OutputInterface<double> yaw_imu_angle_;
+        OutputInterface<double> pitch_imu_velocity_;
+        OutputInterface<double> pitch_imu_angle_;
+        OutputInterface<double> roll_imu_velocity_;
+        OutputInterface<double> roll_imu_angle_;
 
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
 

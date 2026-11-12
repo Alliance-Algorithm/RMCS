@@ -68,6 +68,9 @@
   <class type="rmcs_core::controller::chassis::LunarRoverChassisController" base_class_type="rmcs_executor::Component">
     <description>Lunar rover chassis controller.</description>
   </class>
+  <class type="rmcs_core::controller::chassis::HeavyStabilizingController" base_class_type="rmcs_executor::Component">
+    <description>Gravity compensation and IMU self-leveling for the adjustable heavy chassis lifts.</description>
+  </class>
   <class type="rmcs_core::controller::chassis::SteeringWheelController" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
