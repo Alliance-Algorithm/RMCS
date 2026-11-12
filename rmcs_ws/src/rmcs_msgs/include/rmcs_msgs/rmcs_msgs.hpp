@@ -86,17 +86,17 @@ constexpr auto to_string(RobotColor color) noexcept -> const char* {
 constexpr auto to_string(ArmorID id) noexcept -> const char* {
     switch (id) {
     case ArmorID::Unknown: return "Unknown";
-    case ArmorID::Hero: return "Hero";
-    case ArmorID::Engineer: return "Engineer";
+    case ArmorID::Heavy: return "Heavy";
+    case ArmorID::Reserved: return "Reserved";
     case ArmorID::InfantryIII: return "InfantryIII";
     case ArmorID::InfantryIV: return "InfantryIV";
     case ArmorID::InfantryV: return "InfantryV";
-    case ArmorID::Aerial: return "Aerial";
+    case ArmorID::AerialSystem: return "AerialSystem";
     case ArmorID::Sentry: return "Sentry";
     case ArmorID::Dart: return "Dart";
     case ArmorID::Radar: return "Radar";
-    case ArmorID::Outpost: return "Outpost";
     case ArmorID::Base: return "Base";
+    case ArmorID::Outpost: return "Outpost";
     }
     return "INVALID";
 }
@@ -104,28 +104,28 @@ constexpr auto to_string(ArmorID id) noexcept -> const char* {
 constexpr auto to_string(RobotId::Value id) noexcept -> const char* {
     switch (id) {
     case RobotId::UNKNOWN: return "UNKNOWN";
-    case RobotId::RED_HERO: return "RED_HERO";
-    case RobotId::RED_ENGINEER: return "RED_ENGINEER";
+    case RobotId::RED_HEAVY: return "RED_HEAVY";
+    case RobotId::RED_RESERVED: return "RED_RESERVED";
     case RobotId::RED_INFANTRY_III: return "RED_INFANTRY_III";
     case RobotId::RED_INFANTRY_IV: return "RED_INFANTRY_IV";
     case RobotId::RED_INFANTRY_V: return "RED_INFANTRY_V";
-    case RobotId::RED_AERIAL: return "RED_AERIAL";
+    case RobotId::RED_AERIAL_SYSTEM: return "RED_AERIAL_SYSTEM";
     case RobotId::RED_SENTRY: return "RED_SENTRY";
     case RobotId::RED_DART: return "RED_DART";
     case RobotId::RED_RADAR: return "RED_RADAR";
-    case RobotId::RED_OUTPOST: return "RED_OUTPOST";
     case RobotId::RED_BASE: return "RED_BASE";
-    case RobotId::BLUE_HERO: return "BLUE_HERO";
-    case RobotId::BLUE_ENGINEER: return "BLUE_ENGINEER";
+    case RobotId::R_OUTPOST: return "R_OUTPOST";
+    case RobotId::BLUE_HEAVY: return "BLUE_HEAVY";
+    case RobotId::BLUE_RESERVED: return "BLUE_RESERVED";
     case RobotId::BLUE_INFANTRY_III: return "BLUE_INFANTRY_III";
     case RobotId::BLUE_INFANTRY_IV: return "BLUE_INFANTRY_IV";
     case RobotId::BLUE_INFANTRY_V: return "BLUE_INFANTRY_V";
-    case RobotId::BLUE_AERIAL: return "BLUE_AERIAL";
+    case RobotId::BLUE_AERIAL_SYSTEM: return "BLUE_AERIAL_SYSTEM";
     case RobotId::BLUE_SENTRY: return "BLUE_SENTRY";
     case RobotId::BLUE_DART: return "BLUE_DART";
     case RobotId::BLUE_RADAR: return "BLUE_RADAR";
-    case RobotId::BLUE_OUTPOST: return "BLUE_OUTPOST";
     case RobotId::BLUE_BASE: return "BLUE_BASE";
+    case RobotId::B_OUTPOST: return "B_OUTPOST";
     }
     return "INVALID";
 }
@@ -158,40 +158,40 @@ constexpr auto to_string(Switch value) noexcept -> const char* {
 constexpr auto to_string(FullRobotId::Value id) noexcept -> const char* {
     switch (id) {
     case FullRobotId::UNKNOWN: return "UNKNOWN";
-    case FullRobotId::RED_HERO: return "RED_HERO";
-    case FullRobotId::RED_ENGINEER: return "RED_ENGINEER";
+    case FullRobotId::RED_HEAVY: return "RED_HEAVY";
+    case FullRobotId::RED_RESERVED: return "RED_RESERVED";
     case FullRobotId::RED_INFANTRY_III: return "RED_INFANTRY_III";
     case FullRobotId::RED_INFANTRY_IV: return "RED_INFANTRY_IV";
     case FullRobotId::RED_INFANTRY_V: return "RED_INFANTRY_V";
-    case FullRobotId::RED_AERIAL: return "RED_AERIAL";
+    case FullRobotId::RED_AERIAL_SYSTEM: return "RED_AERIAL_SYSTEM";
     case FullRobotId::RED_SENTRY: return "RED_SENTRY";
     case FullRobotId::RED_DART: return "RED_DART";
     case FullRobotId::RED_RADAR: return "RED_RADAR";
-    case FullRobotId::RED_OUTPOST: return "RED_OUTPOST";
     case FullRobotId::RED_BASE: return "RED_BASE";
-    case FullRobotId::BLUE_HERO: return "BLUE_HERO";
-    case FullRobotId::BLUE_ENGINEER: return "BLUE_ENGINEER";
+    case FullRobotId::R_OUTPOST: return "R_OUTPOST";
+    case FullRobotId::BLUE_HEAVY: return "BLUE_HEAVY";
+    case FullRobotId::BLUE_RESERVED: return "BLUE_RESERVED";
     case FullRobotId::BLUE_INFANTRY_III: return "BLUE_INFANTRY_III";
     case FullRobotId::BLUE_INFANTRY_IV: return "BLUE_INFANTRY_IV";
     case FullRobotId::BLUE_INFANTRY_V: return "BLUE_INFANTRY_V";
-    case FullRobotId::BLUE_AERIAL: return "BLUE_AERIAL";
+    case FullRobotId::BLUE_AERIAL_SYSTEM: return "BLUE_AERIAL_SYSTEM";
     case FullRobotId::BLUE_SENTRY: return "BLUE_SENTRY";
     case FullRobotId::BLUE_DART: return "BLUE_DART";
     case FullRobotId::BLUE_RADAR: return "BLUE_RADAR";
-    case FullRobotId::BLUE_OUTPOST: return "BLUE_OUTPOST";
     case FullRobotId::BLUE_BASE: return "BLUE_BASE";
-    case FullRobotId::RED_HERO_CLIENT: return "RED_HERO_CLIENT";
-    case FullRobotId::RED_ENGINEER_CLIENT: return "RED_ENGINEER_CLIENT";
+    case FullRobotId::B_OUTPOST: return "B_OUTPOST";
+    case FullRobotId::RED_HEAVY_CLIENT: return "RED_HEAVY_CLIENT";
+    case FullRobotId::RED_RESERVED_CLIENT: return "RED_RESERVED_CLIENT";
     case FullRobotId::RED_INFANTRY_III_CLIENT: return "RED_INFANTRY_III_CLIENT";
     case FullRobotId::RED_INFANTRY_IV_CLIENT: return "RED_INFANTRY_IV_CLIENT";
     case FullRobotId::RED_INFANTRY_V_CLIENT: return "RED_INFANTRY_V_CLIENT";
-    case FullRobotId::RED_AERIAL_CLIENT: return "RED_AERIAL_CLIENT";
-    case FullRobotId::BLUE_HERO_CLIENT: return "BLUE_HERO_CLIENT";
-    case FullRobotId::BLUE_ENGINEER_CLIENT: return "BLUE_ENGINEER_CLIENT";
+    case FullRobotId::RED_AERIAL_SYSTEM_CLIENT: return "RED_AERIAL_SYSTEM_CLIENT";
+    case FullRobotId::BLUE_HEAVY_CLIENT: return "BLUE_HEAVY_CLIENT";
+    case FullRobotId::BLUE_RESERVED_CLIENT: return "BLUE_RESERVED_CLIENT";
     case FullRobotId::BLUE_INFANTRY_III_CLIENT: return "BLUE_INFANTRY_III_CLIENT";
     case FullRobotId::BLUE_INFANTRY_IV_CLIENT: return "BLUE_INFANTRY_IV_CLIENT";
     case FullRobotId::BLUE_INFANTRY_V_CLIENT: return "BLUE_INFANTRY_V_CLIENT";
-    case FullRobotId::BLUE_AERIAL_CLIENT: return "BLUE_AERIAL_CLIENT";
+    case FullRobotId::BLUE_AERIAL_SYSTEM_CLIENT: return "BLUE_AERIAL_SYSTEM_CLIENT";
     case FullRobotId::REFEREE_SERVER: return "REFEREE_SERVER";
     }
     return "INVALID";

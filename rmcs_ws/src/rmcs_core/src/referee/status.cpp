@@ -58,8 +58,7 @@ public:
             "/referee/sentry/rebirth_gold_cost", sentry_rebirth_gold_cost_, uint16_t{0});
 
         register_output("/referee/robots/hp", robots_hp_);
-        register_output("/referee/ally/hero_hp", ally_hero_hp_, 0);
-        register_output("/referee/ally/engineer_hp", ally_engineer_hp_, 0);
+        register_output("/referee/ally/heavy_hp", ally_heavy_hp_, 0);
         register_output("/referee/ally/infantry_1_hp", ally_infantry_1_hp_, 0);
         register_output("/referee/ally/infantry_2_hp", ally_infantry_2_hp_, 0);
         register_output("/referee/ally/outpost/hp", ally_outpost_hp_, 0);
@@ -200,9 +199,18 @@ private:
     void update_event_data() {
         auto& data = reinterpret_cast<EventData&>(frame_.body.data);
 
-        *ally_small_energy_activation_status_ = data.ally_small_energy_activation_status;
-        *ally_big_energy_activation_status_ = data.ally_big_energy_activation_status;
-        *ally_fortress_occupation_status_ = data.ally_fortress_occupation_status;
+        *ally_small_energy_activation_status_ = data.first.ally_small_energy_activation_status;
+        *ally_big_energy_activation_status_ = data.first.ally_big_energy_activation_status;
+
+        switch ((*robot_id_).color()) {
+        case rmcs_msgs::RobotColor::RED:
+            *ally_fortress_occupation_status_ = data.first.r_fortress_activation_status;
+            break;
+        case rmcs_msgs::RobotColor::BLUE:
+            *ally_fortress_occupation_status_ = data.first.b_fortress_activation_status;
+            break;
+        default: *ally_fortress_occupation_status_ = 0; break;
+        }
     }
 
     void update_dart_info() {
@@ -214,15 +222,27 @@ private:
     void update_game_robot_hp() {
         auto& data = reinterpret_cast<GameRobotHp&>(frame_.body.data);
         *robots_hp_ = data;
-        *ally_hero_hp_ = data.ally_1_robot_hp;
-        *ally_engineer_hp_ = data.ally_2_robot_hp;
+        *ally_heavy_hp_ = data.ally_heavy_hp;
         *ally_infantry_1_hp_ = data.ally_3_robot_hp;
         *ally_infantry_2_hp_ = data.ally_4_robot_hp;
-        *ally_outpost_hp_ = data.ally_outpost_hp;
         *ally_base_hp_ = data.ally_base_hp;
-        *enemy_outpost_hp_ = data.enemy_outpost_hp;
         *enemy_base_hp_ = data.enemy_base_hp;
         *damage_difference_ = data.damage_difference;
+
+        switch ((*robot_id_).color()) {
+        case rmcs_msgs::RobotColor::RED:
+            *ally_outpost_hp_ = data.r_outpost_hp;
+            *enemy_outpost_hp_ = data.b_outpost_hp;
+            break;
+        case rmcs_msgs::RobotColor::BLUE:
+            *ally_outpost_hp_ = data.b_outpost_hp;
+            *enemy_outpost_hp_ = data.r_outpost_hp;
+            break;
+        default:
+            *ally_outpost_hp_ = 0;
+            *enemy_outpost_hp_ = 0;
+            break;
+        }
     }
 
     void update_robot_status() {
@@ -367,8 +387,7 @@ private:
     OutputInterface<double> robot_buffer_energy_;
 
     OutputInterface<GameRobotHp> robots_hp_;
-    OutputInterface<uint16_t> ally_hero_hp_;
-    OutputInterface<uint16_t> ally_engineer_hp_;
+    OutputInterface<uint16_t> ally_heavy_hp_;
     OutputInterface<uint16_t> ally_infantry_1_hp_;
     OutputInterface<uint16_t> ally_infantry_2_hp_;
     OutputInterface<uint16_t> ally_outpost_hp_;

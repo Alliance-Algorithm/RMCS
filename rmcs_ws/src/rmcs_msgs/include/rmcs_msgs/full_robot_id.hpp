@@ -12,43 +12,43 @@ public:
     enum Value : uint16_t {
         UNKNOWN = 0,
 
-        RED_HERO = 1,
-        RED_ENGINEER = 2,
+        RED_HEAVY = 1,
+        RED_RESERVED = 2,
         RED_INFANTRY_III = 3,
         RED_INFANTRY_IV = 4,
         RED_INFANTRY_V = 5,
-        RED_AERIAL = 6,
+        RED_AERIAL_SYSTEM = 6,
         RED_SENTRY = 7,
         RED_DART = 8,
         RED_RADAR = 9,
-        RED_OUTPOST = 10,
-        RED_BASE = 11,
+        RED_BASE = 10,
+        R_OUTPOST = 11,
 
-        BLUE_HERO = 101,
-        BLUE_ENGINEER = 102,
+        BLUE_HEAVY = 101,
+        BLUE_RESERVED = 102,
         BLUE_INFANTRY_III = 103,
         BLUE_INFANTRY_IV = 104,
         BLUE_INFANTRY_V = 105,
-        BLUE_AERIAL = 106,
+        BLUE_AERIAL_SYSTEM = 106,
         BLUE_SENTRY = 107,
         BLUE_DART = 108,
         BLUE_RADAR = 109,
-        BLUE_OUTPOST = 110,
-        BLUE_BASE = 111,
+        BLUE_BASE = 110,
+        B_OUTPOST = 111,
 
-        RED_HERO_CLIENT = 0x0101,
-        RED_ENGINEER_CLIENT = 0x0102,
+        RED_HEAVY_CLIENT = 0x0101,
+        RED_RESERVED_CLIENT = 0x0102,
         RED_INFANTRY_III_CLIENT = 0x0103,
         RED_INFANTRY_IV_CLIENT = 0x0104,
         RED_INFANTRY_V_CLIENT = 0x0105,
-        RED_AERIAL_CLIENT = 0x0106,
+        RED_AERIAL_SYSTEM_CLIENT = 0x0106,
 
-        BLUE_HERO_CLIENT = 0x0165,
-        BLUE_ENGINEER_CLIENT = 0x0166,
+        BLUE_HEAVY_CLIENT = 0x0165,
+        BLUE_RESERVED_CLIENT = 0x0166,
         BLUE_INFANTRY_III_CLIENT = 0x0167,
         BLUE_INFANTRY_IV_CLIENT = 0x0168,
         BLUE_INFANTRY_V_CLIENT = 0x0169,
-        BLUE_AERIAL_CLIENT = 0x016A,
+        BLUE_AERIAL_SYSTEM_CLIENT = 0x016A,
 
         REFEREE_SERVER = 0x8080,
     };
@@ -83,7 +83,7 @@ public:
         if (value_ == REFEREE_SERVER) [[unlikely]]
             return FullRobotId::UNKNOWN;
 
-        return static_cast<Value>(value_ & 0x0100);
+        return static_cast<Value>(value_ & 0x00FF);
     }
 
     constexpr FullRobotId client() const {

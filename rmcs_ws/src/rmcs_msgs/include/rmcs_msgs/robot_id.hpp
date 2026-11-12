@@ -7,17 +7,17 @@
 namespace rmcs_msgs {
 enum class ArmorID : uint16_t {
     Unknown = 0,
-    Hero = 1,
-    Engineer = 2,
+    Heavy = 1,
+    Reserved = 2,
     InfantryIII = 3,
     InfantryIV = 4,
     InfantryV = 5,
-    Aerial = 6,
+    AerialSystem = 6,
     Sentry = 7,
     Dart = 8,
     Radar = 9,
-    Outpost = 10,
-    Base = 11,
+    Base = 10,
+    Outpost = 11,
 };
 
 class RobotId {
@@ -25,29 +25,29 @@ public:
     enum Value : uint8_t {
         UNKNOWN = 0,
 
-        RED_HERO = 1,
-        RED_ENGINEER = 2,
+        RED_HEAVY = 1,
+        RED_RESERVED = 2,
         RED_INFANTRY_III = 3,
         RED_INFANTRY_IV = 4,
         RED_INFANTRY_V = 5,
-        RED_AERIAL = 6,
+        RED_AERIAL_SYSTEM = 6,
         RED_SENTRY = 7,
         RED_DART = 8,
         RED_RADAR = 9,
-        RED_OUTPOST = 10,
-        RED_BASE = 11,
+        RED_BASE = 10,
+        R_OUTPOST = 11,
 
-        BLUE_HERO = 101,
-        BLUE_ENGINEER = 102,
+        BLUE_HEAVY = 101,
+        BLUE_RESERVED = 102,
         BLUE_INFANTRY_III = 103,
         BLUE_INFANTRY_IV = 104,
         BLUE_INFANTRY_V = 105,
-        BLUE_AERIAL = 106,
+        BLUE_AERIAL_SYSTEM = 106,
         BLUE_SENTRY = 107,
         BLUE_DART = 108,
         BLUE_RADAR = 109,
-        BLUE_OUTPOST = 110,
-        BLUE_BASE = 111,
+        BLUE_BASE = 110,
+        B_OUTPOST = 111,
     };
 
     constexpr RobotId()

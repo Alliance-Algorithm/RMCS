@@ -1,7 +1,10 @@
+#include <algorithm>
 #include <chrono>
+#include <cstdint>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/robot_id.hpp>
 #include <rmcs_msgs/serial_interface.hpp>
 #include <rmcs_utility/crc/dji_crc.hpp>
 
@@ -29,6 +32,11 @@ public:
         register_input("/referee/command/interaction", interaction_field_, false);
         register_input("/referee/command/map_marker", map_marker_field_, false);
         register_input("/referee/command/text_display", text_display_field_, false);
+        register_input("/referee/id", robot_id_, false);
+        register_input("/referee/ally/base/hp", ally_base_hp_, false);
+
+        bandwidth_limit_ = get_parameter_or("bandwidth_limit", 0.0);
+        base_hp_max_ = static_cast<uint16_t>(get_parameter_or("base_hp_max", 0));
     }
 
     void before_updating() override {
@@ -38,6 +46,10 @@ public:
             map_marker_field_.bind_directly(empty_field_);
         if (!text_display_field_.ready())
             text_display_field_.bind_directly(empty_field_);
+        if (!robot_id_.ready())
+            robot_id_.make_and_bind_directly(rmcs_msgs::RobotId{});
+        if (!ally_base_hp_.ready())
+            ally_base_hp_.make_and_bind_directly(uint16_t{0});
     }
 
     void update() override {
@@ -47,6 +59,27 @@ public:
         using namespace std::chrono_literals;
         auto now = std::chrono::steady_clock::now();
         auto& serial = const_cast<rmcs_msgs::SerialInterface&>(*serial_);
+
+        const auto robot_id = *robot_id_;
+        const auto is_sentry =
+            robot_id == rmcs_msgs::RobotId::RED_SENTRY
+            || robot_id == rmcs_msgs::RobotId::BLUE_SENTRY;
+
+        const auto current_base_hp = *ally_base_hp_;
+        if (current_base_hp > observed_max_base_hp_)
+            observed_max_base_hp_ = current_base_hp;
+
+        const auto max_base_hp = base_hp_max_ > 0 ? base_hp_max_ : observed_max_base_hp_;
+        auto lambda = 1.0;
+        if (max_base_hp > 0 && current_base_hp <= max_base_hp) {
+            lambda = std::clamp(
+                1.0 - static_cast<double>(max_base_hp - current_base_hp) / 20000.0, 0.0, 1.0);
+        }
+
+        auto bandwidth_limit = bandwidth_limit_;
+        if (bandwidth_limit <= 0.0)
+            bandwidth_limit = is_sentry ? 5120.0 : 3720.0;
+        bandwidth_limit *= lambda;
 
         if (now < next_sent_)
             return;
@@ -81,11 +114,20 @@ public:
         rmcs_utility::dji_crc::append_crc16(&frame_, frame_size);
 
         serial.write(reinterpret_cast<std::byte*>(&frame_), frame_size);
-        next_sent_ = now + (one_second / 3720 * frame_size);
+
+        const auto interval = std::chrono::duration<double>(
+            static_cast<double>(frame_size) / std::max(bandwidth_limit, 1.0));
+        next_sent_ =
+            now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(interval);
     }
 
 private:
     InputInterface<rmcs_msgs::SerialInterface> serial_;
+    InputInterface<rmcs_msgs::RobotId> robot_id_;
+    InputInterface<uint16_t> ally_base_hp_;
+    double bandwidth_limit_ = 0.0;
+    uint16_t base_hp_max_ = 0;
+    uint16_t observed_max_base_hp_ = 0;
     Frame frame_;
 
     Field empty_field_;

@@ -12,35 +12,59 @@ struct __attribute__((packed)) GameStatus {
 };
 
 struct __attribute__((packed)) GameRobotHp {
-    uint16_t ally_1_robot_hp;
-    uint16_t ally_2_robot_hp;
+    uint16_t ally_heavy_hp;
+    uint16_t reserved_2;
     uint16_t ally_3_robot_hp;
     uint16_t ally_4_robot_hp;
     int16_t damage_difference;
     uint16_t ally_7_robot_hp;
-    uint16_t ally_outpost_hp;
+    uint16_t r_outpost_hp;
     uint16_t ally_base_hp;
-    uint16_t enemy_outpost_hp;
+    uint16_t b_outpost_hp;
     uint16_t enemy_base_hp;
+    uint16_t ally_control_degree;
+    uint16_t enemy_control_degree;
 };
+static_assert(sizeof(GameRobotHp) == 24);
+
+struct __attribute__((packed)) EventDataFirst {
+    std::uint32_t ally_supply_zone_activation_status          : 1 = 0;
+    std::uint32_t ally_small_energy_activation_status         : 2 = 0;
+    std::uint32_t ally_big_energy_activation_status           : 2 = 0;
+    std::uint32_t r_fortress_activation_status                : 3 = 0;
+    std::uint32_t b_fortress_activation_status                : 3 = 0;
+    std::uint32_t r_base_activation_status                    : 3 = 0;
+    std::uint32_t b_base_activation_status                    : 3 = 0;
+    std::uint32_t ally_high_point_activation_status           : 1 = 0;
+    std::uint32_t r_central_highland_activation_status        : 2 = 0;
+    std::uint32_t b_central_highland_activation_status        : 2 = 0;
+    std::uint32_t r_outpost_activation_status                 : 3 = 0;
+    std::uint32_t b_outpost_activation_status                 : 3 = 0;
+    std::uint32_t r_outpost_control_status                    : 2 = 0;
+    std::uint32_t b_outpost_control_status                    : 2 = 0;
+};
+static_assert(sizeof(EventDataFirst) == 4);
+
+struct __attribute__((packed)) EventDataSecond {
+    std::uint32_t r_base_control_status                       : 2 = 0;
+    std::uint32_t b_base_control_status                       : 2 = 0;
+    std::uint32_t enemy_dart_latest_hit_time                  : 9 = 0;
+    std::uint32_t enemy_dart_latest_hit_target                : 3 = 0;
+    std::uint32_t r_highland_control_zone_activation_status   : 2 = 0;
+    std::uint32_t r_highland_control_zone_control_status      : 2 = 0;
+    std::uint32_t b_highland_control_zone_activation_status   : 2 = 0;
+    std::uint32_t b_highland_control_zone_control_status      : 2 = 0;
+    std::uint32_t center_control_zone_activation_status       : 2 = 0;
+    std::uint32_t center_control_zone_control_status          : 2 = 0;
+    std::uint32_t reserved                                    : 4 = 0;
+};
+static_assert(sizeof(EventDataSecond) == 4);
 
 struct __attribute__((packed)) EventData {
-    std::uint32_t ally_supply_zone_occupied           : 1 = 0;
-    std::uint32_t reserved_1                          : 1 = 0;
-    std::uint32_t ally_supply_zone_occupied_rmul      : 1 = 0;
-    std::uint32_t ally_small_energy_activation_status : 2 = 0;
-    std::uint32_t ally_big_energy_activation_status   : 2 = 0;
-    std::uint32_t ally_central_highland_occupied      : 2 = 0;
-    std::uint32_t ally_trapezoidal_highland_occupied  : 2 = 0;
-    std::uint32_t enemy_dart_latest_hit_time          : 9 = 0;
-    std::uint32_t enemy_dart_latest_hit_target        : 3 = 0;
-    std::uint32_t center_gain_point_occupied          : 2 = 0;
-    std::uint32_t ally_fortress_occupation_status     : 2 = 0;
-    std::uint32_t ally_outpost_gain_point_occupied    : 2 = 0;
-    std::uint32_t ally_base_gain_point_occupied       : 1 = 0;
-    std::uint32_t reserved_30_31                      : 2 = 0;
+    EventDataFirst first;
+    EventDataSecond second;
 };
-static_assert(sizeof(EventData) == 4);
+static_assert(sizeof(EventData) == 8);
 
 struct __attribute__((packed)) DartInfo {
     std::uint8_t dart_remaining_time;
