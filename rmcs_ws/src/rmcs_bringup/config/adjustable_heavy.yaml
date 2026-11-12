@@ -29,62 +29,23 @@ steering_wheel_controller:
 
 heavy_stabilizing_controller:
   ros__parameters:
-    controller_list: [gravity]
+    # Terms: pid, zero_torque.
+    controller_list: [pid]
 
-    mass: 20.0                # supported (sprung) mass [kg]
-    com_x: 0.0                # CoM x from chassis centre, forward + [m]
-    com_y: 0.0                # CoM y from chassis centre, left + [m]
-    com_z0: 0.15              # CoM height above wheel-contact plane at zero lift [m]
-    half_side: 0.25           # half of the square's wheel spacing [m]
-    lift_lead: 0.005          # leg travel per output-shaft radian [m/rad]
-    lift_direction: 1.0       # +1 / -1: sign so that +angle extends the leg
-    height_min: 0.0           # leg travel lower bound [m] (angle 0 at power-on)
-    height_max: 0.10          # leg travel upper bound [m]
-    max_level_offset: 0.02    # max |pitch| / |roll| modal correction [m]
+    master_pos_kp: 10.0
+    master_pos_ki: 0.0
+    master_pos_kd: 0.0
+    master_pos_output_min: -10.0
+    master_pos_output_max: 10.0
+    master_vel_kp: 0.05
+    master_vel_ki: 0.0
+    master_vel_kd: 0.0
 
-    # Flip if leveling diverges on hardware.
-    roll_sign: 1.0
-    pitch_sign: 1.0
-
-    # ---- Friction: tau = (tau_c0 + mu * |tau_gravity|) * tanh(v / v0) ----
-    friction_torque: [0.0, 0.0, 0.0, 0.0]   # tau_c0, no-load friction [N*m] LF, LB, RB, RF
-    friction_load_coefficient: 0.0          # mu, extra friction per N*m of gravity torque
-    friction_speed_threshold: 0.002         # v0, leg extension speed [m/s]
-
-    # ---- Modal cascade PID: position [m] -> velocity [m/s] -> force [N] ----
-    heave_pos_kp: 10.0
-    heave_pos_ki: 0.0
-    heave_pos_kd: 0.0
-    heave_pos_output_min: -0.05
-    heave_pos_output_max: 0.05
-    heave_vel_kp: 2000.0
-    heave_vel_ki: 0.0
-    heave_vel_kd: 0.0
-
-    pitch_pos_kp: 10.0
-    pitch_pos_ki: 0.0
-    pitch_pos_kd: 0.0
-    pitch_pos_output_min: -0.05
-    pitch_pos_output_max: 0.05
-    pitch_vel_kp: 2000.0
-    pitch_vel_ki: 0.0
-    pitch_vel_kd: 0.0
-
-    roll_pos_kp: 10.0
-    roll_pos_ki: 0.0
-    roll_pos_kd: 0.0
-    roll_pos_output_min: -0.05
-    roll_pos_output_max: 0.05
-    roll_vel_kp: 2000.0
-    roll_vel_ki: 0.0
-    roll_vel_kd: 0.0
-
-    # Warp kept soft so all four wheels stay loaded on uneven ground.
-    warp_pos_kp: 2.0
-    warp_pos_ki: 0.0
-    warp_pos_kd: 0.0
-    warp_pos_output_min: -0.02
-    warp_pos_output_max: 0.02
-    warp_vel_kp: 500.0
-    warp_vel_ki: 0.0
-    warp_vel_kd: 0.0
+    slave_pos_kp: 10.0
+    slave_pos_ki: 0.0
+    slave_pos_kd: 0.0
+    slave_pos_output_min: -10.0
+    slave_pos_output_max: 10.0
+    slave_vel_kp: 0.05
+    slave_vel_ki: 0.0
+    slave_vel_kd: 0.0
