@@ -72,9 +72,10 @@ public:
     static constexpr std::uint8_t kCommandDisable = 0xFD;
     static constexpr std::uint8_t kCommandClearError = 0xFB;
 
+    // control_required=false lets a gimbal-only bringup omit the leg command source.
     DmMotor(
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
-        const std::string& name_prefix) {
+        const std::string& name_prefix, bool control_required = true) {
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.0);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.0);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.0);
@@ -89,13 +90,14 @@ public:
         status_component.register_output(name_prefix + "/fault_code", fault_code_output_, 0);
         status_component.register_output(name_prefix + "/status_code", status_code_output_, 0);
 
-        command_component.register_input(name_prefix + "/control_torque", control_torque_);
+        command_component.register_input(
+            name_prefix + "/control_torque", control_torque_, control_required);
     }
 
     DmMotor(
         rmcs_executor::Component& status_component, rmcs_executor::Component& command_component,
-        const std::string& name_prefix, const Config& config)
-        : DmMotor(status_component, command_component, name_prefix) {
+        const std::string& name_prefix, const Config& config, bool control_required = true)
+        : DmMotor(status_component, command_component, name_prefix, control_required) {
         configure(config);
     }
 
@@ -225,7 +227,7 @@ public:
         *status_code_output_ = status_code_;
     }
 
-    double control_torque() const { return *control_torque_; }
+    double control_torque() const { return control_torque_.ready() ? *control_torque_ : 0.0; }
 
     std::uint8_t id() const noexcept { return id_; }
     std::uint32_t send_id() const noexcept { return id_; }

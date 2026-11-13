@@ -294,6 +294,13 @@ value_broadcaster:
       - /gimbal/left_friction/velocity
       - /gimbal/right_friction/velocity
       - /gimbal/bullet_feeder/velocity
+      # 发弹链路诊断：摩擦轮就绪 → 拨弹轮指令/反馈，外加底盘母线电压。
+      - /gimbal/friction_ready
+      - /gimbal/friction_jammed
+      - /gimbal/bullet_fired
+      - /gimbal/bullet_feeder/control_velocity
+      - /chassis/voltage
+      - /chassis/supercap/enabled
 
 value_collector:
   ros__parameters:

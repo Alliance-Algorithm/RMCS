@@ -1,0 +1,225 @@
+# 轮腿步兵「仅云台 + 自瞄 + 发弹」台架配置。
+#
+# 启动：ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-infantry-gimbal
+#
+# 与 wheel-leg-infantry-wheelbipe.yaml 的差异：
+#   * 不加载 RL 状态估计 / 观测 / 策略、底盘控制器与 mirror，因此没有任何组件输出
+#     /wheel_leg/enable_request 与四个 /wheel_leg/*_joint/control_torque；
+#   * wheel_leg.leg_drive_enabled: false 是硬件硬门：四个 DM 腿关节只收 disable 与反馈轮询帧，
+#     两个 M3508 驱动轮转矩恒为 0，永远不会被使能；
+#   * 云台（yaw LK4010 + pitch MG4010）与摩擦轮 / 拨弹轮不受该门影响。云台在遥控器在线
+#     且左右拨杆不是双下时使能，之后由遥控器摇杆/鼠标或自瞄驱动。
+#
+# 仍需注意：
+#   * 下板（底盘板）必须在线：yaw LK4010 走它的 CAN3，DR16 与裁判系统串口也都挂在它上面。
+#     本配置只是不使能腿和轮子，不是“只接上板”。
+#   * 发弹热量门来自裁判系统。裁判系统未接时 /referee/shooter/heat_limit 为 0，
+#     HeatController 的 allowance 恒为 0，拨弹轮不会转；这是既有安全逻辑，不是本配置的问题。
+#   * 自瞄姿态基准：WheelLeg 硬件目前不发布 /gimbal/auto_aim/imu_snapshot 与
+#     /gimbal/auto_aim/exposure_signal，所以采集端按自由采集运行、每帧姿态是单位四元数
+#     （等价于假定云台水平且 yaw=0）。台架上打静止目标够用；要打移动目标必须先给
+#     WheelLeg 补这两个输出，否则预测量会偏。
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+
+      - rmcs_core::referee::Status -> referee_status
+
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
+
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+
+      - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+
+wheel_leg:
+  ros__parameters:
+    serial_filter_bottom_board: "AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1"
+    serial_filter_top_board: "AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75"
+    yaw_motor_zero_point: 58379
+    pitch_motor_zero_point: 12637
+
+    # 腿驱动硬门。false：四个 DM 关节永不使能，两个轮子转矩恒为 0，
+    # 云台单独按遥控器在线 + 非双下使能（不再依赖 /wheel_leg/enable_request）。
+    leg_drive_enabled: false
+
+    # 腿不使能，但 configure_motors() 仍校验这几个参数，保留原值以通过启动检查。
+    dm_master_ids: [1, 2, 1, 2]
+    dm_mit_position_max: [3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793]
+    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
+    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
+    dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
+
+    feedback_timeout_s: 0.05
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.6109 # up 35 deg
+    lower_limit: 0.5236 # down 30 deg
+
+# 这里不带 reset_interface：台架没有 /chassis/reset_count 生产者，积分为 0 也用不到。
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 5.0
+    ki: 0.0
+    kd: 0.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    output_min: -4.5
+    output_max: 4.5
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 1.5
+    ki: 0.0
+    kd: 0.0
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 6.0
+    ki: 0.0
+    kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    output_min: -4.5
+    output_max: 4.5
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    feedforward: /gimbal/pitch/torque_ff
+    kp: 1.5
+    ki: 0.0
+    kd: 0.0
+
+pitch_gravity_ff:
+  ros__parameters:
+    pitch_gravity_ff_gain: 0.9
+    pitch_gravity_ff_phase: 0.75
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 660.0
+      - 660.0
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 10000
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.20
+    single_shot_max_stop_delay: 2.0
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 1.583
+    ki: 0.0
+    kd: 0.0
+
+auto_aim_component:
+  ros__parameters:
+    # 裁判系统 ID 缺席时不强行绑定阵营，避免误判敌我。
+    dangerous_fallback: ""
+    # 需要左键 / 左拨杆 DOWN 的开火意图，台架更安全；确认无误后可改 false 全自动开火。
+    manual_shoot: true
+    enable_rune: true
+    track_ids: [FULL]
+    # 相机在 PitchLink 下的平移外参（米），需按实车相机安装填写。
+    camera_translation: [0.0, 0.0, 0.0]
+
+    fire_control:
+      bullet_speed: 22.5
+      shoot_delay: 0.04
+      offset_yaw: 0.0
+      offset_pitch: 0.0
+      attack_window: 80.0
+      degraded_angle_speed: 12.0
+      window_redundancy: 0.8
+      window_hysteresis: 0.2
+      attack_preaim: false
+      require_stable_command: false
+      yaw_tolerance: 0.07
+      pitch_tolerance: 0.04
+      rune_idle_duration: 0.4
+      rune_shoot_duration: 0.2
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ""
+    exposure_us: 2000.0
+    gain: 16.9807
+    framerate: 249.1
+    invert_image: false
+    rls_tau_sec: 10.0
+    # 见文件头：WheelLeg 硬件不提供曝光触发与 IMU 快照，退回自由采集 + 单位姿态。
+    use_hardware_sync: false
+    imu_snapshot_topic: ""
+    delay_ms: 6.5
+
+# 发弹链路诊断：摩擦轮就绪 → 热量允许 → 拨弹轮指令/反馈/力矩，外加底盘母线电压。
+value_broadcaster:
+  ros__parameters:
+    update_rate: 50.0
+    forward_list:
+      - /gimbal/friction_ready
+      - /gimbal/friction_jammed
+      - /gimbal/bullet_fired
+      - /gimbal/bullet_feeder/control_velocity
+      - /gimbal/bullet_feeder/velocity
+      - /chassis/voltage
+      - /chassis/supercap/enabled
+      - /gimbal/yaw/angle
+      - /gimbal/pitch/angle
