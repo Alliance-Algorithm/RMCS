@@ -147,18 +147,20 @@ private:
         using Action = WheelLegDmCommandScheduler::Action;
         BottomBoard(WheelLeg& status, rmcs_executor::Component& command, const std::string& serial)
             : status_(status)
+            , leg_drive_enabled_(status.get_parameter_or("leg_drive_enabled", true))
             , wheel_motors_(
                   {status, command, "/wheel_leg/left_wheel"},
                   {status, command, "/wheel_leg/right_wheel"})
             , hip_motors_(
-                  {status, command, "/wheel_leg/left_hip_joint"},
-                  {status, command, "/wheel_leg/right_hip_joint"})
+                  {status, command, "/wheel_leg/left_hip_joint", leg_drive_enabled_},
+                  {status, command, "/wheel_leg/right_hip_joint", leg_drive_enabled_})
             , knee_motors_(
-                  {status, command, "/wheel_leg/left_knee_joint"},
-                  {status, command, "/wheel_leg/right_knee_joint"})
+                  {status, command, "/wheel_leg/left_knee_joint", leg_drive_enabled_},
+                  {status, command, "/wheel_leg/right_knee_joint", leg_drive_enabled_})
             , gimbal_yaw_motor_(status, command, "/gimbal/yaw")
             , feeder_motor_(status, command, "/gimbal/bullet_feeder")
             , supercap_(status, command)
+            // TOFSense pairs moved from CAN0 to CAN1 (0x205/0x206).
             , tof_left_(status, "/chassis/tof/left", device::Tof::Config{}.set_id(5))
             , tof_right_(status, "/chassis/tof/right", device::Tof::Config{}.set_id(6))
             // Chassis BMI088: mounted rotated 180 degrees about body Y, so the
@@ -209,8 +211,10 @@ private:
                 status.register_output(
                     prefix + "/feedback_sequence", feedback_sequence_outputs_[i], std::uint64_t{0});
             }
-            command.register_input("/wheel_leg/enable_request", enable_request_);
-            command.register_input("/chassis/reset_count", reset_count_);
+            // Without the leg drive there is no leg command source, so both stay optional.
+            command.register_input(
+                "/wheel_leg/enable_request", enable_request_, leg_drive_enabled_);
+            command.register_input("/chassis/reset_count", reset_count_, leg_drive_enabled_);
             const double timeout = status.get_parameter_or("feedback_timeout_s", .04);
             if (!std::isfinite(timeout) || timeout < 0. || timeout > 1.)
                 throw std::invalid_argument("feedback_timeout_s must be finite and in [0,1]");
@@ -224,6 +228,11 @@ private:
                 RCLCPP_INFO(
                     status.get_logger(), "WheelLeg CAN feedback age warning threshold: %.1f ms",
                     timeout * 1e3);
+            if (!leg_drive_enabled_)
+                RCLCPP_INFO(
+                    status.get_logger(),
+                    "WheelLeg leg drive disabled: DM joints and wheels stay disabled, gimbal arms "
+                    "from the remote alone");
             configure_motors(status);
             auto options = librmcs::board::AdvancedOptions{};
             options.dangerously_skip_version_checks = true;
@@ -275,15 +284,19 @@ private:
                                 && dr16_.switch_right() == rmcs_msgs::Switch::DOWN;
             const bool down_edge = both_down && !previous_both_down_;
             previous_both_down_ = both_down;
-            if (down_edge || *reset_count_ != last_reset_)
+            if (down_edge || (reset_count_.ready() && *reset_count_ != last_reset_))
                 reset_imu_motion_requested_.store(true, std::memory_order_release);
-            last_reset_ = *reset_count_;
+            if (reset_count_.ready())
+                last_reset_ = *reset_count_;
             const std::array pairs{pair_feedback(0), pair_feedback(1)};
             const bool available = feedback_available();
-            const bool requested = *enable_request_ && dr16_fresh() && available && !both_down;
+            const bool enable_requested = enable_request_.ready() && *enable_request_;
+            const bool requested =
+                leg_drive_enabled_ && enable_requested && dr16_fresh() && available && !both_down;
             requested_snapshot_.store(requested, std::memory_order_relaxed);
-            // Same drive gate as the legs, minus leg feedback availability (own board, own CAN).
-            const bool gimbal_requested = *enable_request_ && dr16_fresh() && !both_down;
+            // Same as the legs minus leg feedback; without the leg drive it arms from the remote.
+            const bool gimbal_requested =
+                (leg_drive_enabled_ ? enable_requested : true) && dr16_fresh() && !both_down;
             gimbal_drive_requested_.store(gimbal_requested, std::memory_order::relaxed);
             const std::array requests{requested, requested};
             for (int side = 0; side < 2; ++side)
@@ -412,6 +425,12 @@ private:
                      << std::format(" vel={:.3f}", wheel_motors_[i].velocity())
                      << std::format(" torque={:.3f}", wheel_motors_[i].torque())
                      << std::format(" feedback_age_ms={:.1f}\n", age_ms(motor_last_ns_[i]));
+            text << "    feeder: can_id=" << static_cast<unsigned>(feeder_motor_.id())
+                 << std::format(" feedback_id=0x{:X}", feeder_motor_.recv_id())
+                 << std::format(" angle={:.4f}", feeder_motor_.angle())
+                 << std::format(" vel={:.3f}", feeder_motor_.velocity())
+                 << std::format(" torque={:.3f}", feeder_motor_.torque())
+                 << std::format(" feedback_age_ms={:.1f}\n", age_ms(feeder_last_ns_));
             text << "    gimbal_yaw: can_id=0x141"
                  << std::format(
                         " motor_state=0x{:02X}",
@@ -462,6 +481,9 @@ private:
                 motor_last_ns_[3], motor_last_ns_[4], motor_last_ns_[5]);
         }
         void update_feedback_warning() {
+            // Parked legs are not a fault in a gimbal-only configuration.
+            if (!leg_drive_enabled_)
+                return;
             const auto now = now_ns();
             auto missing = std::string{};
             auto silent_motors = std::string{};
@@ -612,13 +634,16 @@ private:
                 if (data.can_id == 0x300)
                     supercap_.store_status(data.can_data);
                 else if (
-                    !tof_left_.match_then_store_status(data.can_id, data.can_data)
-                    && !tof_right_.match_then_store_status(data.can_id, data.can_data)
-                    && !store_motor_feedback(wheel_motors_, 0, data))
-                    feeder_motor_.match_then_store_status(data.can_id, data.can_data);
-            } else if (can == Spec::kCans.kCan1)
-                store_motor_feedback(hip_motors_, 2, data);
-            else if (can == Spec::kCans.kCan2)
+                    !store_motor_feedback(wheel_motors_, 0, data)
+                    && feeder_motor_.match_then_store_status(data.can_id, data.can_data))
+                    feeder_last_ns_.store(now_ns(), std::memory_order::relaxed);
+            } else if (can == Spec::kCans.kCan1) {
+                // Hip DM joints and the TOFSense pairs share CAN1.
+                // TOF feedback IDs are 0x205/0x206, hip feedback uses the DM master IDs.
+                if (!store_motor_feedback(hip_motors_, 2, data)
+                    && !tof_left_.match_then_store_status(data.can_id, data.can_data))
+                    tof_right_.match_then_store_status(data.can_id, data.can_data);
+            } else if (can == Spec::kCans.kCan2)
                 store_motor_feedback(knee_motors_, 4, data);
             else if (can == Spec::kCans.kCan3 && data.can_id == 0x141) {
                 if (gimbal_yaw_motor_.store_error_status(data.can_data))
@@ -796,6 +821,7 @@ private:
         }
 
         WheelLeg& status_;
+        bool leg_drive_enabled_;
         OutputInterface<Eigen::Quaterniond> imu_quaternion_;
         OutputInterface<Eigen::Vector3d> imu_angular_velocity_, imu_acceleration_;
         OutputInterface<std::uint64_t> acceleration_last_output_, imu_last_output_,
@@ -818,7 +844,7 @@ private:
         std::uint8_t gimbal_yaw_last_error_ = 0;
         device::DjiMotor feeder_motor_;
         device::Supercap supercap_;
-        // TOFSense pairs on CAN0 in ACTIVE output: left 0x205, right 0x206.
+        // TOFSense pairs on CAN1 in ACTIVE output: left 0x205, right 0x206.
         device::Tof tof_left_, tof_right_;
         device::Dr16 dr16_;
         rmcs_utility::RingBuffer<std::byte> referee_ring_buffer_receive_{256};
@@ -844,7 +870,7 @@ private:
         std::array<int, 4> dm_status_{}, dm_fault_{};
         bool dm_health_primed_ = false;
         std::array<std::atomic<std::int64_t>, 6> motor_last_ns_{};
-        std::atomic<std::int64_t> imu_last_ns_{0}, dr16_last_ns_{0};
+        std::atomic<std::int64_t> imu_last_ns_{0}, dr16_last_ns_{0}, feeder_last_ns_{0};
         std::int64_t timeout_ns_ = 40'000'000;
         std::array<bool, 2> enabled_{}, mit_sent_{};
         bool ready_ = false;
@@ -867,11 +893,11 @@ private:
             , pitch_motor_(status, command, "/gimbal/pitch")
             , left_friction_(status, command, "/gimbal/left_friction")
             , right_friction_(status, command, "/gimbal/right_friction")
-            // Gimbal BMI088: mounted rotated 180 degrees about body Z.
+            // Gimbal BMI088: raw (x, y, z) reads as (y, -x, z), i.e. +90 deg about body Z.
             , bmi088_(
                   device::Bmi088Ekf::Config{
                       .body_to_sensor =
-                          Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitZ()}
+                          Eigen::AngleAxisd{std::numbers::pi / 2, Eigen::Vector3d::UnitZ()}
                               .toRotationMatrix(),
                   }) {
             status.register_output("/gimbal/yaw/velocity_imu", yaw_velocity_, 0.0);
@@ -882,7 +908,7 @@ private:
                 device::LkMotor::Config{device::LkMotor::Type::kMG4010Ei10}.set_encoder_zero_point(
                     static_cast<int>(pitch_zero_point)));
             left_friction_.configure(
-                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reduction_ratio(
+                device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 2}.set_reversed().set_reduction_ratio(
                     1.));
             right_friction_.configure(
                 device::DjiMotor::Config{device::DjiMotor::Type::kM3508, 1}.set_reduction_ratio(
