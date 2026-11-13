@@ -215,8 +215,8 @@ gimbal_controller:
     # ---- [SMC] yaw 滑模控制 ----
     yaw_smc_J: 0.20
     yaw_smc_c: 36.0
-    yaw_smc_epsilon: 100.0
-    yaw_smc_k: 30.0
+    yaw_smc_epsilon: 75.0
+    yaw_smc_k: 22.0
     yaw_smc_phi: 3.75
     yaw_smc_torque_limit: 25.0
     #此处力矩限幅不是真实力矩，因为5010i10电机力矩虚高    
