@@ -1,0 +1,43 @@
+# 单个舵轮台架测试配置
+#
+# 运行（先停 rmcs service，避免抢板子 USB）：
+#   ssh remote "service rmcs stop"
+#   ssh remote "/rmcs_install/lib/rmcs_executor/rmcs_executor --ros-args \
+#       --params-file /rmcs_install/share/rmcs_bringup/config/steering-wheel-bench.yaml"
+#
+# DR16：左右拨杆都在中位 = 使能
+#       右摇杆左右 = 舵角，前后 = 轮速
+
+rmcs_executor:
+  ros__parameters:
+    components:
+      - rmcs_core::hardware::SteeringWheelBench -> steering_wheel_bench
+
+steering_wheel_bench:
+  ros__parameters:
+    # 板子序列号：留空 = 自动选择第一个检测到的 C 板
+    serial_filter: ""
+
+    # CAN 通道 0~3
+    can: 1
+
+    # 电机 ID（1~4 走 0x200，5~8 走 0x1FF）
+    steer_id: 1
+    wheel_id: 2
+
+    # 3508 减速比（3591/187）
+    reduction: 19.2032
+
+    # 方向取反
+    steer_reversed: false
+    wheel_reversed: false
+
+    # 舵：位置环，输出力矩 N·m/rad
+    steer_kp: 1.2
+    steer_ki: 0.0
+    steer_kd: 0.02
+
+    # 轮：速度环，输出力矩 N·m/(rad/s)
+    wheel_kp: 0.05
+    wheel_ki: 0.0
+    wheel_kd: 0.0
