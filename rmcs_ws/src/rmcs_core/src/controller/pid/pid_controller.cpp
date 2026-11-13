@@ -1,3 +1,5 @@
+#include <cstddef>
+
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -25,6 +27,14 @@ public:
 
         register_output(get_parameter("control").as_string(), control_);
 
+        if (has_parameter("reset_interface")) {
+            const auto reset_interface = get_parameter("reset_interface").as_string();
+            if (!reset_interface.empty()) {
+                register_input(reset_interface, reset_count_);
+                reset_enabled_ = true;
+            }
+        }
+
         get_parameter("integral_min", pid_calculator_.integral_min);
         get_parameter("integral_max", pid_calculator_.integral_max);
 
@@ -36,6 +46,13 @@ public:
     }
 
     void update() override {
+        if (reset_enabled_ && reset_count_.ready() && *reset_count_ != last_reset_count_) {
+            last_reset_count_ = *reset_count_;
+            pid_calculator_.reset();
+            *control_ = 0.0;
+            return;
+        }
+
         auto err = *setpoint_ - *measurement_;
         *control_ = *feedforward_ + pid_calculator_.update(err);
     }
@@ -46,6 +63,9 @@ private:
     PidCalculator pid_calculator_;
 
     OutputInterface<double> control_;
+    InputInterface<std::size_t> reset_count_;
+    std::size_t last_reset_count_ = 0;
+    bool reset_enabled_ = false;
 };
 
 } // namespace rmcs_core::controller::pid

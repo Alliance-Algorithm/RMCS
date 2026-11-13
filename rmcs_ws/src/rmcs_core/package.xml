@@ -6,11 +6,14 @@
   <description>TODO: Package description</description>
   <maintainer email="qzhhh@foxmail.com">developer</maintainer>
   <license>TODO: License declaration</license>
+  <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
   <depend>std_srvs</depend>
   <depend>pluginlib</depend>
   <depend>tf2</depend>

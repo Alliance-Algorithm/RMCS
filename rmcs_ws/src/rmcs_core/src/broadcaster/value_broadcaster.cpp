@@ -1,8 +1,18 @@
+#include <cstdint>
+
+#include <chrono>
+#include <cmath>
+#include <optional>
+#include <stdexcept>
+
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/parameter_event_handler.hpp>
 #include <rmcs_executor/component.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float64.hpp>
-#include <std_msgs/msg/header.hpp>
+#include <std_msgs/msg/int32.hpp>
+#include <std_msgs/msg/u_int8.hpp>
 
 namespace rmcs_core::broadcaster {
 
@@ -12,6 +22,20 @@ class ValueBroadcaster
 public:
     ValueBroadcaster()
         : Node{get_component_name()} {
+        rcl_interfaces::msg::ParameterDescriptor rate_descriptor;
+        rate_descriptor.read_only = true;
+        const double update_rate = declare_parameter("update_rate", 0.0, rate_descriptor);
+        if (!std::isfinite(update_rate) || update_rate < 0.0)
+            throw std::invalid_argument(
+                "Value broadcaster update_rate must be finite and nonnegative");
+        if (update_rate > 0.0) {
+            const auto period = std::chrono::duration<double>{1.0 / update_rate};
+            if (!std::isfinite(period.count()) || period < Clock::duration{1}
+                || period >= Clock::duration::max())
+                throw std::invalid_argument("Value broadcaster period exceeds the clock range");
+            publish_period_ = std::chrono::duration_cast<Clock::duration>(period);
+            register_input("/predefined/timestamp", timestamp_);
+        }
         declare_parameter<std::vector<std::string>>("forward_list", std::vector<std::string>{});
         parameter_subscriber_ = std::make_unique<rclcpp::ParameterEventHandler>(this);
         parameter_callback_ = parameter_subscriber_->add_parameter_callback(
@@ -27,6 +51,16 @@ public:
                 forward_units_.emplace(
                     name,
                     std::make_unique<ForwardUnit<double, std_msgs::msg::Float64>>(this, name));
+            } else if (output.type.get() == typeid(bool)) {
+                forward_units_.emplace(
+                    name, std::make_unique<ForwardUnit<bool, std_msgs::msg::Bool>>(this, name));
+            } else if (output.type.get() == typeid(int)) {
+                forward_units_.emplace(
+                    name, std::make_unique<ForwardUnit<int, std_msgs::msg::Int32>>(this, name));
+            } else if (output.type.get() == typeid(std::uint8_t)) {
+                forward_units_.emplace(
+                    name,
+                    std::make_unique<ForwardUnit<std::uint8_t, std_msgs::msg::UInt8>>(this, name));
             }
         }
         std::vector<std::string> forward_list;
@@ -35,6 +69,18 @@ public:
     }
 
     void update() override {
+        if (publish_period_ != Clock::duration::zero()) {
+            const auto now = *timestamp_;
+            if (last_publish_timestamp_ && now >= *last_publish_timestamp_) {
+                const auto elapsed = now - *last_publish_timestamp_;
+                if (elapsed < publish_period_)
+                    return;
+                // Keep the publication phase through missed ticks without replaying stale samples.
+                last_publish_timestamp_ = now - elapsed % publish_period_;
+            } else {
+                last_publish_timestamp_ = now;
+            }
+        }
         for (auto& [name, unit] : forward_units_)
             unit->update();
     }
@@ -108,6 +154,11 @@ private:
         InputInterface<StdT> input_;
         rclcpp::Publisher<RosT>::SharedPtr publisher_;
     };
+
+    using Clock = std::chrono::steady_clock;
+    InputInterface<Clock::time_point> timestamp_;
+    Clock::duration publish_period_{};
+    std::optional<Clock::time_point> last_publish_timestamp_;
 
     std::map<std::string, std::unique_ptr<BasicForwarderUnit>> forward_units_;
 

@@ -40,4 +40,19 @@ target_link_libraries(${PROJECT_NAME} librmcs-sdk)
 
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(wheelbipe_jump_test test/wheelbipe_jump_test.cpp)
+    target_include_directories(wheelbipe_jump_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME wheelbipe_jump_control COMMAND wheelbipe_jump_test)
+    add_executable(wheel_leg_encoder_unwrap test/wheel_leg_encoder_unwrap.cpp)
+    target_include_directories(wheel_leg_encoder_unwrap PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    add_test(NAME wheel_leg_encoder_unwrap COMMAND wheel_leg_encoder_unwrap)
+    ament_auto_add_executable(wheel_leg_state_estimator test/wheel_leg_state_estimator.cpp)
+    add_test(NAME wheel_leg_state_estimator COMMAND wheel_leg_state_estimator)
+    ament_auto_add_executable(wheelbipe_jump_components test/wheelbipe_jump_components.cpp)
+    add_test(NAME wheelbipe_jump_components COMMAND wheelbipe_jump_components --ros-args
+        --params-file ${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/wheel-leg-infantry-wheelbipe-jump-v4.yaml)
+endif()
+
 ament_auto_package()
