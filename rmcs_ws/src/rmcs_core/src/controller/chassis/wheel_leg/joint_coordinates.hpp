@@ -5,19 +5,15 @@
 #include <cmath>
 #include <numbers>
 
-#include "model/calibration.hpp"
-
-namespace rmcs_core::controller::chassis {
+namespace rmcs_core::controller::chassis::wheel_leg {
 using JointVector = std::array<double, 6>;
 using LegVector = std::array<double, 4>;
-inline constexpr std::array<const char*, 6> kMotorNames{"left_hip_joint",  "left_knee_joint",
+inline constexpr std::array<const char*, 6> kJointNames{"left_hip_joint",  "left_knee_joint",
                                                         "right_hip_joint", "right_knee_joint",
                                                         "left_wheel",      "right_wheel"};
 inline constexpr JointVector kNominalPosition{
     -.42, .13722330866417465, .42, -.13721605817245947, 0., 0.};
 inline constexpr LegVector kMotorOffsets{1.6, 3.0282761689183353, -1.6, -3.0283102010168};
-inline constexpr std::array<std::array<double, 2>, 2> kMechanicalBounds{
-    {{-.14089326779459427, 1.4282761689183354}, {-.14084732125908661, 1.4283102010167998}}};
 using LegBounds = std::array<std::array<double, 2>, 2>;
 
 inline JointVector model_position(const JointVector& api) {
@@ -32,10 +28,7 @@ inline JointVector model_velocity(const JointVector& api) {
         dq[i] = -api[i];
     return dq;
 }
-inline JointVector motor_effort(const JointVector& model) { return model_velocity(model); }
-inline double forward_wheel_velocity(const JointVector& velocity) {
-    return .5 * (velocity[4] - velocity[5]);
-}
+inline JointVector motor_torque(const JointVector& model) { return model_velocity(model); }
 
 // The drive span unwrap upstream already returns a continuous hip angle; this
 // only picks the relative (closed-chain) branch, so no 2 pi multiple is ever
@@ -73,4 +66,16 @@ inline LegVector
     }
     return targets;
 }
-} // namespace rmcs_core::controller::chassis
+inline JointVector decoded_action_target(
+    const JointVector& decoded, const JointVector& q, const LegBounds& bounds) {
+    LegVector desired{}, current{};
+    for (int i = 0; i < 4; ++i) {
+        desired[i] = kNominalPosition[i] + decoded[i];
+        current[i] = q[i];
+    }
+    const auto legs = paired_targets(desired, current, bounds);
+    auto target = decoded;
+    std::copy(legs.begin(), legs.end(), target.begin());
+    return target;
+}
+} // namespace rmcs_core::controller::chassis::wheel_leg

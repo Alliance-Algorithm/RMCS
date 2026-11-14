@@ -1,23 +1,13 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_description/tf_description.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
-#include <array>
 #include <chrono>
-#include <cstddef>
-#include <cstdint>
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Geometry>
 #include <fstream>
-#include <functional>
 #include <iomanip>
 #include <memory>
 #include <sstream>
 #include <string>
-#include <type_traits>
-#include <typeinfo>
-#include <utility>
 #include <vector>
 
 namespace rmcs_core::debug {
@@ -54,12 +44,6 @@ public:
 
         if (csv_path_.empty() || signal_names_.empty())
             return;
-        if (write_interval_ < 1 || flush_interval_ < 1) {
-            node::error(
-                "write_interval ({}) and flush_interval ({}) must be positive", write_interval_,
-                flush_interval_);
-            return;
-        }
 
         for (const auto& name : signal_names_) {
             const auto it = output_map.find(name);
@@ -67,39 +51,18 @@ public:
                 node::error("signal '{}' not found", name);
                 continue;
             }
-            if (it->second.kind != rmcs_executor::InterfaceKind::Normal) {
-                node::error("signal '{}' is an event interface", name);
+            if (it->second.type.get() != typeid(double)) {
+                node::error("signal '{}' type is not double", name);
                 continue;
             }
-            if (!register_signal(name, it->second.type.get()))
-                node::error(
-                    "signal '{}' has an unsupported type ({})", name, it->second.type.get().name());
+
+            auto unit = std::make_unique<SignalUnit>();
+            unit->name = name;
+            register_input(name, unit->value);
+            units_.push_back(std::move(unit));
         }
 
         if (units_.empty())
-            return;
-        node::info("resolved {} of {} signals", units_.size(), signal_names_.size());
-    }
-
-    auto before_updating() -> void override {
-        if (units_.empty())
-            return;
-
-        for (auto& unit : units_) {
-            if (!unit.dynamic_width)
-                continue;
-            const auto width = unit.width_probe();
-            *unit.dynamic_width = width;
-            unit.columns = index_columns(unit.dynamic_prefix, width);
-            if (width == 0)
-                node::warn(
-                    "signal '{}' is an empty vector and records no column", unit.dynamic_prefix);
-        }
-
-        auto columns = std::size_t{0};
-        for (const auto& unit : units_)
-            columns += unit.columns.size();
-        if (columns == 0)
             return;
 
         csv_file_.open(csv_path_, std::ios::out | std::ios::trunc);
@@ -107,18 +70,14 @@ public:
             node::error("failed to open {}", csv_path_);
             return;
         }
-        csv_file_ << std::setprecision(10);
 
         csv_file_ << "index";
         for (const auto& unit : units_)
-            for (const auto& column : unit.columns)
-                csv_file_ << "," << column;
+            csv_file_ << "," << unit->name;
         csv_file_ << "\n";
         csv_file_.flush();
 
-        node::info(
-            "collecting {} signals ({} columns) to {} every {} ticks", units_.size(), columns,
-            csv_path_, write_interval_);
+        node::info("collecting {} signals to {}", units_.size(), csv_path_);
     }
 
     auto update() -> void override {
@@ -130,7 +89,7 @@ public:
 
         csv_file_ << sample_count_++;
         for (const auto& unit : units_)
-            unit.append(csv_file_);
+            csv_file_ << "," << *unit->value;
         csv_file_ << "\n";
 
         if (sample_count_ % flush_interval_ == 0)
@@ -139,152 +98,16 @@ public:
 
 private:
     struct SignalUnit {
-        std::vector<std::string> columns;
-        std::function<void(std::ostream&)> append;
-        // Only set for std::vector<double>: resolved from the paired input.
-        std::string dynamic_prefix;
-        std::shared_ptr<std::size_t> dynamic_width;
-        std::function<std::size_t()> width_probe;
+        std::string name;
+        InputInterface<double> value;
     };
-
-    static auto index_columns(const std::string& name, std::size_t width)
-        -> std::vector<std::string> {
-        auto columns = std::vector<std::string>{};
-        columns.reserve(width);
-        for (auto i = std::size_t{0}; i < width; ++i)
-            columns.push_back(name + "[" + std::to_string(i) + "]");
-        return columns;
-    }
-
-    template <typename T, typename Writer>
-    auto register_typed(
-        const std::string& name, const std::type_info& type, std::vector<std::string> columns,
-        Writer writer) -> bool {
-        if (type != typeid(T))
-            return false;
-
-        auto holder = std::make_shared<InputInterface<T>>();
-        register_input(name, *holder);
-        const auto* const raw = holder.get();
-        keepalive_.push_back(holder);
-
-        auto unit = SignalUnit{};
-        unit.columns = std::move(columns);
-        unit.append = [raw, writer](std::ostream& os) { writer(os, **raw); };
-        units_.push_back(std::move(unit));
-        return true;
-    }
-
-    template <std::size_t N>
-    auto register_array(const std::string& name, const std::type_info& type) -> bool {
-        return register_typed<std::array<double, N>>(
-            name, type, index_columns(name, N),
-            [](std::ostream& os, const std::array<double, N>& value) {
-                for (const auto component : value)
-                    os << "," << component;
-            });
-    }
-
-    auto register_vector(const std::string& name, const std::type_info& type) -> bool {
-        if (type != typeid(std::vector<double>))
-            return false;
-
-        auto holder = std::make_shared<InputInterface<std::vector<double>>>();
-        register_input(name, *holder);
-        const auto* const raw = holder.get();
-        keepalive_.push_back(holder);
-
-        auto width = std::make_shared<std::size_t>(0);
-        auto unit = SignalUnit{};
-        unit.dynamic_prefix = name;
-        unit.dynamic_width = width;
-        unit.width_probe = [raw] { return (**raw).size(); };
-        // Pad short samples so a shrinking vector cannot corrupt the row.
-        unit.append = [raw, width](std::ostream& os) {
-            const auto& value = **raw;
-            for (auto i = std::size_t{0}; i < *width; ++i)
-                os << "," << (i < value.size() ? value[i] : 0.);
-        };
-        units_.push_back(std::move(unit));
-        return true;
-    }
-
-    auto register_signal(const std::string& name, const std::type_info& type) -> bool {
-        if (register_typed<double>(name, type, {name}, [](std::ostream& os, double value) {
-                os << "," << value;
-            }))
-            return true;
-        if (register_typed<int>(name, type, {name}, [](std::ostream& os, int value) {
-                os << "," << value;
-            }))
-            return true;
-        if (register_typed<std::uint8_t>(name, type, {name}, [](std::ostream& os, std::uint8_t v) {
-                os << "," << static_cast<unsigned>(v);
-            }))
-            return true;
-        if (register_typed<std::uint32_t>(name, type, {name}, [](std::ostream& os, std::uint32_t v) {
-                os << "," << v;
-            }))
-            return true;
-        if (register_typed<std::uint64_t>(name, type, {name}, [](std::ostream& os, std::uint64_t v) {
-                os << "," << v;
-            }))
-            return true;
-        if constexpr (!std::is_same_v<std::size_t, std::uint64_t>) {
-            if (register_typed<std::size_t>(name, type, {name}, [](std::ostream& os, std::size_t v) {
-                    os << "," << v;
-                }))
-                return true;
-        }
-        if (register_typed<bool>(name, type, {name}, [](std::ostream& os, bool value) {
-                os << "," << (value ? 1 : 0);
-            }))
-            return true;
-        if (register_typed<std::chrono::steady_clock::time_point>(
-                name, type, {name},
-                [](std::ostream& os, std::chrono::steady_clock::time_point value) {
-                    os << "," << std::chrono::duration<double>(value.time_since_epoch()).count();
-                }))
-            return true;
-        if (register_typed<Eigen::Vector3d>(
-                name, type, {name + "/x", name + "/y", name + "/z"},
-                [](std::ostream& os, const Eigen::Vector3d& value) {
-                    os << "," << value.x() << "," << value.y() << "," << value.z();
-                }))
-            return true;
-        if (register_typed<rmcs_description::BaseLink::DirectionVector>(
-                name, type, {name + "/x", name + "/y", name + "/z"},
-                [](std::ostream& os, const rmcs_description::BaseLink::DirectionVector& value) {
-                    os << "," << value.vector.x() << "," << value.vector.y() << ","
-                       << value.vector.z();
-                }))
-            return true;
-        if (register_typed<Eigen::Quaterniond>(
-                name, type, {name + "/w", name + "/x", name + "/y", name + "/z"},
-                [](std::ostream& os, const Eigen::Quaterniond& value) {
-                    os << "," << value.w() << "," << value.x() << "," << value.y() << ","
-                       << value.z();
-                }))
-            return true;
-        if (register_array<2>(name, type))
-            return true;
-        if (register_array<3>(name, type))
-            return true;
-        if (register_array<4>(name, type))
-            return true;
-        if (register_array<6>(name, type))
-            return true;
-        return register_vector(name, type);
-    }
 
     std::string csv_path_;
     std::vector<std::string> signal_names_;
     int write_interval_ = 1;
     int flush_interval_ = 100;
 
-    std::vector<SignalUnit> units_;
-    // Keeps every registered input alive; SignalUnit lambdas point into these.
-    std::vector<std::shared_ptr<void>> keepalive_;
+    std::vector<std::unique_ptr<SignalUnit>> units_;
     std::ofstream csv_file_;
 
     int tick_ = 0;

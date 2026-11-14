@@ -1,0 +1,211 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
+      - rmcs_core::controller::chassis::WheelLegStateEstimator -> wheel_leg_state_estimator
+      - rmcs_core::controller::chassis::WheelLegObservation -> wheel_leg_observation
+      - rmcs_rl::RlBridge -> rl_bridge
+      - rmcs_core::controller::chassis::WheelLegRlController -> wheel_leg_rl_controller
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+
+wheel_leg:
+  ros__parameters:
+    board_serial_bottom_board: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    board_serial_gimbal_board: AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75
+    yaw_motor_zero_point: 58379
+    pitch_motor_zero_point: 12637
+
+wheel_leg_chassis_controller:
+  ros__parameters:
+    vx_max: 3.0
+    spin_yaw_rate: 10.471975511965978
+    yaw_stick_rate: 3.141592653589793
+    yaw_rate_max: 4.0
+    following_velocity_kp: 15.0
+    deadzone: 0.05
+    command_height_min: 0.23
+    command_height_max: 0.42
+    default_command_height: 0.305
+    height_rate: 0.1
+
+rl_bridge:
+  ros__parameters:
+    rl_base: /wheel_leg/rl
+    rl_model_path: models/wheel_leg/wheelbipe_jump_v4.onnx
+    model_type: mlp
+
+    policy_rate: 50.0
+    history_length: 1
+    rl_obs_size: 35
+    rl_feature_size: 35
+    rl_action_size: 6
+    obs_clip: 100.0
+
+    inference_timeout: 0.06
+    max_action_age: 0.06
+
+    enable_interface: /wheel_leg/rl/input/enable
+    reset_interface: /chassis/reset_count
+    enable_default: false
+    invalid_value: "nan"
+
+    observation_frame_sequence_interface: /wheel_leg/rl/input/frame_sequence
+
+    normalization_from_metadata: false
+    expected_obs_normalization: none
+    expected_observation_version: wheelbipe-v202-foundation-jump-v4
+    expected_observation_contract_sha256: f907a791b3d47f0f5e6a17a095dc51841f8085cadf1bbfda9ba273ade70efedd
+    expected_model_spec_sha256: 67f824bc29b05647e381f8584528d686955c2cfd99fd783ba40f382279bf2284
+    expected_metadata:
+      leg_winding_version: paired_full_vehicle110_jump_v4
+      leg_target_model_spec_sha256: 67f824bc29b05647e381f8584528d686955c2cfd99fd783ba40f382279bf2284
+      wheelbipe_deployment_contract_sha256: "8ce02510cc775eb5c8ab1118aa2830d6eb8a5c2cd4c4d30a967b5c329c092102"
+      training_source_commit: "0f5cbd3805c2dab0c0595fe43ae61ad34d6f5a29"
+      gas_model_sha256: "13db9ada6fa0e111a51406fc950ca0b970d1fd3de0d9ceeac07b22053a952aa6"
+      feedback_pd_hz: "200"
+      gas_spring_compensation_enabled: "false"
+      tuck_spring_compensation: "model"
+      leg_kp: "80"
+      leg_kd: "1.5"
+      leg_target_overtravel_rad: "0.2"
+      leg_target_overtravel_scope: "jump-request"
+      pilot: "false"
+
+    observations:
+      order: [command, height, gyro, gravity, position, velocity, previous_action, auxiliary]
+      command: {source: /wheel_leg/rl/features/command, type: array, size: 3, precision: float32, clip: [-100.0, 100.0]}
+      height: {source: /wheel_leg/rl/features/height, precision: float32, source_clip: [0.0, 1.0], scale: 5.0}
+      gyro: {source: /wheel_leg/rl/features/gyro, type: array, size: 3, precision: float32, source_clip: [-100.0, 100.0], scale: 0.5}
+      gravity: {source: /wheel_leg/rl/features/gravity, type: array, size: 3, precision: float32, clip: [-100.0, 100.0]}
+      position: {source: /wheel_leg/rl/features/position, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, clip: [-100.0, 100.0]}
+      velocity: {source: /wheel_leg/rl/features/velocity, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, source_clip: [-200.0, 200.0], scale: 0.1}
+      previous_action: {source: /wheel_leg/rl/features/previous_action, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, clip: [-100.0, 100.0]}
+      auxiliary: {source: /wheel_leg/rl/features/auxiliary, type: array, size: 7}
+    actions:
+      order: [left_hip, right_hip, left_knee, right_knee, left_wheel, right_wheel]
+      left_hip: {output: /wheel_leg/rl/raw/left_hip_joint, scale: 0.5}
+      right_hip: {output: /wheel_leg/rl/raw/right_hip_joint, scale: 0.5}
+      left_knee: {output: /wheel_leg/rl/raw/left_knee_joint, scale: 0.5}
+      right_knee: {output: /wheel_leg/rl/raw/right_knee_joint, scale: 0.5}
+      left_wheel: {output: /wheel_leg/rl/raw/left_wheel, scale: 10.0, clip: [-90.0, 90.0]}
+      right_wheel: {output: /wheel_leg/rl/raw/right_wheel, scale: 10.0, clip: [-90.0, 90.0]}
+
+wheel_leg_rl_controller:
+  ros__parameters:
+    jump_apex: 0.46
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.6109
+    lower_limit: 0.5236
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 5.0
+    ki: 0.0
+    kd: 0.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 4.338842975206612
+    ki: 0.0
+    kd: 0.0
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 6.0
+    ki: 0.0
+    kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    feedforward: /gimbal/pitch/torque_ff
+    kp: 4.338842975206612
+    ki: 0.0
+    kd: 0.0
+
+pitch_gravity_ff:
+  ros__parameters:
+    pitch_gravity_ff_gain: 2.6033057851239674
+    pitch_gravity_ff_phase: 0.75
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 1.583
+    ki: 0.0
+    kd: 0.0
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 660.0
+      - 660.0
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 10000
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
