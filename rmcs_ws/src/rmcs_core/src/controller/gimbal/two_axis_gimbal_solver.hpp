@@ -40,8 +40,6 @@ public:
     class SetDisabled : public Operation {
         PitchLink::DirectionVector update(TwoAxisGimbalSolver& super) const override {
             super.control_enabled_ = false;
-            super.control_direction_ = OdomImu::DirectionVector{Eigen::Vector3d::UnitX()};
-            super.yaw_axis_filtered_ = OdomImu::DirectionVector{Eigen::Vector3d::UnitZ()};
             return {};
         }
     };

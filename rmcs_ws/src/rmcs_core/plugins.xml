@@ -1,14 +1,10 @@
 <library path="rmcs_core">
-  <class type="rmcs_core::controller::chassis::WheelLegObservation" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::WheelLegStateEstimator" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::WheelLegRlController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Flight" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::SteeringHeroLittle" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::OmniInfantry" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmni" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmniB" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::hardware::WheelLeg" base_class_type="rmcs_executor::Component" />
   
   <class type="rmcs_core::hardware::Px4VisionBridge" base_class_type="rmcs_executor::Component" />
 
@@ -26,10 +22,8 @@
   <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableSuspension" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::chassis::WheelLegChassisController" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
-  <class type="rmcs_core::controller::gimbal::PitchGravityFeedforward" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::DualYawController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::DeformableInfantryGimbalController" base_class_type="rmcs_executor::Component" />
@@ -71,4 +65,28 @@
   <class type="rmcs_core::controller::identification::StaticTorqueTestController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::identification::SweptFrequencyController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::test::output::AngleOutput" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::WheelLeg" base_class_type="rmcs_executor::Component">
+    <description>Wheel-leg infantry hardware (chassis board + gimbal board).</description>
+  </class>
+
+  <class type="rmcs_core::controller::chassis::WheelLegChassisController" base_class_type="rmcs_executor::Component">
+    <description>Wheel-leg driver commands and reset.</description>
+  </class>
+
+  <class type="rmcs_core::controller::chassis::WheelLegStateEstimator" base_class_type="rmcs_executor::Component">
+    <description>Wheel-leg joint and gravity state.</description>
+  </class>
+
+  <class type="rmcs_core::controller::chassis::WheelLegObservation" base_class_type="rmcs_executor::Component">
+    <description>Jump-v4 policy features.</description>
+  </class>
+
+  <class type="rmcs_core::controller::chassis::WheelLegRlController" base_class_type="rmcs_executor::Component">
+    <description>Jump-v4 action and torque control.</description>
+  </class>
+
+  <class type="rmcs_core::controller::gimbal::PitchGravityFeedforward" base_class_type="rmcs_executor::Component">
+    <description>Pitch gravity feedforward torque.</description>
+  </class>
+
 </library>

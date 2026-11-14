@@ -1,48 +1,50 @@
 #pragma once
-#include "gas_spring.hpp"
-#include "joint_coordinates.hpp"
+
 #include <algorithm>
-#include <array>
 #include <cmath>
-namespace rmcs_core::controller::chassis {
-class JointSolver {
-public:
-    static JointVector
-        pd(const JointVector& target, const JointVector& q, const JointVector& dq, double kp,
-           double kd, double gas_gain) {
-        const auto gas = gas_spring_compensation({q[0], q[1], q[2], q[3]}, gas_gain);
-        JointVector effort;
-        for (int i = 0; i < 4; ++i)
-            effort[i] = kp * (target[i] - q[i]) - kd * dq[i] + gas.torque[i];
-        for (int i = 4; i < 6; ++i)
-            effort[i] = std::clamp(.5 * (target[i] - dq[i]), -4.5, 4.5);
-        return effort;
-    }
-    static JointVector constrain(
-        JointVector effort, const JointVector& q, const JointVector& caps, double margin = .03,
-        const LegBounds& mechanical_bounds = kMechanicalBounds) {
-        for (int i = 0; i < 4; ++i)
-            effort[i] = std::clamp(effort[i], -40., 40.);
-        for (int side = 0; side < 2; ++side) {
-            const int hip = 2 * side, crank = hip + 1;
-            const double sign = side == 0 ? 1. : -1.;
-            const double relative = sign * (q[crank] - q[hip]);
-            const double outward = sign * (effort[crank] - effort[hip]);
-            if ((relative >= mechanical_bounds[side][1] - margin && outward > 0.)
-                || (relative <= mechanical_bounds[side][0] + margin && outward < 0.)) {
-                effort[hip] += sign * outward / 2.;
-                effort[crank] -= sign * outward / 2.;
-            }
+
+#include "joint_coordinates.hpp"
+#include "jump_v4.hpp"
+
+namespace rmcs_core::controller::chassis::wheel_leg {
+
+inline constexpr double kLegTorqueLimit = 40.;
+inline constexpr double kWheelTorqueLimit = 4.5;
+inline constexpr double kHingeMargin = .03;
+
+inline JointVector
+    pd_torque(const JointVector& target, const JointVector& q, const JointVector& dq) {
+    JointVector torque;
+    for (int i = 0; i < 4; ++i)
+        torque[i] = jump_v4::kLegKp * (target[i] - q[i]) - jump_v4::kLegKd * dq[i];
+    for (int i = 4; i < 6; ++i)
+        torque[i] = std::clamp(.5 * (target[i] - dq[i]), -kWheelTorqueLimit, kWheelTorqueLimit);
+    return torque;
+}
+
+inline JointVector limit_torque(JointVector torque, const JointVector& q) {
+    for (int i = 0; i < 4; ++i)
+        torque[i] = std::clamp(torque[i], -kLegTorqueLimit, kLegTorqueLimit);
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side, knee = hip + 1;
+        const double sign = side == 0 ? 1. : -1.;
+        const double relative = sign * (q[knee] - q[hip]);
+        const double outward = sign * (torque[knee] - torque[hip]);
+        if ((relative >= jump_v4::kMechanicalMax - kHingeMargin && outward > 0.)
+            || (relative <= jump_v4::kMechanicalMin + kHingeMargin && outward < 0.)) {
+            torque[hip] += sign * outward / 2.;
+            torque[knee] -= sign * outward / 2.;
         }
-        double scale = 1.;
-        for (int i = 0; i < 4; ++i)
-            if (std::abs(effort[i]) > std::min(40., caps[i]))
-                scale = std::min(scale, std::min(40., caps[i]) / std::abs(effort[i]));
-        for (int i = 0; i < 4; ++i)
-            effort[i] *= scale;
-        for (int i = 4; i < 6; ++i)
-            effort[i] = std::clamp(effort[i], -caps[i], caps[i]);
-        return motor_effort(effort);
     }
-};
-} // namespace rmcs_core::controller::chassis
+    double scale = 1.;
+    for (int i = 0; i < 4; ++i)
+        if (std::abs(torque[i]) > kLegTorqueLimit)
+            scale = std::min(scale, kLegTorqueLimit / std::abs(torque[i]));
+    for (int i = 0; i < 4; ++i)
+        torque[i] *= scale;
+    for (int i = 4; i < 6; ++i)
+        torque[i] = std::clamp(torque[i], -kWheelTorqueLimit, kWheelTorqueLimit);
+    return motor_torque(torque);
+}
+
+} // namespace rmcs_core::controller::chassis::wheel_leg
