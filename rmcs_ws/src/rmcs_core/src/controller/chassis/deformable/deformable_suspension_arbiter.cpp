@@ -54,8 +54,7 @@ public:
         };
 
         register_input("/chassis/active_suspension/active", active_suspension_);
-        register_input(rl_base + "/valid", valid_, false);
-        register_input(rl_base + "/healthy", healthy_, false);
+        register_input(rl_base + "/valid", valid_);
         register_input("/chassis/deformable/reset_count", reset_count_);
         register_output(
             "/chassis/deformable/rl_suspension_authoritative", rl_authoritative_, false);
@@ -64,18 +63,17 @@ public:
             register_input(
                 joint_path(corner, traditional_angle_suffix), traditional_angle_[corner]);
             register_input(
-                joint_path(corner, traditional_velocity_suffix), traditional_velocity_[corner],
-                false);
+                joint_path(corner, traditional_velocity_suffix), traditional_velocity_[corner]);
             register_input(
                 joint_path(corner, traditional_acceleration_suffix),
-                traditional_acceleration_[corner], false);
+                traditional_acceleration_[corner]);
             register_input(
-                joint_path(corner, traditional_error_suffix), traditional_error_[corner], false);
-            register_input(joint_path(corner, rl_angle_suffix), rl_angle_[corner], false);
-            register_input(joint_path(corner, rl_velocity_suffix), rl_velocity_[corner], false);
+                joint_path(corner, traditional_error_suffix), traditional_error_[corner]);
+            register_input(joint_path(corner, rl_angle_suffix), rl_angle_[corner]);
+            register_input(joint_path(corner, rl_velocity_suffix), rl_velocity_[corner]);
             register_input(
-                joint_path(corner, rl_acceleration_suffix), rl_acceleration_[corner], false);
-            register_input(joint_path(corner, rl_error_suffix), rl_error_[corner], false);
+                joint_path(corner, rl_acceleration_suffix), rl_acceleration_[corner]);
+            register_input(joint_path(corner, rl_error_suffix), rl_error_[corner]);
             register_output(joint_path(corner, output_angle_suffix), output_angle_[corner], kNaN);
             register_output(
                 joint_path(corner, output_velocity_suffix), output_velocity_[corner], kNaN);
@@ -86,26 +84,6 @@ public:
     }
 
     void before_updating() override {
-        if (!valid_.ready())
-            valid_.make_and_bind_directly(0.0);
-        if (!healthy_.ready())
-            healthy_.make_and_bind_directly(0.0);
-        for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
-            if (!traditional_velocity_[corner].ready())
-                traditional_velocity_[corner].make_and_bind_directly(kNaN);
-            if (!traditional_acceleration_[corner].ready())
-                traditional_acceleration_[corner].make_and_bind_directly(kNaN);
-            if (!traditional_error_[corner].ready())
-                traditional_error_[corner].make_and_bind_directly(kNaN);
-            if (!rl_angle_[corner].ready())
-                rl_angle_[corner].make_and_bind_directly(kNaN);
-            if (!rl_velocity_[corner].ready())
-                rl_velocity_[corner].make_and_bind_directly(kNaN);
-            if (!rl_acceleration_[corner].ready())
-                rl_acceleration_[corner].make_and_bind_directly(kNaN);
-            if (!rl_error_[corner].ready())
-                rl_error_[corner].make_and_bind_directly(kNaN);
-        }
         last_reset_count_ = *reset_count_;
         publish_nan_outputs_();
         *rl_authoritative_ = false;
@@ -121,7 +99,7 @@ public:
         }
 
         const bool use_rl =
-            *active_suspension_ && *valid_ > 0.5 && *healthy_ > 0.5 && rl_targets_finite_();
+            *active_suspension_ && *valid_ && rl_targets_finite_();
         *rl_authoritative_ = use_rl;
 
         if (!authority_initialized_ || use_rl != last_rl_authoritative_) {
@@ -173,8 +151,7 @@ private:
     }
 
     InputInterface<bool> active_suspension_;
-    InputInterface<double> valid_;
-    InputInterface<double> healthy_;
+    InputInterface<bool> valid_;
     InputInterface<std::size_t> reset_count_;
     OutputInterface<bool> rl_authoritative_;
 
