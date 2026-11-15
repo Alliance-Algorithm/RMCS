@@ -61,9 +61,8 @@ public:
             return joint_base_path + "/" + kJointName[corner] + joint_suffix + suffix;
         };
 
-        register_input("/predefined/update_rate", update_rate_, false);
-        register_input(rl_base + "/valid", valid_, false);
-        register_input(rl_base + "/healthy", healthy_, false);
+        register_input("/predefined/update_rate", update_rate_);
+        register_input(rl_base + "/valid", valid_);
         register_input("/chassis/active_suspension/active", active_suspension_);
         register_input("/chassis/deformable/reset_count", reset_count_);
         register_input("/chassis/deformable/rl_q_cmd", q_cmd_);
@@ -73,7 +72,7 @@ public:
 
         for (std::size_t leg = 0; leg < kLegCount; ++leg)
             register_input(
-                rl_base + "/action/joint_leg_" + std::to_string(leg + 1), action_[leg], false);
+                rl_base + "/action/joint_leg_" + std::to_string(leg + 1), action_[leg]);
 
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             register_input(joint_path(corner, angle_suffix), physical_angle_[corner]);
@@ -87,21 +86,6 @@ public:
     }
 
     void before_updating() override {
-        if (!update_rate_.ready())
-            update_rate_.make_and_bind_directly(1000.0);
-        if (!valid_.ready())
-            valid_.make_and_bind_directly(0.0);
-        if (!healthy_.ready())
-            healthy_.make_and_bind_directly(0.0);
-
-        for (std::size_t leg = 0; leg < kLegCount; ++leg)
-            if (!action_[leg].ready())
-                action_[leg].make_and_bind_directly(kNaN);
-        for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
-            if (!physical_angle_[corner].ready())
-                throw std::runtime_error("missing deformable joint physical angle interface");
-        }
-
         last_reset_count_ = *reset_count_;
         publish_nan_targets_();
     }
@@ -118,7 +102,7 @@ public:
             return;
         }
 
-        const bool authoritative = *valid_ > 0.5 && *healthy_ > 0.5;
+        const bool authoritative = *valid_;
         const double q_cmd = *q_cmd_;
         const double high_physical = *high_physical_angle_;
         const double low_physical = *low_physical_angle_;
@@ -203,8 +187,7 @@ private:
     }
 
     InputInterface<double> update_rate_;
-    InputInterface<double> valid_;
-    InputInterface<double> healthy_;
+    InputInterface<bool> valid_;
     InputInterface<bool> active_suspension_;
     InputInterface<std::size_t> reset_count_;
     InputInterface<double> q_cmd_;

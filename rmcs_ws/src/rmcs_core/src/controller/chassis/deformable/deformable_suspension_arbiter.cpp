@@ -54,8 +54,7 @@ public:
         };
 
         register_input("/chassis/active_suspension/active", active_suspension_);
-        register_input(rl_base + "/valid", valid_, false);
-        register_input(rl_base + "/healthy", healthy_, false);
+        register_input(rl_base + "/valid", valid_);
         register_input("/chassis/deformable/reset_count", reset_count_);
         register_output(
             "/chassis/deformable/rl_suspension_authoritative", rl_authoritative_, false);
@@ -86,10 +85,6 @@ public:
     }
 
     void before_updating() override {
-        if (!valid_.ready())
-            valid_.make_and_bind_directly(0.0);
-        if (!healthy_.ready())
-            healthy_.make_and_bind_directly(0.0);
         for (std::size_t corner = 0; corner < kCornerCount; ++corner) {
             if (!traditional_velocity_[corner].ready())
                 traditional_velocity_[corner].make_and_bind_directly(kNaN);
@@ -121,7 +116,7 @@ public:
         }
 
         const bool use_rl =
-            *active_suspension_ && *valid_ > 0.5 && *healthy_ > 0.5 && rl_targets_finite_();
+            *active_suspension_ && *valid_ && rl_targets_finite_();
         *rl_authoritative_ = use_rl;
 
         if (!authority_initialized_ || use_rl != last_rl_authoritative_) {
@@ -173,8 +168,7 @@ private:
     }
 
     InputInterface<bool> active_suspension_;
-    InputInterface<double> valid_;
-    InputInterface<double> healthy_;
+    InputInterface<bool> valid_;
     InputInterface<std::size_t> reset_count_;
     OutputInterface<bool> rl_authoritative_;
 
