@@ -64,9 +64,6 @@ public:
         stepped_ = clock == "stepped";
         init();
 
-        for (auto& component : component_list_)
-            component->before_updating();
-
         double update_rate;
         if (!get_parameter("update_rate", update_rate))
             throw std::runtime_error{"Unable to get parameter update_rate<double>"};
@@ -78,6 +75,9 @@ public:
             throw std::runtime_error{
                 "Parameter update_rate is too large to produce a valid period"};
         predefined_msg_provider_->set_update_rate(update_rate);
+
+        for (auto& component : component_list_)
+            component->before_updating();
 
         std::string thread_config_spec;
         get_parameter_or<std::string>("thread_config", thread_config_spec, "");
