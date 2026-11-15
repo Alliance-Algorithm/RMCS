@@ -57,6 +57,11 @@ public:
     }
 
     void start() {
+        std::string clock;
+        get_parameter_or<std::string>("clock", clock, "realtime");
+        if (clock != "realtime" && clock != "stepped")
+            throw std::invalid_argument("clock must be realtime or stepped");
+        stepped_ = clock == "stepped";
         init();
 
         for (auto& component : component_list_)
@@ -137,10 +142,14 @@ private:
             while (rclcpp::ok()) {
                 const auto scheduled_start = next_iteration_time;
                 const auto actual_end = execute_update_iteration(scheduled_start, stats);
-                next_iteration_time = calculate_next_iteration_time(
-                    scheduled_start, actual_end, period, stats.cumulative);
+                if (stepped_)
+                    next_iteration_time = scheduled_start + period;
+                else
+                    next_iteration_time = calculate_next_iteration_time(
+                        scheduled_start, actual_end, period, stats.cumulative);
                 log_due_reports(actual_end, stats);
-                std::this_thread::sleep_until(next_iteration_time);
+                if (!stepped_)
+                    std::this_thread::sleep_until(next_iteration_time);
             }
         } catch (const std::exception& exception) {
             RCLCPP_FATAL(
@@ -158,7 +167,8 @@ private:
         auto current_time = SteadyClock::now();
         const auto actual_start = current_time;
 
-        record_start_lateness(scheduled_start, actual_start, stats.cumulative);
+        if (!stepped_)
+            record_start_lateness(scheduled_start, actual_start, stats.cumulative);
 
         stats.cumulative.update_count++;
         stats.window.executed_count++;
@@ -635,6 +645,7 @@ private:
     rclcpp::executors::SingleThreadedExecutor& rcl_executor_;
 
     std::thread thread_;
+    bool stepped_ = false;
 
     std::shared_ptr<PredefinedMsgProvider> predefined_msg_provider_;
     std::vector<std::shared_ptr<Component>> component_list_;
