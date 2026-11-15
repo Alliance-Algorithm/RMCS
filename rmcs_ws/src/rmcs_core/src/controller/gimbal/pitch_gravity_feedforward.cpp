@@ -15,8 +15,8 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        get_parameter("pitch_gravity_ff_gain", gain_);
-        get_parameter("pitch_gravity_ff_phase", phase_);
+        gain_ = get_parameter("pitch_gravity_ff_gain").as_double();
+        phase_ = get_parameter("pitch_gravity_ff_phase").as_double();
         register_input("/tf", tf_);
         register_output("/gimbal/pitch/torque_ff", torque_, 0.);
     }
@@ -34,7 +34,7 @@ private:
     InputInterface<rmcs_description::Tf> tf_;
     OutputInterface<double> torque_;
 
-    double gain_ = 0., phase_ = 0.;
+    double gain_, phase_;
 };
 
 } // namespace rmcs_core::controller::gimbal
