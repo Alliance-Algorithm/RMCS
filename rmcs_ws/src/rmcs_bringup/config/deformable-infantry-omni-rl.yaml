@@ -167,26 +167,23 @@ deformable_suspension_arbiter:
 # 桥：RMCS 接口观测 + 进程内异步策略推理 + 动作回写
 rl_bridge:
   ros__parameters:
-    rl_base: "/chassis/rl"
-    rl_model_path: "models/deformable/deformable_v3_transformer.onnx"
-    input_name: ""
-    output_name: ""
-    model_type: "auto"
-    normalization_from_metadata: true
-    policy_rate: 200.0                     # 每 5 ms 推理
-    history_rate: 100.0                    # 保留训练的 10 ms 历史帧间隔
-    inference_timeout: 0.03
-    max_action_age: 0.01                   # 与 dev/rmcs_rl 一致：最多两个策略周期
-    flat_hold_interface: "/chassis/rl/flat_hold"
-
+    rl_base: /chassis/rl
+    rl_model_path: models/deformable/deformable_v3_transformer.onnx
+    policy_rate: 200.0
+    history_rate: 100.0
     history_length: 8
-    rl_feature_size: 32
-
-    # 使能取自上游 DeformableChassis；桥不得读消费侧输出，否则成环。
-    enable_interface: "/chassis/active_suspension/active"
-    enable_default: false
-    invalid_value: "nan"                   # 必须加引号！
-    reset_interface: "/chassis/deformable/reset_count"
+    max_action_age: 0.01
+    flat_hold_interface: /chassis/rl/flat_hold
+    enable_interface: /chassis/active_suspension/active
+    reset_interface: /chassis/deformable/reset_count
+    expected_metadata:
+      policy_version: 'deformable_v3_transformer'
+      rmcs_history_length: '8'
+      rmcs_obs_frame_size: '32'
+      training_observation_version: 'current_fraction_v2'
+      training_obs_history_order: 'oldest_to_newest'
+      policy_layout_hash: '0xff905474bbf01fab'
+      training_action_contract: '{"version":"minangle_physical_v3","order":["RF","LF","LB","RB"],"urdf_q_zero_physical_angle_rad":1.3613532921012992,"baseline_urdf_q_rad":1.0646473192622632,"lower_urdf_q_rad":0.05235635310555198,"upper_urdf_q_rad":1.0821006117822065,"mapping":"q_target=q_cmd+clamp(action,-1,1)*where(action<0,q_cmd-q_lower,q_upper-q_cmd); physical_angle=physical_zero-q_target","policy_period_s":0.01}'
 
     # RF, LF, LB, RB；URDF q=CAD零角-physical_angle，电流沿配置后的关节轴。
     observations:
