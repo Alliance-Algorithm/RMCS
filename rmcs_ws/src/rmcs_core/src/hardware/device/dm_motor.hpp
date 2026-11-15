@@ -41,6 +41,7 @@ public:
         status_component.register_output(name_prefix + "/angle", angle_output_, 0.);
         status_component.register_output(name_prefix + "/velocity", velocity_output_, 0.);
         status_component.register_output(name_prefix + "/torque", torque_output_, 0.);
+        status_component.register_output(name_prefix + "/status", status_output_, 0);
         command_component.register_input(name_prefix + "/control_torque", control_torque_, false);
     }
 
@@ -51,10 +52,12 @@ public:
         multi_turn_angle_ = config.multi_turn_angle;
         switch (config.type) {
         case Type::kDM8009:
-            // MIT ranges match the drive's P_MAX / V_MAX / T_MAX registers.
+            // MIT ranges match the drive's P_MAX / V_MAX / T_MAX registers; 40 N*m is the peak
+            // torque.
             position_max_ = std::numbers::pi;
             velocity_max_ = 45.;
             torque_max_ = 54.;
+            max_torque_ = 40.;
             break;
         }
         initialized_ = false;
@@ -75,6 +78,7 @@ public:
             return;
 
         state_ = static_cast<State>(id_state >> 4);
+        *status_output_ = id_state >> 4;
         const auto position = static_cast<uint16_t>(
             (std::to_integer<uint16_t>(bytes[1]) << 8) | std::to_integer<uint16_t>(bytes[2]));
         const auto velocity = static_cast<uint16_t>(
@@ -109,15 +113,29 @@ public:
                                        : std::numeric_limits<double>::quiet_NaN();
     }
 
-    CanPacket8 generate_command() const {
+    // NaN disables the drive. A fault found while arming is cleared once; any other fault keeps
+    // the drive disabled until the control input returns to NaN.
+    CanPacket8 generate_command() {
         const double torque = control_torque();
-        if (std::isnan(torque))
+        if (std::isnan(torque)) {
+            arming_ = true;
+            error_cleared_ = fault_latched_ = false;
             return generate_disable_command();
+        }
+        if (fault_latched_)
+            return generate_disable_command();
+        if (state_ == State::kEnabled) {
+            arming_ = false;
+            return generate_torque_command(torque);
+        }
         if (state_ == State::kDisabled)
             return generate_enable_command();
-        if (state_ != State::kEnabled)
+        if (arming_ && !error_cleared_) {
+            error_cleared_ = true;
             return generate_clear_error_command();
-        return generate_torque_command(torque);
+        }
+        fault_latched_ = true;
+        return generate_disable_command();
     }
 
     CanPacket8 generate_enable_command() const { return system_command(0xFC); }
@@ -125,15 +143,8 @@ public:
     CanPacket8 generate_clear_error_command() const { return system_command(0xFB); }
 
     CanPacket8 generate_torque_command(double control_torque) const {
-        constexpr double kControlTorqueMax = 40.;
-        control_torque = std::clamp(control_torque, -kControlTorqueMax, kControlTorqueMax);
-        auto torque = float_to_uint(reverse_factor_ * control_torque, torque_max_, 12);
-        // Keep the quantized command inside the software torque limit.
-        if (std::abs(uint_to_float(torque, torque_max_, 12)) > kControlTorqueMax)
-            torque = float_to_uint(
-                reverse_factor_
-                    * std::copysign(kControlTorqueMax - 2. * torque_max_ / 4095., control_torque),
-                torque_max_, 12);
+        control_torque = std::clamp(control_torque, -max_torque_, max_torque_);
+        const auto torque = float_to_uint(reverse_factor_ * control_torque, torque_max_, 12);
         const auto position = float_to_uint(0., position_max_, 16);
         const auto velocity = float_to_uint(0., velocity_max_, 12);
         const std::array<std::byte, 8> bytes{
@@ -169,13 +180,16 @@ private:
 
     rmcs_executor::Component::OutputInterface<double> angle_output_, velocity_output_,
         torque_output_;
+    rmcs_executor::Component::OutputInterface<int> status_output_;
     rmcs_executor::Component::InputInterface<double> control_torque_;
 
     std::atomic<CanPacket8> can_data_{CanPacket8{0}};
     uint32_t send_id_ = 1, master_id_ = 1;
-    double position_max_ = std::numbers::pi, velocity_max_ = 45., torque_max_ = 54.;
+    double position_max_ = std::numbers::pi, velocity_max_ = 45., torque_max_ = 54.,
+           max_torque_ = 40.;
     double reverse_factor_ = 1., last_raw_angle_ = 0.;
     bool multi_turn_angle_ = false, initialized_ = false;
+    bool arming_ = true, error_cleared_ = false, fault_latched_ = false;
     State state_ = State::kDisabled;
 };
 

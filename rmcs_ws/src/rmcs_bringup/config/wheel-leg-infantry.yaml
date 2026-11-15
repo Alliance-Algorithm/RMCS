@@ -4,11 +4,13 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::WheelLeg -> wheel_leg
       - rmcs_core::referee::Status -> referee_status
+      - rmcs_rl::StateMirror -> wheel_leg_mirror
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
       - rmcs_core::controller::chassis::WheelLegStateEstimator -> wheel_leg_state_estimator
       - rmcs_core::controller::chassis::WheelLegObservation -> wheel_leg_observation
       - rmcs_rl::RlBridge -> rl_bridge
-      - rmcs_core::controller::chassis::WheelLegRlController -> wheel_leg_rl_controller
+      - rmcs_core::controller::chassis::WheelLegController -> wheel_leg_controller
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
@@ -45,45 +47,19 @@ wheel_leg_chassis_controller:
 rl_bridge:
   ros__parameters:
     rl_base: /wheel_leg/rl
-    rl_model_path: models/wheel_leg/wheelbipe_jump_v4.onnx
-    model_type: mlp
-
+    # Pending accepted jump export; generate the policy header and metadata together.
+    rl_model_path: models/wheel_leg/jump_policy.onnx
     policy_rate: 50.0
     history_length: 1
-    rl_obs_size: 35
-    rl_feature_size: 35
-    rl_action_size: 6
-    obs_clip: 100.0
-
-    inference_timeout: 0.06
     max_action_age: 0.06
-
     enable_interface: /wheel_leg/rl/input/enable
     reset_interface: /chassis/reset_count
-    enable_default: false
-    invalid_value: "nan"
-
-    observation_frame_sequence_interface: /wheel_leg/rl/input/frame_sequence
-
-    normalization_from_metadata: false
-    expected_obs_normalization: none
-    expected_observation_version: wheelbipe-v202-foundation-jump-v4
-    expected_observation_contract_sha256: f907a791b3d47f0f5e6a17a095dc51841f8085cadf1bbfda9ba273ade70efedd
-    expected_model_spec_sha256: 67f824bc29b05647e381f8584528d686955c2cfd99fd783ba40f382279bf2284
     expected_metadata:
-      leg_winding_version: paired_full_vehicle110_jump_v4
-      leg_target_model_spec_sha256: 67f824bc29b05647e381f8584528d686955c2cfd99fd783ba40f382279bf2284
-      wheelbipe_deployment_contract_sha256: "8ce02510cc775eb5c8ab1118aa2830d6eb8a5c2cd4c4d30a967b5c329c092102"
-      training_source_commit: "0f5cbd3805c2dab0c0595fe43ae61ad34d6f5a29"
-      gas_model_sha256: "13db9ada6fa0e111a51406fc950ca0b970d1fd3de0d9ceeac07b22053a952aa6"
-      feedback_pd_hz: "200"
-      gas_spring_compensation_enabled: "false"
-      tuck_spring_compensation: "model"
-      leg_kp: "80"
-      leg_kd: "1.5"
-      leg_target_overtravel_rad: "0.2"
-      leg_target_overtravel_scope: "jump-request"
-      pilot: "false"
+      # Replace this sentinel with the selected export contract before deployment.
+      wheelbipe_deployment_contract_sha256: pending-accepted-jump-export
+      pilot: 'false'
+      policy_hz: '50'
+      rmcs_obs_normalization: none
 
     observations:
       order: [command, height, gyro, gravity, position, velocity, previous_action, auxiliary]
@@ -104,7 +80,7 @@ rl_bridge:
       left_wheel: {output: /wheel_leg/rl/raw/left_wheel, scale: 10.0, clip: [-90.0, 90.0]}
       right_wheel: {output: /wheel_leg/rl/raw/right_wheel, scale: 10.0, clip: [-90.0, 90.0]}
 
-wheel_leg_rl_controller:
+wheel_leg_controller:
   ros__parameters:
     jump_apex: 0.46
 
@@ -209,3 +185,64 @@ bullet_feeder_controller:
     deep_eject_frequency: 5.0
     deep_eject_time: 0.2
     single_shot_max_stop_delay: 2.0
+
+wheel_leg_mirror:
+  ros__parameters:
+    topic_prefix: /wheel_leg/telemetry
+    frame_id: chassis_body
+    rate: 100.0
+    joints:
+      order: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint,
+              left_wheel, right_wheel, gimbal_yaw_joint, gimbal_pitch_joint]
+      left_hip_joint: {position: /wheel_leg/left_hip_joint/angle, velocity: /wheel_leg/left_hip_joint/velocity,
+        stamp: /wheel_leg/left_hip_joint/feedback_steady_ns}
+      left_knee_joint: {position: /wheel_leg/left_knee_joint/angle, velocity: /wheel_leg/left_knee_joint/velocity,
+        stamp: /wheel_leg/left_knee_joint/feedback_steady_ns}
+      right_hip_joint: {position: /wheel_leg/right_hip_joint/angle, velocity: /wheel_leg/right_hip_joint/velocity,
+        stamp: /wheel_leg/right_hip_joint/feedback_steady_ns}
+      right_knee_joint: {position: /wheel_leg/right_knee_joint/angle, velocity: /wheel_leg/right_knee_joint/velocity,
+        stamp: /wheel_leg/right_knee_joint/feedback_steady_ns}
+      left_wheel: {position: /wheel_leg/left_wheel/angle, velocity: /wheel_leg/left_wheel/velocity,
+        stamp: /wheel_leg/left_wheel/feedback_steady_ns}
+      right_wheel: {position: /wheel_leg/right_wheel/angle, velocity: /wheel_leg/right_wheel/velocity,
+        stamp: /wheel_leg/right_wheel/feedback_steady_ns}
+      gimbal_yaw_joint: {position: /gimbal/yaw/angle, velocity: /gimbal/yaw/velocity}
+      gimbal_pitch_joint: {position: /gimbal/pitch/angle, velocity: /gimbal/pitch/velocity}
+    imu: {orientation: /wheel_leg/imu/quaternion, angular_velocity: /wheel_leg/imu/angular_velocity,
+      stamp: /wheel_leg/imu/last_steady_ns}
+    vectors:
+      order: [rl_projected_gravity, rl_angular_velocity]
+      rl_projected_gravity: /wheel_leg/state/gravity
+      rl_angular_velocity: /wheel_leg/imu/angular_velocity
+    values:
+      state: {position: /wheel_leg/state/position}
+      control: {enabled: /chassis/control_enable, ready: /wheel_leg/control_ready,
+        reset_count: /chassis/reset_count, rl_state: /wheel_leg/rl/state}
+      operator: {velocity: /chassis/control_velocity, height: /chassis/control_height, mode: /chassis/control_mode}
+      remote: {left: /remote/joystick/left, right: /remote/joystick/right,
+        switch_left: /remote/switch/left, switch_right: /remote/switch/right,
+        knob: /remote/rotary_knob, keyboard: /remote/keyboard}
+      gimbal: {left_friction: /gimbal/left_friction/velocity, right_friction: /gimbal/right_friction/velocity,
+        bullet_feeder: /gimbal/bullet_feeder/velocity}
+      shooting: {friction_ready: /gimbal/friction_ready, friction_jammed: /gimbal/friction_jammed,
+        bullet_fired: /gimbal/bullet_fired}
+      power: {supercap_enabled: /chassis/supercap/enabled}
+      drives: {left_hip_joint: /wheel_leg/left_hip_joint/status, left_knee_joint: /wheel_leg/left_knee_joint/status,
+        right_hip_joint: /wheel_leg/right_hip_joint/status, right_knee_joint: /wheel_leg/right_knee_joint/status}
+    constants:
+      coordinate: rmcs_hardware_output_shaft_v1
+      model_offset: {left_hip_joint: "1.6", left_knee_joint: "3.0282761689183353",
+        right_hip_joint: "-1.6", right_knee_joint: "-3.0283102010168"}
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/left_friction/velocity
+      - /gimbal/right_friction/velocity
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
+      - /chassis/voltage

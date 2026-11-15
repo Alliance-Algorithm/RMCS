@@ -4,9 +4,10 @@
 #include <array>
 #include <cmath>
 #include <span>
+#include <stdexcept>
 
 #include "joint_coordinates.hpp"
-#include "jump_v4.hpp"
+#include "jump_policy.hpp"
 
 namespace rmcs_core::controller::chassis::wheel_leg {
 
@@ -15,7 +16,11 @@ public:
     enum class Phase { kIdle, kCrouch, kPush, kFlight, kRecover };
 
     explicit JumpCommand(double apex)
-        : apex_(apex) {}
+        : apex_(apex) {
+        if (!std::isfinite(apex_) || apex_ < jump_policy::kMinimumApex
+            || apex_ > jump_policy::kMaximumApex)
+            throw std::invalid_argument("Jump apex is outside the policy contract");
+    }
 
     void reset() {
         active_ = false;
@@ -31,22 +36,24 @@ public:
     }
 
     void update(double now) {
-        if (active_ && (now < started_ || now - started_ >= jump_v4::kRequestDuration))
+        if (active_ && (now < started_ || now - started_ >= jump_policy::kRequestDuration))
             reset();
     }
 
     bool active() const { return active_; }
-    double elapsed(double now) const { return active_ ? std::clamp(now - started_, 0., 6.) : 0.; }
+    double elapsed(double now) const {
+        return active_ ? std::clamp(now - started_, 0., jump_policy::kRequestDuration) : 0.;
+    }
 
     Phase phase(double now) const {
         if (!active_)
             return Phase::kIdle;
         const double t = elapsed(now);
-        if (t < jump_v4::kCrouchSeconds)
+        if (t < jump_policy::kCrouchSeconds)
             return Phase::kCrouch;
-        if (t - jump_v4::kCrouchSeconds <= push_duration())
+        if (t - jump_policy::kCrouchSeconds <= push_duration())
             return Phase::kPush;
-        if (t - jump_v4::kCrouchSeconds < push_duration() + 2. * release_velocity() / 9.81)
+        if (t - jump_policy::kCrouchSeconds < push_duration() + 2. * release_velocity() / 9.81)
             return Phase::kFlight;
         return Phase::kRecover;
     }
@@ -55,17 +62,17 @@ public:
         const double t = elapsed(now);
         switch (phase(now)) {
         case Phase::kCrouch: {
-            const double p = t / jump_v4::kCrouchSeconds;
-            return jump_v4::kStandingHeight
-                 + (jump_v4::kCrouchHeight - jump_v4::kStandingHeight)
+            const double p = t / jump_policy::kCrouchSeconds;
+            return jump_policy::kStandingHeight
+                 + (jump_policy::kCrouchHeight - jump_policy::kStandingHeight)
                        * (3. * p * p - 2. * p * p * p);
         }
         case Phase::kPush: {
-            const double p = t - jump_v4::kCrouchSeconds;
-            return jump_v4::kCrouchHeight + .5 * release_velocity() / push_duration() * p * p;
+            const double p = t - jump_policy::kCrouchSeconds;
+            return jump_policy::kCrouchHeight + .5 * release_velocity() / push_duration() * p * p;
         }
-        case Phase::kFlight: return jump_v4::kReleaseHeight;
-        default: return jump_v4::kStandingHeight;
+        case Phase::kFlight: return jump_policy::kReleaseHeight;
+        default: return jump_policy::kStandingHeight;
         }
     }
 
@@ -77,10 +84,10 @@ public:
 
 private:
     double release_velocity() const {
-        return std::sqrt(2. * 9.81 * (apex_ - jump_v4::kReleaseHeight));
+        return std::sqrt(2. * 9.81 * (apex_ - jump_policy::kReleaseHeight));
     }
     double push_duration() const {
-        return 2. * (jump_v4::kReleaseHeight - jump_v4::kCrouchHeight) / release_velocity();
+        return 2. * (jump_policy::kReleaseHeight - jump_policy::kCrouchHeight) / release_velocity();
     }
 
     double apex_, started_ = 0.;
@@ -88,11 +95,11 @@ private:
 };
 
 inline LegBounds jump_target_bounds(bool active) {
-    auto bounds = jump_v4::kBounds;
+    auto bounds = jump_policy::kBounds;
     if (active)
         for (auto& side : bounds) {
-            side[0] -= jump_v4::kOvertravel;
-            side[1] += jump_v4::kOvertravel;
+            side[0] -= jump_policy::kOvertravel;
+            side[1] += jump_policy::kOvertravel;
         }
     return bounds;
 }
@@ -124,24 +131,25 @@ inline LegVector
         const int hip = 2 * side, knee = hip + 1;
         const double sign = side == 0 ? 1. : -1.;
         const double delta = sign * (q[knee] - q[hip]);
-        const std::span<const jump_v4::GeometryKnot> geometry{
-            side == 0 ? jump_v4::kLeft : jump_v4::kRight};
+        const std::span<const jump_policy::GeometryKnot> geometry{
+            side == 0 ? jump_policy::kLeft : jump_policy::kRight};
         if (delta < geometry.front().delta_rad || delta > geometry.back().delta_rad)
             continue;
 
-        using Geometry = jump_v4::GeometryKnot;
-        using Force = jump_v4::ForceKnot;
+        using Geometry = jump_policy::GeometryKnot;
+        using Force = jump_policy::ForceKnot;
         const double compression =
             interpolate(geometry, delta, &Geometry::delta_rad, &Geometry::compression_m);
-        const std::span<const Force> curve{jump_v4::kForce};
+        const std::span<const Force> curve{jump_policy::kForce};
         double force = interpolate(curve, compression, &Force::compression_m, &Force::force_n);
         if (compression < curve.front().compression_m)
-            force = curve.front().force_n
-                  * std::exp(
-                        jump_v4::kLowCompressionRate * (compression - curve.front().compression_m));
+            force =
+                curve.front().force_n
+                * std::exp(
+                    jump_policy::kLowCompressionRate * (compression - curve.front().compression_m));
         else if (compression > curve.back().compression_m)
             force = curve.back().force_n
-                  + jump_v4::kHighCompressionSlope * (compression - curve.back().compression_m);
+                  + jump_policy::kHighCompressionSlope * (compression - curve.back().compression_m);
         const double holding_hip =
             -force
             * interpolate(geometry, delta, &Geometry::delta_rad, &Geometry::hip_length_jacobian);
@@ -152,10 +160,12 @@ inline LegVector
         const double error = sign * ((q[knee] - q[hip]) - (target[knee] - target[hip]));
         const double inward_pd = -.5 * sign * (pd[knee] - pd[hip]);
         const double gate =
-            smooth_ramp((error - jump_v4::kErrorOn) / (jump_v4::kErrorFull - jump_v4::kErrorOn))
-            * smooth_ramp(inward_pd / jump_v4::kInwardPdFull);
+            smooth_ramp(
+                (error - jump_policy::kErrorOn) / (jump_policy::kErrorFull - jump_policy::kErrorOn))
+            * smooth_ramp(inward_pd / jump_policy::kInwardPdFull);
         const double inward = std::max(0., -.5 * sign * (holding_knee - holding_hip));
-        const double magnitude = std::min(inward * jump_v4::kTuckGain, jump_v4::kTuckCap) * gate;
+        const double magnitude =
+            std::min(inward * jump_policy::kTuckGain, jump_policy::kTuckCap) * gate;
         torque[hip] = sign * magnitude;
         torque[knee] = -sign * magnitude;
     }

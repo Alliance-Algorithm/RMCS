@@ -11,6 +11,7 @@
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "controller/pid/pid_calculator.hpp"
 
@@ -18,22 +19,21 @@ namespace rmcs_core::controller::chassis {
 
 class WheelLegChassisController
     : public rmcs_executor::Component
-    , public rclcpp::Node {
+    , public rclcpp::Node
+    , public rmcs_utility::NodeMixin {
 public:
     WheelLegChassisController()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
-        vx_max_ = get_parameter("vx_max").as_double();
-        spin_yaw_rate_ = get_parameter("spin_yaw_rate").as_double();
-        yaw_stick_rate_ = get_parameter("yaw_stick_rate").as_double();
-        yaw_rate_max_ = get_parameter("yaw_rate_max").as_double();
-        deadzone_ = get_parameter("deadzone").as_double();
-        height_min_ = get_parameter("command_height_min").as_double();
-        height_max_ = get_parameter("command_height_max").as_double();
-        nominal_height_ = get_parameter("default_command_height").as_double();
-        height_rate_ = get_parameter("height_rate").as_double();
-        following_velocity_controller_.kp = get_parameter("following_velocity_kp").as_double();
+        : Node{get_component_name(), node::options()} {
+        node::param("vx_max", vx_max_);
+        node::param("spin_yaw_rate", spin_yaw_rate_);
+        node::param("yaw_stick_rate", yaw_stick_rate_);
+        node::param("yaw_rate_max", yaw_rate_max_);
+        node::param("deadzone", deadzone_);
+        node::param("command_height_min", height_min_);
+        node::param("command_height_max", height_max_);
+        node::param("default_command_height", nominal_height_);
+        node::param("height_rate", height_rate_);
+        node::param("following_velocity_kp", following_velocity_controller_.kp);
         following_velocity_controller_.ki = following_velocity_controller_.kd = 0.;
         following_velocity_controller_.output_min = -yaw_rate_max_;
         following_velocity_controller_.output_max = yaw_rate_max_;

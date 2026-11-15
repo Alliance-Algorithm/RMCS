@@ -1,9 +1,14 @@
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <format>
 #include <functional>
-#include <limits>
 #include <memory>
 #include <numbers>
 #include <print>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -131,7 +136,16 @@ private:
                 "/wheel_leg/imu/quaternion", imu_quaternion_, Eigen::Quaterniond::Identity());
             wheel_leg.register_output(
                 "/wheel_leg/imu/angular_velocity", imu_angular_velocity_, Eigen::Vector3d::Zero());
-            wheel_leg.register_output("/wheel_leg/dm_control_ready", dm_control_ready_, false);
+            const std::array<std::string, 6> joints{"left_hip_joint",  "left_knee_joint",
+                                                    "right_hip_joint", "right_knee_joint",
+                                                    "left_wheel",      "right_wheel"};
+            for (std::size_t i = 0; i < joints.size(); ++i)
+                wheel_leg.register_output(
+                    "/wheel_leg/" + joints[i] + "/feedback_steady_ns", motor_feedback_ns_[i],
+                    std::uint64_t{0});
+            wheel_leg.register_output(
+                "/wheel_leg/imu/last_steady_ns", imu_feedback_ns_, std::uint64_t{0});
+            wheel_leg.register_output("/wheel_leg/control_ready", control_ready_, false);
             wheel_leg.register_output("/referee/serial", referee_serial_);
             referee_serial_->read = [this](std::byte* buffer, size_t size) {
                 return referee_ring_buffer_receive_.pop_front_n(
@@ -149,7 +163,7 @@ private:
         }
 
         auto status() const -> std::vector<std::string> { return monitor_.text(); }
-        int yaw_raw_angle() const { return gimbal_yaw_motor_.last_raw_angle(); }
+        int64_t yaw_raw_angle() const { return gimbal_yaw_motor_.last_raw_angle(); }
 
         void update() {
             chassis_left_wheel_motor_.update_status();
@@ -158,9 +172,6 @@ private:
             chassis_right_hip_motor_.update_status();
             chassis_left_knee_motor_.update_status();
             chassis_right_knee_motor_.update_status();
-            *dm_control_ready_ =
-                chassis_left_hip_motor_.enabled() && chassis_right_hip_motor_.enabled()
-                && chassis_left_knee_motor_.enabled() && chassis_right_knee_motor_.enabled();
 
             gimbal_yaw_motor_.update_status();
             tf_->set_state<rmcs_description::GimbalCenterLink, rmcs_description::YawLink>(
@@ -169,14 +180,19 @@ private:
             supercap_.update_status();
             left_tof_.update_status();
             right_tof_.update_status();
-            // This robot has a single DR16; keep its timeout enabled.
+            // RemoteControl disables the timeout of a lone DR16; re-enable it before each update
+            // so a lost remote still resets the chassis.
             dr16_.set_timeout_enabled(true);
             dr16_.update_status();
 
+            for (std::size_t i = 0; i < motor_feedback_ns_.size(); ++i)
+                *motor_feedback_ns_[i] = motor_received_ns_[i].load(std::memory_order_relaxed);
+            *imu_feedback_ns_ = imu_received_ns_.load(std::memory_order_relaxed);
             if (const auto snapshot = bmi088_.snapshot()) {
                 *imu_quaternion_ = snapshot->orientation;
                 *imu_angular_velocity_ = snapshot->gyro_body;
             }
+            update_control_ready();
         }
 
         void command_update() {
@@ -224,6 +240,18 @@ private:
         }
 
     private:
+        // Control needs every drive and the chassis IMU reporting, all four joints enabled and a
+        // live IMU; a stale IMU is handled like a lost drive.
+        void update_control_ready() {
+            constexpr std::uint64_t kImuTimeout = 20'000'000;
+            const auto imu_ns = *imu_feedback_ns_;
+            *control_ready_ =
+                std::ranges::all_of(motor_feedback_ns_, [](const auto& ns) { return *ns != 0; })
+                && imu_ns != 0 && steady_ns() - imu_ns <= kImuTimeout
+                && chassis_left_hip_motor_.enabled() && chassis_right_hip_motor_.enabled()
+                && chassis_left_knee_motor_.enabled() && chassis_right_knee_motor_.enabled();
+        }
+
         void can_receive_callback(const Spec::Can& can, const View::Can& data) override {
             if (data.is_extended_can_id || data.is_remote_transmission) [[unlikely]]
                 return;
@@ -231,9 +259,9 @@ private:
 
             if (can == Spec::kCans.kCan0) {
                 if (can_id == 0x201)
-                    chassis_left_wheel_motor_.store_status(data.can_data);
+                    store_motor_status(chassis_left_wheel_motor_, data.can_data, 4);
                 else if (can_id == 0x202)
-                    chassis_right_wheel_motor_.store_status(data.can_data);
+                    store_motor_status(chassis_right_wheel_motor_, data.can_data, 5);
                 else if (can_id == 0x203)
                     gimbal_bullet_feeder_.store_status(data.can_data);
                 else if (can_id == 0x300)
@@ -241,9 +269,9 @@ private:
                 monitor_.tick("Chassis::Can0", can_id);
             } else if (can == Spec::kCans.kCan1) {
                 if (can_id == chassis_left_hip_motor_.master_id())
-                    chassis_left_hip_motor_.store_status(data.can_data);
+                    store_motor_status(chassis_left_hip_motor_, data.can_data, 0);
                 else if (can_id == chassis_right_hip_motor_.master_id())
-                    chassis_right_hip_motor_.store_status(data.can_data);
+                    store_motor_status(chassis_right_hip_motor_, data.can_data, 2);
                 else if (can_id == left_tof_.recv_id())
                     left_tof_.store_status(data.can_data);
                 else if (can_id == right_tof_.recv_id())
@@ -251,15 +279,27 @@ private:
                 monitor_.tick("Chassis::Can1", can_id);
             } else if (can == Spec::kCans.kCan2) {
                 if (can_id == chassis_left_knee_motor_.master_id())
-                    chassis_left_knee_motor_.store_status(data.can_data);
+                    store_motor_status(chassis_left_knee_motor_, data.can_data, 1);
                 else if (can_id == chassis_right_knee_motor_.master_id())
-                    chassis_right_knee_motor_.store_status(data.can_data);
+                    store_motor_status(chassis_right_knee_motor_, data.can_data, 3);
                 monitor_.tick("Chassis::Can2", can_id);
             } else if (can == Spec::kCans.kCan3) {
                 if (can_id == 0x141)
                     gimbal_yaw_motor_.store_status(data.can_data);
                 monitor_.tick("Chassis::Can3", can_id);
             }
+        }
+
+        void store_motor_status(auto& motor, std::span<const std::byte> data, std::size_t index) {
+            motor.store_status(data);
+            motor_received_ns_[index].store(steady_ns(), std::memory_order_relaxed);
+        }
+
+        static std::uint64_t steady_ns() {
+            return static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch())
+                    .count());
         }
 
         void uart_receive_callback(const Spec::Uart& uart, const View::Uart& data) override {
@@ -282,6 +322,7 @@ private:
         }
 
         void gyroscope_receive_callback(const View::ImuGyroscope& data) override {
+            imu_received_ns_.store(steady_ns(), std::memory_order_relaxed);
             monitor_.tick("Chassis::Imu", "Gyr");
             const auto timestamp = board_clock_lifter_.lift_timestamp(data.timestamp_quarter_us);
             if (!timestamp.has_value())
@@ -294,7 +335,11 @@ private:
         device::DjiMotor chassis_left_wheel_motor_, chassis_right_wheel_motor_;
         device::DmMotor chassis_left_hip_motor_, chassis_right_hip_motor_;
         device::DmMotor chassis_left_knee_motor_, chassis_right_knee_motor_;
-        OutputInterface<bool> dm_control_ready_;
+        OutputInterface<bool> control_ready_;
+        std::array<OutputInterface<std::uint64_t>, 6> motor_feedback_ns_;
+        std::array<std::atomic<std::uint64_t>, 6> motor_received_ns_{};
+        OutputInterface<std::uint64_t> imu_feedback_ns_;
+        std::atomic<std::uint64_t> imu_received_ns_{0};
 
         device::LkMotor gimbal_yaw_motor_;
         device::DjiMotor gimbal_bullet_feeder_;
@@ -345,7 +390,7 @@ private:
         }
 
         auto status() const -> std::vector<std::string> { return monitor_.text(); }
-        int pitch_raw_angle() const { return gimbal_pitch_motor_.last_raw_angle(); }
+        int64_t pitch_raw_angle() const { return gimbal_pitch_motor_.last_raw_angle(); }
 
         void update() {
             gimbal_pitch_motor_.update_status();

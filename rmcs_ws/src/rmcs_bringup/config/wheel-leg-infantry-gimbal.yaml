@@ -5,6 +5,8 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::WheelLeg -> wheel_leg
       - rmcs_core::referee::Status -> referee_status
+      - rmcs_rl::StateMirror -> wheel_leg_mirror
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
@@ -167,3 +169,64 @@ auto_aim_capturer:
     use_hardware_sync: false
     imu_snapshot_topic: ''
     delay_ms: 6.5
+
+wheel_leg_mirror:
+  ros__parameters:
+    topic_prefix: /wheel_leg/telemetry
+    frame_id: chassis_body
+    rate: 100.0
+    joints:
+      order: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint,
+              left_wheel, right_wheel, gimbal_yaw_joint, gimbal_pitch_joint]
+      left_hip_joint: {position: /wheel_leg/left_hip_joint/angle, velocity: /wheel_leg/left_hip_joint/velocity,
+        stamp: /wheel_leg/left_hip_joint/feedback_steady_ns}
+      left_knee_joint: {position: /wheel_leg/left_knee_joint/angle, velocity: /wheel_leg/left_knee_joint/velocity,
+        stamp: /wheel_leg/left_knee_joint/feedback_steady_ns}
+      right_hip_joint: {position: /wheel_leg/right_hip_joint/angle, velocity: /wheel_leg/right_hip_joint/velocity,
+        stamp: /wheel_leg/right_hip_joint/feedback_steady_ns}
+      right_knee_joint: {position: /wheel_leg/right_knee_joint/angle, velocity: /wheel_leg/right_knee_joint/velocity,
+        stamp: /wheel_leg/right_knee_joint/feedback_steady_ns}
+      left_wheel: {position: /wheel_leg/left_wheel/angle, velocity: /wheel_leg/left_wheel/velocity,
+        stamp: /wheel_leg/left_wheel/feedback_steady_ns}
+      right_wheel: {position: /wheel_leg/right_wheel/angle, velocity: /wheel_leg/right_wheel/velocity,
+        stamp: /wheel_leg/right_wheel/feedback_steady_ns}
+      gimbal_yaw_joint: {position: /gimbal/yaw/angle, velocity: /gimbal/yaw/velocity}
+      gimbal_pitch_joint: {position: /gimbal/pitch/angle, velocity: /gimbal/pitch/velocity}
+    imu: {orientation: /wheel_leg/imu/quaternion, angular_velocity: /wheel_leg/imu/angular_velocity,
+      stamp: /wheel_leg/imu/last_steady_ns}
+    vectors:
+      order: [rl_projected_gravity, rl_angular_velocity]
+      rl_projected_gravity: /wheel_leg/state/gravity
+      rl_angular_velocity: /wheel_leg/imu/angular_velocity
+    values:
+      state: {position: /wheel_leg/state/position}
+      control: {enabled: /chassis/control_enable, ready: /wheel_leg/control_ready,
+        reset_count: /chassis/reset_count, rl_state: /wheel_leg/rl/state}
+      operator: {velocity: /chassis/control_velocity, height: /chassis/control_height, mode: /chassis/control_mode}
+      remote: {left: /remote/joystick/left, right: /remote/joystick/right,
+        switch_left: /remote/switch/left, switch_right: /remote/switch/right,
+        knob: /remote/rotary_knob, keyboard: /remote/keyboard}
+      gimbal: {left_friction: /gimbal/left_friction/velocity, right_friction: /gimbal/right_friction/velocity,
+        bullet_feeder: /gimbal/bullet_feeder/velocity}
+      shooting: {friction_ready: /gimbal/friction_ready, friction_jammed: /gimbal/friction_jammed,
+        bullet_fired: /gimbal/bullet_fired}
+      power: {supercap_enabled: /chassis/supercap/enabled}
+      drives: {left_hip_joint: /wheel_leg/left_hip_joint/status, left_knee_joint: /wheel_leg/left_knee_joint/status,
+        right_hip_joint: /wheel_leg/right_hip_joint/status, right_knee_joint: /wheel_leg/right_knee_joint/status}
+    constants:
+      coordinate: rmcs_hardware_output_shaft_v1
+      model_offset: {left_hip_joint: "1.6", left_knee_joint: "3.0282761689183353",
+        right_hip_joint: "-1.6", right_knee_joint: "-3.0283102010168"}
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/left_friction/velocity
+      - /gimbal/right_friction/velocity
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
+      - /chassis/voltage

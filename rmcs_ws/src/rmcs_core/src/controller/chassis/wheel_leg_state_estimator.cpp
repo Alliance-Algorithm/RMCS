@@ -5,20 +5,20 @@
 #include <eigen3/Eigen/Geometry>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "wheel_leg/joint_coordinates.hpp"
-#include "wheel_leg/jump_v4.hpp"
+#include "wheel_leg/jump_policy.hpp"
 
 namespace rmcs_core::controller::chassis {
 
 class WheelLegStateEstimator
     : public rmcs_executor::Component
-    , public rclcpp::Node {
+    , public rclcpp::Node
+    , public rmcs_utility::NodeMixin {
 public:
     WheelLegStateEstimator()
-        : Node(
-              get_component_name(),
-              rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true)) {
+        : Node{get_component_name(), node::options()} {
         for (std::size_t i = 0; i < wheel_leg::kJointNames.size(); ++i) {
             const auto prefix = std::string{"/wheel_leg/"} + wheel_leg::kJointNames[i];
             register_input(prefix + "/angle", angle_[i]);
@@ -38,7 +38,7 @@ public:
         }
         auto q = wheel_leg::model_position(angle);
         const auto legs =
-            wheel_leg::continuous_legs({q[0], q[1], q[2], q[3]}, wheel_leg::jump_v4::kBounds);
+            wheel_leg::continuous_legs({q[0], q[1], q[2], q[3]}, wheel_leg::jump_policy::kBounds);
         std::copy(legs.begin(), legs.end(), q.begin());
         *position_ = q;
         *velocity_output_ = wheel_leg::model_velocity(velocity);

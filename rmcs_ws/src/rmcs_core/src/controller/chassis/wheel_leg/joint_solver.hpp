@@ -4,7 +4,7 @@
 #include <cmath>
 
 #include "joint_coordinates.hpp"
-#include "jump_v4.hpp"
+#include "jump_policy.hpp"
 
 namespace rmcs_core::controller::chassis::wheel_leg {
 
@@ -16,7 +16,7 @@ inline JointVector
     pd_torque(const JointVector& target, const JointVector& q, const JointVector& dq) {
     JointVector torque;
     for (int i = 0; i < 4; ++i)
-        torque[i] = jump_v4::kLegKp * (target[i] - q[i]) - jump_v4::kLegKd * dq[i];
+        torque[i] = jump_policy::kLegKp * (target[i] - q[i]) - jump_policy::kLegKd * dq[i];
     for (int i = 4; i < 6; ++i)
         torque[i] = std::clamp(.5 * (target[i] - dq[i]), -kWheelTorqueLimit, kWheelTorqueLimit);
     return torque;
@@ -30,8 +30,8 @@ inline JointVector limit_torque(JointVector torque, const JointVector& q) {
         const double sign = side == 0 ? 1. : -1.;
         const double relative = sign * (q[knee] - q[hip]);
         const double outward = sign * (torque[knee] - torque[hip]);
-        if ((relative >= jump_v4::kMechanicalMax - kHingeMargin && outward > 0.)
-            || (relative <= jump_v4::kMechanicalMin + kHingeMargin && outward < 0.)) {
+        if ((relative >= jump_policy::kMechanicalMax - kHingeMargin && outward > 0.)
+            || (relative <= jump_policy::kMechanicalMin + kHingeMargin && outward < 0.)) {
             torque[hip] += sign * outward / 2.;
             torque[knee] -= sign * outward / 2.;
         }

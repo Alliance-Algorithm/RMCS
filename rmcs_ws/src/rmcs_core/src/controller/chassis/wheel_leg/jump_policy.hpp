@@ -1,9 +1,17 @@
 #pragma once
 
 #include <array>
+#include <string_view>
 
-// Training 0f5cbd3805c2dab0c0595fe43ae61ad34d6f5a29; gas model 13db9ada.
-namespace rmcs_core::controller::chassis::wheel_leg::jump_v4 {
+// Generator: isaac_wheeled_rl_train scripts/generate_jump_policy_header.py
+// at e678719c27445501b3fc5bff743e8f6d82c41515.
+// Source 0f5cbd3805c2dab0c0595fe43ae61ad34d6f5a29; contract
+// e420bb91f284342349c43b9cc38b1fc95becf10e1f8df49c5c1cc4a16c7f7646. Generation alone does not
+// qualify a model for hardware deployment.
+namespace rmcs_core::controller::chassis::wheel_leg::jump_policy {
+// Must equal the wheelbipe_deployment_contract_sha256 metadata of the loaded ONNX.
+inline constexpr std::string_view kDeploymentContractSha256 =
+    "8ce02510cc775eb5c8ab1118aa2830d6eb8a5c2cd4c4d30a967b5c329c092102";
 struct GeometryKnot {
     double delta_rad, compression_m, hip_length_jacobian, knee_length_jacobian;
 };
@@ -11,11 +19,11 @@ struct ForceKnot {
     double compression_m, force_n;
 };
 
-inline constexpr double kForwardLimit = 2.7;
+inline constexpr double kForwardLimit = 2.7000000000000002;
 inline constexpr double kYawLimit = 10.471975511965978;
-inline constexpr double kHeightMin = .23;
-inline constexpr double kHeightMax = .42;
-inline constexpr double kHeightRate = .6666666666666666;
+inline constexpr double kHeightMin = 0.23000000000000001;
+inline constexpr double kHeightMax = 0.41999999999999998;
+inline constexpr double kHeightRate = 0.66666666666666663;
 inline constexpr double kLegKp = 80;
 inline constexpr double kLegKd = 1.5;
 inline constexpr double kOvertravel = 0.20000000000000001;
@@ -622,4 +630,4 @@ inline constexpr std::array<GeometryKnot, 281> kRight{{
     {1.4233828007361584, 0.015719637897348308, 0.041016403918549528, -0.041016196665515842},
     {1.4283102010168576, 0.015517683036666084, 0.040956062396396944, -0.040955855196883606},
 }};
-} // namespace rmcs_core::controller::chassis::wheel_leg::jump_v4
+} // namespace rmcs_core::controller::chassis::wheel_leg::jump_policy
