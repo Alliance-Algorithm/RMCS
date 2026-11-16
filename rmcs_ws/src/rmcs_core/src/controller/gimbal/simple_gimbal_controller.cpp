@@ -40,6 +40,10 @@ public:
         auto angle_error = calculate_angle_error();
         *yaw_angle_error_ = angle_error.yaw_angle_error;
         *pitch_angle_error_ = angle_error.pitch_angle_error;
+        // RCLCPP_INFO(get_logger(), "[gimbal calibration] New yaw offset: %ld",
+        // joystick_left_->y());
+        // RCLCPP_INFO_THROTTLE(
+        //     get_logger(), *get_clock(), 1000, "yaw_err=%.6f", angle_error.yaw_angle_error);
     }
 
     TwoAxisGimbalSolver::AngleError calculate_angle_error() {

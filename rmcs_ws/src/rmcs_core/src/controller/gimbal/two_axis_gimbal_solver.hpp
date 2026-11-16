@@ -138,6 +138,9 @@ private:
         pitch = {yaw_axis->z(), yaw_axis->x()};
         pitch.normalized();
 
+        if (pitch.x() < 0.0)
+            pitch = -pitch;
+
         const auto& [x, y, z] = *dir;
         dir_yaw_link = {x * pitch.x() - z * pitch.y(), y, x * pitch.y() + z * pitch.x()};
 

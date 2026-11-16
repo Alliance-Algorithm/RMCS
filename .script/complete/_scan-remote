@@ -1,0 +1,11 @@
+#compdef scan-remote
+
+_scan_remote_subnets() {
+  local -a suggestions
+  suggestions=(${(f)"$(${commands[scan-remote]:-scan-remote} --complete-subnets 2>/dev/null)"})
+  compadd -- ${suggestions}
+}
+
+_arguments \
+  '--json[Output machine-readable JSON]' \
+  '*:subnet:_scan_remote_subnets'

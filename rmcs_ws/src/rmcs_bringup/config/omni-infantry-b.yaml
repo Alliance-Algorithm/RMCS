@@ -15,6 +15,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
 
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
@@ -30,8 +31,8 @@ rmcs_executor:
 infantry_hardware:
   ros__parameters:
     board_serial: ""
-    yaw_motor_zero_point: 40186
-    pitch_motor_zero_point: 53650
+    yaw_motor_zero_point: 385
+    pitch_motor_zero_point: 4216
 
 gimbal_controller:
   ros__parameters:
@@ -53,9 +54,9 @@ yaw_velocity_pid_controller:
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 40.0
-    ki: 0.001
-    kd: 0.01
+    kp: 1.4
+    ki: 0.00
+    kd: 0.00
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -64,6 +65,15 @@ pitch_angle_pid_controller:
     kp: 20.0
     ki: 0.0
     kd: 0.1
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    kp: 1.1
+    ki: 0.0
+    kd: 0.0
 
 friction_wheel_controller:
   ros__parameters:
@@ -114,6 +124,6 @@ bullet_feeder_velocity_pid_controller:
     measurement: /gimbal/bullet_feeder/velocity
     setpoint: /gimbal/bullet_feeder/control_velocity
     control: /gimbal/bullet_feeder/control_torque
-    kp: 1.583
+    kp: 1.0
     ki: 0.0
     kd: 0.0

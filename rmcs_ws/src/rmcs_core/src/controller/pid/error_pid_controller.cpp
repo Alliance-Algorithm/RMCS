@@ -37,6 +37,10 @@ public:
     void update() override {
         auto err = *measurement_;
         *control_ = *feedforward_ + pid_calculator_.update(err);
+
+        // RCLCPP_INFO_THROTTLE(
+        //     get_logger(), *get_clock(), 1000, "[%s] error=%.5f rad, control_velocity=%.5f rad/s",
+        //     get_component_name().c_str(), err, *control_);
     }
 
 private:

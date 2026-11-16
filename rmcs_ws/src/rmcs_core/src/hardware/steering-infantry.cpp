@@ -7,7 +7,6 @@
 #include <utility>
 
 #include <eigen3/Eigen/Dense>
-#include <librmcs/agent/c_board.hpp>
 #include <librmcs/data/datas.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -23,6 +22,7 @@
 
 #include "hardware/device/bmi088.hpp"
 #include "hardware/device/can_packet.hpp"
+#include "hardware/device/c_board_compat.hpp"
 #include "hardware/device/dji_motor.hpp"
 #include "hardware/device/dr16.hpp"
 #include "hardware/device/lk_motor.hpp"

@@ -70,3 +70,5 @@ record/
 
 # For temperary development
 develop_ws
+.devcontainer/.zsh_history
+.devcontainer/.generated/

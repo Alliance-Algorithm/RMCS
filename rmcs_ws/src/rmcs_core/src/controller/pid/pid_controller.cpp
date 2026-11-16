@@ -38,6 +38,10 @@ public:
     void update() override {
         auto err = *setpoint_ - *measurement_;
         *control_ = *feedforward_ + pid_calculator_.update(err);
+
+        // RCLCPP_INFO_THROTTLE(
+        //     get_logger(), *get_clock(), 1000, "[YAW_VEL_PID] err=%.6f torque=%.6f", err,
+        //     *control_);
     }
 
 private:

@@ -3,6 +3,8 @@
 {
 	"name": "rmcs-develop",
 	"image": "qzhhhi/rmcs-develop:latest",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/RMCS,type=bind",
+	"workspaceFolder": "/workspaces/RMCS",
 	"privileged": true,
 	"mounts": [
 		{
