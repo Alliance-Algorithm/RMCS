@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -42,7 +43,6 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -52,6 +52,7 @@ namespace mtc = moveit::task_constructor;
 
 namespace detail {
 
+// MoveRelative that rotates about an axis through a fixed point instead of the tool origin.
 class RotatingMoveRelative : public mtc::stages::MoveRelative {
 public:
     RotatingMoveRelative(
@@ -66,23 +67,16 @@ protected:
         const mtc::InterfaceState& state, planning_scene::PlanningScenePtr& scene,
         mtc::SubTrajectory& solution, mtc::Interface::Direction dir) override {
         const auto& start = state.scene();
-        if (!start->knowsFrameTransform(direction_.frame_id)) {
-            solution.markAsFailure("unknown rotation frame: " + direction_.frame_id);
-            return false;
-        }
         const auto& reference = start->getFrameTransform(direction_.frame_id);
         const auto& tool = start->getCurrentState().getGlobalLinkTransform(link_);
+        const auto& [px, py, pz] = direction_.axis_point;
         Eigen::Isometry3d pivot = tool;
-        pivot.translation() = reference * Eigen::Vector3d(
-            direction_.axis_point[0], direction_.axis_point[1], direction_.axis_point[2]);
-        const Eigen::Isometry3d offset = tool.inverse() * pivot;
-        setIKFrame(offset, link_);
+        pivot.translation() = reference * Eigen::Vector3d(px, py, pz);
+        setIKFrame(tool.inverse() * pivot, link_);
 
         // Resolve the axis once at stage entry, even when its frame is the tool link.
-        const Eigen::Vector3d axis = reference.linear()
-            * Eigen::Vector3d(
-                  direction_.axis_direction[0], direction_.axis_direction[1],
-                  direction_.axis_direction[2]).normalized();
+        const auto& [ax, ay, az] = direction_.axis_direction;
+        const Eigen::Vector3d axis = reference.linear() * Eigen::Vector3d(ax, ay, az).normalized();
         geometry_msgs::msg::TwistStamped twist;
         twist.header.frame_id = start->getRobotModel()->getModelFrame();
         twist.twist.angular.x = axis.x();
@@ -114,129 +108,98 @@ class Planner {
 public:
     explicit Planner(rclcpp::Node::SharedPtr node, moveit::core::RobotModelConstPtr model = {})
         : node_(std::move(node))
-        , model_(std::move(model)) {
-        if (!node_)
-            throw std::invalid_argument("MTC planner requires a ROS node");
-    }
+        , model_(std::move(model)) {}
 
     void build(
         const Dictionary& dictionary, const std::vector<std::string>& composed,
         planning_scene::PlanningSceneConstPtr scene = {}) {
-        reset_task();
         build(dictionary.helper_build_chunk(composed), std::move(scene));
     }
 
     void build(TaskConfig config, planning_scene::PlanningSceneConstPtr scene = {}) {
-        reset_task();
-        bind_task_objects(config);
-        validate(config);
+        task_.reset();
+        stage_metadata_.clear();
+        bind_task_objects(config); // No-op for dictionary output; resolves raw configs.
+
         auto task = std::make_unique<mtc::Task>(config.name, false);
-        task->setName(config.name);
         if (model_)
             task->setRobotModel(model_);
         else
             task->loadRobotModel(node_);
-        const auto& model = task->getRobotModel();
-        if (!model || !model->hasJointModelGroup(config.group))
-            throw std::invalid_argument(config.name + ": unknown robot group " + config.group);
-        if (!model->hasLinkModel(config.ik_frame))
-            throw std::invalid_argument(config.name + ": unknown IK link " + config.ik_frame);
-        if (scene && scene->getRobotModel() != model)
-            throw std::invalid_argument(
-                config.name + ": scene and task must share the robot model");
         task->setProperty("group", config.group);
         task->setProperty("ik_frame", config.ik_frame);
         task->setTimeout(config.timeout);
-        detail::StageMetadataMap metadata;
+
+        BuildContext context{config, scene, task->getRobotModel(), stage_metadata_};
         for (const auto& child : config.children)
-            task->add(build_node(child, config, scene, model, metadata, config.name));
+            task->add(build_node(child, context, config.name));
         max_solutions_ = config.max_solutions;
-        stage_metadata_ = std::move(metadata);
         task_ = std::move(task);
     }
 
     PlanResult plan() {
-        planned_successfully_ = false;
         if (!task_)
-            return {
-                PlanStatus::NotBuilt, moveit_msgs::msg::MoveItErrorCodes::FAILURE, 0,
-                "No MTC task has been built"};
+            return {PlanStatus::NotBuilt, moveit_msgs::msg::MoveItErrorCodes::FAILURE, 0,
+                    "No MTC task has been built"};
         task_->reset();
         try {
             task_->init();
         } catch (const mtc::InitStageException& error) {
             std::ostringstream diagnostic;
             diagnostic << error;
-            return {
-                PlanStatus::InitializationFailed, moveit_msgs::msg::MoveItErrorCodes::FAILURE, 0,
-                diagnostic.str()};
-        } catch (const std::exception& error) {
-            return {
-                PlanStatus::InitializationFailed, moveit_msgs::msg::MoveItErrorCodes::FAILURE, 0,
-                error.what()};
+            return {PlanStatus::InitializationFailed, moveit_msgs::msg::MoveItErrorCodes::FAILURE,
+                    0, diagnostic.str()};
         }
-        try {
-            const auto code = task_->plan(max_solutions_);
-            std::ostringstream diagnostic;
-            const bool success = bool(code) && task_->numSolutions() > 0;
-            if (!success)
-                task_->explainFailure(diagnostic);
-            planned_successfully_ = success;
-            return {
-                success ? PlanStatus::Success : PlanStatus::PlanningFailed, code.val,
+        const auto code = task_->plan(max_solutions_);
+        const bool success = bool(code) && task_->numSolutions() > 0;
+        std::ostringstream diagnostic;
+        if (!success)
+            task_->explainFailure(diagnostic);
+        return {success ? PlanStatus::Success : PlanStatus::PlanningFailed, code.val,
                 task_->numSolutions(), diagnostic.str()};
-        } catch (const std::exception& error) {
-            return {
-                PlanStatus::PlanningFailed, moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                task_->numSolutions(), error.what()};
-        }
     }
 
     ExecutionPlan export_plan(std::size_t solution_index = 0) const {
-        if (!task_ || !planned_successfully_)
-            throw std::logic_error("No successful MTC plan is available for export");
-        if (solution_index >= task_->solutions().size())
-            throw std::out_of_range("MTC solution index is out of range");
         const auto solution =
             std::next(task_->solutions().begin(), static_cast<std::ptrdiff_t>(solution_index));
         return detail::PlanBridge::convert(task_->name(), **solution, stage_metadata_);
     }
 
-    const mtc::Task& task() const {
-        if (!task_)
-            throw std::logic_error("No MTC task has been built");
-        return *task_;
-    }
+    const mtc::Task& task() const { return *task_; }
 
     void publish_solutions() {
-        if (!task_)
-            throw std::logic_error("No MTC task has been built");
         task_->enableIntrospection();
         task_->publishAllSolutions(false);
     }
 
 private:
-    void reset_task() {
-        planned_successfully_ = false;
-        stage_metadata_.clear();
-        task_.reset();
+    struct BuildContext {
+        const TaskConfig& task;
+        const planning_scene::PlanningSceneConstPtr& scene;
+        const moveit::core::RobotModelConstPtr& model;
+        detail::StageMetadataMap& metadata;
+    };
+
+    static const std::string& or_default(const std::string& value, const std::string& fallback) {
+        return value.empty() ? fallback : value;
     }
 
     mtc::solvers::PlannerInterfacePtr make_solver(const MotionConfig& config) const {
         auto solver = std::visit(
-            [&](const auto& options) -> mtc::solvers::PlannerInterfacePtr {
-                using Options = std::decay_t<decltype(options)>;
-                if constexpr (std::is_same_v<Options, PipelineConfig>) {
+            overloaded{
+                [&](const PipelineConfig& options) -> mtc::solvers::PlannerInterfacePtr {
                     return std::make_shared<mtc::solvers::PipelinePlanner>(
                         node_, options.pipeline, options.planner);
-                } else if constexpr (std::is_same_v<Options, JointInterpolationConfig>) {
+                },
+                [](const JointInterpolationConfig&) -> mtc::solvers::PlannerInterfacePtr {
                     return std::make_shared<mtc::solvers::JointInterpolationPlanner>();
-                } else {
+                },
+                [](const CartesianPathConfig& options) -> mtc::solvers::PlannerInterfacePtr {
                     auto cartesian = std::make_shared<mtc::solvers::CartesianPath>();
                     cartesian->setStepSize(options.step_size);
                     cartesian->setMinFraction(1.0);
                     return cartesian;
-                }
+                },
             },
             config.solver);
         solver->setMaxVelocityScalingFactor(config.velocity_scaling);
@@ -246,256 +209,176 @@ private:
     }
 
     mtc::Stage::pointer build_node(
-        const NodeConfig& node, const TaskConfig& task,
-        const planning_scene::PlanningSceneConstPtr& scene,
-        const moveit::core::RobotModelConstPtr& model, detail::StageMetadataMap& metadata,
-        const std::string& parent_path) const {
-        return std::visit(
-            [&](const auto& config) -> mtc::Stage::pointer {
-                using Config = std::decay_t<decltype(config)>;
-                const auto path = parent_path + "/" + config.name;
-                if constexpr (std::is_same_v<Config, StageConfig>) {
-                    auto stage = std::visit(
-                        [&](const auto& stage_config) -> mtc::Stage::pointer {
-                            using Stage = std::decay_t<decltype(stage_config)>;
-                            if constexpr (std::is_same_v<Stage, CurrentStateConfig>) {
-                                if (scene)
-                                    return std::make_unique<mtc::stages::FixedState>(
-                                        config.name, planning_scene::PlanningScene::clone(scene));
-                                auto current =
-                                    std::make_unique<mtc::stages::CurrentState>(config.name);
-                                current->setTimeout(std::min(stage_config.timeout, task.timeout));
-                                return current;
-                            } else if constexpr (std::is_same_v<Stage, FixedStateConfig>) {
-                                auto fixed_scene =
-                                    scene ? planning_scene::PlanningScene::clone(scene)
-                                          : std::make_shared<planning_scene::PlanningScene>(model);
-                                auto& state = fixed_scene->getCurrentStateNonConst();
-                                for (const auto& [variable, value] : stage_config.joints) {
-                                    if (std::find(
-                                            model->getVariableNames().begin(),
-                                            model->getVariableNames().end(), variable)
-                                        == model->getVariableNames().end())
-                                        throw std::invalid_argument(
-                                            config.name + ": unknown start-state variable "
-                                            + variable);
-                                    state.setVariablePosition(variable, value);
-                                }
-                                state.update();
-                                if (!state.satisfiesBounds())
-                                    throw std::invalid_argument(
-                                        config.name + ": fixed start state violates joint bounds");
-                                for (const auto& configured_object : stage_config.objects) {
-                                    if (!fixed_scene->knowsFrameTransform(
-                                            configured_object.pose.header.frame_id))
-                                        throw std::invalid_argument(
-                                            config.name + ": unknown object frame "
-                                            + configured_object.pose.header.frame_id);
-                                    moveit_msgs::msg::CollisionObject object;
-                                    object.header = configured_object.pose.header;
-                                    object.id = configured_object.id;
-                                    object.operation = moveit_msgs::msg::CollisionObject::ADD;
-                                    shape_msgs::msg::SolidPrimitive box;
-                                    box.type = shape_msgs::msg::SolidPrimitive::BOX;
-                                    box.dimensions = {
-                                        configured_object.dimensions.x,
-                                        configured_object.dimensions.y,
-                                        configured_object.dimensions.z};
-                                    object.primitives.push_back(box);
-                                    object.primitive_poses.push_back(configured_object.pose.pose);
-                                    if (!fixed_scene->processCollisionObjectMsg(object))
-                                        throw std::runtime_error(
-                                            config.name + ": failed to add object "
-                                            + configured_object.id);
-                                }
-                                return std::make_unique<mtc::stages::FixedState>(
-                                    config.name, std::move(fixed_scene));
-                            } else {
-                                if constexpr (std::is_same_v<Stage, MoveToConfig>) {
-                                    const auto solver = make_solver(stage_config.motion);
-                                    const auto& group = stage_config.group.empty()
-                                                          ? task.group
-                                                          : stage_config.group;
-                                    if (!model->hasJointModelGroup(group))
-                                        throw std::invalid_argument(
-                                            config.name + ": unknown robot group " + group);
-                                    if (stage_config.use_ik_frame
-                                        && !model->hasLinkModel(
-                                            stage_config.ik_frame.empty() ? task.ik_frame
-                                                                          : stage_config.ik_frame))
-                                        throw std::invalid_argument(
-                                            config.name + ": unknown IK frame");
-                                    auto move =
-                                        std::make_unique<mtc::stages::MoveTo>(config.name, solver);
-                                    move->setGroup(group);
-                                    if (stage_config.use_ik_frame)
-                                        move->setIKFrame(
-                                            stage_config.ik_frame.empty() ? task.ik_frame
-                                                                          : stage_config.ik_frame);
-                                    move->setTimeout(stage_config.motion.timeout);
-                                    std::visit(
-                                        [&](const auto& goal) { move->setGoal(goal); },
-                                        stage_config.goal);
-                                    move->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
-                                    return move;
-                                } else if constexpr (std::is_same_v<Stage, MoveRelativeConfig>) {
-                                    const auto solver = make_solver(stage_config.motion);
-                                    const auto& group = stage_config.group.empty()
-                                                          ? task.group
-                                                          : stage_config.group;
-                                    if (!model->hasJointModelGroup(group))
-                                        throw std::invalid_argument(
-                                            config.name + ": unknown robot group " + group);
-                                    const auto& ik_frame = stage_config.ik_frame.empty()
-                                                             ? task.ik_frame
-                                                             : stage_config.ik_frame;
-                                    if (!model->hasLinkModel(ik_frame))
-                                        throw std::invalid_argument(
-                                            config.name + ": unknown IK frame " + ik_frame);
-                                    std::unique_ptr<mtc::stages::MoveRelative> move = std::visit(
-                                        [&](const auto& direction)
-                                            -> std::unique_ptr<mtc::stages::MoveRelative> {
-                                            using Direction = std::decay_t<decltype(direction)>;
-                                            if constexpr (std::is_same_v<
-                                                              Direction, RotationDirectionTarget>) {
-                                                auto rotation = direction;
-                                                if (stage_config.max_distance < 0.0)
-                                                    for (auto& component : rotation.axis_direction)
-                                                        component = -component;
-                                                return std::make_unique<detail::RotatingMoveRelative>(
-                                                    config.name, solver, std::move(rotation), ik_frame);
-                                            } else {
-                                                auto relative =
-                                                    std::make_unique<mtc::stages::MoveRelative>(
-                                                        config.name, solver);
-                                                relative->setDirection(direction);
-                                                return relative;
-                                            }
-                                        },
-                                        stage_config.direction);
-                                    move->setGroup(group);
-                                    move->setIKFrame(ik_frame);
-                                    move->setTimeout(stage_config.motion.timeout);
-                                    if (std::holds_alternative<RotationDirectionTarget>(
-                                            stage_config.direction))
-                                        move->setMinMaxDistance(
-                                            std::abs(stage_config.min_distance),
-                                            std::abs(stage_config.max_distance));
-                                    else
-                                        move->setMinMaxDistance(
-                                            stage_config.min_distance, stage_config.max_distance);
-                                    move->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
-                                    return move;
-                                } else if constexpr (std::is_same_v<Stage, GripperCommandConfig>) {
-                                    auto command =
-                                        std::make_unique<mtc::stages::ModifyPlanningScene>(
-                                            config.name);
-                                    command->setCallback([](const planning_scene::PlanningScenePtr&,
-                                                            const mtc::PropertyMap&) {});
-                                    command->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
-                                    return command;
-                                } else if constexpr (std::is_same_v<Stage, LogPoseConfig>) {
-                                    if (!model->hasLinkModel(stage_config.link))
-                                        throw std::invalid_argument(
-                                            config.name + ": unknown log link "
-                                            + stage_config.link);
-                                    auto log = std::make_unique<mtc::stages::ModifyPlanningScene>(
-                                        config.name);
-                                    log->setCallback(
-                                        [logger = node_->get_logger(), link = stage_config.link](
-                                            const planning_scene::PlanningScenePtr& scene,
-                                            const mtc::PropertyMap&) {
-                                            const auto& pose =
-                                                scene->getCurrentState().getGlobalLinkTransform(
-                                                    link);
-                                            const Eigen::Quaterniond q(pose.linear());
-                                            double roll = 0.0;
-                                            double pitch = 0.0;
-                                            double yaw = 0.0;
-                                            // Inverse of the setRPY used by makePoseGoal.
-                                            tf2::Matrix3x3(tf2::Quaternion(q.x(), q.y(), q.z(), q.w()))
-                                                .getRPY(roll, pitch, yaw);
-                                            RCLCPP_INFO(
-                                                logger,
-                                                ".x = %.3f, .y = %.3f, .z = %.3f, .roll = %.3f, "
-                                                ".pitch = %.3f, .yaw = %.3f",
-                                                pose.translation().x(), pose.translation().y(),
-                                                pose.translation().z(), roll, pitch, yaw);
-                                        });
-                                    log->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
-                                    return log;
-                                } else {
-                                    detail::validate_scene_operation_links(
-                                        stage_config, *model, config.name);
-                                    auto modify =
-                                        std::make_unique<mtc::stages::ModifyPlanningScene>(
-                                            config.name);
-                                    modify->setCallback(
-                                        [name = config.name, operations = stage_config](
-                                            const planning_scene::PlanningScenePtr& updated,
-                                            const mtc::PropertyMap&) {
-                                            detail::apply_scene_operations(
-                                                updated, operations, name);
-                                        });
-                                    modify->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
-                                    return modify;
-                                }
-                            }
-                        },
-                        config.config);
-                    auto group = task.group;
-                    std::visit(
-                        [&](const auto& stage_config) {
-                            using Stage = std::decay_t<decltype(stage_config)>;
-                            if constexpr (
-                                std::is_same_v<Stage, MoveToConfig>
-                                || std::is_same_v<Stage, MoveRelativeConfig>) {
-                                if (!stage_config.group.empty())
-                                    group = stage_config.group;
-                            }
-                        },
-                        config.config);
-                    metadata.emplace(
-                        stage.get(), detail::StageMetadata{path, config, std::move(group)});
-                    return stage;
-                } else {
-                    mtc::ContainerBase::pointer container;
-                    switch (config.type) {
-                    case ContainerType::Serial:
-                        container = std::make_unique<mtc::SerialContainer>(config.name);
-                        break;
-                    case ContainerType::Alternatives:
-                        container = std::make_unique<mtc::Alternatives>(config.name);
-                        break;
-                    case ContainerType::Fallbacks:
-                        container = std::make_unique<mtc::Fallbacks>(config.name);
-                        break;
-                    }
-                    container->setProperty("group", task.group);
-                    container->setProperty("ik_frame", task.ik_frame);
-                    for (const auto& child : config.children)
-                        container->add(build_node(child, task, scene, model, metadata, path));
-                    return container;
-                }
-            },
-            node.config);
+        const NodeConfig& node, BuildContext& context, const std::string& parent_path) const {
+        if (const auto* container = std::get_if<ContainerConfig>(&node.config))
+            return make_container(*container, context, parent_path + "/" + container->name);
+
+        const auto& config = std::get<StageConfig>(node.config);
+        auto stage = std::visit(
+            [&](const auto& options) { return make_stage(config.name, options, context); },
+            config.config);
+        std::string group = context.task.group;
+        if (const auto* move = std::get_if<MoveToConfig>(&config.config))
+            group = or_default(move->group, group);
+        else if (const auto* move = std::get_if<MoveRelativeConfig>(&config.config))
+            group = or_default(move->group, group);
+        context.metadata.emplace(
+            stage.get(),
+            detail::StageMetadata{parent_path + "/" + config.name, config, std::move(group)});
+        return stage;
+    }
+
+    mtc::Stage::pointer make_container(
+        const ContainerConfig& config, BuildContext& context, const std::string& path) const {
+        mtc::ContainerBase::pointer container;
+        switch (config.type) {
+        case ContainerType::Serial:
+            container = std::make_unique<mtc::SerialContainer>(config.name);
+            break;
+        case ContainerType::Alternatives:
+            container = std::make_unique<mtc::Alternatives>(config.name);
+            break;
+        case ContainerType::Fallbacks:
+            container = std::make_unique<mtc::Fallbacks>(config.name);
+            break;
+        }
+        container->setProperty("group", context.task.group);
+        container->setProperty("ik_frame", context.task.ik_frame);
+        for (const auto& child : config.children)
+            container->add(build_node(child, context, path));
+        return container;
+    }
+
+    // Without an explicit scene, plan from the live robot state.
+    mtc::Stage::pointer make_stage(
+        const std::string& name, const CurrentStateConfig& config, BuildContext& context) const {
+        if (context.scene)
+            return std::make_unique<mtc::stages::FixedState>(
+                name, planning_scene::PlanningScene::clone(context.scene));
+        auto current = std::make_unique<mtc::stages::CurrentState>(name);
+        current->setTimeout(std::min(config.timeout, context.task.timeout));
+        return current;
+    }
+
+    mtc::Stage::pointer make_stage(
+        const std::string& name, const FixedStateConfig& config, BuildContext& context) const {
+        auto scene = context.scene ? planning_scene::PlanningScene::clone(context.scene)
+                                   : std::make_shared<planning_scene::PlanningScene>(context.model);
+        auto& state = scene->getCurrentStateNonConst();
+        for (const auto& [variable, value] : config.joints)
+            state.setVariablePosition(variable, value);
+        state.update();
+        for (const auto& configured : config.objects) {
+            moveit_msgs::msg::CollisionObject object;
+            object.header = configured.pose.header;
+            object.id = configured.id;
+            object.operation = moveit_msgs::msg::CollisionObject::ADD;
+            shape_msgs::msg::SolidPrimitive box;
+            box.type = shape_msgs::msg::SolidPrimitive::BOX;
+            box.dimensions = {configured.dimensions.x, configured.dimensions.y, configured.dimensions.z};
+            object.primitives.push_back(box);
+            object.primitive_poses.push_back(configured.pose.pose);
+            scene->processCollisionObjectMsg(object);
+        }
+        return std::make_unique<mtc::stages::FixedState>(name, std::move(scene));
+    }
+
+    mtc::Stage::pointer make_stage(
+        const std::string& name, const MoveToConfig& config, BuildContext& context) const {
+        auto move = std::make_unique<mtc::stages::MoveTo>(name, make_solver(config.motion));
+        move->setGroup(or_default(config.group, context.task.group));
+        if (config.use_ik_frame)
+            move->setIKFrame(or_default(config.ik_frame, context.task.ik_frame));
+        move->setTimeout(config.motion.timeout);
+        std::visit([&](const auto& goal) { move->setGoal(goal); }, config.goal);
+        move->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
+        return move;
+    }
+
+    mtc::Stage::pointer make_stage(
+        const std::string& name, const MoveRelativeConfig& config, BuildContext& context) const {
+        const auto solver = make_solver(config.motion);
+        const auto& ik_frame = or_default(config.ik_frame, context.task.ik_frame);
+        std::unique_ptr<mtc::stages::MoveRelative> move;
+        if (const auto* rotation = std::get_if<RotationDirectionTarget>(&config.direction)) {
+            // A negative angle range rotates the other way: flip the axis, keep distances >= 0.
+            auto target = *rotation;
+            if (config.max_distance < 0.0)
+                for (auto& component : target.axis_direction)
+                    component = -component;
+            move = std::make_unique<detail::RotatingMoveRelative>(
+                name, solver, std::move(target), ik_frame);
+            move->setMinMaxDistance(std::abs(config.min_distance), std::abs(config.max_distance));
+        } else {
+            move = std::make_unique<mtc::stages::MoveRelative>(name, solver);
+            move->setDirection(std::get<geometry_msgs::msg::Vector3Stamped>(config.direction));
+            move->setMinMaxDistance(config.min_distance, config.max_distance);
+        }
+        move->setGroup(or_default(config.group, context.task.group));
+        move->setIKFrame(ik_frame);
+        move->setTimeout(config.motion.timeout);
+        move->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
+        return move;
+    }
+
+    // Planning-time placeholder; the gripper command is carried into the execution plan.
+    mtc::Stage::pointer
+        make_stage(const std::string& name, const GripperCommandConfig&, BuildContext&) const {
+        return make_scene_stage(name, [](const planning_scene::PlanningScenePtr&) {});
+    }
+
+    mtc::Stage::pointer
+        make_stage(const std::string& name, const LogPoseConfig& config, BuildContext&) const {
+        return make_scene_stage(
+            name, [logger = node_->get_logger(),
+                   link = config.link](const planning_scene::PlanningScenePtr& scene) {
+                const auto& pose = scene->getCurrentState().getGlobalLinkTransform(link);
+                const Eigen::Quaterniond q(pose.linear());
+                double roll = 0.0, pitch = 0.0, yaw = 0.0;
+                // Inverse of the setRPY used by makePoseGoal.
+                tf2::Matrix3x3(tf2::Quaternion(q.x(), q.y(), q.z(), q.w())).getRPY(roll, pitch, yaw);
+                RCLCPP_INFO(
+                    logger,
+                    ".x = %.3f, .y = %.3f, .z = %.3f, .roll = %.3f, .pitch = %.3f, .yaw = %.3f",
+                    pose.translation().x(), pose.translation().y(), pose.translation().z(), roll,
+                    pitch, yaw);
+            });
+    }
+
+    mtc::Stage::pointer make_stage(
+        const std::string& name, const ModifyPlanningSceneConfig& config, BuildContext&) const {
+        return make_scene_stage(
+            name, [name, config](const planning_scene::PlanningScenePtr& scene) {
+                detail::apply_scene_operations(scene, config, name);
+            });
+    }
+
+    template <typename Callback>
+    static mtc::Stage::pointer make_scene_stage(const std::string& name, Callback callback) {
+        auto stage = std::make_unique<mtc::stages::ModifyPlanningScene>(name);
+        stage->setCallback(
+            [callback = std::move(callback)](
+                const planning_scene::PlanningScenePtr& scene, const mtc::PropertyMap&) {
+                callback(scene);
+            });
+        stage->restrictDirection(mtc::PropagatingEitherWay::FORWARD);
+        return stage;
     }
 
     rclcpp::Node::SharedPtr node_;
     moveit::core::RobotModelConstPtr model_;
     std::unique_ptr<mtc::Task> task_;
     detail::StageMetadataMap stage_metadata_;
-    bool planned_successfully_ = false;
     std::size_t max_solutions_ = 1;
 };
 
+// Plans on a background thread. Only the latest submitted request is planned and published.
 class Machine {
 public:
     struct PlannedTrajectory {
         std::uint64_t request_id = 0;
-        bool plan_success = false;
         std::string diagnostic;
-        std::optional<ExecutionPlan> plan;
+        std::optional<ExecutionPlan> plan; // Empty when planning failed.
     };
 
     Machine()
@@ -504,34 +387,26 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))) {
         model_loader_ = std::make_unique<robot_model_loader::RobotModelLoader>(node_);
         model_ = model_loader_->getModel();
-        if (!model_ || !model_->hasJointModelGroup("alliance_arm"))
-            throw std::runtime_error("MTC machine requires a configured alliance_arm robot model");
         move_group_ =
             std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, "alliance_arm");
         planner_ = std::make_unique<Planner>(node_, model_);
-        scene_client_ = node_->create_client<moveit_msgs::srv::GetPlanningScene>(
-            "get_planning_scene");
+        scene_client_ =
+            node_->create_client<moveit_msgs::srv::GetPlanningScene>("get_planning_scene");
         executor_ = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
         executor_->add_node(node_);
-        try {
-            spin_thread_ = std::thread([this] {
-                while (executor_running_.load(std::memory_order_acquire)
-                       && node_->get_node_base_interface()->get_context()->is_valid())
-                    executor_->spin_once(std::chrono::milliseconds(20));
-            });
-            planning_thread_ = std::thread([this] { planning_loop(); });
-        } catch (...) {
-            stop();
-            throw;
-        }
+        spin_thread_ = std::thread([this] {
+            while (executor_running_.load(std::memory_order_acquire)
+                   && node_->get_node_base_interface()->get_context()->is_valid())
+                executor_->spin_once(std::chrono::milliseconds(20));
+        });
+        planning_thread_ = std::thread([this] { planning_loop(); });
     }
 
+    // Offline machine: no scene service, so every request must carry its own scene.
     Machine(rclcpp::Node::SharedPtr node, moveit::core::RobotModelConstPtr model)
         : node_(std::move(node))
-        , model_(std::move(model)) {
-        if (!node_ || !model_)
-            throw std::invalid_argument("MTC machine requires a ROS node and robot model");
-        planner_ = std::make_unique<Planner>(node_, model_);
+        , model_(std::move(model))
+        , planner_(std::make_unique<Planner>(node_, model_)) {
         planning_thread_ = std::thread([this] { planning_loop(); });
     }
 
@@ -539,22 +414,15 @@ public:
 
     Machine(const Machine&) = delete;
     Machine& operator=(const Machine&) = delete;
-    Machine(Machine&&) = delete;
-    Machine& operator=(Machine&&) = delete;
 
     std::uint64_t
         process(const TaskConfig& config, planning_scene::PlanningSceneConstPtr scene = {}) {
-        auto request = std::make_unique<PlanRequest>();
-        request->config = config;
-        if (scene)
-            request->scene = planning_scene::PlanningScene::clone(scene);
+        auto request = std::make_unique<PlanRequest>(PlanRequest{
+            0, config, scene ? planning_scene::PlanningScene::clone(scene) : nullptr});
         std::uint64_t request_id;
         {
             std::lock_guard lock(mutex_);
-            if (!running_)
-                throw std::logic_error("Cannot submit a request to a stopped MTC machine");
-            request_id = ++latest_request_id_;
-            request->request_id = request_id;
+            request_id = request->request_id = ++latest_request_id_;
             pending_request_ = std::move(request);
         }
         cv_.notify_one();
@@ -571,17 +439,14 @@ public:
 
     // Call outside node callbacks: the machine's executor services this request.
     planning_scene::PlanningScenePtr fetch_scene() const {
-        if (!scene_client_)
-            throw std::logic_error("This MTC machine has no planning scene service client");
         if (!scene_client_->wait_for_service(std::chrono::seconds(5)))
             throw std::runtime_error("Planning scene service is unavailable");
         auto query = std::make_shared<moveit_msgs::srv::GetPlanningScene::Request>();
         using Components = moveit_msgs::msg::PlanningSceneComponents;
         query->components.components =
             Components::SCENE_SETTINGS | Components::ROBOT_STATE
-            | Components::ROBOT_STATE_ATTACHED_OBJECTS
-            | Components::WORLD_OBJECT_GEOMETRY | Components::OCTOMAP
-            | Components::TRANSFORMS | Components::ALLOWED_COLLISION_MATRIX
+            | Components::ROBOT_STATE_ATTACHED_OBJECTS | Components::WORLD_OBJECT_GEOMETRY
+            | Components::OCTOMAP | Components::TRANSFORMS | Components::ALLOWED_COLLISION_MATRIX
             | Components::LINK_PADDING_AND_SCALING | Components::OBJECT_COLORS;
         auto response = scene_client_->async_send_request(query);
         if (response.wait_for(std::chrono::seconds(5)) != std::future_status::ready) {
@@ -589,15 +454,13 @@ public:
             throw std::runtime_error("Timed out fetching the planning scene");
         }
         auto scene = std::make_shared<planning_scene::PlanningScene>(model_);
-        const auto message = response.get();
-        if (message->scene.is_diff || !scene->setPlanningSceneMsg(message->scene))
-            throw std::runtime_error("Cannot load the complete planning scene");
+        if (!scene->setPlanningSceneMsg(response.get()->scene))
+            throw std::runtime_error("Cannot load the planning scene");
         scene->getCurrentStateNonConst().update();
         return scene;
     }
 
     void stop() {
-        std::lock_guard stop_lock(stop_mutex_);
         {
             std::lock_guard lock(mutex_);
             running_ = false;
@@ -639,20 +502,14 @@ private:
                 planner_->build(request->config, request->scene);
                 const auto planned = planner_->plan();
                 result->diagnostic = planned.diagnostic;
-                if (planned) {
+                if (planned)
                     result->plan = planner_->export_plan();
-                    result->plan_success = true;
-                }
             } catch (const std::exception& error) {
                 result->diagnostic = error.what();
-            } catch (...) {
-                result->diagnostic = "Unknown MTC planning failure";
             }
-            {
-                std::lock_guard lock(mutex_);
-                if (running_ && request->request_id == latest_request_id_)
-                    planned_trajectory_.store(std::move(result), std::memory_order_release);
-            }
+            std::lock_guard lock(mutex_);
+            if (running_ && request->request_id == latest_request_id_)
+                planned_trajectory_.store(std::move(result), std::memory_order_release);
         }
     }
 
@@ -666,7 +523,6 @@ private:
     std::atomic_bool executor_running_{true};
     std::thread spin_thread_;
     std::thread planning_thread_;
-    std::mutex stop_mutex_;
     std::mutex mutex_;
     std::condition_variable cv_;
     bool running_ = true;

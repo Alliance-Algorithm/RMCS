@@ -575,12 +575,7 @@ private:
                     return obstacle_course_.set_object_collisions(
                         action.object, action.other_object, action.allow, can_apply);
                 } else {
-                    const auto& config = obstacle::get_obstacle_config(action.object);
-                    if (config.attach_link != action.link)
-                        throw std::runtime_error("execution attachment link differs from registry");
                     if constexpr (std::is_same_v<Operation, MTC::AttachObjectConfig>) {
-                        if (config.touch_links != action.touch_links)
-                            throw std::runtime_error("execution touch links differ from registry");
                         return obstacle_course_.attach(action.object, can_apply);
                     } else {
                         return obstacle_course_.detach(action.object, can_apply);
@@ -594,41 +589,91 @@ private:
         std::uint64_t handled_generation = 0;
         std::uint64_t planning_request = 0;
         bool awaiting_plan = false;
+        std::shared_ptr<const TaskRequest> retry_request;
+        std::chrono::steady_clock::time_point retry_deadline{};
+        std::size_t retry_attempts = 0;
+
+        const auto publish_failure = [this](std::uint64_t generation, const std::string& error) {
+            auto result = std::make_shared<ExecutionResult>();
+            result->generation = generation;
+            result->error = error;
+            prepared_execution_.store(std::move(result), std::memory_order_release);
+        };
+        const auto submit_planning = [this, &planning_request, &awaiting_plan](
+                                         const std::shared_ptr<const TaskRequest>& request) {
+            planning_request = mtc_machine_.process(mtc_dictionary_.helper_build_chunk(
+                request->recipe->blocks, request->recipe->bindings, request->targets));
+            awaiting_plan = true;
+        };
+
         while (worker_running_.load(std::memory_order_acquire)) {
+            const auto now = std::chrono::steady_clock::now();
             const auto generation = requested_generation_.load(std::memory_order_acquire);
             const auto request = pending_task_.load(std::memory_order_acquire);
-            if (request && request->generation == generation && generation != 0
-                && generation != handled_generation) {
+            const bool request_is_current =
+                request && generation != 0 && request->generation == generation;
+
+            if (!request_is_current) {
+                retry_request.reset();
+                retry_attempts = 0;
+                awaiting_plan = false;
+            }
+
+            if (request_is_current && generation != handled_generation) {
                 handled_generation = generation;
                 awaiting_plan = false;
+                retry_request.reset();
+                retry_attempts = 0;
                 try {
                     if (obstacle_course_.scene_uncertain())
                         throw std::runtime_error(
                             "global scene outcome is uncertain; restart/reconcile before planning");
-                    planning_request = mtc_machine_.process(mtc_dictionary_.helper_build_chunk(
-                        request->recipe->blocks, request->recipe->bindings, request->targets));
-                    awaiting_plan = true;
+                    submit_planning(request);
                 } catch (const std::exception& error) {
-                    auto result = std::make_shared<ExecutionResult>();
-                    result->generation = generation;
-                    result->error = error.what();
-                    prepared_execution_.store(std::move(result), std::memory_order_release);
+                    publish_failure(generation, error.what());
                 }
             }
-            if (awaiting_plan && generation == handled_generation) {
+            if (awaiting_plan && request_is_current && generation == handled_generation) {
                 const auto planned = mtc_machine_.get_trajectory();
                 if (planned && planned->request_id == planning_request) {
                     awaiting_plan = false;
-                    auto result = std::make_shared<ExecutionResult>();
-                    result->generation = generation;
-                    try {
-                        if (!planned->plan_success || !planned->plan)
-                            throw std::runtime_error(planned->diagnostic);
-                        result->execution = MTC::prepare_execution(*planned->plan);
-                    } catch (const std::exception& error) {
-                        result->error = error.what();
+                    retry_request.reset();
+                    if (!planned->plan) {
+                        retry_request = request;
+                        retry_deadline = now + std::chrono::milliseconds(500);
+                        ++retry_attempts;
+                        RCLCPP_WARN_THROTTLE(
+                            get_logger(), *get_clock(), 5000,
+                            "MTC planning failed: %s; retrying in 0.5 s (attempt %zu)",
+                            planned->diagnostic.c_str(), retry_attempts);
+                    } else {
+                        if (retry_attempts > 0)
+                            RCLCPP_INFO(
+                                get_logger(), "MTC planning succeeded after %zu retry attempt(s)",
+                                retry_attempts);
+                        retry_attempts = 0;
+                        auto result = std::make_shared<ExecutionResult>();
+                        result->generation = generation;
+                        try {
+                            result->execution = MTC::prepare_execution(*planned->plan);
+                        } catch (const std::exception& error) {
+                            result->error = error.what();
+                        }
+                        prepared_execution_.store(std::move(result), std::memory_order_release);
                     }
-                    prepared_execution_.store(std::move(result), std::memory_order_release);
+                }
+            }
+            if (request_is_current && generation == handled_generation && retry_request
+                && retry_request == request && !awaiting_plan && now >= retry_deadline) {
+                try {
+                    if (obstacle_course_.scene_uncertain())
+                        throw std::runtime_error(
+                            "global scene outcome is uncertain; restart/reconcile before planning");
+                    submit_planning(request);
+                } catch (const std::exception& error) {
+                    retry_request.reset();
+                    retry_attempts = 0;
+                    publish_failure(generation, error.what());
                 }
             }
             if (const auto job = scene_job_.exchange(nullptr, std::memory_order_acq_rel)) {

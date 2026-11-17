@@ -3,21 +3,23 @@
 #include "controller/arm/obstacle/obstacle_parameter_map.hpp"
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/vector3.hpp>
 #include <geometry_msgs/msg/vector3_stamped.hpp>
 #include <tf2/LinearMath/Quaternion.hpp>
 
 #include <array>
 #include <cstddef>
 #include <map>
-#include <stdexcept>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
 
 namespace rmcs_core::controller::arm::MTC {
+
+template <class... Ts>
+struct overloaded : Ts... {
+    using Ts::operator()...;
+};
 
 struct PoseTarget {
     std::string frame_id;
@@ -57,18 +59,12 @@ inline geometry_msgs::msg::PoseStamped makePoseGoal(PoseTarget target) {
     return pose;
 }
 
-inline geometry_msgs::msg::Vector3 makeVector3(double value_x, double value_y, double value_z) {
-    geometry_msgs::msg::Vector3 vector;
-    vector.x = value_x;
-    vector.y = value_y;
-    vector.z = value_z;
-    return vector;
-}
-
 inline geometry_msgs::msg::Vector3Stamped makeDirection(DirectionTarget target) {
     geometry_msgs::msg::Vector3Stamped direction;
     direction.header.frame_id = std::move(target.frame_id);
-    direction.vector = makeVector3(target.dir_x, target.dir_y, target.dir_z);
+    direction.vector.x = target.dir_x;
+    direction.vector.y = target.dir_y;
+    direction.vector.z = target.dir_z;
     return direction;
 }
 
@@ -164,27 +160,30 @@ struct ModifyPlanningSceneConfig {
     std::vector<SceneOperation> operations;
 };
 
+// Fills links from the obstacle registry for operations created with from_registry.
 inline void resolve_scene_objects(ModifyPlanningSceneConfig& config) {
     for (auto& operation : config.operations)
         std::visit(
-            [](auto& options) {
-                using Operation = std::decay_t<decltype(options)>;
-                if constexpr (!std::is_same_v<Operation, ObjectCollisionsConfig>) {
-                    if (!options.from_registry)
-                        return;
-                    const auto& registered = obstacle::get_obstacle_config(options.object);
-                    if constexpr (std::is_same_v<Operation, AllowCollisionsConfig>) {
-                        options.links = registered.touch_links;
-                    } else {
-                        if (registered.attach_link.empty())
-                            throw std::invalid_argument(
-                                "Obstacle is not attachable: " + options.object);
-                        options.link = registered.attach_link;
-                        if constexpr (std::is_same_v<Operation, AttachObjectConfig>)
-                            options.touch_links = registered.touch_links;
+            overloaded{
+                [](ObjectCollisionsConfig&) {},
+                [](AllowCollisionsConfig& op) {
+                    if (op.from_registry)
+                        op.links = obstacle::get_obstacle_config(op.object).touch_links;
+                    op.from_registry = false;
+                },
+                [](AttachObjectConfig& op) {
+                    if (op.from_registry) {
+                        const auto& registered = obstacle::get_obstacle_config(op.object);
+                        op.link = registered.attach_link;
+                        op.touch_links = registered.touch_links;
                     }
-                    options.from_registry = false;
-                }
+                    op.from_registry = false;
+                },
+                [](DetachObjectConfig& op) {
+                    if (op.from_registry)
+                        op.link = obstacle::get_obstacle_config(op.object).attach_link;
+                    op.from_registry = false;
+                },
             },
             operation);
 }

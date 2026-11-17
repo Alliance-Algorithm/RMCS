@@ -145,8 +145,11 @@ private:
                 next_extract_ = !next_extract_;
                 request_id_ = mtc_machine_.process(
                     mtc_dictionary_.helper_build_chunk(
-                        {"current_start", extract ? "extra_right_back" : "store_right_back",
-                         extract ? "extra" : "store", "auto_walk"},
+                        {
+                            "current_start", extract ? "extra_right_back" : "store_right_back",
+                            extract ? "extra" : "store", "test"
+                            //  , "auto_walk"
+                        },
                         {{"unit", "energy_unit_right_back"}}),
                     // mtc_dictionary_.helper_build_chunk(
                     // {"current_start", "extra_left_front", "extra", "tech_core_test",
@@ -203,7 +206,7 @@ private:
             if (result && result->request_id == request_id_
                 && result->request_id != consumed_request_id_) {
                 consumed_request_id_ = result->request_id;
-                if (result->plan_success && result->plan) {
+                if (result->plan) {
                     preview_.start(*result->plan);
                     elapsed = 0.0;
                     force_full_scene_ = true;
