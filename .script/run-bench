@@ -1,0 +1,19 @@
+#!/bin/bash
+# 用 sudo 运行舵轮台架程序，彻底避开 USB 权限问题
+#   用法：bash .script/run-bench
+set -e
+cd "$(dirname "$0")/.."
+
+DEV=$(lsusb | grep -i "a11c:a801" | sed -E 's/Bus ([0-9]+) Device ([0-9]+).*/\1 \2/')
+if [ -z "$DEV" ]; then
+    echo "没找到板子（VID a11c）"; exit 1
+fi
+set -- $DEV
+sudo chmod 666 "/dev/bus/usb/$1/$2" 2>/dev/null || true
+echo "板子: /dev/bus/usb/$1/$2"
+
+exec sudo -E bash -c "
+    source rmcs_ws/install/setup.bash
+    exec ./rmcs_ws/install/lib/rmcs_executor/rmcs_executor \
+        --ros-args --params-file rmcs_ws/install/share/rmcs_bringup/config/steering-wheel-bench.yaml
+"

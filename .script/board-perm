@@ -1,0 +1,11 @@
+#!/bin/bash
+# 给当前插入的 RMCS 板子（VID a11c）USB 读写权限
+# 每次拔插/重新枚举后都要执行一次：bash .script/board-perm
+set -e
+DEV=$(lsusb | grep -i "a11c:a801" | sed -E 's/Bus ([0-9]+) Device ([0-9]+).*/\1 \2/')
+if [ -z "$DEV" ]; then
+    echo "没找到板子（VID a11c）"; exit 1
+fi
+set -- $DEV
+sudo chmod 666 "/dev/bus/usb/$1/$2"
+echo "已授权 /dev/bus/usb/$1/$2"

@@ -10,34 +10,123 @@
 
 rmcs_executor:
   ros__parameters:
+    update_rate: 1000.0
     components:
       - rmcs_core::hardware::SteeringWheelBench -> steering_wheel_bench
 
 steering_wheel_bench:
   ros__parameters:
     # 板子序列号：留空 = 自动选择第一个检测到的 C 板
+    # 舵：内环速度环（输出力矩 N·m）
     serial_filter: ""
 
-    # CAN 通道 0~3
-    can: 1
+    # CAN 通道分配（台架接线）
+    #   CAN0 = 轮电机   CAN1 = 舵电机   CAN2 = 自研磁编（只收）
+    wheel_can: 0
+    steer_can: 1
+    encoder_can: 2
+
+    # 使能拨杆位置（1=UP 2=DOWN 3=MIDDLE）—— 双中使能
+    enable_left: 3
+    enable_right: 3
+
+    # 是否使用磁编；false = 只用电机自带编码器（磁编还没通时用这个）
+    use_magnetic_encoder: false
+
+    # 自研磁编
+    encoder_id: 0x21            # 磁编帧的 CAN ID（不确定就先留着，日志会打印实际收到的 ID）
+    encoder_count_per_turn: 65536.0   # 一圈对应多少计数
+    encoder_reversed: false
+    encoder_zero_offset: 0.0    # rad，标定后填
+    # 齿轮比：编码器转 1 圈 vs 输出轴转 1 圈。不确定就保持 1.0，
+    # 程序会打印"齿轮比估计"（手动转舵一圈即可读出）
+    encoder_gear_ratio: 1.0
+    encoder_big_endian: true
+    encoder_timeout_ms: 100     # 看门狗超时，超时自动退回电机自带编码器
 
     # 电机 ID（1~4 走 0x200，5~8 走 0x1FF）
     steer_id: 1
     wheel_id: 2
 
     # 3508 减速比（3591/187）
-    reduction: 19.2032
+    # 实测：手转几圈而角度只涨 0.33 rad，说明编码器已在电机输出轴（内部 19.2 已包含）
+    # 因此总减速比 = 外部齿轮 8
+    steer_reduction: 8.0
+    # 轮：只有 3508 减速箱（3591/187）
+    wheel_reduction: 19.2032
+
+    # 编码器零点（原始编码器值，0~8191）
+    steer_zero_point: 2358
 
     # 方向取反
-    steer_reversed: false
+    steer_reversed: true     # 若位置环变成"恒速转"，把它取反
     wheel_reversed: false
 
-    # 舵：位置环，输出力矩 N·m/rad
-    steer_kp: 1.2
-    steer_ki: 0.0
-    steer_kd: 0.02
+    # 舵轴重力前馈：tau_ff = gain * sin(角度 - phase)
+    # 轮组重心偏离舵轴时必需；标定方法见注释末尾
+    steer_gravity_ff_gain: 0.0     # N·m
+    steer_gravity_ff_phase: 0.0    # rad
 
-    # 轮：速度环，输出力矩 N·m/(rad/s)
-    wheel_kp: 0.05
+    # 位置死区 rad（约 1.1°）：误差小于它时停止出力，抑制齿轮背隙抖动
+    steer_deadband: 0.0              # 关闭（纯 PID）
+
+    # 舵控制模式：position=位置闭环（外环角度→内环速度）
+    #            velocity=纯速度环测试（直接给 steer_test_velocity）
+    steer_mode: position
+    # velocity 模式下摇杆满推时的转速 rad/s
+    steer_max_velocity: 3.0
+    # ── 速度反馈一阶低通 ──
+    # 用途：压掉电调转速测量噪声（3508 低速时约 ±45rpm），避免被 kp 放大成力矩纹波
+    # 取值：0 = 关闭；30~50 较稳；80~100 更快但噪声更多；>150 基本不起作用
+    #   滞后 ≈ 1/(2πf)：50Hz → 3.2ms，30Hz → 5.3ms
+    steer_velocity_filter_hz: 0.0    # 关闭：本系统相位裕度不足，滤波反而加剧振荡
+    wheel_velocity_filter_hz: 0.0    # 关闭
+    # 轮电机摇杆满推时的目标转速 rad/s（原为代码里写死的 20.0，太快）
+    wheel_max_velocity: 6.0
+    # 轮力矩限幅 N·m（3508 满力矩约 6；设 6 = 不额外限制）
+    wheel_torque_limit: 6.0
+
+    # 舵位置环阶跃测试（双环：角度外环 + 速度内环）
+    # 周期性在 ±steer_pos_step_target 之间跳变，不受摇杆影响
+    steer_pos_step_enable: true
+    steer_pos_step_target: 0.5        # 阶跃幅值 rad（0.5 ≈ 28.6°）
+    steer_pos_step_half_period: 5.0   # 半周期 秒
+
+    # 舵速度环阶跃测试（不受摇杆影响，周期性正负跳变）
+    steer_step_enable: false
+    steer_step_target: 4.0        # 阶跃幅值 rad/s
+    steer_step_half_period: 5.0   # 半周期 秒
+
+    # 轮速度环阶跃测试（不受摇杆影响，周期性正负跳变）
+    wheel_step_enable: false
+    wheel_step_target: 16.0
+    wheel_step_half_period: 5.0   # 半周期 秒（正向 5s，负向 5s）
+    steer_test_velocity: 0.5     # velocity 模式：0.5 rad/s（约 28°/s）
+
+    # 舵：摇杆每推一次步进的角度（度）与触发阈值
+    steer_jog_deg: 30.0
+    steer_jog_threshold: 0.6
+
+    # 角度环输出的速度参考限幅 rad/s（参考 C 车：10.0）
+    steer_velocity_limit: 4.0
+    # 力矩限幅 N·m（参考 C 车：4.0）
+    steer_torque_limit: 2.4
+
+    # 舵：双环 —— 外环角度环（输出速度参考 rad/s）
+    # 3508 经 19.2:1 减速后最大约 20 N·m，静摩擦 2~5 N·m，增益不能太小
+    # 目标平滑截止频率 Hz：把阶跃变成斜坡，越大越快、越小越柔
+    steer_target_filter_hz: 0.0      # 关闭（纯 PID）
+    steer_angle_kp: 4.0
+    steer_angle_ki: 0.0015
+    steer_angle_kd: 0.0              # 关闭前馈（纯 PID）
+
+    # 舵：内环速度环（输出力矩 N·m）
+    steer_velocity_kp: 0.5
+    steer_velocity_ki: 0.0
+    steer_velocity_kd: 0.0
+
+    # 轮：单速度环（输出力矩 N·m）
+    # 推满摇杆目标 20 rad/s，kp=3 时饱和到 20 N·m，足以驱动
+    wheel_kp: 1.0
     wheel_ki: 0.0
     wheel_kd: 0.0
