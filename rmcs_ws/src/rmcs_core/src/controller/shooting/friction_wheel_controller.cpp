@@ -61,6 +61,7 @@ public:
         friction_soft_start_stop_step_ =
             (1 / 1000.0) / get_parameter("friction_soft_start_stop_time").as_double();
 
+        register_output("/gimbal/friction_enabled", friction_enabled_, false);
         register_output("/gimbal/friction_ready", friction_ready_, false);
         register_output("/gimbal/friction_jammed", friction_jammed_, false);
         register_output("/gimbal/bullet_fired", bullet_fired_, false);
@@ -83,7 +84,7 @@ public:
 
             if ((!last_keyboard_.v && keyboard.v)
                 || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
-                friction_enabled_ = !friction_enabled_;
+                *friction_enabled_ = !*friction_enabled_;
             }
 
             update_friction_velocities();
@@ -101,7 +102,7 @@ public:
 
 private:
     void reset_all_controls() {
-        friction_enabled_ = false;
+        *friction_enabled_ = false;
 
         last_primary_friction_velocity_ = nan_;
         primary_friction_velocity_decrease_integral_ = 0;
@@ -128,7 +129,7 @@ private:
             friction_soft_start_stop_percentage_ /= static_cast<double>(friction_count_);
         }
         friction_soft_start_stop_percentage_ +=
-            friction_enabled_ ? friction_soft_start_stop_step_ : -friction_soft_start_stop_step_;
+            *friction_enabled_ ? friction_soft_start_stop_step_ : -friction_soft_start_stop_step_;
         friction_soft_start_stop_percentage_ =
             std::clamp(friction_soft_start_stop_percentage_, 0.0, 1.0);
 
@@ -140,14 +141,14 @@ private:
     void update_friction_status() {
         *friction_ready_ = *friction_jammed_ = *bullet_fired_ = false;
 
-        if (!friction_enabled_)
+        if (!*friction_enabled_)
             return;
         if (friction_soft_start_stop_percentage_ < 1.0)
             return;
 
         if (detect_friction_faulty()) {
             if (friction_faulty_count_ == 200) {
-                friction_enabled_ = false;
+                *friction_enabled_ = false;
                 *friction_jammed_ = true;
             } else {
                 friction_faulty_count_++;
@@ -211,7 +212,7 @@ private:
     std::unique_ptr<InputInterface<double>[]> friction_velocities_;
     std::unique_ptr<OutputInterface<double>[]> friction_working_velocity_outputs_;
 
-    bool friction_enabled_ = false;
+    OutputInterface<bool> friction_enabled_;
 
     double friction_soft_start_stop_step_;
     double friction_soft_start_stop_percentage_ = nan_;

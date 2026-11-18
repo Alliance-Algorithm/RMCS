@@ -1,6 +1,5 @@
 #include <chrono>
 #include <limits>
-#include <stdexcept>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -43,13 +42,7 @@ public:
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
 
-        const bool has_yaw_upper_limit = has_parameter("yaw_upper_limit");
-        const bool has_yaw_lower_limit = has_parameter("yaw_lower_limit");
-        if (has_yaw_upper_limit != has_yaw_lower_limit)
-            throw std::runtime_error(
-                "yaw_upper_limit and yaw_lower_limit must be configured together");
-
-        if (has_yaw_upper_limit)
+        if (has_parameter("yaw_upper_limit"))
             two_axis_gimbal_solver.enable_yaw_limit(
                 *this, get_parameter("yaw_upper_limit").as_double(),
                 get_parameter("yaw_lower_limit").as_double());
@@ -74,11 +67,12 @@ public:
 
         if (recovery_yaw_active_.ready() && *recovery_yaw_active_) {
             two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
-            const auto elapsed = std::chrono::steady_clock::now().time_since_epoch();
-            const double now = std::chrono::duration<double>(elapsed).count();
-            const double error =
-                recovery_yaw_.ready() ? recovery_yaw_alignment_.update(*recovery_yaw_, now) : nan_;
-            return {error, nan_};
+            const double now =
+                std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
+                    .count();
+            return {
+                recovery_yaw_.ready() ? recovery_yaw_alignment_.update(*recovery_yaw_, now) : nan_,
+                nan_};
         }
         recovery_yaw_alignment_.reset();
 
@@ -121,9 +115,9 @@ private:
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
     InputInterface<bool> recovery_yaw_active_;
     InputInterface<double> recovery_yaw_;
+    chassis::wheel_leg::RecoveryYawAlignment recovery_yaw_alignment_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
-    chassis::wheel_leg::RecoveryYawAlignment recovery_yaw_alignment_;
 
     OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
 };

@@ -1,17 +1,11 @@
-#include <rclcpp/node.hpp>
-#include <rmcs_executor/component.hpp>
-#include <rmcs_description/tf_description.hpp>
-#include <rmcs_utility/rclcpp/node_mixin.hpp>
-
 #include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Geometry>
 #include <fstream>
 #include <functional>
 #include <iomanip>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -19,6 +13,13 @@
 #include <typeinfo>
 #include <utility>
 #include <vector>
+
+#include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Geometry>
+#include <rclcpp/node.hpp>
+#include <rmcs_description/tf_description.hpp>
+#include <rmcs_executor/component.hpp>
+#include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 namespace rmcs_core::debug {
 
@@ -107,7 +108,7 @@ public:
             node::error("failed to open {}", csv_path_);
             return;
         }
-        csv_file_ << std::setprecision(10);
+        csv_file_ << std::setprecision(std::numeric_limits<double>::max_digits10);
 
         csv_file_ << "index";
         for (const auto& unit : units_)
@@ -210,30 +211,25 @@ private:
     }
 
     auto register_signal(const std::string& name, const std::type_info& type) -> bool {
-        if (register_typed<double>(name, type, {name}, [](std::ostream& os, double value) {
-                os << "," << value;
-            }))
+        if (register_typed<double>(
+                name, type, {name}, [](std::ostream& os, double value) { os << "," << value; }))
             return true;
-        if (register_typed<int>(name, type, {name}, [](std::ostream& os, int value) {
-                os << "," << value;
-            }))
+        if (register_typed<int>(
+                name, type, {name}, [](std::ostream& os, int value) { os << "," << value; }))
             return true;
         if (register_typed<std::uint8_t>(name, type, {name}, [](std::ostream& os, std::uint8_t v) {
                 os << "," << static_cast<unsigned>(v);
             }))
             return true;
-        if (register_typed<std::uint32_t>(name, type, {name}, [](std::ostream& os, std::uint32_t v) {
-                os << "," << v;
-            }))
+        if (register_typed<std::uint32_t>(
+                name, type, {name}, [](std::ostream& os, std::uint32_t v) { os << "," << v; }))
             return true;
-        if (register_typed<std::uint64_t>(name, type, {name}, [](std::ostream& os, std::uint64_t v) {
-                os << "," << v;
-            }))
+        if (register_typed<std::uint64_t>(
+                name, type, {name}, [](std::ostream& os, std::uint64_t v) { os << "," << v; }))
             return true;
         if constexpr (!std::is_same_v<std::size_t, std::uint64_t>) {
-            if (register_typed<std::size_t>(name, type, {name}, [](std::ostream& os, std::size_t v) {
-                    os << "," << v;
-                }))
+            if (register_typed<std::size_t>(
+                    name, type, {name}, [](std::ostream& os, std::size_t v) { os << "," << v; }))
                 return true;
         }
         if (register_typed<bool>(name, type, {name}, [](std::ostream& os, bool value) {

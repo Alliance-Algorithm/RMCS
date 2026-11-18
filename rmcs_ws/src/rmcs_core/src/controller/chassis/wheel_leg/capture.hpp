@@ -1,15 +1,15 @@
 #pragma once
 
+#include <array>
+#include <cmath>
+#include <numbers>
+
 #include "joint_coordinates.hpp"
 #include "model/body_geometry.hpp"
 #include "model/recovery_profile.hpp"
 
-#include <cmath>
-#include <numbers>
-
 namespace rmcs_core::controller::chassis::wheel_leg {
 
-// dev/wheel_leg_rl @ 0fcc9b45, controller_recovery.cpp and recovery YAML.
 // Moving capture: neither script completion nor stationary balance is required.
 struct RecoveryCaptureLimits {
     double tilt = std::numbers::pi / 6.;

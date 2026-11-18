@@ -22,9 +22,9 @@ bool positive_finite(double value) { return std::isfinite(value) && value > 0.0;
 } // namespace
 
 std::string_view recovery_phase_name(JointReferenceRecoveryPhase phase) {
-    constexpr std::array<std::string_view, 11> names{"SELECT", "FOLD", "PLANT",   "ORBIT",
-                                                     "THRUST", "SIDE", "CAPTURE", "PREPARE",
-                                                     "BLEND",  "RL",   "FAILED"};
+    constexpr std::array<std::string_view, 13> names{
+        "SELECT",  "FOLD",  "PLANT", "ORBIT",  "THRUST",      "SIDE", "CAPTURE",
+        "PREPARE", "BLEND", "RL",    "FAILED", "SYNCHRONIZE", "REAR"};
     const auto index = static_cast<std::size_t>(phase);
     return index < names.size() ? names[index] : "UNKNOWN";
 }
@@ -66,8 +66,10 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
         || config.dynamic_capture_height_min > config.handover_height_min
         || config.dynamic_capture_height_min >= config.dynamic_capture_height_max
         || config.dynamic_capture_height_max > config.handover_height_max
-        || config.stable_seconds < 1.0 || config.max_script_seconds > 8.0 || config.max_reroutes < 0
-        || config.max_reroutes > 1 || config.handover_height_min >= config.handover_height_max
+        || config.stable_seconds < 1.0 || config.max_script_seconds > 8.0
+        || !positive_finite(config.overturn_stall_seconds) || config.max_direction_reversals < 0
+        || config.max_direction_reversals > 2 || config.max_reroutes < 0 || config.max_reroutes > 1
+        || config.handover_height_min >= config.handover_height_max
         || config.handover_tilt_rad >= config.reroute_tilt_rad
         || config.reroute_tilt_rad >= std::numbers::pi
         || config.prepare_tilt_limit_deg > config.capture_tilt_limit_deg
@@ -131,6 +133,13 @@ void JointReferenceRecoveryController::reset_fsm_(const Vector6f& q, bool active
     side_start_.setZero();
     side_direction_.setZero();
     side_fold_.setZero();
+    synchronized_goal_.setZero();
+    rotation_direction_ = 1.0f;
+    progress_tilt_ = 0.0f;
+    progress_seconds_ = 0.0;
+    direction_reversals_ = 0;
+    overturning_ = false;
+    script_budget_seconds_ = config_.max_script_seconds;
     side_lower_leg_ = 0;
 }
 
@@ -158,11 +167,6 @@ JointReferenceRecoveryController::Vector4f JointReferenceRecoveryController::pai
         difference.segment<2>(2 * side).array() -= turns * kTau;
     }
     return difference;
-}
-
-Eigen::Vector4d JointReferenceRecoveryController::paired_delta(
-    const Eigen::Vector4d& goal, const Eigen::Vector4d& reference) {
-    return paired_delta_(goal.cast<float>(), reference.cast<float>()).cast<double>();
 }
 
 JointReferenceRecoveryController::Vector4f JointReferenceRecoveryController::shape_at_heading_(
@@ -209,8 +213,7 @@ void JointReferenceRecoveryController::start_upright_(bool grounded) {
     orbit_angle_ = 0.0f;
     unsupported_ticks_ = 0;
     durations_.unsupported = 0.0;
-    fold_anchor_ =
-        shape_at_heading_(config_.insertion_fold.cast<float>(), continuous_q_.head<4>());
+    fold_anchor_ = shape_at_heading_(config_.insertion_fold.cast<float>(), continuous_q_.head<4>());
     enter_(grounded ? JointReferenceRecoveryPhase::kFold : JointReferenceRecoveryPhase::kCapture);
 }
 
@@ -236,7 +239,9 @@ void JointReferenceRecoveryController::publish_() {
     command_.pure_rl =
         (!membership_ || release_finished_) && phase_ == JointReferenceRecoveryPhase::kRl;
     command_.blending = enabled_ && phase_ == JointReferenceRecoveryPhase::kBlend;
-    command_.scripted = enabled_ && phase_ < JointReferenceRecoveryPhase::kBlend;
+    command_.scripted = enabled_
+                     && (phase_ < JointReferenceRecoveryPhase::kBlend
+                         || (overturning_ && phase_ == JointReferenceRecoveryPhase::kSynchronize));
     command_.blend =
         command_.pure_rl ? 1.0
         : command_.blending && config_.blend_seconds > 0.0
@@ -251,6 +256,8 @@ void JointReferenceRecoveryController::publish_() {
     command_.phase_ticks = phase_ticks_;
     command_.stable_ticks = stable_ticks_;
     command_.reroute_count = reroute_count_;
+    command_.direction_reversals = direction_reversals_;
+    command_.rotation_direction = rotation_direction_;
 }
 
 const JointReferenceRecoveryCommand&
@@ -317,6 +324,38 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
     if (enabled_ && phase_ != JointReferenceRecoveryPhase::kFailed) {
         ++phase_ticks_;
         durations_.phase += dt;
+    }
+
+    if (enabled_ && config_.synchronized_overturn && age_ticks_ == 1
+        && phase_ == JointReferenceRecoveryPhase::kSelect && tilt >= radians(70.0)) {
+        overturning_ = true;
+        script_budget_seconds_ = 12.0;
+    }
+    if (overturning_ && phase_ != JointReferenceRecoveryPhase::kSelect && tilt < radians(30.0)) {
+        overturning_ = false;
+        start_upright_(
+            !feedback.support
+            || height < body_geometry::support_depth(gravity) + kPushOffClearance);
+    }
+    if (overturning_) {
+        const StepContext step{
+            phase_,
+            route_,
+            gravity,
+            gyro,
+            dq,
+            height,
+            tilt,
+            pitch,
+            static_cast<float>(dt),
+            phase_elapsed_(),
+            durations_.phase,
+            tilt < radians(15.0) && height > 0.20f};
+        update_overturn_(step, dt);
+        update_wheels_(step, feedback.support);
+        ++elapsed_ticks_;
+        publish_();
+        return command_;
     }
 
     const bool overturning = route_ == JointReferenceRecoveryRoute::kOrbitPositive
@@ -417,6 +456,86 @@ const JointReferenceRecoveryCommand& JointReferenceRecoveryController::update(
     ++elapsed_ticks_;
     publish_();
     return command_;
+}
+
+void JointReferenceRecoveryController::start_synchronization_(const StepContext& step) {
+    const Vector4f axes = config_.root_axis_signs.cast<float>();
+    const Vector4f physical = continuous_q_.head<4>().cwiseProduct(axes);
+    const float left_heading = physical.head<2>().mean();
+    const float right_heading = physical.tail<2>().mean();
+    const float heading = left_heading + 0.5f * wrapped(right_heading - left_heading);
+    // Synchronization may extend the shorter leg, but never folds a leg before
+    // an overturning stroke. Both knees keep this common length while rotating.
+    float hinge = std::max(physical[1] - physical[0], physical[3] - physical[2]);
+    if (step.tilt > radians(55.0))
+        hinge = std::max(
+            hinge, static_cast<float>(
+                       (config_.thrust[1] - config_.thrust[0]) * config_.root_axis_signs[0]));
+    synchronized_goal_ =
+        Vector4f{
+            heading - hinge / 2.0f, heading + hinge / 2.0f, heading - hinge / 2.0f,
+            heading + hinge / 2.0f}
+            .cwiseQuotient(axes);
+    progress_tilt_ = step.tilt;
+    progress_seconds_ = 0.0;
+    enter_(JointReferenceRecoveryPhase::kSynchronize);
+}
+
+void JointReferenceRecoveryController::update_overturn_(const StepContext& step, double dt) {
+    using Phase = JointReferenceRecoveryPhase;
+    if (!enabled_ || phase_ == Phase::kFailed || phase_ == Phase::kRl)
+        return;
+    if (phase_ == Phase::kSelect) {
+        route_ = JointReferenceRecoveryRoute::kOrbitPositive;
+        start_synchronization_(step);
+        return;
+    }
+    const Vector4f axes = config_.root_axis_signs.cast<float>();
+    const bool synchronizing = phase_ == Phase::kSynchronize;
+    JointGoal goal{
+        synchronized_goal_, static_cast<float>(config_.prepare_speed_rad_s),
+        Winding::kCoupledNearest};
+    if (!synchronizing) {
+        orbit_angle_ += static_cast<float>(config_.orbit_speed_rad_s) * step.dt;
+        goal = {
+            orbit_start_ + rotation_direction_ * orbit_angle_ * axes.cwiseInverse(),
+            static_cast<float>(config_.orbit_speed_rad_s), Winding::kContinuous};
+    }
+    const auto reference = advance_reference_(step, goal);
+    const Vector4f physical = continuous_q_.head<4>().cwiseProduct(axes);
+    const bool aligned = std::abs(wrapped(physical[0] - physical[2])) < 0.15f
+                      && std::abs(wrapped(physical[1] - physical[3])) < 0.15f;
+    if (synchronizing && reference.remaining < 0.03f && aligned && step.elapsed >= 0.06f) {
+        orbit_start_ = reference.position;
+        orbit_angle_ = 0.0f;
+        progress_tilt_ = step.tilt;
+        progress_seconds_ = 0.0;
+        enter_(Phase::kOrbit);
+    } else if (!synchronizing) {
+        progress_seconds_ += dt;
+        if (step.tilt < progress_tilt_ - radians(8.0)) {
+            progress_tilt_ = step.tilt;
+            progress_seconds_ = 0.0;
+        }
+        if (progress_seconds_ >= config_.overturn_stall_seconds || orbit_angle_ >= kTau) {
+            if (direction_reversals_ >= config_.max_direction_reversals) {
+                fail_(7);
+            } else {
+                ++direction_reversals_;
+                rotation_direction_ = -rotation_direction_;
+                route_ = rotation_direction_ > 0.0f ? JointReferenceRecoveryRoute::kOrbitPositive
+                                                    : JointReferenceRecoveryRoute::kOrbitNegative;
+                orbit_start_ = shape_at_heading_(synchronized_goal_, continuous_q_.head<4>());
+                targets_.head<4>() = orbit_start_;
+                orbit_angle_ = 0.0f;
+                progress_tilt_ = step.tilt;
+                progress_seconds_ = 0.0;
+                enter_(Phase::kOrbit);
+            }
+        }
+    }
+    if (reached_(age_ticks_, durations_.age, script_budget_seconds_))
+        fail_(6);
 }
 
 JointReferenceRecoveryController::JointGoal
@@ -522,7 +641,8 @@ JointReferenceRecoveryController::ReferenceStep
     const float fraction =
         std::min(goal.speed * step.dt / std::max(delta.cwiseAbs().maxCoeff(), 1e-6f), 1.0f);
     if ((enabled_ && phase_ < JointReferenceRecoveryPhase::kBlend)
-        || (enabled_ && step.phase == JointReferenceRecoveryPhase::kBlend))
+        || (enabled_ && step.phase == JointReferenceRecoveryPhase::kBlend)
+        || (enabled_ && overturning_ && phase_ == JointReferenceRecoveryPhase::kSynchronize))
         reference += delta * fraction;
     targets_.head<4>() = reference;
     const float remaining = delta.cwiseAbs().maxCoeff() * (1.0f - fraction);
@@ -677,12 +797,12 @@ void JointReferenceRecoveryController::update_transitions_(
         && tilt > radians(45.0))
         fail_(5);
     if (enabled_ && phase_ != JointReferenceRecoveryPhase::kRl
-        && reached_(age_ticks_, durations_.age, config_.max_script_seconds))
+        && reached_(age_ticks_, durations_.age, script_budget_seconds_))
         fail_(6);
     if (membership_ && phase_ != JointReferenceRecoveryPhase::kRl
         && (config_.dt == 0.005 ? static_cast<double>(elapsed_ticks_) * config_.dt
                                 : elapsed_seconds_ + 1e-12)
-               >= config_.max_script_seconds)
+               >= script_budget_seconds_)
         fail_(6);
 }
 
@@ -748,14 +868,14 @@ JointReferenceRecoveryVector6 JointReferenceRecoveryController::torques(
 }
 
 JointReferenceRecoveryVector6 JointReferenceRecoveryController::project_feedback(
-    const JointReferenceRecoveryVector6& input) const {
-    const Vector6f raw_q = input.cast<float>();
-    Vector6f q;
+    const JointReferenceRecoveryVector6& q) const {
+    const Vector6f raw_q = q.cast<float>();
+    Vector6f out;
     for (int i = 0; i < 6; ++i) {
         const float turns = std::nearbyint((canonical_q_[i] - raw_q[i]) / kTau);
-        q[i] = turns == 0.0f ? raw_q[i] : raw_q[i] + turns * kTau;
+        out[i] = turns == 0.0f ? raw_q[i] : raw_q[i] + turns * kTau;
     }
-    return q.cast<double>();
+    return out.cast<double>();
 }
 
 } // namespace rmcs_core::controller::chassis::wheel_leg
