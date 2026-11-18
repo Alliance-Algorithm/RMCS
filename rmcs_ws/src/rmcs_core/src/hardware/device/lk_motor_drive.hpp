@@ -43,8 +43,9 @@ public:
             if (replied && feedback.error_state == 0) {
                 clear_confirmed_ = true;
                 enter_(Phase::kEnabling, now);
-            } else if (now - phase_started_ >= kClearTimeout
-                       && (!saw_status_ || (replied && feedback.error_state == 0x80))) {
+            } else if (
+                now - phase_started_ >= kClearTimeout
+                && (!saw_status_ || (replied && feedback.error_state == 0x80))) {
                 // An idle input timeout may persist until torque commands start.
                 // Do not let it prevent startup; other reported faults still block it.
                 enter_(Phase::kEnabling, now);
@@ -88,13 +89,6 @@ public:
     }
 
     Phase phase() const noexcept { return phase_; }
-    bool active() const noexcept { return phase_ == Phase::kActive; }
-    bool clear_confirmed() const noexcept { return clear_confirmed_; }
-    unsigned rearm_count() const noexcept { return rearm_count_; }
-    bool startup_input_timeout(const Feedback& feedback) const noexcept {
-        return feedback.error_state == 0x80 && rearm_count_ == 0
-            && (!active() || feedback.received_at <= phase_started_);
-    }
 
     static const char* phase_name(Phase phase) noexcept {
         switch (phase) {

@@ -1,77 +1,41 @@
-# 轮腿步兵「仅云台 + 自瞄 + 发弹」台架配置。
-#
-# 启动：ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-infantry-gimbal
-#
-# 与 wheel-leg-infantry-wheelbipe.yaml 的差异：
-#   * 不加载 RL 状态估计 / 观测 / 策略、底盘控制器与 mirror，因此没有任何组件输出
-#     /wheel_leg/enable_request 与四个 /wheel_leg/*_joint/control_torque；
-#   * wheel_leg.leg_drive_enabled: false 是硬件硬门：四个 DM 腿关节只收 disable 与反馈轮询帧，
-#     两个 M3508 驱动轮转矩恒为 0，永远不会被使能；
-#   * 云台（yaw LK4010 + pitch MG4010）与摩擦轮 / 拨弹轮不受该门影响。云台在遥控器在线
-#     且左右拨杆不是双下时使能，之后由遥控器摇杆/鼠标或自瞄驱动。
-#
-# 仍需注意：
-#   * 下板（底盘板）必须在线：yaw LK4010 走它的 CAN3，DR16 与裁判系统串口也都挂在它上面。
-#     本配置只是不使能腿和轮子，不是“只接上板”。
-#   * 发弹热量门来自裁判系统。裁判系统未接时 /referee/shooter/heat_limit 为 0，
-#     HeatController 的 allowance 恒为 0，拨弹轮不会转；这是既有安全逻辑，不是本配置的问题。
-#   * 自瞄姿态基准：WheelLeg 硬件目前不发布 /gimbal/auto_aim/imu_snapshot 与
-#     /gimbal/auto_aim/exposure_signal，所以采集端按自由采集运行、每帧姿态是单位四元数
-#     （等价于假定云台水平且 yaw=0）。台架上打静止目标够用；要打移动目标必须先给
-#     WheelLeg 补这两个输出，否则预测量会偏。
+# ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-infantry-gimbal
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0
     components:
       - rmcs_core::hardware::WheelLeg -> wheel_leg
-
       - rmcs_core::referee::Status -> referee_status
-
+      - rmcs_rl::StateMirror -> wheel_leg_mirror
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::debug::ValueCollector -> value_collector
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
       - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
-
       - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
       - rmcs_core::controller::shooting::HeatController -> heat_controller
       - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
       - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
       - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
-
       - rmcs::AutoAimComponent -> auto_aim_component
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
 
-      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
-
 wheel_leg:
   ros__parameters:
-    serial_filter_bottom_board: "AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1"
-    serial_filter_top_board: "AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75"
+    board_serial_bottom_board: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    board_serial_gimbal_board: AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75
     yaw_motor_zero_point: 58379
     pitch_motor_zero_point: 12637
-
-    # 腿驱动硬门。false：四个 DM 关节永不使能，两个轮子转矩恒为 0，
-    # 云台单独按遥控器在线 + 非双下使能（不再依赖 /wheel_leg/enable_request）。
-    leg_drive_enabled: false
-
-    # 腿不使能，但 configure_motors() 仍校验这几个参数，保留原值以通过启动检查。
-    dm_master_ids: [1, 2, 1, 2]
-    dm_mit_position_max: [3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793]
-    dm_mit_velocity_max: [45.0, 45.0, 45.0, 45.0]
-    dm_mit_torque_max: [54.0, 54.0, 54.0, 54.0]
-    dm_control_torque_max: [40.0, 40.0, 40.0, 40.0]
-
-    feedback_timeout_s: 0.05
+    imu_diagnostics_csv_path: "/tmp/gimbal_top_imu_native_<timestamp>.csv"
 
 gimbal_controller:
   ros__parameters:
-    upper_limit: -0.6109 # up 35 deg
-    lower_limit: 0.5236 # down 30 deg
+    upper_limit: -0.6109
+    lower_limit: 0.5236
 
-# 这里不带 reset_interface：台架没有 /chassis/reset_count 生产者，积分为 0 也用不到。
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
@@ -82,12 +46,12 @@ yaw_angle_pid_controller:
 
 yaw_velocity_pid_controller:
   ros__parameters:
-    output_min: -4.5
-    output_max: 4.5
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
     control: /gimbal/yaw/control_torque
-    kp: 1.5
+    kp: 4.338842975206612
     ki: 0.0
     kd: 0.0
 
@@ -101,19 +65,19 @@ pitch_angle_pid_controller:
 
 pitch_velocity_pid_controller:
   ros__parameters:
-    output_min: -4.5
-    output_max: 4.5
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
     measurement: /gimbal/pitch/velocity_imu
     setpoint: /gimbal/pitch/control_velocity
     control: /gimbal/pitch/control_torque
     feedforward: /gimbal/pitch/torque_ff
-    kp: 1.5
+    kp: 4.338842975206612
     ki: 0.0
     kd: 0.0
 
 pitch_gravity_ff:
   ros__parameters:
-    pitch_gravity_ff_gain: 0.9
+    pitch_gravity_ff_gain: 2.6033057851239674
     pitch_gravity_ff_phase: 0.75
 
 friction_wheel_controller:
@@ -139,7 +103,7 @@ bullet_feeder_controller:
     eject_frequency: 10.0
     eject_time: 0.05
     deep_eject_frequency: 5.0
-    deep_eject_time: 0.20
+    deep_eject_time: 0.2
     single_shot_max_stop_delay: 2.0
 
 left_friction_velocity_pid_controller:
@@ -171,18 +135,16 @@ bullet_feeder_velocity_pid_controller:
 
 auto_aim_component:
   ros__parameters:
-    # 裁判系统 ID 缺席时不强行绑定阵营，避免误判敌我。
-    dangerous_fallback: ""
-    # 需要左键 / 左拨杆 DOWN 的开火意图，台架更安全；确认无误后可改 false 全自动开火。
+    dangerous_fallback: ''
     manual_shoot: true
     enable_rune: true
-    track_ids: [FULL]
-    # 相机在 PitchLink 下的平移外参（米），需按实车相机安装填写。
-    camera_translation: [0.0, 0.0, 0.0]
-
+    track_ids:
+      - FULL
+    # From the yaw/pitch-axis intersection, in metres: forward, left, up.
+    camera_translation: [0.07595, 0.0, 0.04612]
     fire_control:
-      bullet_speed: 22.5
-      shoot_delay: 0.04
+      bullet_speed: 23.0
+      shoot_delay: 0.0 # Command-to-muzzle seconds; pending measurement.
       offset_yaw: 0.0
       offset_pitch: 0.0
       attack_window: 80.0
@@ -190,36 +152,148 @@ auto_aim_component:
       window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
-      require_stable_command: false
-      yaw_tolerance: 0.07
-      pitch_tolerance: 0.04
+      yaw_tolerance: 0.05 # Metres; tighter than deformable.
+      pitch_tolerance: 0.03 # Metres.
       rune_idle_duration: 0.4
       rune_shoot_duration: 0.2
 
 auto_aim_capturer:
   ros__parameters:
-    camera_name: ""
-    exposure_us: 2000.0
-    gain: 16.9807
-    framerate: 249.1
+    camera_name: ''
+    exposure_us: 4000.0
+    gain: 8.0
+    framerate: 120.0
     invert_image: false
     rls_tau_sec: 10.0
-    # 见文件头：WheelLeg 硬件不提供曝光触发与 IMU 快照，退回自由采集 + 单位姿态。
     use_hardware_sync: false
-    imu_snapshot_topic: ""
-    delay_ms: 6.5
+    exposure_signal_topic: /gimbal/auto_aim/exposure_signal
+    imu_snapshot_topic: /gimbal/auto_aim/imu_snapshot
+    delay_ms: 6.5 # Same as deformable; used only by software fallback.
 
-# 发弹链路诊断：摩擦轮就绪 → 热量允许 → 拨弹轮指令/反馈/力矩，外加底盘母线电压。
+wheel_leg_mirror:
+  ros__parameters:
+    topic_prefix: /wheel_leg/telemetry
+    frame_id: chassis_body
+    rate: 100.0
+    joints:
+      order: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint,
+              left_wheel, right_wheel, gimbal_yaw_joint, gimbal_pitch_joint]
+      left_hip_joint: {position: /wheel_leg/left_hip_joint/angle, velocity: /wheel_leg/left_hip_joint/velocity,
+        stamp: /wheel_leg/left_hip_joint/feedback_steady_ns}
+      left_knee_joint: {position: /wheel_leg/left_knee_joint/angle, velocity: /wheel_leg/left_knee_joint/velocity,
+        stamp: /wheel_leg/left_knee_joint/feedback_steady_ns}
+      right_hip_joint: {position: /wheel_leg/right_hip_joint/angle, velocity: /wheel_leg/right_hip_joint/velocity,
+        stamp: /wheel_leg/right_hip_joint/feedback_steady_ns}
+      right_knee_joint: {position: /wheel_leg/right_knee_joint/angle, velocity: /wheel_leg/right_knee_joint/velocity,
+        stamp: /wheel_leg/right_knee_joint/feedback_steady_ns}
+      left_wheel: {position: /wheel_leg/left_wheel/angle, velocity: /wheel_leg/left_wheel/velocity,
+        stamp: /wheel_leg/left_wheel/feedback_steady_ns}
+      right_wheel: {position: /wheel_leg/right_wheel/angle, velocity: /wheel_leg/right_wheel/velocity,
+        stamp: /wheel_leg/right_wheel/feedback_steady_ns}
+      gimbal_yaw_joint: {position: /gimbal/yaw/angle, velocity: /gimbal/yaw/velocity}
+      gimbal_pitch_joint: {position: /gimbal/pitch/angle, velocity: /gimbal/pitch/velocity}
+    imu: {orientation: /wheel_leg/imu/quaternion, angular_velocity: /wheel_leg/imu/angular_velocity,
+      stamp: /wheel_leg/imu/last_steady_ns}
+    vectors:
+      order: [rl_projected_gravity, rl_angular_velocity]
+      rl_projected_gravity: /wheel_leg/state/gravity
+      rl_angular_velocity: /wheel_leg/imu/angular_velocity
+    values:
+      state: {position: /wheel_leg/state/position}
+      control: {enabled: /chassis/control_enable, ready: /wheel_leg/control_ready,
+        reset_count: /chassis/reset_count, rl_state: /wheel_leg/rl/state}
+      operator: {velocity: /chassis/control_velocity, height: /chassis/control_height, mode: /chassis/control_mode}
+      remote: {left: /remote/joystick/left, right: /remote/joystick/right,
+        switch_left: /remote/switch/left, switch_right: /remote/switch/right,
+        knob: /remote/rotary_knob, keyboard: /remote/keyboard}
+      gimbal: {left_friction: /gimbal/left_friction/velocity, right_friction: /gimbal/right_friction/velocity,
+        bullet_feeder: /gimbal/bullet_feeder/velocity}
+      shooting: {friction_ready: /gimbal/friction_ready, friction_jammed: /gimbal/friction_jammed,
+        bullet_fired: /gimbal/bullet_fired}
+      power: {supercap_enabled: /chassis/supercap/enabled}
+      drives: {left_hip_joint: /wheel_leg/left_hip_joint/status, left_knee_joint: /wheel_leg/left_knee_joint/status,
+        right_hip_joint: /wheel_leg/right_hip_joint/status, right_knee_joint: /wheel_leg/right_knee_joint/status}
+    constants:
+      coordinate: rmcs_hardware_output_shaft_v1
+      model_offset: {left_hip_joint: "1.6", left_knee_joint: "3.0282761689183353",
+        right_hip_joint: "-1.6", right_knee_joint: "-3.0283102010168"}
+
 value_broadcaster:
   ros__parameters:
-    update_rate: 50.0
     forward_list:
-      - /gimbal/friction_ready
-      - /gimbal/friction_jammed
-      - /gimbal/bullet_fired
-      - /gimbal/bullet_feeder/control_velocity
-      - /gimbal/bullet_feeder/velocity
-      - /chassis/voltage
-      - /chassis/supercap/enabled
       - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
       - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/left_friction/velocity
+      - /gimbal/right_friction/velocity
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
+      - /chassis/voltage
+
+value_collector:
+  ros__parameters:
+    csv_path: "/tmp/gimbal_top_imu_ekf_<timestamp>.csv"
+    signals:
+      - /predefined/update_rate
+      - /gimbal/imu/host_time_s
+      - /gimbal/imu/raw/accel_x_counts
+      - /gimbal/imu/raw/accel_y_counts
+      - /gimbal/imu/raw/accel_z_counts
+      - /gimbal/imu/raw/gyro_x_counts
+      - /gimbal/imu/raw/gyro_y_counts
+      - /gimbal/imu/raw/gyro_z_counts
+      - /gimbal/imu/raw/accel_time_s
+      - /gimbal/imu/raw/gyro_time_s
+      - /gimbal/imu/raw/accel_sequence
+      - /gimbal/imu/raw/gyro_sequence
+      - /gimbal/imu/raw/gyro_timestamp_valid
+      - /gimbal/imu/ekf/qw
+      - /gimbal/imu/ekf/qx
+      - /gimbal/imu/ekf/qy
+      - /gimbal/imu/ekf/qz
+      - /gimbal/imu/ekf/time_s
+      - /gimbal/imu/ekf/sequence
+      - /gimbal/imu/ekf/chi_square
+      - /gimbal/imu/ekf/correction_time_s
+      - /gimbal/imu/ekf/correction_attempted
+      - /gimbal/imu/ekf/correction_applied
+      - /gimbal/imu/ekf/correction_attempts
+      - /gimbal/imu/ekf/corrections
+      - /gimbal/imu/ekf/correction_rejections
+      - /gimbal/imu/ekf/gyro_saturations
+      - /gimbal/imu/ekf/time_gap_rejections
+      - /gimbal/imu/ekf/snapshot_updated
+      - /gimbal/imu/queue_dropped
+      - /gimbal/imu/io_failed
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/yaw/velocity_imu
+      - /gimbal/yaw/control_angle_error
+      - /gimbal/yaw/control_velocity
+      - /gimbal/yaw/control_torque
+      - /gimbal/yaw/torque
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/velocity_imu
+      - /gimbal/pitch/control_angle_error
+      - /gimbal/pitch/control_velocity
+      - /gimbal/pitch/control_torque
+      - /gimbal/pitch/torque
+      - /gimbal/pitch/torque_ff
+      - /gimbal/left_friction/velocity
+      - /gimbal/left_friction/control_velocity
+      - /gimbal/left_friction/torque
+      - /gimbal/left_friction/control_torque
+      - /gimbal/right_friction/velocity
+      - /gimbal/right_friction/control_velocity
+      - /gimbal/right_friction/torque
+      - /gimbal/right_friction/control_torque
+      - /gimbal/bullet_feeder/angle
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
+      - /gimbal/bullet_feeder/torque
+      - /gimbal/bullet_feeder/control_torque
+      - /chassis/voltage
+    write_interval: 1
+    flush_interval: 1000

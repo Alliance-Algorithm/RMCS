@@ -19,7 +19,6 @@ struct ClosedChainLegGeometry {
     float wheel_radius_m = 0.06f;
 };
 
-// Ported from dev/wheel_leg_rl @ 0fcc9b45; sensor bundle was unused.
 // Native conditional FK and wheel-response probe. No contact, force, root
 // position or simulator truth is accepted here. The caller supplies validated
 // body-frame IMU and calibrated actuator feedback.
@@ -41,9 +40,6 @@ public:
         double elapsed_seconds);
     Eigen::Vector2d probe_command(bool scripted_and_released);
     Eigen::Vector2d probe_command(bool scripted_and_released, double elapsed_seconds);
-    bool geometry_valid() const { return geometry_valid_; }
-    bool support_confirmed() const { return confirmed_; }
-    Eigen::Vector2d height_candidates() const { return heights_.cast<double>(); }
 
 private:
     std::array<ClosedChainLegGeometry, 2> geometry_;

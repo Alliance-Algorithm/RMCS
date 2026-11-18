@@ -1,7 +1,7 @@
 #pragma once
 #include "../joint_coordinates.hpp"
-#include "../self_righting.hpp"
 #include "../support_observer.hpp"
+#include "recovery_geometry.hpp"
 
 namespace rmcs_core::controller::chassis::wheel_leg {
 inline constexpr std::string_view kRecoveryModelSpecSha256 =
@@ -21,7 +21,7 @@ inline JointReferenceRecoveryConfig make_recovery_config() {
             config.fold.segment<2>(hip).mean() - config.insertion_fold.segment<2>(hip).mean();
     config.nominal = config.fold;
     config.rl_nominal = Eigen::Map<const JointReferenceRecoveryVector6>{kNominalPosition.data()};
-    const SelfRightingCore::Axes support{
+    const std::array<double, 4> support{
         config.support[0], config.support[1], config.support[2], config.support[3]};
     const auto weight = recovery_v202::support_compensation(
         support, {0, -0.0045574624965667261, -0.99998961471386916});
@@ -30,12 +30,17 @@ inline JointReferenceRecoveryConfig make_recovery_config() {
     config.dt = .005;
     config.blend_seconds = 0.;
     config.dynamic_takeover = true;
+    config.synchronized_overturn = true;
+    config.overturn_stall_seconds = 1.5;
     config.release_motion_on_takeover = true;
     config.dynamic_capture_height_min = .20;
     config.dynamic_capture_height_max = .29;
-    config.prepare_speed_rad_s = 2.;
-    config.insert_speed_rad_s = 2.;
-    config.orbit_speed_rad_s = 2.;
+    config.prepare_speed_rad_s = 4.;
+    config.insert_speed_rad_s = 4.;
+    config.push_speed_rad_s = 4.;
+    config.orbit_speed_rad_s = 4.;
+    config.capture_speed_rad_s = 4.;
+    config.side_speed_rad_s = 4.;
     return config;
 }
 inline constexpr std::array<double, 2> kRecoveryCaptureHingeMax{

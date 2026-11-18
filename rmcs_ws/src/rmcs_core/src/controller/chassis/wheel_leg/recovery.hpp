@@ -22,6 +22,8 @@ enum class JointReferenceRecoveryPhase : std::uint8_t {
     kBlend = 8,
     kRl = 9,
     kFailed = 10,
+    kSynchronize = 11,
+    kRear = 12,
 };
 enum class JointReferenceRecoveryRoute : std::uint8_t {
     kUpright = 0,
@@ -47,6 +49,10 @@ struct JointReferenceRecoveryConfig {
     double blend_seconds = 0.2;
     // End any script at the caller's bounded upright capture before stabilization.
     bool dynamic_takeover = false;
+    // Synchronize and reverse only for overturned starts; upright recovery stays unchanged.
+    bool synchronized_overturn = false;
+    double overturn_stall_seconds = 0.8;
+    int max_direction_reversals = 2;
     double dynamic_capture_height_min = 0.27;
     double dynamic_capture_height_max = 0.36;
     // Deployment may accept driver commands as soon as the actor owns all axes.
@@ -112,6 +118,8 @@ struct JointReferenceRecoveryCommand {
     std::uint64_t phase_ticks = 0;
     std::uint64_t stable_ticks = 0;
     int reroute_count = 0;
+    int direction_reversals = 0;
+    double rotation_direction = 0.0;
 };
 
 class JointReferenceRecoveryController {
@@ -136,8 +144,6 @@ public:
     JointReferenceRecoveryVector6 torques(
         const JointReferenceRecoveryFeedback& feedback,
         const JointReferenceRecoveryVector6& rl_torque) const;
-    static Eigen::Vector4d
-        paired_delta(const Eigen::Vector4d& goal, const Eigen::Vector4d& reference);
 
 private:
     using Vector4f = Eigen::Matrix<float, 4, 1>;
@@ -190,6 +196,8 @@ private:
     void enter_(JointReferenceRecoveryPhase phase);
     void start_upright_(bool grounded);
     void start_thrust_(const Vector4f& reference);
+    void start_synchronization_(const StepContext& step);
+    void update_overturn_(const StepContext& step, double dt);
     void fail_(int code);
     void reset_fsm_(const Vector6f& q, bool active);
     void publish_();
@@ -209,6 +217,13 @@ private:
     Vector4f side_start_ = Vector4f::Zero();
     Vector4f side_direction_ = Vector4f::Zero();
     Vector4f side_fold_ = Vector4f::Zero();
+    Vector4f synchronized_goal_ = Vector4f::Zero();
+    float rotation_direction_ = 1.0f;
+    float progress_tilt_ = 0.0f;
+    double progress_seconds_ = 0.0;
+    int direction_reversals_ = 0;
+    bool overturning_ = false;
+    double script_budget_seconds_ = 8.0;
     int side_lower_leg_ = 0;
     JointReferenceRecoveryPhase phase_ = JointReferenceRecoveryPhase::kRl;
     JointReferenceRecoveryRoute route_ = JointReferenceRecoveryRoute::kUpright;

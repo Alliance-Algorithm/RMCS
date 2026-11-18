@@ -1,9 +1,9 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +20,7 @@
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/device/can_packet.hpp"
+#include "hardware/device/lk_motor_drive.hpp"
 
 namespace rmcs_core::hardware::device {
 
@@ -97,8 +98,7 @@ public:
             break;
         case Type::kMG4010Ei10:
             raw_angle_modulus_ = 1 << 16;
-            // Bench: 50 counts -> 0.12 Nm, 1150 -> 4.38 Nm, i.e. 0.0039 Nm/count (0.0242 Nm/A).
-            torque_constant = 0.0242;
+            torque_constant = 0.07;
             reduction_ratio = 10.0;
             max_torque_ = 4.5;
             break;
@@ -153,20 +153,27 @@ public:
         if (can_data.size() != 8) [[unlikely]]
             return;
 
-        const auto command = std::to_integer<std::uint8_t>(can_data[0]);
-        if (command != 0x9C && (command < 0xA0 || command > 0xA8))
-            return;
-
-        can_packet_.store(CanPacket8{can_data}, std::memory_order::relaxed);
+        const CanPacket8 can_packet{can_data};
+        const auto command = std::to_integer<uint8_t>(can_data[0]);
+        if (command == 0x9A || command == 0x9B) {
+            status1_packet_.store(can_packet, std::memory_order_relaxed);
+            const auto received_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                         LkMotorDriveScheduler::Clock::now().time_since_epoch())
+                                         .count();
+            status1_received_ns_.store(received_ns, std::memory_order_release);
+        } else if (command == 0x9C || (command >= 0xA0 && command <= 0xA8)) {
+            // Status 1 has no encoder or velocity fields; keep it out of status 2.
+            can_packet_.store(can_packet, std::memory_order::relaxed);
+        }
     }
 
     struct Status1 {
-        std::uint8_t command = 0;
-        std::int8_t temperature = 0;
-        std::int16_t voltage_centivolt = 0;
-        std::int16_t current_centiamp = 0;
-        std::uint8_t motor_state = 0x10;
-        std::uint8_t error_state = 0;
+        uint8_t command = 0;
+        int8_t temperature = 0;
+        int16_t voltage_centivolt = 0;
+        int16_t current_centiamp = 0;
+        uint8_t motor_state = 0x10;
+        uint8_t error_state = 0;
     };
 
     static std::optional<Status1> parse_status1(std::span<const std::byte> can_data) {
@@ -176,35 +183,25 @@ public:
         const struct [[gnu::packed]] {
             uint8_t command;
             int8_t temperature;
-            int16_t voltage;
-            int16_t current;
+            int16_t voltage_centivolt;
+            int16_t current_centiamp;
             uint8_t motor_state;
             uint8_t error_state;
         } feedback alignas(CanPacket8) = std::bit_cast<decltype(feedback)>(CanPacket8{can_data});
-
         if (feedback.command != 0x9A && feedback.command != 0x9B)
             return std::nullopt;
 
-        return Status1{
-            feedback.command,
-            feedback.temperature,
-            feedback.voltage,
-            feedback.current,
-            feedback.motor_state,
-            feedback.error_state,
-        };
+        return Status1{feedback.command,          feedback.temperature, feedback.voltage_centivolt,
+                       feedback.current_centiamp, feedback.motor_state, feedback.error_state};
     }
 
-    bool store_error_status(std::span<const std::byte> can_data) {
-        const auto status = parse_status1(can_data);
-        if (!status)
-            return false;
+    Status1 status1() const {
+        auto packet = status1_packet_.load(std::memory_order_relaxed);
+        return parse_status1(packet.as_bytes()).value_or(Status1{});
+    }
 
-        motor_state_.store(status->motor_state, std::memory_order::relaxed);
-        error_state_.store(status->error_state, std::memory_order::relaxed);
-        bus_voltage_centivolt_.store(status->voltage_centivolt, std::memory_order::relaxed);
-        bus_current_centiamp_.store(status->current_centiamp, std::memory_order::relaxed);
-        return true;
+    LkMotorDriveScheduler::Phase drive_phase() const {
+        return drive_phase_.load(std::memory_order_relaxed);
     }
 
     void update_status() {
@@ -273,20 +270,6 @@ public:
     double max_torque() const { return max_torque_; }
     double temperature() const { return temperature_; }
 
-    std::uint8_t motor_state() const { return motor_state_.load(std::memory_order::relaxed); }
-    std::uint8_t error_state() const { return error_state_.load(std::memory_order::relaxed); }
-    bool running() const { return motor_state() == 0x00; }
-    double bus_voltage() const {
-        return static_cast<double>(
-                   bus_voltage_centivolt_.load(std::memory_order::relaxed))
-             / 100.0;
-    }
-    double bus_current() const {
-        return static_cast<double>(
-                   bus_current_centiamp_.load(std::memory_order::relaxed))
-             / 100.0;
-    }
-
     /// @brief Switch the motor from the startup state (default state after power-on) to the
     /// shutdown state, clearing the motor's rotation count and previously received control
     /// commands. The LED changes from steady on to slow flashing. At this time, the motor can still
@@ -313,6 +296,9 @@ public:
     /// @brief Disable the motor, but do not clear the motor's running state. Sending control
     /// commands again can control the motor actions.
     constexpr static CanPacket8 generate_disable_command() {
+        // Note: instead of sending a real disable message here, a torque control message with
+        // torque set to 0 is sent, because the disable message does not cause the motor to feedback
+        // its status.
         const struct [[gnu::packed]] {
             uint8_t id = 0xA1;
             uint8_t placeholder0[3]{};
@@ -320,6 +306,16 @@ public:
             uint8_t placeholder1[2]{};
         } command alignas(CanPacket8){};
         return std::bit_cast<CanPacket8>(command);
+    }
+
+    /// @brief This command reads the current motor's temperature, motor torque current (MF, MG) /
+    /// motor output power (MS), speed, and encoder position.
+    constexpr static CanPacket8 generate_status_request() {
+        const struct [[gnu::packed]] {
+            uint8_t id = 0x9C;
+            uint8_t placeholder[7]{};
+        } request alignas(CanPacket8){};
+        return std::bit_cast<CanPacket8>(request);
     }
 
     constexpr static CanPacket8 generate_error_status_request() {
@@ -338,14 +334,30 @@ public:
         return std::bit_cast<CanPacket8>(command);
     }
 
-    /// @brief This command reads the current motor's temperature, motor torque current (MF, MG) /
-    /// motor output power (MS), speed, and encoder position.
-    constexpr static CanPacket8 generate_status_request() {
-        const struct [[gnu::packed]] {
-            uint8_t id = 0x9C;
-            uint8_t placeholder[7]{};
-        } request alignas(CanPacket8){};
-        return std::bit_cast<CanPacket8>(request);
+    // Clear faults and acknowledge startup before streaming torque commands.
+    std::optional<CanPacket8> generate_drive_command(
+        bool requested,
+        LkMotorDriveScheduler::Clock::time_point now = LkMotorDriveScheduler::Clock::now()) {
+        const auto received_ns = status1_received_ns_.load(std::memory_order_acquire);
+        const auto status = status1();
+        const LkMotorDriveScheduler::Feedback feedback{
+            .valid = received_ns > 0,
+            .motor_state = status.motor_state,
+            .error_state = status.error_state,
+            .received_at =
+                LkMotorDriveScheduler::Clock::time_point{std::chrono::nanoseconds{received_ns}}};
+        const auto action = drive_scheduler_.next(requested, feedback, now);
+        drive_phase_.store(drive_scheduler_.phase(), std::memory_order_relaxed);
+        using Action = LkMotorDriveScheduler::Action;
+        switch (action) {
+        case Action::kNone: return std::nullopt;
+        case Action::kClearError: return generate_clear_error_command();
+        case Action::kEnable: return generate_startup_command();
+        case Action::kDisable: return generate_disable_command();
+        case Action::kTorque: return generate_torque_command();
+        case Action::kErrorPoll: return generate_error_status_request();
+        }
+        std::unreachable();
     }
 
     /// @brief The host sends this command to control the motor's torque current output.
@@ -609,11 +621,12 @@ private:
     double torque_to_command_current_coefficient_;
 
     // Status
-    std::atomic<CanPacket8> can_packet_;
-    std::atomic<std::uint8_t> motor_state_{0x10};
-    std::atomic<std::uint8_t> error_state_{0};
-    std::atomic<std::int16_t> bus_voltage_centivolt_{0};
-    std::atomic<std::int16_t> bus_current_centiamp_{0};
+    std::atomic<CanPacket8> can_packet_{CanPacket8{uint64_t{0}}};
+    std::atomic<CanPacket8> status1_packet_{CanPacket8{uint64_t{0}}};
+    std::atomic<int64_t> status1_received_ns_{0};
+
+    LkMotorDriveScheduler drive_scheduler_;
+    std::atomic<LkMotorDriveScheduler::Phase> drive_phase_{LkMotorDriveScheduler::Phase::kDisabled};
 
     int64_t multi_turn_encoder_count_ = 0;
     int last_raw_angle_ = 0;
@@ -638,43 +651,5 @@ private:
 
     bool first_generate_auto_command_ = true;
 };
-
-/// @brief errorState bit meaning, see "read status 1 and error flags" in the LK protocol manual.
-namespace lk_error_flag {
-constexpr std::uint8_t kLowVoltage = 1u << 0;
-constexpr std::uint8_t kHighVoltage = 1u << 1;
-constexpr std::uint8_t kDriveOverTemperature = 1u << 2;
-constexpr std::uint8_t kMotorOverTemperature = 1u << 3;
-constexpr std::uint8_t kOverCurrent = 1u << 4;
-constexpr std::uint8_t kShortCircuit = 1u << 5;
-constexpr std::uint8_t kStall = 1u << 6;
-// Raised by the motor's own CAN input timeout protection: no command arrived in time.
-constexpr std::uint8_t kInputTimeout = 1u << 7;
-} // namespace lk_error_flag
-
-/// @brief Format the errorState flags of a status 1 reply, e.g. "stall|input_timeout".
-inline std::string lk_error_text(std::uint8_t error_state) {
-    if (error_state == 0)
-        return "none";
-    static constexpr std::array<std::pair<std::uint8_t, const char*>, 8> names{{
-        {lk_error_flag::kLowVoltage, "low_voltage"},
-        {lk_error_flag::kHighVoltage, "high_voltage"},
-        {lk_error_flag::kDriveOverTemperature, "drive_over_temperature"},
-        {lk_error_flag::kMotorOverTemperature, "motor_over_temperature"},
-        {lk_error_flag::kOverCurrent, "over_current"},
-        {lk_error_flag::kShortCircuit, "short_circuit"},
-        {lk_error_flag::kStall, "stall"},
-        {lk_error_flag::kInputTimeout, "input_timeout"},
-    }};
-    auto text = std::string{};
-    for (const auto& [flag, name] : names) {
-        if (!(error_state & flag))
-            continue;
-        if (!text.empty())
-            text += '|';
-        text += name;
-    }
-    return text;
-}
 
 } // namespace rmcs_core::hardware::device
