@@ -46,6 +46,11 @@ value_collector:
       - /gimbal/yaw/control_torque
       - /gimbal/yaw/angle
       - /gimbal/yaw/velocity
+      # 底盘跟随双环
+      - /chassis/follow/angle_target
+      - /chassis/follow/angle_actual
+      - /chassis/follow/velocity_target
+      - /chassis/follow/velocity_actual
     write_interval: 1
     flush_interval: 100
 
@@ -55,6 +60,11 @@ value_broadcaster:
     forward_list:
       - /gimbal/yaw/control_torque
       - /gimbal/yaw/velocity_imu
+      # 底盘跟随双环
+      - /chassis/follow/angle_target
+      - /chassis/follow/angle_actual
+      - /chassis/follow/velocity_target
+      - /chassis/follow/velocity_actual
 
 auto_aim_recorder:
   ros__parameters:
@@ -125,6 +135,18 @@ chassis_controller:
     wireless_charging_offset_deg: 135.0
     wireless_charging_speed_limit: 0.6
     wireless_charging_angular_velocity_limit: 10.0
+
+    # [底盘跟随双环] 
+    following_angle_kp: 30.0
+    following_angle_ki: 0.0
+    following_angle_kd: 0.6
+    following_velocity_kp: 4.0
+    following_velocity_ki: 0.0
+    following_velocity_kd: 0.1
+    following_angular_velocity_max: 25.0
+
+    # 开自瞄判定：keyboard f / 右键 / 右拨杆 UP / single_shoot
+    # 开自瞄后为单环参数固定 kp=10, ki=0, kd=0，限幅 ±30
 
 deformable_suspension:
   ros__parameters:

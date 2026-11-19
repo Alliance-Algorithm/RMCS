@@ -14,6 +14,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
 #include <rmcs_msgs/keyboard.hpp>
+#include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
 #include "controller/chassis/deformable_mode.hpp"
@@ -29,24 +30,42 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , following_velocity_controller_(10.0, 0.0, 0.0)
+        , following_angle_controller_(
+              get_parameter_or("following_angle_kp", 10.0),
+              get_parameter_or("following_angle_ki", 0.0),
+              get_parameter_or("following_angle_kd", 0.0))
+        , following_velocity_controller_(
+              get_parameter_or("following_velocity_kp", 1.0),
+              get_parameter_or("following_velocity_ki", 0.0),
+              get_parameter_or("following_velocity_kd", 0.0))
+        , following_angular_velocity_max_(
+              get_parameter_or("following_angular_velocity_max", 30.0))
         , wireless_charging_speed_limit_(get_parameter_or("wireless_charging_speed_limit", 0.2))
         , wireless_charging_angular_velocity_limit_(
               get_parameter_or("wireless_charging_angular_velocity_limit", 3.0))
         , joint_mode_mgr_(*this) {
 
-        following_velocity_controller_.output_max = angular_velocity_max_;
-        following_velocity_controller_.output_min = -angular_velocity_max_;
+        // 双环输出限幅
+        following_angle_controller_.output_max = following_angular_velocity_max_;
+        following_angle_controller_.output_min = -following_angular_velocity_max_;
+        following_velocity_controller_.output_max = following_angular_velocity_max_;
+        following_velocity_controller_.output_min = -following_angular_velocity_max_;
+        // 开自瞄后的位置单环，参数固定为 kp=10, ki=0, kd=0
+        position_controller_.output_max = angular_velocity_max_;
+        position_controller_.output_min = -angular_velocity_max_;
 
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
         register_input("/remote/keyboard", keyboard_);
+        register_input("/remote/mouse", mouse_, false);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/predefined/update_rate", update_rate_);
 
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_, false);
         register_input("/gimbal/yaw/control_angle_error", gimbal_yaw_angle_error_, false);
+        
+        register_input("/chassis/yaw/velocity_imu", chassis_yaw_velocity_imu_, false);
 
         register_input("/auto_aim/single_shoot", auto_aim_single_shoot_, false);
         register_input("/auto_aim/robot_center", auto_aim_robot_center_, false);
@@ -54,6 +73,11 @@ public:
 
         register_output("/chassis/angle", chassis_angle_, nan_);
         register_output("/chassis/control_angle", chassis_control_angle_, nan_);
+        
+        register_output("/chassis/follow/angle_target", follow_angle_target_, nan_);
+        register_output("/chassis/follow/angle_actual", follow_angle_actual_, nan_);
+        register_output("/chassis/follow/velocity_target", follow_velocity_target_, nan_);
+        register_output("/chassis/follow/velocity_actual", follow_velocity_actual_, nan_);
         register_output("/chassis/control_mode", mode_);
         register_output("/chassis/control_velocity", chassis_control_velocity_);
         register_output("/chassis/pitch_lock_active", pitch_lock_active_, false);
@@ -130,6 +154,7 @@ public:
             publish_joint_posture_targets_();
 
             update_auto_aim_override_state_();
+            auto_aim_enabled_ = auto_aim_requested();
             if (auto_aim_posture_override_)
                 apply_auto_aim_posture_override_();
 
@@ -162,6 +187,14 @@ private:
         chassis_control_velocity_->vector << nan_, nan_, nan_;
         *chassis_angle_ = nan_;
         *chassis_control_angle_ = nan_;
+    }
+
+    bool auto_aim_requested() const {
+        return auto_aim_posture_override_  // single_shoot（符文）
+            || (mouse_.ready() && mouse_->right)
+            || (switch_left_.ready() && switch_right_.ready()
+                && *switch_left_ != rmcs_msgs::Switch::DOWN
+                && *switch_right_ == rmcs_msgs::Switch::UP);
     }
 
     void update_auto_aim_override_state_() {
@@ -252,7 +285,7 @@ private:
                     chassis_angle_error -= alignment;
                 }
 
-                angular_velocity = following_velocity_controller_.update(chassis_angle_error);
+                angular_velocity = follow_angular_velocity(chassis_angle_error, auto_aim_enabled_);
             } break;
 
             case rmcs_msgs::ChassisMode::WIRELESS_CHARGING: {
@@ -267,7 +300,7 @@ private:
                     normalize_positive_angle(chassis_angle_error - wireless_charging_offset_rad);
                 chassis_angle_error = normalize_signed_angle(chassis_angle_error);
 
-                angular_velocity = following_velocity_controller_.update(chassis_angle_error);
+                angular_velocity = follow_angular_velocity(chassis_angle_error, auto_aim_enabled_);
                 angular_velocity = std::clamp(
                     angular_velocity, -wireless_charging_angular_velocity_limit_,
                     wireless_charging_angular_velocity_limit_);
@@ -298,9 +331,47 @@ private:
                 calculate_unsigned_chassis_angle_error(chassis_control_angle));
         }
 
+        return follow_angular_velocity(chassis_angle_error, auto_aim_enabled_);
+    }
+
+    double follow_velocity_from_angle_error(double angle_error) {
+        const double target_velocity = following_angle_controller_.update(angle_error);
+
+        // 实际底盘角速度缺省为 0（信号可选，避免缺硬件时静默发散）
+        const double actual_velocity =
+            chassis_yaw_velocity_imu_.ready() ? *chassis_yaw_velocity_imu_ : 0.0;
+
+        // 速度环：输入角速度误差，输出最终角速度指令
+        const double command_velocity =
+            following_velocity_controller_.update(target_velocity - actual_velocity);
+
+        // [双环调试] 以底盘角为基准：实际 = 底盘角(2π−云台角)；目标 = 底盘角 + PID误差
+        const double chassis_angle = 2.0 * std::numbers::pi - *gimbal_yaw_angle_;
+        *follow_angle_actual_ = chassis_angle;
+        *follow_angle_target_ = chassis_angle + angle_error;
+        *follow_velocity_target_ = target_velocity;
+        *follow_velocity_actual_ = actual_velocity;
+
         return std::clamp(
-            following_velocity_controller_.update(chassis_angle_error), -angular_velocity_max_,
-            angular_velocity_max_);
+            command_velocity, -following_angular_velocity_max_, following_angular_velocity_max_);
+    }
+
+    double follow_velocity_single_loop(double angle_error) {
+        const double target_velocity = position_controller_.update(angle_error);
+        const double actual_velocity =
+            chassis_yaw_velocity_imu_.ready() ? *chassis_yaw_velocity_imu_ : 0.0;
+        const double chassis_angle = 2.0 * std::numbers::pi - *gimbal_yaw_angle_;
+        *follow_angle_actual_ = chassis_angle;
+        *follow_angle_target_ = chassis_angle + angle_error;
+        *follow_velocity_target_ = target_velocity;
+        *follow_velocity_actual_ = actual_velocity;
+        return std::clamp(
+            target_velocity, -angular_velocity_max_, angular_velocity_max_);
+    }
+
+    double follow_angular_velocity(double angle_error, bool auto_aim_enabled) {
+        return auto_aim_enabled ? follow_velocity_single_loop(angle_error)
+                                : follow_velocity_from_angle_error(angle_error);
     }
 
     double calculate_unsigned_chassis_angle_error(double& chassis_control_angle) {
@@ -356,17 +427,22 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Keyboard> keyboard_;
+    InputInterface<rmcs_msgs::Mouse> mouse_;
     InputInterface<double> rotary_knob_;
     InputInterface<double> update_rate_;
 
     InputInterface<double> gimbal_yaw_angle_, gimbal_yaw_angle_error_;
+    InputInterface<double> chassis_yaw_velocity_imu_;
     OutputInterface<double> chassis_angle_, chassis_control_angle_;
+    OutputInterface<double> follow_angle_target_, follow_angle_actual_;
+    OutputInterface<double> follow_velocity_target_, follow_velocity_actual_;
 
     InputInterface<bool> auto_aim_single_shoot_;
     InputInterface<Eigen::Vector3d> auto_aim_robot_center_;
     InputInterface<rmcs_description::Tf> tf_;
     bool auto_aim_posture_override_ = false;
     bool auto_aim_vector_follow_ = false;
+    bool auto_aim_enabled_ = false;
 
     OutputInterface<rmcs_msgs::ChassisMode> mode_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
@@ -381,7 +457,10 @@ private:
     OutputInterface<size_t> deformable_reset_count_;
     std::array<OutputInterface<double>, kJointCount> joint_posture_target_angle_rad_;
 
+    pid::PidCalculator following_angle_controller_;
     pid::PidCalculator following_velocity_controller_;
+    pid::PidCalculator position_controller_{10.0, 0.0, 0.0};
+    const double following_angular_velocity_max_;
 
     double wireless_charging_speed_limit_;
     double wireless_charging_angular_velocity_limit_;
