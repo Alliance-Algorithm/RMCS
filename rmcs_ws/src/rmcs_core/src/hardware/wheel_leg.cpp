@@ -100,12 +100,13 @@ private:
             , supercap_(wheel_leg, command)
             , left_tof_(wheel_leg, "/chassis/tof/left")
             , right_tof_(wheel_leg, "/chassis/tof/right")
-            // Chassis sensor reads (-x, y, -z): Ry(pi).
             , bmi088_(
                   device::Bmi088Ekf::Config{
                       .body_to_sensor =
                           Eigen::AngleAxisd{std::numbers::pi, Eigen::Vector3d::UnitY()}
-                              .toRotationMatrix()}) {
+                              .toRotationMatrix(),
+                      .sensor_position_body = {0.0, 0.0, -0.124},
+                  }) {
             using namespace device;
 
             wheel_leg.register_output(
