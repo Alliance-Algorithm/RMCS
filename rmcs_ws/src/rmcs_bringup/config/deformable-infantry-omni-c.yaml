@@ -209,13 +209,13 @@ gimbal_controller:
     yaw_velocity_integral_min: -5.0
     yaw_velocity_integral_max: 5.0
 
-    pitch_angle_kp: 35.0
-    pitch_angle_ki: 0.02
+    pitch_angle_kp: 28.7
+    pitch_angle_ki: 0.05
     pitch_angle_kd: 0.3
     pitch_angle_integral_min: -0.5
     pitch_angle_integral_max: 0.5
 
-    pitch_velocity_kp: 2.0
+    pitch_velocity_kp: 1.8
     pitch_velocity_ki: 0.0
     pitch_velocity_kd: 0.0
 
@@ -227,7 +227,8 @@ gimbal_controller:
     pitch_velocity_ff_gain: 0.378
     pitch_acceleration_ff_gain: 0.0396
 
-    pitch_gravity_ff_gain: 2.975
+    pitch_gravity_ff_gain: 3.300
+    
     pitch_gravity_ff_phase: 1.784
 
     pitch_torque_control: true
