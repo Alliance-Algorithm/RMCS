@@ -97,7 +97,7 @@ auto_aim_component:
     camera_translation: [0.058, -0.08, 0.0]
     fire_control:
       bullet_speed: 22.0
-      shoot_delay: 0.04
+      shoot_delay: 0.05
       offset_yaw: +0.8
       offset_pitch: -0.5
       attack_window: 120.0
