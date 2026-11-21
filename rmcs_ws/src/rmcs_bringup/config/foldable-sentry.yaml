@@ -27,11 +27,11 @@ rmcs_executor:
 
       # - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
 
-      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      # - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs::AutoAimComponent -> auto_aim_component
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
