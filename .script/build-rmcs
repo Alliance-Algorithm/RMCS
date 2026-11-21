@@ -57,4 +57,12 @@ cmake_args=(
 )
 
 CLICOLOR_FORCE=1 NINJA_STATUS="" \
-    colcon build "${colcon_args[@]}" "$@" --cmake-args "${cmake_args[@]}"
+    colcon build "${colcon_args[@]}" "$@" --cmake-args "${cmake_args[@]}" || exit $?
+
+while IFS= read -r -d '' link; do
+    target=$(readlink -- "$link")
+    if [[ "$target" == "${PWD}/src/"* ]]; then
+        rm -- "$link" || exit $?
+        echo "> Removed stale install symlink: $link"
+    fi
+done < <(find install -xtype l -print0)

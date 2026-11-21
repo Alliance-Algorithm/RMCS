@@ -4,9 +4,11 @@
 
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <mutex>
 #include <numbers>
 #include <optional>
+#include <utility>
 
 #include <rmcs_msgs/board_clock.hpp>
 #include <rmcs_msgs/imu_snapshot.hpp>
@@ -19,10 +21,20 @@ class Bmi088Ekf {
 public:
     struct Config {
         Eigen::Matrix3d body_to_sensor = Eigen::Matrix3d::Identity();
+        Eigen::Vector3d sensor_position_body = Eigen::Vector3d::Zero();
     };
 
     using TimePoint = rmcs_msgs::BoardClock::time_point;
     using Snapshot = rmcs_msgs::ImuSnapshot;
+
+    struct Diagnostics {
+        double chi_square = std::numeric_limits<double>::quiet_NaN();
+        std::optional<TimePoint> correction_time;
+        bool correction_attempted = false;
+        bool correction_applied = false;
+        bool gyro_saturated = false;
+        bool time_gap_rejected = false;
+    };
 
     explicit Bmi088Ekf(Config config)
         : config_(std::move(config)) {}
@@ -59,7 +71,10 @@ public:
     }
 
     std::optional<Snapshot> try_update_with_gyroscope_sample(
-        std::int16_t x, std::int16_t y, std::int16_t z, TimePoint sample_time) {
+        std::int16_t x, std::int16_t y, std::int16_t z, TimePoint sample_time,
+        Diagnostics* diagnostics = nullptr) {
+        if (diagnostics)
+            *diagnostics = {};
         const Eigen::Vector3d gyro_rad_per_sec =
             config_.body_to_sensor.transpose() * convert_gyroscope(x, y, z);
 
@@ -69,8 +84,16 @@ public:
         if (sample_time < ekf_state_time_)
             return std::nullopt;
 
-        if (is_gyro_saturated(gyro_rad_per_sec))
+        const GyroSample gyro_sample{gyro_rad_per_sec, sample_time};
+        std::optional<GyroSample> previous_gyro;
+        if (is_gyro_saturated(gyro_rad_per_sec)) {
+            if (diagnostics)
+                diagnostics->gyro_saturated = true;
+            previous_gyro_sample_.reset();
             ekf_.inflate_attitude_uncertainty_to_initial();
+        } else if (!config_.sensor_position_body.isZero(0.0)) {
+            previous_gyro = std::exchange(previous_gyro_sample_, gyro_sample);
+        }
 
         while (pending_accel_sample_) {
             const auto& accel_sample_time = pending_accel_sample_->sample_time;
@@ -83,11 +106,21 @@ public:
                 break;
             ekf_state_time_ = accel_sample_time;
 
-            const auto correction = ekf_.prepare_correction(pending_accel_sample_->accel_g);
+            const auto accel_g =
+                acceleration_at_body_origin(*pending_accel_sample_, previous_gyro, gyro_sample);
+            const auto correction = ekf_.prepare_correction(accel_g);
+            if (diagnostics) {
+                diagnostics->correction_attempted = true;
+                diagnostics->correction_time = accel_sample_time;
+                if (correction)
+                    diagnostics->chi_square = correction->chi_square();
+            }
             if (!correction || correction->chi_square() >= 3.0)
                 break;
             if (!ekf_.correct(*correction))
                 break;
+            if (diagnostics)
+                diagnostics->correction_applied = true;
 
             pending_accel_sample_ = std::nullopt;
             break;
@@ -98,7 +131,9 @@ public:
         // a huge bogus gyro delta, so drop it instead of advancing the filter.
         // TODO: Remove this once librmcs guarantees buffered historical IMU frames are flushed on
         // connection.
-        if (std::chrono::duration<double>{sample_time - ekf_state_time_}.count() > 1 / 1000.0) {
+        if (sample_time - ekf_state_time_ > kMaxGyroGap) {
+            if (diagnostics)
+                diagnostics->time_gap_rejected = true;
             ekf_state_time_ = sample_time;
             return std::nullopt;
         }
@@ -134,6 +169,40 @@ public:
     }
 
 private:
+    struct AccelSample {
+        Eigen::Vector3d accel_g;
+        TimePoint sample_time;
+    };
+
+    struct GyroSample {
+        Eigen::Vector3d angular_velocity;
+        TimePoint sample_time;
+    };
+
+    static constexpr auto kMaxGyroGap = std::chrono::milliseconds{1};
+
+    [[nodiscard]] Eigen::Vector3d acceleration_at_body_origin(
+        const AccelSample& accel, const std::optional<GyroSample>& previous,
+        const GyroSample& current) const {
+        if (!previous || accel.sample_time < previous->sample_time
+            || accel.sample_time > current.sample_time
+            || current.sample_time <= previous->sample_time)
+            return accel.accel_g;
+
+        const auto interval = current.sample_time - previous->sample_time;
+        if (interval > kMaxGyroGap)
+            return accel.accel_g;
+
+        const Eigen::Vector3d alpha = (current.angular_velocity - previous->angular_velocity)
+                                    / std::chrono::duration<double>{interval}.count();
+        const double elapsed =
+            std::chrono::duration<double>{accel.sample_time - previous->sample_time}.count();
+        const Eigen::Vector3d omega = previous->angular_velocity + alpha * elapsed;
+        // The lever arm points from the body origin to the accelerometer.
+        const auto& r = config_.sensor_position_body;
+        return accel.accel_g - (alpha.cross(r) + omega.cross(omega.cross(r))) / 9.81;
+    }
+
     [[nodiscard]] static Eigen::Vector3d
         convert_accelerometer(std::int16_t x, std::int16_t y, std::int16_t z) noexcept {
         return Eigen::Vector3d{
@@ -160,11 +229,8 @@ private:
     filter::ImuEkf ekf_;
     TimePoint ekf_state_time_;
 
-    struct AccelSample {
-        Eigen::Vector3d accel_g;
-        TimePoint sample_time;
-    };
     std::optional<AccelSample> pending_accel_sample_;
+    std::optional<GyroSample> previous_gyro_sample_;
 
     Snapshot latest_snapshot_;
 };

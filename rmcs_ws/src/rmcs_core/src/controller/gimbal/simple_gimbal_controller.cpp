@@ -1,3 +1,4 @@
+#include <chrono>
 #include <limits>
 
 #include <rclcpp/node.hpp>
@@ -6,6 +7,7 @@
 #include <rmcs_msgs/mouse.hpp>
 #include <rmcs_msgs/switch.hpp>
 
+#include "controller/chassis/wheel_leg/recovery_yaw.hpp"
 #include "controller/gimbal/two_axis_gimbal_solver.hpp"
 
 namespace rmcs_core::controller::gimbal {
@@ -34,13 +36,16 @@ public:
 
         register_input("/auto_aim/should_control", auto_aim_should_control_, false);
         register_input("/auto_aim/control_direction", auto_aim_control_direction_, false);
+        register_input("/wheel_leg/recovery/yaw_align_active", recovery_yaw_active_, false);
+        register_input("/gimbal/yaw/angle", recovery_yaw_, false);
 
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
 
-        two_axis_gimbal_solver.enable_yaw_limit(
-            *this, get_parameter("yaw_upper_limit").as_double(),
-            get_parameter("yaw_lower_limit").as_double());
+        if (has_parameter("yaw_upper_limit"))
+            two_axis_gimbal_solver.enable_yaw_limit(
+                *this, get_parameter("yaw_upper_limit").as_double(),
+                get_parameter("yaw_lower_limit").as_double());
     }
 
     void update() override {
@@ -55,8 +60,21 @@ public:
 
         using namespace rmcs_msgs;
         if ((switch_left == Switch::UNKNOWN || switch_right == Switch::UNKNOWN)
-            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN))
+            || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
+            recovery_yaw_alignment_.reset();
             return two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
+        }
+
+        if (recovery_yaw_active_.ready() && *recovery_yaw_active_) {
+            two_axis_gimbal_solver.update(TwoAxisGimbalSolver::SetDisabled());
+            const double now =
+                std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
+                    .count();
+            return {
+                recovery_yaw_.ready() ? recovery_yaw_alignment_.update(*recovery_yaw_, now) : nan_,
+                nan_};
+        }
+        recovery_yaw_alignment_.reset();
 
         const auto auto_aim_requested = mouse_->right || switch_right == Switch::UP;
         const auto should_control = auto_aim_should_control_.ready() && *auto_aim_should_control_;
@@ -95,6 +113,9 @@ private:
 
     InputInterface<bool> auto_aim_should_control_;
     InputInterface<Eigen::Vector3d> auto_aim_control_direction_;
+    InputInterface<bool> recovery_yaw_active_;
+    InputInterface<double> recovery_yaw_;
+    chassis::wheel_leg::RecoveryYawAlignment recovery_yaw_alignment_;
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
 
