@@ -27,11 +27,11 @@ rmcs_executor:
 
       # - rmcs_core::controller::identification::TopYawSweepController -> top_yaw_sweep_controller
 
-      - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
-      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
-      - rmcs::AutoAimComponent -> auto_aim_component
+      # - rmcs::AutoAimRecorderComponent -> auto_aim_recorder
+      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      # - rmcs::AutoAimComponent -> auto_aim_component
 
-      - rmcs::navigation::Navigation -> rmcs_navigation
+      # - rmcs::navigation::Navigation -> rmcs_navigation
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -47,10 +47,10 @@ foldable_sentry:
     board_serial_chassis_board: "AF-79CF-C275-34AA-F714-8CC6-E363-5B59-FB4E"
     board_serial_gimbal_board: "AF-60BB-7484-FA24-F3FC-399B-454D-22FA-1B1D"
 
-    roll_motor_zero_point: 14733
+    roll_motor_zero_point: 36605
     top_yaw_motor_zero_point: 3433
     pitch_motor_zero_point: 28369
-    bottom_yaw_motor_zero_point: 51786
+    bottom_yaw_motor_zero_point: 1226
 
 auto_aim_capturer:
   ros__parameters:
@@ -122,10 +122,10 @@ value_broadcaster:
 gimbal_controller:
   ros__parameters:
     # 折叠/展开姿态角，按实车标定。
-    roll_folded_angle: 3.264
-    roll_unfold_angle: 6.2808
-    top_yaw_folded_angle: 0.085
-    pitch_folded_angle: 0.58
+    roll_folded_angle: 3.267
+    roll_unfold_angle: 0.006
+    top_yaw_folded_angle: 6.189
+    pitch_folded_angle: 0.593
 
     pitch_upper_limit: -0.52
     pitch_lower_limit: 0.30
