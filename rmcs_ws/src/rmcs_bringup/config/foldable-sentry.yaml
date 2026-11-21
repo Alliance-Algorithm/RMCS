@@ -31,7 +31,7 @@ rmcs_executor:
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs::AutoAimComponent -> auto_aim_component
 
-      # - rmcs::navigation::Navigation -> rmcs_navigation
+      - rmcs::navigation::Navigation -> rmcs_navigation
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster

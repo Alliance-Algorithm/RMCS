@@ -83,9 +83,10 @@ public:
         const auto switch_right = *switch_right_;
         const auto switch_left = *switch_left_;
         const auto keyboard = *keyboard_;
+        const auto foldable_gimbal_friction_flag = *foldable_gimbal_friction_flag_;
 
         using namespace rmcs_msgs;
-        if ((!*foldable_gimbal_friction_flag_ || switch_left == Switch::UNKNOWN
+        if ((switch_left == Switch::UNKNOWN
              || switch_right == Switch::UNKNOWN)
             || (switch_left == Switch::DOWN && switch_right == Switch::DOWN)) {
             reset_all_controls();
@@ -95,8 +96,13 @@ public:
         if (switch_right != Switch::DOWN) {
             update_friction_working_velocity_outputs();
 
-            if ((!last_keyboard_.v && keyboard.v)
-                || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) {
+            if (((!last_keyboard_.v && keyboard.v)
+                || (last_switch_left_ == Switch::MIDDLE && switch_left == Switch::UP)) && foldable_gimbal_friction_flag) {
+                friction_enabled_ = !friction_enabled_;
+                if (friction_reversing_)
+                    friction_reverse_stopping_ = true;
+            }
+            else if ((last_foldable_gimbal_friction_flag_ != foldable_gimbal_friction_flag) && switch_left == Switch::UP){
                 friction_enabled_ = !friction_enabled_;
                 if (friction_reversing_)
                     friction_reverse_stopping_ = true;
@@ -117,6 +123,7 @@ public:
             last_switch_right_ = switch_right;
             last_switch_left_ = switch_left;
             last_keyboard_ = keyboard;
+            last_foldable_gimbal_friction_flag_ = foldable_gimbal_friction_flag;
         }
     }
 
@@ -275,6 +282,7 @@ private:
     rmcs_msgs::Switch last_switch_right_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Switch last_switch_left_ = rmcs_msgs::Switch::UNKNOWN;
     rmcs_msgs::Keyboard last_keyboard_ = rmcs_msgs::Keyboard::zero();
+    bool last_foldable_gimbal_friction_flag_ = true ;
 
     size_t friction_count_;
 
