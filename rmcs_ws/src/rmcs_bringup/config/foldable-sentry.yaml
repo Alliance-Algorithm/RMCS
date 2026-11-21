@@ -31,7 +31,7 @@ rmcs_executor:
       - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
       - rmcs::AutoAimComponent -> auto_aim_component
 
-      - rmcs::navigation::Navigation -> rmcs_navigation
+      # - rmcs::navigation::Navigation -> rmcs_navigation
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
       # - rmcs_core::broadcaster::TfBroadcaster -> tf_broadcaster
@@ -55,8 +55,8 @@ foldable_sentry:
 auto_aim_capturer:
   ros__parameters:
     camera_name: ""
-    exposure_us: 700.0
-    gain: 1.8
+    exposure_us: 2000.0
+    gain: 4.0
     framerate: 120.0
     invert_image: true
     rls_tau_sec: 10.0
@@ -74,16 +74,16 @@ auto_aim_recorder:
 
 auto_aim_component:
   ros__parameters:
-    manual_shoot: true
+    manual_shoot: false
     enable_rune: false
     default_attack_rune: false
     track_ids: [FULL]
     camera_translation: [0.10075 , 0.0, -0.0455]
     fire_control:
-      bullet_speed: 21.5
+      bullet_speed: 21.0
       shoot_delay: 0.05
-      offset_yaw: -1.0
-      offset_pitch: -2.0
+      offset_yaw: -0.0
+      offset_pitch: -4.0
       attack_window: 120.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.8
@@ -274,7 +274,7 @@ bullet_feeder_controller:
     shot_frequency: 30.0
     safe_shot_frequency: 10.0
     eject_frequency: 10.0
-    eject_time: 0.05
+    eject_time: 0.10
     deep_eject_frequency: 5.0
     deep_eject_time: 0.2
     single_shot_max_stop_delay: 2.0
