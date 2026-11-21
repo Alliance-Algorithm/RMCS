@@ -8,6 +8,8 @@
 
 #include <eigen3/Eigen/Geometry>
 
+#include "control_data/support_geometry.hpp"
+
 namespace rmcs_core::controller::chassis::wheel_leg {
 ClosedChainSupportObserver::ClosedChainSupportObserver(
     std::array<ClosedChainLegGeometry, 2> geometry, double period_seconds)

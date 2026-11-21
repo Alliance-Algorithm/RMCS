@@ -19,6 +19,8 @@ struct ClosedChainLegGeometry {
     float wheel_radius_m = 0.06f;
 };
 
+std::array<ClosedChainLegGeometry, 2> recovery_leg_geometry();
+
 // Native conditional FK and wheel-response probe. No contact, force, root
 // position or simulator truth is accepted here. The caller supplies validated
 // body-frame IMU and calibrated actuator feedback.

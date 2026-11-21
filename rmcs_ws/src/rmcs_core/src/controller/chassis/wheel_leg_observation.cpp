@@ -1,17 +1,50 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <map>
 #include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include <eigen3/Eigen/Core>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/wheel_leg_rl_state.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "wheel_leg/joint_coordinates.hpp"
-#include "wheel_leg/jump_policy.hpp"
 
 namespace rmcs_core::controller::chassis {
+namespace {
+constexpr wheel_leg::LegVector kPolicyReference{-.42, .13722330866417465, .42, -.13721605817245947};
+constexpr std::array<std::string_view, 3> kSupportedContracts{
+    "ae38a0b74e8e9515d17fdcd24c21a187b7d0b3e22dfa114c83e579605347e0ab",
+    "125422a9930d06f62128a818579074f2055d4573554181d39b36b5052eab2fe5",
+    "34f2eb33aa016729c7cca7dfae563a477a9a8781a3c445c61b072bf0a8c2adae",
+};
+
+class WheelLegActionAdapter : public rmcs_executor::Component {
+public:
+    WheelLegActionAdapter() {
+        for (std::size_t i = 0; i < wheel_leg::kJointNames.size(); ++i)
+            register_input(
+                std::string{"/wheel_leg/rl/raw/"} + wheel_leg::kJointNames[i], action_[i]);
+        register_output("/wheel_leg/rl/action_target", target_, wheel_leg::JointVector{});
+    }
+
+    void update() override {
+        for (std::size_t i = 0; i < action_.size(); ++i)
+            (*target_)[i] =
+                i < kPolicyReference.size() ? kPolicyReference[i] + *action_[i] : *action_[i];
+    }
+
+private:
+    std::array<InputInterface<double>, 6> action_;
+    OutputInterface<wheel_leg::JointVector> target_;
+};
+} // namespace
 
 class WheelLegObservation
     : public rmcs_executor::Component
@@ -27,11 +60,14 @@ public:
         register_input("/wheel_leg/rl/input/enable", policy_enable_);
         register_input("/wheel_leg/rl/input/command", policy_command_);
         register_input("/wheel_leg/rl/input/height", policy_height_);
-        register_input("/wheel_leg/rl/input/context", policy_context_);
+        register_input("/wheel_leg/jump/active", jump_active_);
+        register_input("/wheel_leg/jump/apex", jump_apex_);
+        register_input("/wheel_leg/jump/elapsed", jump_elapsed_);
         register_input("/wheel_leg/rl/applied_action", applied_action_);
         register_input("/wheel_leg/rl/action_applied", action_applied_);
         register_input("/wheel_leg/rl/state", rl_state_);
         register_input("/wheel_leg/rl/policy_rate", policy_rate_);
+        register_input("/wheel_leg/rl/model_metadata", model_metadata_);
         register_input("/chassis/reset_count", reset_count_);
         register_input("/predefined/update_count", update_count_);
         register_input("/predefined/update_rate", update_rate_);
@@ -50,10 +86,26 @@ public:
             "/wheel_leg/rl/features/auxiliary", feature_auxiliary_, std::vector<double>(7));
         register_output("/wheel_leg/rl/features/frame_sequence", frame_sequence_, std::size_t{0});
         register_output("/wheel_leg/rl/features/epoch", epoch_, std::size_t{0});
+        register_output(
+            "/wheel_leg/rl/input/context", policy_context_,
+            std::vector<double>{1., 0., 0., 0., 0., 0., 0.});
+    }
+
+    void before_updating() override {
+        const auto contract = model_metadata_->find("wheelbipe_deployment_contract_sha256");
+        if (contract == model_metadata_->end()
+            || std::ranges::find(kSupportedContracts, contract->second)
+                   == kSupportedContracts.end())
+            throw std::runtime_error(
+                "Loaded policy does not match the wheel-leg deployment contract");
     }
 
     void update() override {
-        constexpr int kRunning = 3;
+        (*policy_context_)[0] = *jump_active_ ? 0. : 1.;
+        (*policy_context_)[4] = *jump_active_ ? 1. : 0.;
+        (*policy_context_)[5] = *jump_active_ ? *jump_apex_ : 0.;
+        (*policy_context_)[6] = *jump_active_ ? *jump_elapsed_ : 0.;
+        constexpr int kRunning = static_cast<int>(rmcs_msgs::WheelLegRlState::kRunning);
         if (*reset_count_ != last_reset_count_ || (!*policy_enable_ && last_policy_enable_))
             reset();
         else if (*rl_state_ == kRunning && last_rl_state_ != kRunning)
@@ -97,9 +149,7 @@ private:
         *feature_height_ = *policy_height_;
         const auto& q = *position_;
         const auto nominal = wheel_leg::paired_targets(
-            {wheel_leg::kNominalPosition[0], wheel_leg::kNominalPosition[1],
-             wheel_leg::kNominalPosition[2], wheel_leg::kNominalPosition[3]},
-            {q[0], q[1], q[2], q[3]}, wheel_leg::jump_policy::kBounds);
+            kPolicyReference, {q[0], q[1], q[2], q[3]}, wheel_leg::kWindingBounds);
         for (std::size_t i = 0; i < 6; ++i) {
             (*feature_position_)[i] = i < 4 ? q[i] - nominal[i] : 0.;
             (*feature_velocity_)[i] = (*velocity_)[i];
@@ -110,18 +160,22 @@ private:
 
     InputInterface<wheel_leg::JointVector> position_, velocity_, applied_action_;
     InputInterface<Eigen::Vector3d> gravity_, gyro_, policy_command_;
-    InputInterface<double> policy_height_, policy_rate_, update_rate_;
-    InputInterface<std::vector<double>> policy_context_;
-    InputInterface<bool> policy_enable_, action_applied_;
+    InputInterface<double> policy_height_, policy_rate_, update_rate_, jump_apex_, jump_elapsed_;
+    InputInterface<bool> policy_enable_, action_applied_, jump_active_;
     InputInterface<int> rl_state_;
     InputInterface<std::size_t> reset_count_, update_count_;
+    InputInterface<std::map<std::string, std::string>> model_metadata_;
 
     OutputInterface<std::vector<double>> feature_command_, feature_gyro_, feature_gravity_;
     OutputInterface<std::vector<double>> feature_position_, feature_velocity_, feature_action_;
     OutputInterface<std::vector<double>> feature_auxiliary_;
     OutputInterface<double> feature_height_;
     OutputInterface<std::size_t> frame_sequence_, epoch_;
+    OutputInterface<std::vector<double>> policy_context_;
 
+    // Actions must reach the controller before the policy samples its applied-action history.
+    std::shared_ptr<WheelLegActionAdapter> action_adapter_{
+        create_partner_component<WheelLegActionAdapter>(get_component_name() + "_actions")};
     std::optional<std::size_t> last_sample_tick_;
     std::size_t next_frame_sequence_ = 0;
     std::size_t last_reset_count_ = 0;

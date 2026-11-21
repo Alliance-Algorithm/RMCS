@@ -3,24 +3,24 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
-#include <map>
 #include <numbers>
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 #include <eigen3/Eigen/Geometry>
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/chassis_mode.hpp>
+#include <rmcs_msgs/wheel_leg_rl_state.hpp>
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
-#include "wheel_leg/capture.hpp"
-#include "wheel_leg/joint_solver.hpp"
+#include "wheel_leg/joint_control.hpp"
 #include "wheel_leg/jump.hpp"
+#include "wheel_leg/recovery.hpp"
 #include "wheel_leg/recovery_yaw.hpp"
+#include "wheel_leg/support_observer.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -62,10 +62,9 @@ public:
         register_input("/wheel_leg/rl/healthy", healthy_);
         register_input("/wheel_leg/rl/action_seq", action_sequence_);
         register_input("/wheel_leg/rl/policy_rate", policy_rate_);
-        register_input("/wheel_leg/rl/model_metadata", model_metadata_);
+        register_input("/wheel_leg/rl/action_target", action_target_);
         for (std::size_t i = 0; i < wheel_leg::kJointNames.size(); ++i) {
             const auto name = std::string{wheel_leg::kJointNames[i]};
-            register_input("/wheel_leg/rl/raw/" + name, action_[i]);
             register_input("/wheel_leg/rl/raw/" + name + "/raw", raw_action_[i]);
             register_output(
                 "/wheel_leg/" + name + "/control_torque", torque_[i],
@@ -76,9 +75,9 @@ public:
         register_output("/wheel_leg/rl/input/command", policy_command_, Eigen::Vector3d::Zero());
         register_output(
             "/wheel_leg/rl/input/height", policy_height_, wheel_leg::jump_policy::kStandingHeight);
-        register_output(
-            "/wheel_leg/rl/input/context", policy_context_,
-            std::vector<double>{1., 0., 0., 0., 0., 0., 0.});
+        register_output("/wheel_leg/jump/active", jump_active_, false);
+        register_output("/wheel_leg/jump/apex", jump_apex_, jump_.apex());
+        register_output("/wheel_leg/jump/elapsed", jump_elapsed_, 0.);
         register_output("/wheel_leg/rl/applied_action", applied_action_, wheel_leg::JointVector{});
         register_output("/wheel_leg/rl/action_applied", action_applied_, false);
         register_output("/wheel_leg/rl/state", state_, static_cast<int>(State::kIdle));
@@ -95,15 +94,11 @@ public:
         if (*update_rate_ != 1000. || *policy_rate_ != 50.)
             throw std::invalid_argument(
                 "Wheel-leg recovery requires a 1000 Hz executor and 50 Hz policy");
-        constexpr std::string_view expected_contract =
-            "ae38a0b74e8e9515d17fdcd24c21a187b7d0b3e22dfa114c83e579605347e0ab";
         if (wheel_leg::jump_policy::kDeploymentContractSha256
                 != "8ce02510cc775eb5c8ab1118aa2830d6eb8a5c2cd4c4d30a967b5c329c092102"
             || moving_jump_vx_max_ != 1.0 || jump_vx_rate_ != 2.0)
-            throw std::runtime_error("Compiled control parameters do not match the V10 policy");
-        const auto contract = model_metadata_->find("wheelbipe_deployment_contract_sha256");
-        if (contract == model_metadata_->end() || contract->second != expected_contract)
-            throw std::runtime_error("Loaded policy does not match the compiled jump policy");
+            throw std::runtime_error(
+                "Compiled control parameters do not match the wheel-leg policy");
     }
 
     void update() override {
@@ -142,7 +137,7 @@ public:
     }
 
 private:
-    enum class State : int { kIdle = 1, kWaiting = 2, kRunning = 3, kRecovering = 4 };
+    using State = rmcs_msgs::WheelLegRlState;
     static constexpr std::size_t kPdDivisor = 5;
     static constexpr std::size_t kActionTimeoutTicks = 60;
     static constexpr std::size_t kDriveLossTicks = 100;
@@ -157,8 +152,7 @@ private:
         *recovery_direction_ = 0.;
         *recovery_yaw_active_ = false;
         last_yaw_warning_.reset();
-        jump_.reset();
-        jump_velocity_ = 0.;
+        reset_jump();
         for (auto& output : torque_)
             *output = std::numeric_limits<double>::quiet_NaN();
         *policy_enable_ = false;
@@ -166,15 +160,21 @@ private:
         *action_applied_ = false;
         policy_command_->setZero();
         *policy_height_ = wheel_leg::jump_policy::kStandingHeight;
-        *policy_context_ = {1., 0., 0., 0., 0., 0., 0.};
         *state_ = static_cast<int>(State::kIdle);
         have_target_ = false;
-        target_ = decoded_ = pending_history_ = wheel_leg::JointVector{};
+        accepted_target_ = pending_history_ = wheel_leg::JointVector{};
         accepted_sequence_ = *action_sequence_;
         last_jump_request_count_ = *jump_request_count_;
         ticks_since_action_ = drive_loss_ticks_ = 0;
         last_pd_tick_.reset();
         last_command_tick_.reset();
+    }
+
+    void reset_jump() {
+        jump_.reset();
+        jump_velocity_ = 0.;
+        *jump_active_ = false;
+        *jump_elapsed_ = 0.;
     }
 
     void fail(const char* reason) {
@@ -225,9 +225,7 @@ private:
             fail("wheel-leg state estimate invalid");
             return false;
         } else if (!*control_ready_) {
-            jump_.reset();
-            jump_velocity_ = 0.;
-            *policy_context_ = {1., 0., 0., 0., 0., 0., 0.};
+            reset_jump();
             write_torque(wheel_leg::JointVector{});
             *action_applied_ = false;
             if (++drive_loss_ticks_ >= kDriveLossTicks)
@@ -260,8 +258,8 @@ private:
             && jump_.request(time)) {
             jump_velocity_ = control_velocity_->vector.x();
         }
-        const auto context = jump_.context(time);
-        policy_context_->assign(context.begin(), context.end());
+        *jump_active_ = jump_.active();
+        *jump_elapsed_ = jump_.elapsed(time);
     }
 
     void update_command() {
@@ -316,18 +314,15 @@ private:
             return false;
         }
         if (*policy_valid_ && *action_sequence_ != accepted_sequence_) {
-            for (std::size_t i = 0; i < decoded_.size(); ++i) {
-                decoded_[i] = *action_[i];
+            accepted_target_ = *action_target_;
+            for (std::size_t i = 0; i < pending_history_.size(); ++i)
                 pending_history_[i] = *raw_action_[i];
-            }
-            if (!std::ranges::all_of(decoded_, [](double v) { return std::isfinite(v); })
+            if (!std::ranges::all_of(accepted_target_, [](double v) { return std::isfinite(v); })
                 || !std::ranges::all_of(
                     pending_history_, [](double v) { return std::isfinite(v); })) {
                 fail("non-finite policy action or history");
                 return false;
             }
-            target_ = wheel_leg::decoded_action_target(
-                decoded_, *position_, wheel_leg::jump_target_bounds(jump_.active()));
             accepted_sequence_ = *action_sequence_;
             have_target_ = true;
             ticks_since_action_ = 0;
@@ -399,13 +394,16 @@ private:
     }
 
     void update_torque() {
-        target_ = wheel_leg::decoded_action_target(
-            decoded_, *position_, wheel_leg::jump_target_bounds(jump_.active()));
-        auto torque = wheel_leg::pd_torque(target_, *position_, *velocity_);
         const auto& q = *position_;
+        auto target = accepted_target_;
+        const auto legs = wheel_leg::paired_targets(
+            {target[0], target[1], target[2], target[3]}, {q[0], q[1], q[2], q[3]},
+            wheel_leg::jump_target_bounds(jump_.active()));
+        std::copy(legs.begin(), legs.end(), target.begin());
+        auto torque = wheel_leg::pd_torque(
+            target, q, *velocity_, wheel_leg::jump_policy::kLegKp, wheel_leg::jump_policy::kLegKd);
         const auto extra = wheel_leg::tuck_torque(
-            {q[0], q[1], q[2], q[3]}, {target_[0], target_[1], target_[2], target_[3]},
-            {torque[0], torque[1], torque[2], torque[3]},
+            {q[0], q[1], q[2], q[3]}, legs, {torque[0], torque[1], torque[2], torque[3]},
             jump_.phase(now()) == wheel_leg::JumpCommand::Phase::kFlight);
         for (std::size_t i = 0; i < extra.size(); ++i)
             torque[i] += extra[i];
@@ -433,14 +431,15 @@ private:
     InputInterface<bool> policy_valid_, healthy_;
     InputInterface<double> policy_rate_, update_rate_;
     InputInterface<std::size_t> action_sequence_;
-    InputInterface<std::map<std::string, std::string>> model_metadata_;
-    std::array<InputInterface<double>, 6> action_, raw_action_;
+    InputInterface<wheel_leg::JointVector> action_target_;
+    std::array<InputInterface<double>, 6> raw_action_;
 
     std::array<OutputInterface<double>, 6> torque_;
     OutputInterface<bool> policy_enable_, action_applied_;
     OutputInterface<Eigen::Vector3d> policy_command_;
     OutputInterface<double> policy_height_;
-    OutputInterface<std::vector<double>> policy_context_;
+    OutputInterface<bool> jump_active_;
+    OutputInterface<double> jump_apex_, jump_elapsed_;
     OutputInterface<wheel_leg::JointVector> applied_action_;
     OutputInterface<int> state_;
     OutputInterface<bool> recovery_yaw_active_, recovery_capture_ready_;
@@ -449,7 +448,7 @@ private:
     OutputInterface<double> recovery_direction_;
 
     bool fault_ = false, have_target_ = false;
-    wheel_leg::JointVector target_{}, decoded_{}, pending_history_{};
+    wheel_leg::JointVector accepted_target_{}, pending_history_{};
     std::size_t last_reset_count_ = 0, last_jump_request_count_ = 0, accepted_sequence_ = 0;
     std::size_t ticks_since_action_ = 0, drive_loss_ticks_ = 0;
     std::optional<std::size_t> last_pd_tick_, last_command_tick_;

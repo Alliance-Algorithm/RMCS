@@ -4,29 +4,29 @@
 #include <cmath>
 
 #include "joint_coordinates.hpp"
-#include "jump_policy.hpp"
 
 namespace rmcs_core::controller::chassis::wheel_leg {
 
 inline constexpr double kLegTorqueLimit = 40.;
 inline constexpr double kWheelTorqueLimit = 4.5;
 inline constexpr double kHingeMargin = .03;
+// Normal running uses the same exported soft hinge limits on both sides.
+inline constexpr LegBounds kRunningTorqueBounds{
+    {{-0.14084732125908495, 1.4282761689185115}, {-0.14084732125908495, 1.4282761689185115}}};
 
-inline JointVector
-    pd_torque(const JointVector& target, const JointVector& q, const JointVector& dq) {
+inline JointVector pd_torque(
+    const JointVector& target, const JointVector& q, const JointVector& dq, double leg_kp,
+    double leg_kd) {
     JointVector torque;
     for (int i = 0; i < 4; ++i)
-        torque[i] = jump_policy::kLegKp * (target[i] - q[i]) - jump_policy::kLegKd * dq[i];
+        torque[i] = leg_kp * (target[i] - q[i]) - leg_kd * dq[i];
     for (int i = 4; i < 6; ++i)
         torque[i] = std::clamp(.5 * (target[i] - dq[i]), -kWheelTorqueLimit, kWheelTorqueLimit);
     return torque;
 }
 
 inline JointVector limit_torque(
-    JointVector torque, const JointVector& q,
-    const LegBounds& bounds = {
-        {{jump_policy::kMechanicalMin, jump_policy::kMechanicalMax},
-         {jump_policy::kMechanicalMin, jump_policy::kMechanicalMax}}}) {
+    JointVector torque, const JointVector& q, const LegBounds& bounds = kRunningTorqueBounds) {
     for (int i = 0; i < 4; ++i)
         torque[i] = std::clamp(torque[i], -kLegTorqueLimit, kLegTorqueLimit);
     for (int side = 0; side < 2; ++side) {

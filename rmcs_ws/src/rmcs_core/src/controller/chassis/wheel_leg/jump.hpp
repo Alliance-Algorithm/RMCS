@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 #include "joint_coordinates.hpp"
-#include "jump_policy.hpp"
+#include "control_data/jump_policy.hpp"
 
 namespace rmcs_core::controller::chassis::wheel_leg {
 
@@ -44,6 +44,7 @@ public:
     }
 
     bool active() const { return active_; }
+    double apex() const { return apex_; }
     double elapsed(double now) const {
         return active_ ? std::clamp(now - started_, 0., request_duration_) : 0.;
     }
@@ -79,12 +80,6 @@ public:
         }
     }
 
-    std::array<double, 7> context(double now) const {
-        if (!active_)
-            return {1., 0., 0., 0., 0., 0., 0.};
-        return {0., 0., 0., 0., 1., apex_, elapsed(now)};
-    }
-
 private:
     double release_velocity() const {
         return std::sqrt(2. * 9.81 * (apex_ - jump_policy::kReleaseHeight));
@@ -98,7 +93,8 @@ private:
 };
 
 inline LegBounds jump_target_bounds(bool active) {
-    auto bounds = jump_policy::kBounds;
+    static_assert(kWindingBounds == jump_policy::kBounds);
+    auto bounds = kWindingBounds;
     if (active)
         for (auto& side : bounds) {
             side[0] -= jump_policy::kOvertravel;

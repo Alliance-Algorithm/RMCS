@@ -44,7 +44,7 @@ public:
         register_input("/remote/keyboard", keyboard_);
         register_input("/remote/rotary_knob", rotary_knob_);
         register_input("/gimbal/yaw/angle", gimbal_yaw_angle_);
-        register_input("/gimbal/friction_enabled", friction_enabled_);
+        register_input("/gimbal/friction_enabled", friction_enabled_, false);
         register_input("/predefined/timestamp", timestamp_);
 
         register_output(
@@ -115,9 +115,10 @@ private:
     void update_jump_request(rmcs_msgs::Switch left, rmcs_msgs::Switch right) {
         using rmcs_msgs::Switch;
 
+        const bool friction_enabled = friction_enabled_.ready() && *friction_enabled_;
         const bool remote_edge = last_switch_left_ == Switch::MIDDLE
                               && last_switch_right_ == Switch::MIDDLE && left == Switch::DOWN
-                              && right == Switch::MIDDLE && !*friction_enabled_;
+                              && right == Switch::MIDDLE && !friction_enabled;
         if (was_armed_ && ((!last_keyboard_.ctrl && keyboard_->ctrl) || remote_edge))
             ++*jump_request_count_;
     }

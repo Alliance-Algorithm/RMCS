@@ -1,6 +1,7 @@
 #include "recovery.hpp"
 
-#include "model/body_geometry.hpp"
+#include "control_data/body_geometry.hpp"
+#include "control_data/recovery_geometry.hpp"
 
 #include <algorithm>
 #include <array>
@@ -20,6 +21,82 @@ constexpr float radians(double degrees) {
 float wrapped(float value) { return std::atan2(std::sin(value), std::cos(value)); }
 bool positive_finite(double value) { return std::isfinite(value) && value > 0.0; }
 } // namespace
+
+JointReferenceRecoveryConfig make_recovery_config() {
+    JointReferenceRecoveryConfig config;
+    config.fold = Eigen::Vector4d{
+        -0.25197165154877471, -0.11799796974413002, 0.25197032674734215, 0.11796511585937414};
+    config.insertion_fold = Eigen::Vector4d{
+        -0.14375041390283763, -0.22623551337777834, 0.14374835281990206, 0.22619916469284207};
+    config.thrust = Eigen::Vector4d{
+        -0.74951799031281752, 0.37956728120704325, 0.74951877198684191, -0.37959303715815201};
+    config.support = Eigen::Vector4d{
+        -0.40505537676965336, 0.057993679319272018, 0.40505537676965336, -0.058022700299903765};
+    for (int hip : {0, 2})
+        config.insertion_fold.segment<2>(hip).array() +=
+            config.fold.segment<2>(hip).mean() - config.insertion_fold.segment<2>(hip).mean();
+    config.nominal = config.fold;
+    const std::array<double, 4> support{
+        config.support[0], config.support[1], config.support[2], config.support[3]};
+    const auto weight = recovery_v202::support_compensation(
+        support, {0, -0.0045574624965667261, -0.99998961471386916});
+    for (int i = 0; i < 4; ++i)
+        config.support[i] += weight[i] / 60.;
+    config.dt = .005;
+    config.blend_seconds = 0.;
+    config.dynamic_takeover = true;
+    config.synchronized_overturn = true;
+    config.overturn_stall_seconds = 1.5;
+    config.release_motion_on_takeover = true;
+    config.dynamic_capture_height_min = .20;
+    config.dynamic_capture_height_max = .29;
+    config.prepare_speed_rad_s = 4.;
+    config.insert_speed_rad_s = 4.;
+    config.push_speed_rad_s = 4.;
+    config.orbit_speed_rad_s = 4.;
+    config.capture_speed_rad_s = 4.;
+    config.side_speed_rad_s = 4.;
+    return config;
+}
+
+// The policy may take over while the mechanism is still moving inside the capture window.
+int recovery_capture_blockers(
+    const JointReferenceRecoveryFeedback& feedback, const Eigen::Vector3d& acceleration,
+    const Eigen::Vector4d& reference, const RecoveryCaptureLimits& limits) {
+    if (!feedback.q.allFinite() || !feedback.dq.allFinite() || !feedback.gravity.allFinite()
+        || !feedback.gyro.allFinite() || !acceleration.allFinite()
+        || !std::isfinite(feedback.estimated_height)
+        || std::abs(feedback.gravity.squaredNorm() - 1.) > 1e-3)
+        return kCaptureSensing;
+    int blockers = 0;
+    const auto& g = feedback.gravity;
+    if (-g.z() < std::cos(limits.tilt))
+        blockers |= kCaptureTilt;
+    const bool upright = -g.z() >= std::cos(limits.upright_tilt);
+    if (feedback.gyro.norm() > (upright ? limits.upright_gyro : limits.gyro))
+        blockers |= kCaptureGyro;
+    if (feedback.dq.head<4>().cwiseAbs().maxCoeff() > limits.leg_velocity)
+        blockers |= kCaptureLegVelocity;
+    if (feedback.dq.tail<2>().cwiseAbs().maxCoeff() > limits.wheel_velocity)
+        blockers |= kCaptureWheelVelocity;
+    for (int i = 0; i < 4; ++i)
+        if (std::abs(std::remainder(reference[i] - feedback.q[i], 2. * std::numbers::pi))
+            > limits.leg_error)
+            blockers |= kCaptureReference;
+    for (int side = 0; side < 2; ++side) {
+        const int hip = 2 * side;
+        const double relative = (side == 0 ? 1. : -1.) * (feedback.q[hip + 1] - feedback.q[hip]);
+        if (relative < kMechanicalBounds[side][0] || relative > kMechanicalBounds[side][1]
+            || relative < limits.hinge_min[side] || relative > limits.hinge_max[side])
+            blockers |= kCaptureHinge;
+    }
+    if (acceleration.dot(-g) < 6.)
+        blockers |= kCaptureSupportingAcceleration;
+    if (-g.z() < std::cos(std::numbers::pi / 6.)
+        && g.x() * feedback.gyro.y() - g.y() * feedback.gyro.x() > .05 * std::hypot(g.x(), g.y()))
+        blockers |= kCaptureOutwardTilt;
+    return blockers;
+}
 
 std::string_view recovery_phase_name(JointReferenceRecoveryPhase phase) {
     constexpr std::array<std::string_view, 13> names{
@@ -76,8 +153,7 @@ JointReferenceRecoveryController::JointReferenceRecoveryController(
         || config.capture_tilt_limit_deg >= 90.0 || !config.nominal.allFinite()
         || !config.fold.allFinite() || !config.insertion_fold.allFinite()
         || !config.thrust.allFinite() || !config.support.allFinite()
-        || !config.rl_nominal.allFinite() || !config.root_axis_signs.allFinite()
-        || !config.wheel_axis_signs.allFinite())
+        || !config.root_axis_signs.allFinite() || !config.wheel_axis_signs.allFinite())
         throw std::invalid_argument("Invalid Joint reference recovery configuration");
     for (int i = 0; i < 4; ++i)
         if (std::abs(config.root_axis_signs[i]) != 1.0

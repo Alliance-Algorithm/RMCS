@@ -1,51 +1,9 @@
 #pragma once
-#include "../joint_coordinates.hpp"
 #include "../support_observer.hpp"
-#include "recovery_geometry.hpp"
 
+// v2.0.2 model SHA-256: 8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812
 namespace rmcs_core::controller::chassis::wheel_leg {
-inline constexpr std::string_view kRecoveryModelSpecSha256 =
-    "8a9d759525c48955e8965b2e14b9e158c1d8fc9f3d68f33e4024a3c94bf8f812";
-inline JointReferenceRecoveryConfig make_recovery_config() {
-    JointReferenceRecoveryConfig config;
-    config.fold = Eigen::Vector4d{
-        -0.25197165154877471, -0.11799796974413002, 0.25197032674734215, 0.11796511585937414};
-    config.insertion_fold = Eigen::Vector4d{
-        -0.14375041390283763, -0.22623551337777834, 0.14374835281990206, 0.22619916469284207};
-    config.thrust = Eigen::Vector4d{
-        -0.74951799031281752, 0.37956728120704325, 0.74951877198684191, -0.37959303715815201};
-    config.support = Eigen::Vector4d{
-        -0.40505537676965336, 0.057993679319272018, 0.40505537676965336, -0.058022700299903765};
-    for (int hip : {0, 2})
-        config.insertion_fold.segment<2>(hip).array() +=
-            config.fold.segment<2>(hip).mean() - config.insertion_fold.segment<2>(hip).mean();
-    config.nominal = config.fold;
-    config.rl_nominal = Eigen::Map<const JointReferenceRecoveryVector6>{kNominalPosition.data()};
-    const std::array<double, 4> support{
-        config.support[0], config.support[1], config.support[2], config.support[3]};
-    const auto weight = recovery_v202::support_compensation(
-        support, {0, -0.0045574624965667261, -0.99998961471386916});
-    for (int i = 0; i < 4; ++i)
-        config.support[i] += weight[i] / 60.;
-    config.dt = .005;
-    config.blend_seconds = 0.;
-    config.dynamic_takeover = true;
-    config.synchronized_overturn = true;
-    config.overturn_stall_seconds = 1.5;
-    config.release_motion_on_takeover = true;
-    config.dynamic_capture_height_min = .20;
-    config.dynamic_capture_height_max = .29;
-    config.prepare_speed_rad_s = 4.;
-    config.insert_speed_rad_s = 4.;
-    config.push_speed_rad_s = 4.;
-    config.orbit_speed_rad_s = 4.;
-    config.capture_speed_rad_s = 4.;
-    config.side_speed_rad_s = 4.;
-    return config;
-}
-inline constexpr std::array<double, 2> kRecoveryCaptureHingeMax{
-    0.37826080054777944, 0.37829033092311448};
-inline std::array<ClosedChainLegGeometry, 2> recovery_leg_geometry() {
+std::array<ClosedChainLegGeometry, 2> recovery_leg_geometry() {
     std::array<ClosedChainLegGeometry, 2> result;
     result[0].hip_origin_b_m = Eigen::Vector3f{0.0f, 0.1838f, -0.00083697f};
     result[0].hip_axis_b = Eigen::Vector3f{-3.673165765e-06f, 0.9999894031f, -0.004603656943f};

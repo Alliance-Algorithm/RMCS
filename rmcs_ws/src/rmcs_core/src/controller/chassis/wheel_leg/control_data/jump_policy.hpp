@@ -9,7 +9,7 @@
 // e420bb91f284342349c43b9cc38b1fc95becf10e1f8df49c5c1cc4a16c7f7646. Generation alone does not
 // qualify a model for hardware deployment.
 namespace rmcs_core::controller::chassis::wheel_leg::jump_policy {
-// Must equal the wheelbipe_deployment_contract_sha256 metadata of the loaded ONNX.
+// This source contract identifies the compiled trajectory and spring data.
 inline constexpr std::string_view kDeploymentContractSha256 =
     "8ce02510cc775eb5c8ab1118aa2830d6eb8a5c2cd4c4d30a967b5c329c092102";
 struct GeometryKnot {

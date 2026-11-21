@@ -6,6 +6,8 @@
 
 #include <eigen3/Eigen/Core>
 
+#include "joint_coordinates.hpp"
+
 namespace rmcs_core::controller::chassis::wheel_leg {
 
 using JointReferenceRecoveryVector6 = Eigen::Matrix<double, 6, 1>;
@@ -41,7 +43,6 @@ struct JointReferenceRecoveryConfig {
     Eigen::Vector4d insertion_fold = Eigen::Vector4d::Zero();
     Eigen::Vector4d thrust = Eigen::Vector4d::Zero();
     Eigen::Vector4d support = Eigen::Vector4d::Zero();
-    JointReferenceRecoveryVector6 rl_nominal = JointReferenceRecoveryVector6::Zero();
     Eigen::Vector4d root_axis_signs{1.0, 1.0, -1.0, -1.0};
     Eigen::Vector2d wheel_axis_signs{1.0, -1.0};
     double dt = 0.005;
@@ -98,6 +99,35 @@ struct JointReferenceRecoveryFeedback {
     bool rl_capture_ready = false;
     Eigen::Vector2d wheel_probe_torque = Eigen::Vector2d::Zero();
 };
+
+struct RecoveryCaptureLimits {
+    double tilt = std::numbers::pi / 6.;
+    double leg_error = .45;
+    double leg_velocity = 4.;
+    double wheel_velocity = 20.;
+    double gyro = 1.;
+    double upright_gyro = 2.;
+    double upright_tilt = .2;
+    std::array<double, 2> hinge_min{kMechanicalBounds[0][0], kMechanicalBounds[1][0]};
+    std::array<double, 2> hinge_max{0.37826080054777944, 0.37829033092311448};
+};
+
+enum RecoveryCaptureBlocker {
+    kCaptureSensing = 1 << 0,
+    kCaptureTilt = 1 << 1,
+    kCaptureGyro = 1 << 2,
+    kCaptureWheelVelocity = 1 << 3,
+    kCaptureLegVelocity = 1 << 4,
+    kCaptureReference = 1 << 5,
+    kCaptureHinge = 1 << 6,
+    kCaptureSupportingAcceleration = 1 << 7,
+    kCaptureOutwardTilt = 1 << 9,
+};
+
+JointReferenceRecoveryConfig make_recovery_config();
+int recovery_capture_blockers(
+    const JointReferenceRecoveryFeedback& feedback, const Eigen::Vector3d& acceleration,
+    const Eigen::Vector4d& reference, const RecoveryCaptureLimits& limits = {});
 
 struct JointReferenceRecoveryCommand {
     JointReferenceRecoveryVector6 targets = JointReferenceRecoveryVector6::Zero();

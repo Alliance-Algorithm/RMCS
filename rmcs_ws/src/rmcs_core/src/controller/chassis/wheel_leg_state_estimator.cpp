@@ -8,7 +8,6 @@
 #include <rmcs_utility/rclcpp/node_mixin.hpp>
 
 #include "wheel_leg/joint_coordinates.hpp"
-#include "wheel_leg/jump_policy.hpp"
 
 namespace rmcs_core::controller::chassis {
 
@@ -38,7 +37,7 @@ public:
         }
         auto q = wheel_leg::model_position(angle);
         const auto legs =
-            wheel_leg::continuous_legs({q[0], q[1], q[2], q[3]}, wheel_leg::jump_policy::kBounds);
+            wheel_leg::continuous_legs({q[0], q[1], q[2], q[3]}, wheel_leg::kWindingBounds);
         std::copy(legs.begin(), legs.end(), q.begin());
         *position_ = q;
         *velocity_output_ = wheel_leg::model_velocity(velocity);

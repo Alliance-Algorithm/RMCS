@@ -5,16 +5,17 @@
 #include <cmath>
 #include <numbers>
 
+#include <rmcs_description/wheel_leg.hpp>
+
 namespace rmcs_core::controller::chassis::wheel_leg {
-using JointVector = std::array<double, 6>;
-using LegVector = std::array<double, 4>;
-inline constexpr std::array<const char*, 6> kJointNames{"left_hip_joint",  "left_knee_joint",
-                                                        "right_hip_joint", "right_knee_joint",
-                                                        "left_wheel",      "right_wheel"};
-inline constexpr JointVector kNominalPosition{
-    -.42, .13722330866417465, .42, -.13721605817245947, 0., 0.};
+using rmcs_description::wheel_leg::JointVector;
+using rmcs_description::wheel_leg::kJointNames;
+using rmcs_description::wheel_leg::kWindingBounds;
+using rmcs_description::wheel_leg::LegBounds;
+using rmcs_description::wheel_leg::LegVector;
+using rmcs_description::wheel_leg::paired_targets;
 inline constexpr LegVector kMotorOffsets{1.6, 3.0282761689183353, -1.6, -3.0283102010168};
-using LegBounds = std::array<std::array<double, 2>, 2>;
+// Per-side mechanical limits used during recovery and its capture check.
 inline constexpr LegBounds kMechanicalBounds{
     {{-.14089326779459427, 1.4282761689183354}, {-.14084732125908661, 1.4283102010167998}}};
 
@@ -47,37 +48,5 @@ inline LegVector continuous_legs(const LegVector& measured, const LegBounds& bou
         result[aux] = result[hip] + sign * relative;
     }
     return result;
-}
-inline LegVector
-    paired_targets(const LegVector& desired, const LegVector& current, const LegBounds& bounds) {
-    constexpr double tau = 2 * std::numbers::pi;
-    LegVector targets;
-    for (int side = 0; side < 2; ++side) {
-        const int hip = 2 * side, aux = hip + 1;
-        const double sign = side == 0 ? 1. : -1.;
-        const double mean = (desired[hip] + desired[aux]) / 2;
-        const double delta =
-            std::clamp(sign * (desired[aux] - desired[hip]), bounds[side][0], bounds[side][1]);
-        const double turns =
-            std::floor(((current[hip] * .5 + current[aux] * .5 - mean) / tau) + .5);
-        targets[hip] = mean - sign * delta / 2 + turns * tau;
-        targets[aux] = mean + sign * delta / 2 + turns * tau;
-        const double actual = sign * (targets[aux] - targets[hip]);
-        if (actual < bounds[side][0] || actual > bounds[side][1])
-            targets[aux] = std::nextafter(targets[hip] + sign * delta, targets[hip]);
-    }
-    return targets;
-}
-inline JointVector decoded_action_target(
-    const JointVector& decoded, const JointVector& q, const LegBounds& bounds) {
-    LegVector desired{}, current{};
-    for (int i = 0; i < 4; ++i) {
-        desired[i] = kNominalPosition[i] + decoded[i];
-        current[i] = q[i];
-    }
-    const auto legs = paired_targets(desired, current, bounds);
-    auto target = decoded;
-    std::copy(legs.begin(), legs.end(), target.begin());
-    return target;
 }
 } // namespace rmcs_core::controller::chassis::wheel_leg
