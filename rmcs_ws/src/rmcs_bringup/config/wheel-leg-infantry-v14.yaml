@@ -1,0 +1,267 @@
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+      - rmcs_rl::StateMirror -> wheel_leg_mirror
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::debug::ValueCollector -> value_collector
+      - rmcs_core::controller::chassis::WheelLegChassisController -> wheel_leg_chassis_controller
+      - rmcs_core::controller::chassis::WheelLegStateEstimator -> wheel_leg_state_estimator
+      - rmcs_core::controller::chassis::WheelLegObservation -> wheel_leg_observation
+      - rmcs_rl::RlBridge -> rl_bridge
+      - rmcs_core::controller::chassis::WheelLegController -> wheel_leg_controller
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
+
+wheel_leg:
+  ros__parameters:
+    board_serial_bottom_board: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    board_serial_gimbal_board: AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75
+    yaw_motor_zero_point: 58379
+    dm_arming_timeout_ms: 100.0
+    motor_feedback_timeout_ms: 20.0
+    pitch_motor_zero_point: 12637
+
+wheel_leg_chassis_controller:
+  ros__parameters:
+    vx_max: 1.0
+    spin_yaw_rate: 10.471975511965978
+    yaw_stick_rate: 3.141592653589793
+    yaw_rate_max: 4.0
+    following_velocity_kp: 15.0
+    deadzone: 0.05
+    command_height_min: 0.23
+    command_height_max: 0.42
+    default_command_height: 0.305
+    height_rate: 0.3
+
+rl_bridge:
+  ros__parameters:
+    rl_base: /wheel_leg/rl
+    # ONNX converts the bridge's oldest-first history once.
+    rl_model_path: models/wheel_leg/V14_fixed_caps_4500.onnx
+    policy_rate: 50.0
+    history_length: 5
+    max_action_age: 0.06
+    enable_interface: /wheel_leg/rl/input/enable
+    reset_interface: /chassis/reset_count
+    observation_frame_sequence_interface: /wheel_leg/rl/features/frame_sequence
+    observation_epoch_interface: /wheel_leg/rl/features/epoch
+    expected_metadata:
+      wheelbipe_deployment_contract_sha256: "b19b80eb4f4bbe8f6eb454a4df1eea3f7c7de973d6b3e0fa96ce86b16d3a2102"
+      rmcs_observation_version: "wheelbipe-v202-foundation-jump-v13-rmcs-oldest-first-adapter"
+      rmcs_observation_contract_sha256: "9e39952a99870a590834c4e7d810d96c25a8bc5d13eb417e93dd836b680330ee"
+      rmcs_checkpoint_sha256: "6aec76891fa950a5a2ea4ec0885d64aae8d7d6e376275856c3992242bd6fc6aa"
+      rmcs_history_order: "oldest_first"
+      pilot: "true"
+      policy_hz: "50"
+      rmcs_obs_normalization: "none"
+      rmcs_observation_scales: "1,1,1,5,0.5,0.5,0.5,1,1,1,1,1,1,1,1,1,0.1,0.1,0.1,0.1,0.1,0.1,1,1,1,1,1,1,1,1,1,1,1,5,1"
+
+    observations:
+      order: [command, height, gyro, gravity, position, velocity, previous_action, auxiliary_mode, auxiliary_apex, auxiliary_elapsed]
+      command: {source: /wheel_leg/rl/features/command, type: array, size: 3, precision: float32, clip: [-100.0, 100.0]}
+      height: {source: /wheel_leg/rl/features/height, precision: float32, source_clip: [0.0, 1.0], scale: 5.0}
+      gyro: {source: /wheel_leg/rl/features/gyro, type: array, size: 3, precision: float32, source_clip: [-100.0, 100.0], scale: 0.5}
+      gravity: {source: /wheel_leg/rl/features/gravity, type: array, size: 3, precision: float32, clip: [-100.0, 100.0]}
+      position: {source: /wheel_leg/rl/features/position, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, clip: [-100.0, 100.0]}
+      velocity: {source: /wheel_leg/rl/features/velocity, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, source_clip: [-200.0, 200.0], scale: 0.1}
+      previous_action: {source: /wheel_leg/rl/features/previous_action, type: array, size: 6, select: [0, 2, 1, 3, 4, 5], precision: float32, clip: [-100.0, 100.0]}
+      auxiliary_mode: {source: /wheel_leg/rl/features/auxiliary, type: array, size: 7, select: [0, 1, 2, 3, 4], precision: float32}
+      auxiliary_apex: {source: /wheel_leg/rl/features/auxiliary, type: array, size: 7, select: [5], precision: float32, scale: 5.0}
+      auxiliary_elapsed: {source: /wheel_leg/rl/features/auxiliary, type: array, size: 7, select: [6], precision: float32}
+    actions:
+      order: [left_hip, right_hip, left_knee, right_knee, left_wheel, right_wheel]
+      left_hip: {output: /wheel_leg/rl/raw/left_hip_joint, scale: 0.5}
+      right_hip: {output: /wheel_leg/rl/raw/right_hip_joint, scale: 0.5}
+      left_knee: {output: /wheel_leg/rl/raw/left_knee_joint, scale: 0.5}
+      right_knee: {output: /wheel_leg/rl/raw/right_knee_joint, scale: 0.5}
+      left_wheel: {output: /wheel_leg/rl/raw/left_wheel, scale: 10.0, clip: [-90.0, 90.0]}
+      right_wheel: {output: /wheel_leg/rl/raw/right_wheel, scale: 10.0, clip: [-90.0, 90.0]}
+
+wheel_leg_controller:
+  ros__parameters:
+    jump_apex: 0.46
+    # Training outcome deadline is episode-relative; request starts at 0.6--1.0 s.
+    # 3.7 s uses the midpoint delay, matching the existing flat-jump reference.
+    jump_request_duration: 3.7
+    moving_jump_vx_max: 1.0
+    jump_vx_rate: 2.0
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.6109
+    lower_limit: 0.5236
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    kp: 5.0
+    ki: 0.0
+    kd: 0.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/control_torque
+    kp: 4.338842975206612
+    ki: 0.0
+    kd: 0.0
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 6.0
+    ki: 0.0
+    kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    feedforward: /gimbal/pitch/torque_ff
+    kp: 4.338842975206612
+    ki: 0.0
+    kd: 0.0
+
+pitch_gravity_ff:
+  ros__parameters:
+    pitch_gravity_ff_gain: 2.6033057851239674
+    pitch_gravity_ff_phase: 0.75
+
+wheel_leg_mirror:
+  ros__parameters:
+    topic_prefix: /wheel_leg/telemetry
+    frame_id: chassis_body
+    rate: 100.0
+    joints:
+      order: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint,
+              left_wheel, right_wheel, gimbal_yaw_joint, gimbal_pitch_joint]
+      left_hip_joint: {position: /wheel_leg/left_hip_joint/angle, velocity: /wheel_leg/left_hip_joint/velocity,
+        stamp: /wheel_leg/left_hip_joint/feedback_steady_ns}
+      left_knee_joint: {position: /wheel_leg/left_knee_joint/angle, velocity: /wheel_leg/left_knee_joint/velocity,
+        stamp: /wheel_leg/left_knee_joint/feedback_steady_ns}
+      right_hip_joint: {position: /wheel_leg/right_hip_joint/angle, velocity: /wheel_leg/right_hip_joint/velocity,
+        stamp: /wheel_leg/right_hip_joint/feedback_steady_ns}
+      right_knee_joint: {position: /wheel_leg/right_knee_joint/angle, velocity: /wheel_leg/right_knee_joint/velocity,
+        stamp: /wheel_leg/right_knee_joint/feedback_steady_ns}
+      left_wheel: {position: /wheel_leg/left_wheel/angle, velocity: /wheel_leg/left_wheel/velocity,
+        stamp: /wheel_leg/left_wheel/feedback_steady_ns}
+      right_wheel: {position: /wheel_leg/right_wheel/angle, velocity: /wheel_leg/right_wheel/velocity,
+        stamp: /wheel_leg/right_wheel/feedback_steady_ns}
+      gimbal_yaw_joint: {position: /gimbal/yaw/angle, velocity: /gimbal/yaw/velocity}
+      gimbal_pitch_joint: {position: /gimbal/pitch/angle, velocity: /gimbal/pitch/velocity}
+    imu: {orientation: /wheel_leg/imu/quaternion, angular_velocity: /wheel_leg/imu/angular_velocity,
+      stamp: /wheel_leg/imu/last_steady_ns}
+    vectors:
+      order: [rl_projected_gravity, rl_angular_velocity]
+      rl_projected_gravity: /wheel_leg/state/gravity
+      rl_angular_velocity: /wheel_leg/imu/angular_velocity
+    values:
+      state: {position: /wheel_leg/state/position}
+      control: {enabled: /chassis/control_enable, ready: /wheel_leg/control_ready,
+        reset_count: /chassis/reset_count, rl_state: /wheel_leg/rl/state}
+      operator: {velocity: /chassis/control_velocity, height: /chassis/control_height, mode: /chassis/control_mode}
+      remote: {left: /remote/joystick/left, right: /remote/joystick/right,
+        switch_left: /remote/switch/left, switch_right: /remote/switch/right,
+        knob: /remote/rotary_knob, keyboard: /remote/keyboard}
+      power: {supercap_enabled: /chassis/supercap/enabled}
+      drives: {left_hip_joint: /wheel_leg/left_hip_joint/status, left_knee_joint: /wheel_leg/left_knee_joint/status,
+        right_hip_joint: /wheel_leg/right_hip_joint/status, right_knee_joint: /wheel_leg/right_knee_joint/status}
+    constants:
+      coordinate: rmcs_hardware_output_shaft_v1
+      model_offset: {left_hip_joint: "1.6", left_knee_joint: "3.0282761689183353",
+        right_hip_joint: "-1.6", right_knee_joint: "-3.0283102010168"}
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/yaw/control_angle_error
+      - /gimbal/yaw/control_velocity
+      - /gimbal/yaw/control_torque
+      - /gimbal/yaw/velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /chassis/voltage
+
+value_collector:
+  ros__parameters:
+    csv_path: /tmp/wheel_leg_v14_<timestamp>.csv
+    write_interval: 5
+    flush_interval: 200
+    signals:
+      - /predefined/timestamp
+      - /chassis/control_enable
+      - /chassis/reset_count
+      - /wheel_leg/control_ready
+      - /wheel_leg/control_ready_blockers
+      - /wheel_leg/rl/state
+      - /wheel_leg/recovery/phase
+      - /wheel_leg/recovery/yaw_align_active
+      - /gimbal/yaw/angle
+      - /wheel_leg/recovery/capture_blockers
+      - /wheel_leg/rl/valid
+      - /wheel_leg/rl/healthy
+      - /wheel_leg/rl/action_seq
+      - /wheel_leg/rl/input/command
+      - /wheel_leg/rl/input/height
+      - /wheel_leg/rl/input/context
+      - /wheel_leg/rl/applied_action
+      - /wheel_leg/rl/action_applied
+      - /wheel_leg/state/position
+      - /wheel_leg/state/velocity
+      - /wheel_leg/state/gravity
+      - /wheel_leg/imu/quaternion
+      - /wheel_leg/imu/angular_velocity
+      - /wheel_leg/imu/acceleration
+      - /wheel_leg/imu/last_steady_ns
+      - /chassis/voltage
+      - /wheel_leg/left_hip_joint/angle
+      - /wheel_leg/left_hip_joint/velocity
+      - /wheel_leg/left_hip_joint/torque
+      - /wheel_leg/left_hip_joint/control_torque
+      - /wheel_leg/left_hip_joint/status
+      - /wheel_leg/left_hip_joint/feedback_steady_ns
+      - /wheel_leg/left_knee_joint/angle
+      - /wheel_leg/left_knee_joint/velocity
+      - /wheel_leg/left_knee_joint/torque
+      - /wheel_leg/left_knee_joint/control_torque
+      - /wheel_leg/left_knee_joint/status
+      - /wheel_leg/left_knee_joint/feedback_steady_ns
+      - /wheel_leg/right_hip_joint/angle
+      - /wheel_leg/right_hip_joint/velocity
+      - /wheel_leg/right_hip_joint/torque
+      - /wheel_leg/right_hip_joint/control_torque
+      - /wheel_leg/right_hip_joint/status
+      - /wheel_leg/right_hip_joint/feedback_steady_ns
+      - /wheel_leg/right_knee_joint/angle
+      - /wheel_leg/right_knee_joint/velocity
+      - /wheel_leg/right_knee_joint/torque
+      - /wheel_leg/right_knee_joint/control_torque
+      - /wheel_leg/right_knee_joint/status
+      - /wheel_leg/right_knee_joint/feedback_steady_ns
+      - /wheel_leg/left_wheel/angle
+      - /wheel_leg/left_wheel/velocity
+      - /wheel_leg/left_wheel/torque
+      - /wheel_leg/left_wheel/control_torque
+      - /wheel_leg/left_wheel/feedback_steady_ns
+      - /wheel_leg/right_wheel/angle
+      - /wheel_leg/right_wheel/velocity
+      - /wheel_leg/right_wheel/torque
+      - /wheel_leg/right_wheel/control_torque
+      - /wheel_leg/right_wheel/feedback_steady_ns

@@ -19,10 +19,14 @@
 namespace rmcs_core::controller::chassis {
 namespace {
 constexpr wheel_leg::LegVector kPolicyReference{-.42, .13722330866417465, .42, -.13721605817245947};
-constexpr std::array<std::string_view, 3> kSupportedContracts{
+constexpr std::array<std::string_view, 7> kSupportedContracts{
     "ae38a0b74e8e9515d17fdcd24c21a187b7d0b3e22dfa114c83e579605347e0ab",
     "125422a9930d06f62128a818579074f2055d4573554181d39b36b5052eab2fe5",
     "34f2eb33aa016729c7cca7dfae563a477a9a8781a3c445c61b072bf0a8c2adae",
+    "510121c8441c5ae99fbd52b47fd5a03181e82b2f9c121f04f9d06d975347ce09",
+    "ca1975e678aebb1f9931eeda64e58491990a2c3c15a486d1d600199d26b011cc",
+    "b19b80eb4f4bbe8f6eb454a4df1eea3f7c7de973d6b3e0fa96ce86b16d3a2102",
+    "c5e53ef17949503e60c1b36eb5abf3c6b38fde993efdad2891cac281295ed912",
 };
 
 class WheelLegActionAdapter : public rmcs_executor::Component {
