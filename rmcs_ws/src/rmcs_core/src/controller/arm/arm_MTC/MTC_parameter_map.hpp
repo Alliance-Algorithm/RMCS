@@ -246,11 +246,11 @@ inline auto make_mtc_parameter_map() {
                                  .min_distance = 0.1,
                                  .max_distance = 0.15,
                                  .motion =
-                                     {.solver = CartesianPathConfig{.step_size = 0.005},
+                                     {.solver = CartesianPathConfig{.step_size = 0.002},
                                       .velocity_scaling =
                                           0.3,
                                       .acceleration_scaling = 0.1,
-                                      .timeout = 3.0},
+                                      .timeout = 6.0},
                                  .group =
                                      "alliance_arm",
                                  .ik_frame = "link_6"}),
@@ -334,8 +334,8 @@ inline auto make_mtc_parameter_map() {
                                          .dir_x = -1.0,
                                          .dir_y = 0.0,
                                          .dir_z = 0.0}),
-                             .min_distance = 0.075,
-                             .max_distance = 0.20,
+                             .min_distance = 0.1,
+                             .max_distance = 0.15,
                              .motion =
                                  {.solver = CartesianPathConfig{.step_size = 0.001},
                                   .velocity_scaling = 0.3,
@@ -450,6 +450,35 @@ inline auto make_mtc_parameter_map() {
                              .ik_frame = "link_6"}),
                      Step::makeDetachObject("pillar"),
                      Step::makeDetachObject("unit"),
+                 }}}},
+        {"tech_core_exit",
+         {ContainerConfig{
+             .name = "tech_core_exit",
+             .type = ContainerType::Serial,
+             .children =
+                 {
+                     Step::makeOpenGripper("open_before_exit"),
+                     Step::makeMoveRelative(
+                         "tech_core_gripper_exit",
+                         MoveRelativeConfig{
+                             .direction =
+                                 makeDirection(
+                                     DirectionTarget{
+                                         .frame_id = "link_6",
+                                         .dir_x = 0.0,
+                                         .dir_y = 0.0,
+                                         .dir_z = 1.0}),
+                             .min_distance = 0.07,
+                             .max_distance = 0.15,
+                             .motion =
+                                 {.solver = CartesianPathConfig{.step_size = 0.001},
+                                  .velocity_scaling = 0.3,
+                                  .acceleration_scaling = 0.1,
+                                  .timeout = 3.0},
+                             .group = "alliance_arm",
+                             .ik_frame = "link_6"}),
+                     Step::makeForbidCollisions("unit"),
+
                  }}}},
 
     }; // namespace rmcs_core::controller::arm::MTC

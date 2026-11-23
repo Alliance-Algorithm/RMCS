@@ -28,7 +28,9 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
-    
+      # - rmcs::RealSenseCapturerComponent -> realsense_capturer
+      - rmcs::AutoMineComponent -> auto_mine_component
+
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
 engineer_hardware:
   ros__parameters:
@@ -221,6 +223,22 @@ steering_wheel_controller:
     k2: 3.082190e-03
     no_load_power: 15.37
 
+
+realsense_capturer:
+  ros__parameters:
+    serial_number: ""
+    exposure_us: -1.0
+    gain: 64.0
+    framerate: 30
+    delay_ms: 0.0
+    frame_topic: "/visual_mining/rgbd_frame"
+    imu_snapshot_topic: ""
+
+auto_mine_component:
+  ros__parameters:
+    # 输入帧 topic，需与 RealSenseCapturerComponent 的 frame_topic 一致
+    frame_topic: "/visual_mining/rgbd_frame"
+    camera_translation: [0.0, 0.0, 0.0]
 
 value_broadcaster:
   ros__parameters:

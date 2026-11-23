@@ -18,6 +18,7 @@ enum class ArmMode : uint8_t {
     Auto_Five_Mine,
     Auto_Three_Mine_First,
     Auto_Three_Mine_Second,
+    Auto_Mining,
     Yaw_Close,
     Calibration,
     Auto_Up_One_Stairs,

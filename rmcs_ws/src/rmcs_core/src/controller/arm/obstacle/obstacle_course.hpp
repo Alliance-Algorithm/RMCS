@@ -63,19 +63,13 @@ public:
         ps.is_diff = true;
         ps.robot_state.is_diff = true;
         ps.link_padding.push_back(
-            moveit_msgs::msg::LinkPadding().set__link_name("link_6").set__padding(0.02));
-        if (!apply_scene(ps))
-            throw std::runtime_error("Failed to apply obstacle link padding");
+            moveit_msgs::msg::LinkPadding().set__link_name("link_6").set__padding(0.00));
 
         for (const auto& [id, config] : parameters)
             add_collision(id, config);
+
         const auto scene = sync_scene();
-        const auto padding = std::find_if(
-            scene.link_padding.begin(), scene.link_padding.end(), [](const auto& value) {
-                return value.link_name == "link_6" && std::abs(value.padding - 0.02) < 1e-9;
-            });
-        if (padding == scene.link_padding.end())
-            throw std::runtime_error("Obstacle link padding was not applied");
+
         for (const auto& [id, config] : parameters) {
             auto* obstacle = find(id);
             if (obstacle->attached()) {

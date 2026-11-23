@@ -54,9 +54,13 @@ public:
         initial_scene_ = mtc_machine_.fetch_scene();
         auto& state = initial_scene_->getCurrentStateNonConst();
         state.setToDefaultValues();
-        for (const auto* joint_name :
-             {"joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"})
-            state.setVariablePosition(joint_name, 0.0);
+        // Match base_link -> link_6 at xyz=(0.183, -0.013, 0.200), rpy=(2.823, -1.055, -2.883)
+        constexpr std::array<const char*, 6> kJointNames{"joint_1", "joint_2", "joint_3",
+                                                         "joint_4", "joint_5", "joint_6"};
+        constexpr std::array<double, 6> kInitialJointAngles{-0.026805, 0.919118, -1.379146,
+                                                            0.083638,  0.950404, -0.090947};
+        for (std::size_t i = 0; i < kJointNames.size(); ++i)
+            state.setVariablePosition(kJointNames[i], kInitialJointAngles[i]);
         state.update();
 
         plan_from_preview_ = declare_parameter<bool>("plan_from_preview", true);
@@ -97,12 +101,7 @@ private:
     static constexpr const char* kGoalMarkerPrefix = "EE:goal";
 
     void initial_setting() {
-        initial_pose_ = {0.050,
-                         -0.200,
-                         0.300,
-                         -std::numbers::pi / 4 * 3,
-                         -std::numbers::pi / 4,
-                         std::numbers::pi / 2};
+        initial_pose_ = {0.220286, -0.161616, 0.384614, 2.681612, -0.131641, 2.537090};
         P_result_ = P_.transform(initial_pose_);
         Q_result_ = Q_.transform(initial_pose_);
         point_result_ = point_place_.transform(initial_pose_);
@@ -144,49 +143,64 @@ private:
                 const bool extract = next_extract_;
                 next_extract_ = !next_extract_;
                 request_id_ = mtc_machine_.process(
+                    // mtc_dictionary_.helper_build_chunk(
+                    //     {"current_start", "auto_walk", "test"},
+                    //     {{"unit", "energy_unit_right_back"}}),
+
+                    // mtc_dictionary_.helper_build_chunk(
+                    //     {
+                    //         "current_start", extract ? "extra_right_back" : "store_right_back",
+                    //         extract ? "extra" : "store", "test"
+                    //         //  , "auto_walk"
+                    //     },
+                    //     {{"unit", "energy_unit_right_back"}}),
+
                     mtc_dictionary_.helper_build_chunk(
                         {
-                            "current_start", extract ? "extra_right_back" : "store_right_back",
-                            extract ? "extra" : "store", "test"
-                            //  , "auto_walk"
+                            "current_start",
+                            "extra_right_front",
+                            "extra",
+                            "tech_core_test",
+                            "tech_core_place",
+                            "push",
+                            // "rotate_P",
+                            // "rotate_Q",
+                            "tech_core_exit",
+                            "auto_walk",
                         },
-                        {{"unit", "energy_unit_right_back"}}),
-                    // mtc_dictionary_.helper_build_chunk(
-                    // {"current_start", "extra_left_front", "extra", "tech_core_test",
-                    //  "tech_core_place", "push", "rotate_P", "rotate_Q"},
-                    // {{"unit", "energy_unit_left_front"}},
-                    // {
-                    //     {"tech_core_test_pre_place", MTC::makePoseGoal(
-                    //                                      {.frame_id = "base_link",
-                    //                                       .x = point_result_.point.x(),
-                    //                                       .y = point_result_.point.y(),
-                    //                                       .z = point_result_.point.z(),
-                    //                                       .roll = initial_pose_.roll,
-                    //                                       .pitch = initial_pose_.pitch,
-                    //                                       .yaw = initial_pose_.yaw})},
-                    //     {"tech_core_rotate_P",
-                    //      MTC::makeRotationDirection({
-                    //          .frame_id = "base_link",
-                    //          .axis_point =
-                    //              {P_result_.point.x(), P_result_.point.y(),
-                    //               P_result_.point.z()},
-                    //          .axis_direction =
-                    //              {P_result_.direction.x(), P_result_.direction.y(),
-                    //               P_result_.direction.z()},
+                        {{"unit", "energy_unit_right_front"}},
+                        {
+                            {"tech_core_test_pre_place", MTC::makePoseGoal(
+                                                             {.frame_id = "base_link",
+                                                              .x = point_result_.point.x(),
+                                                              .y = point_result_.point.y(),
+                                                              .z = point_result_.point.z(),
+                                                              .roll = initial_pose_.roll,
+                                                              .pitch = initial_pose_.pitch,
+                                                              .yaw = initial_pose_.yaw})},
+                            {"tech_core_rotate_P",
+                             MTC::makeRotationDirection({
+                                 .frame_id = "base_link",
+                                 .axis_point =
+                                     {P_result_.point.x(), P_result_.point.y(),
+                                      P_result_.point.z()},
+                                 .axis_direction =
+                                     {P_result_.direction.x(), P_result_.direction.y(),
+                                      P_result_.direction.z()},
 
-                    //      })},
-                    //     {"tech_core_rotate_Q",
-                    //      MTC::makeRotationDirection({
-                    //          .frame_id = "base_link",
-                    //          .axis_point =
-                    //              {Q_result_.point.x(), Q_result_.point.y(),
-                    //               Q_result_.point.z()},
-                    //          .axis_direction =
-                    //              {Q_result_.direction.x(), Q_result_.direction.y(),
-                    //               Q_result_.direction.z()},
+                             })},
+                            {"tech_core_rotate_Q",
+                             MTC::makeRotationDirection({
+                                 .frame_id = "base_link",
+                                 .axis_point =
+                                     {Q_result_.point.x(), Q_result_.point.y(),
+                                      Q_result_.point.z()},
+                                 .axis_direction =
+                                     {Q_result_.direction.x(), Q_result_.direction.y(),
+                                      Q_result_.direction.z()},
 
-                    //      })},
-                    // }),
+                             })},
+                        }),
                     plan_from_preview_ ? preview_.scene()
                                        : planning_scene::PlanningSceneConstPtr{});
             }

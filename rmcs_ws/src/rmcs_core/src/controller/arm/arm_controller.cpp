@@ -19,6 +19,7 @@
 #include <optional>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
+#include <rmcs_utility/tick_timer.hpp>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -83,6 +84,10 @@ public:
         register_input("/arm/image_pitch/motor/angle", image_pitch_theta_, NAN);
         register_output("/arm/image_pitch/target_theta", image_pitch_target_theta_, NAN);
         register_output("/arm/custom_big_yaw", custom_big_yaw_output_, 0.0);
+
+        register_input("/auto_mine/pillar_pose", pillar_pose_);
+
+        log_dog_.reset(1000);
 
         // Compose every recipe once without runtime targets so unknown blocks and unbound
         // objects fail at load, not in update().
@@ -149,7 +154,17 @@ public:
         arm_control();
         gripper_control();
         image_pitch_control();
-
+        if (log_dog_.tick()) {
+            if (pillar_pose_.ready()) {
+                const auto& [x, y, z, yaw, pitch, roll] = *pillar_pose_;
+                RCLCPP_INFO(
+                    this->get_logger(), "pillar_pose: %f ,%f ,%f ,%f ,%f ,%f", x, y, z, yaw, pitch,
+                    roll);
+            } else {
+                RCLCPP_WARN(this->get_logger(), "pillar_pose not ready");
+            }
+            log_dog_.reset(1000);
+        }
         last_switch_left_ = switch_left;
         last_switch_right_ = switch_right;
         last_rotary_knob_switch_ = knob;
@@ -922,6 +937,9 @@ private:
     InputInterface<std::array<uint8_t, 30>> custom_data_;
     OutputInterface<double> custom_big_yaw_output_;
     filter::LowPassFilter<6> custom_joint_filter_;
+
+    InputInterface<std::array<double, 6>> pillar_pose_;
+    rmcs_utility::TickTimer log_dog_;
 };
 
 } // namespace rmcs_core::controller::arm
