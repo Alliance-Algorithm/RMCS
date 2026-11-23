@@ -1,5 +1,8 @@
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <limits>
+#include <stdexcept>
 
 #include <rclcpp/node.hpp>
 #include <rmcs_description/tf_description.hpp>
@@ -42,6 +45,18 @@ public:
         register_output("/gimbal/yaw/control_angle_error", yaw_angle_error_, nan_);
         register_output("/gimbal/pitch/control_angle_error", pitch_angle_error_, nan_);
 
+        if (has_parameter("yaw_manual_velocity_ff_scale")) {
+            yaw_manual_velocity_ff_scale_ = get_parameter("yaw_manual_velocity_ff_scale").as_double();
+            yaw_manual_velocity_ff_limit_ =
+                get_parameter_or<double>("yaw_manual_velocity_ff_limit", .5);
+            if (!std::isfinite(yaw_manual_velocity_ff_scale_) || yaw_manual_velocity_ff_scale_ < 0.
+                || yaw_manual_velocity_ff_scale_ > 1.
+                || !std::isfinite(yaw_manual_velocity_ff_limit_) || yaw_manual_velocity_ff_limit_ <= 0.)
+                throw std::invalid_argument("Invalid manual Yaw velocity feedforward");
+            register_input("/predefined/update_rate", update_rate_);
+            register_output("/gimbal/yaw/manual_reference_velocity_ff", yaw_manual_velocity_ff_, 0.);
+        }
+
         if (has_parameter("yaw_upper_limit"))
             two_axis_gimbal_solver.enable_yaw_limit(
                 *this, get_parameter("yaw_upper_limit").as_double(),
@@ -49,6 +64,8 @@ public:
     }
 
     void update() override {
+        if (yaw_manual_velocity_ff_.active())
+            *yaw_manual_velocity_ff_ = 0.;
         auto angle_error = calculate_angle_error();
         *yaw_angle_error_ = angle_error.yaw_angle_error;
         *pitch_angle_error_ = angle_error.pitch_angle_error;
@@ -98,8 +115,16 @@ public:
         double pitch_shift =
             -joystick_sensitivity * joystick_left_->x() + mouse_sensitivity * mouse_velocity_->x();
 
-        return two_axis_gimbal_solver.update(
+        auto error = two_axis_gimbal_solver.update(
             TwoAxisGimbalSolver::SetControlShift(yaw_shift, pitch_shift));
+        if (yaw_manual_velocity_ff_.active()
+            && std::isfinite(error.yaw_angle_error) && std::isfinite(yaw_shift)
+            && std::isfinite(*update_rate_) && *update_rate_ > 0.) {
+            *yaw_manual_velocity_ff_ = std::clamp(
+                yaw_shift * *update_rate_ * yaw_manual_velocity_ff_scale_,
+                -yaw_manual_velocity_ff_limit_, yaw_manual_velocity_ff_limit_);
+        }
+        return error;
     }
 
 private:
@@ -119,7 +144,9 @@ private:
 
     TwoAxisGimbalSolver two_axis_gimbal_solver;
 
-    OutputInterface<double> yaw_angle_error_, pitch_angle_error_;
+    InputInterface<double> update_rate_;
+    OutputInterface<double> yaw_angle_error_, pitch_angle_error_, yaw_manual_velocity_ff_;
+    double yaw_manual_velocity_ff_scale_ = 0., yaw_manual_velocity_ff_limit_ = .5;
 };
 
 } // namespace rmcs_core::controller::gimbal

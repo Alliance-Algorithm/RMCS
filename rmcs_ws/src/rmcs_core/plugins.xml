@@ -35,6 +35,7 @@
   <class type="rmcs_core::controller::gimbal::EccentricDualYaw" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::PitchGravityFeedforward" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::YawFrictionFeedforward" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::shooting::FrictionWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::HeroFrictionWheelController" base_class_type="rmcs_executor::Component" />
