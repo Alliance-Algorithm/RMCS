@@ -15,15 +15,14 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
       - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
-      # 机械端无发射机构，以下组件停用。
-      # - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
-      # - rmcs_core::controller::shooting::HeatController -> heat_controller
-      # - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
-      # - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
-      # - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
-      # - rmcs::AutoAimComponent -> auto_aim_component
-      # - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
 
 wheel_leg:
   ros__parameters:
@@ -63,7 +62,6 @@ yaw_velocity_pid_controller:
 
 yaw_friction_ff:
   ros__parameters:
-    # 2026-11-20 无发射台架独立验证模型，前馈力矩换算到当前驱动单位。
     yaw_coulomb_ff: 1.900073586214
     yaw_static_friction_ff: 2.154345703125
     yaw_viscous_ff: 0.268394277055
@@ -99,95 +97,96 @@ pitch_gravity_ff:
     pitch_gravity_ff_gain: 2.6033057851239674
     pitch_gravity_ff_phase: 0.75
 
-# friction_wheel_controller:
-#   ros__parameters:
-#     friction_wheels:
-#       - /gimbal/left_friction
-#       - /gimbal/right_friction
-#     friction_velocities:
-#       - 660.0
-#       - 660.0
-#     friction_soft_start_stop_time: 1.0
+friction_wheel_controller:
+   ros__parameters:
+     friction_wheels:
+       - /gimbal/left_friction
+       - /gimbal/right_friction
+     friction_velocities:
+       - 600.0
+       - 600.0
+     friction_soft_start_stop_time: 1.0
 
-# heat_controller:
-#   ros__parameters:
-#     heat_per_shot: 10000
-#     reserved_heat: 10000
+heat_controller:
+   ros__parameters:
+     heat_per_shot: 10000
+     reserved_heat: 10000
 
-# bullet_feeder_controller:
-#   ros__parameters:
-#     bullets_per_feeder_turn: 8.0
-#     shot_frequency: 20.0
-#     safe_shot_frequency: 10.0
-#     eject_frequency: 10.0
-#     eject_time: 0.05
-#     deep_eject_frequency: 5.0
-#     deep_eject_time: 0.2
-#     single_shot_max_stop_delay: 2.0
+bullet_feeder_controller:
+   ros__parameters:
+     bullets_per_feeder_turn: 8.0
+     shot_frequency: 20.0
+     safe_shot_frequency: 10.0
+     eject_frequency: 10.0
+     eject_time: 0.05
+     deep_eject_frequency: 5.0
+     deep_eject_time: 0.2
+     single_shot_max_stop_delay: 2.0
 
-# left_friction_velocity_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/left_friction/velocity
-#     setpoint: /gimbal/left_friction/control_velocity
-#     control: /gimbal/left_friction/control_torque
-#     kp: 0.003436926
-#     ki: 0.0
-#     kd: 0.009373434
+left_friction_velocity_pid_controller:
+   ros__parameters:
+     measurement: /gimbal/left_friction/velocity
+     setpoint: /gimbal/left_friction/control_velocity
+     control: /gimbal/left_friction/control_torque
+     kp: 0.003436926
+     ki: 0.0
+     kd: 0.009373434
 
-# right_friction_velocity_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/right_friction/velocity
-#     setpoint: /gimbal/right_friction/control_velocity
-#     control: /gimbal/right_friction/control_torque
-#     kp: 0.003436926
-#     ki: 0.0
-#     kd: 0.009373434
+right_friction_velocity_pid_controller:
+   ros__parameters:
+     measurement: /gimbal/right_friction/velocity
+     setpoint: /gimbal/right_friction/control_velocity
+     control: /gimbal/right_friction/control_torque
+     kp: 0.003436926
+     ki: 0.0
+     kd: 0.009373434
 
-# bullet_feeder_velocity_pid_controller:
-#   ros__parameters:
-#     measurement: /gimbal/bullet_feeder/velocity
-#     setpoint: /gimbal/bullet_feeder/control_velocity
-#     control: /gimbal/bullet_feeder/control_torque
-#     kp: 1.583
-#     ki: 0.0
-#     kd: 0.0
+bullet_feeder_velocity_pid_controller:
+   ros__parameters:
+     measurement: /gimbal/bullet_feeder/velocity
+     setpoint: /gimbal/bullet_feeder/control_velocity
+     control: /gimbal/bullet_feeder/control_torque
+     kp: 1.583
+     ki: 0.0
+     kd: 0.0
 
-# auto_aim_component:
-#   ros__parameters:
-#     dangerous_fallback: ''
-#     manual_shoot: true
-#     enable_rune: true
-#     track_ids:
-#       - FULL
-#     # From the yaw/pitch-axis intersection, in metres: forward, left, up.
-#     camera_translation: [0.07595, 0.0, 0.04612]
-#     fire_control:
-#       bullet_speed: 23.0
-#       shoot_delay: 0.0 # Command-to-muzzle seconds; pending measurement.
-#       offset_yaw: 0.0
-#       offset_pitch: 0.0
-#       attack_window: 80.0
-#       degraded_angle_speed: 12.0
-#       window_redundancy: 0.8
-#       window_hysteresis: 0.2
-#       attack_preaim: false
-#       yaw_tolerance: 0.05 # Metres; tighter than deformable.
-#       pitch_tolerance: 0.03 # Metres.
-#       rune_idle_duration: 0.4
-#       rune_shoot_duration: 0.2
+auto_aim_component:
+   ros__parameters:
+     dangerous_fallback: ''
+     manual_shoot: false
+     enable_rune: false
+     default_attack_rune: false
+     track_ids:
+       - FULL
+     # From the yaw/pitch-axis intersection, in metres: forward, left, up.
+     camera_translation: [0.07595, 0.0, 0.04612]
+     fire_control:
+       bullet_speed: 22.5
+       shoot_delay: 0.05 # Command-to-muzzle seconds; pending measurement.
+       offset_yaw: -0.3
+       offset_pitch: -1.0
+       attack_window: 80.0
+       degraded_angle_speed: 12.0
+       window_redundancy: 0.8
+       window_hysteresis: 0.2
+       attack_preaim: false
+       yaw_tolerance: 0.14 # Metres; tighter than deformable.
+       pitch_tolerance: 0.08 # Metres.
+       rune_idle_duration: 0.4
+       rune_shoot_duration: 0.2
 
-# auto_aim_capturer:
-#   ros__parameters:
-#     camera_name: ''
-#     exposure_us: 4000.0
-#     gain: 8.0
-#     framerate: 120.0
-#     invert_image: false
-#     rls_tau_sec: 10.0
-#     use_hardware_sync: false
-#     exposure_signal_topic: /gimbal/auto_aim/exposure_signal
-#     imu_snapshot_topic: /gimbal/auto_aim/imu_snapshot
-#     delay_ms: 6.5 # Same as deformable; used only by software fallback.
+auto_aim_capturer:
+   ros__parameters:
+     camera_name: ''
+     exposure_us: 1500.0
+     gain: 4.0
+     framerate: 120.0
+     invert_image: true
+     rls_tau_sec: 10.0
+     use_hardware_sync: false
+     exposure_signal_topic: /gimbal/auto_aim/exposure_signal
+     imu_snapshot_topic: /gimbal/auto_aim/imu_snapshot
+     delay_ms: 6.5 # Same as deformable; used only by software fallback.
 
 wheel_leg_mirror:
   ros__parameters:
@@ -225,10 +224,10 @@ wheel_leg_mirror:
       remote: {left: /remote/joystick/left, right: /remote/joystick/right,
         switch_left: /remote/switch/left, switch_right: /remote/switch/right,
         knob: /remote/rotary_knob, keyboard: /remote/keyboard}
-      # gimbal: {left_friction: /gimbal/left_friction/velocity, right_friction: /gimbal/right_friction/velocity,
-      #   bullet_feeder: /gimbal/bullet_feeder/velocity}
-      # shooting: {friction_ready: /gimbal/friction_ready, friction_jammed: /gimbal/friction_jammed,
-      #   bullet_fired: /gimbal/bullet_fired}
+      gimbal: {left_friction: /gimbal/left_friction/velocity, right_friction: /gimbal/right_friction/velocity,
+         bullet_feeder: /gimbal/bullet_feeder/velocity}
+      shooting: {friction_ready: /gimbal/friction_ready, friction_jammed: /gimbal/friction_jammed,
+         bullet_fired: /gimbal/bullet_fired}
       power: {supercap_enabled: /chassis/supercap/enabled}
       drives: {left_hip_joint: /wheel_leg/left_hip_joint/status, left_knee_joint: /wheel_leg/left_knee_joint/status,
         right_hip_joint: /wheel_leg/right_hip_joint/status, right_knee_joint: /wheel_leg/right_knee_joint/status}
@@ -244,10 +243,11 @@ value_broadcaster:
       - /gimbal/yaw/velocity
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
-      # - /gimbal/left_friction/velocity
-      # - /gimbal/right_friction/velocity
-      # - /gimbal/bullet_feeder/velocity
-      # - /gimbal/bullet_feeder/control_velocity
+      - /gimbal/pitch/control_torque
+      - /gimbal/left_friction/velocity
+      - /gimbal/right_friction/velocity
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
       - /chassis/voltage
 
 value_collector:
@@ -300,19 +300,19 @@ value_collector:
       - /gimbal/pitch/control_torque
       - /gimbal/pitch/torque
       - /gimbal/pitch/torque_ff
-      # - /gimbal/left_friction/velocity
-      # - /gimbal/left_friction/control_velocity
-      # - /gimbal/left_friction/torque
-      # - /gimbal/left_friction/control_torque
-      # - /gimbal/right_friction/velocity
-      # - /gimbal/right_friction/control_velocity
-      # - /gimbal/right_friction/torque
-      # - /gimbal/right_friction/control_torque
-      # - /gimbal/bullet_feeder/angle
-      # - /gimbal/bullet_feeder/velocity
-      # - /gimbal/bullet_feeder/control_velocity
-      # - /gimbal/bullet_feeder/torque
-      # - /gimbal/bullet_feeder/control_torque
+      - /gimbal/left_friction/velocity
+      - /gimbal/left_friction/control_velocity
+      - /gimbal/left_friction/torque
+      - /gimbal/left_friction/control_torque
+      - /gimbal/right_friction/velocity
+      - /gimbal/right_friction/control_velocity
+      - /gimbal/right_friction/torque
+      - /gimbal/right_friction/control_torque
+      - /gimbal/bullet_feeder/angle
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
+      - /gimbal/bullet_feeder/torque
+      - /gimbal/bullet_feeder/control_torque
       - /chassis/voltage
     write_interval: 1
     flush_interval: 1000
