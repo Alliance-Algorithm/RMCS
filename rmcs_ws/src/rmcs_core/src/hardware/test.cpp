@@ -86,9 +86,10 @@ private:
                   {heavy, heavy_command, "/chassis/steering/right_back"},
                   {heavy, heavy_command, "/chassis/steering/right_front"})
             , dm_(heavy, heavy_command, "/gimbal/big_yaw")
+            , lk_(heavy, heavy_command, "/gimbal/lk")
             , pid_controller_(
                   {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0},
-                  {0.3, 0.0, 0.0}) {
+                  {0.3, 0.0, 0.0}, {0.3, 0.0, 0.0}) {
 
             test_motor_[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
@@ -103,6 +104,7 @@ private:
                 device::DjiMotorConfig{device::DjiMotorType::M3508}.reverse().set_reduction_ratio(
                     27.));
             dm_.configure(device::DMMotorConfig{device::DMMotorType::DM8009}.reverse());
+            lk_.configure(device::LKMotorConfig{device::LKMotorType::MG5010E_i10V3}.reverse());
 
             heavy.register_output("yaw_imu_velocity", yaw_imu_velocity, NAN);
             heavy.register_output("yaw_imu_angle", yaw_imu_angle, NAN);
@@ -120,6 +122,7 @@ private:
             heavy.register_output(
                 "/chassis/steering/right_front/control_torque", control_torque_[3], NAN);
             heavy.register_output("/gimbal/big_yaw/control_torque", control_torque_dm_, NAN);
+            heavy.register_output("/gimbal/lk/control_torque", control_torque_lk_, NAN);
 
             motor_watchdog_.reset(1000);
 
@@ -167,6 +170,11 @@ private:
                                        .can_id = 0x003,
                                        .can_data = dm_.generate_torque_command().as_bytes(),
                                    });
+            tx.can_transmit(
+                Spec::kCans.kCan1, {
+                                       .can_id = 0x141,
+                                       .can_data = lk_.generate_torque_command().as_bytes(),
+                                   });
         }
 
     private:
@@ -192,6 +200,8 @@ private:
                     *control_torque_[3] =
                         pid_controller_[3].update(target - test_motor_[3].get_velocity());
                     *control_torque_dm_ = pid_controller_[4].update(target - dm_.get_velocity());
+                    *control_torque_lk_ =
+                        pid_controller_[4].update(20 * target - lk_.get_velocity());
                 } else if (dr16_.switch_right() == rmcs_msgs::Switch::UP) {
                     double target = 6.0;
                     *control_torque_[0] =
@@ -203,6 +213,8 @@ private:
                     *control_torque_[3] =
                         pid_controller_[3].update(target - test_motor_[3].get_velocity());
                     *control_torque_dm_ = pid_controller_[4].update(target - dm_.get_velocity());
+                    *control_torque_lk_ =
+                        pid_controller_[5].update(20 * target - lk_.get_velocity());
                 }
             }
 
@@ -210,16 +222,17 @@ private:
                 RCLCPP_INFO(
                     this->get_logger(),
                     "motor[0]_torque:%lf\nmotor[1]_torque:%lf\nmotor[2]_torque:%lf\nmotor[3]_"
-                    "torque:%lf\n\ndm_motor_torque:%lf",
+                    "torque:%lf\ndm_motor_torque:%lf\nlk_motor_torque:%lf",
                     test_motor_[0].get_torque(), test_motor_[1].get_torque(),
-                    test_motor_[2].get_torque(), test_motor_[3].get_torque(), dm_.get_torque());
+                    test_motor_[2].get_torque(), test_motor_[3].get_torque(), dm_.get_torque(),
+                    lk_.get_torque());
                 RCLCPP_INFO(
                     this->get_logger(),
                     "motor[0]_velocity:%lf\nmotor[1]_velocity:%lf\nmotor[2]_velocity:%lf\nmotor[3]_"
-                    "velocity:%lf\ndm_motor_velocity:%lf",
+                    "velocity:%lf\ndm_motor_velocity:%lf\nlk_motor_velocity:%lf",
                     test_motor_[0].get_velocity(), test_motor_[1].get_velocity(),
                     test_motor_[2].get_velocity(), test_motor_[3].get_velocity(),
-                    dm_.get_velocity());
+                    dm_.get_velocity(), lk_.get_velocity());
                 motor_watchdog_.reset(1000);
             }
         }
@@ -230,6 +243,7 @@ private:
             *control_torque_[2] = 0;
             *control_torque_[3] = 0;
             *control_torque_dm_ = 0;
+            *control_torque_lk_ = 0;
         }
 
         void update_imu() {
@@ -254,6 +268,7 @@ private:
             for (auto& motor : test_motor_)
                 motor.update();
             dm_.update();
+            lk_.update();
         }
 
     protected:
@@ -272,6 +287,11 @@ private:
                 case 0x203: test_motor_[2].store_status(data.can_data); break;
                 case 0x204: test_motor_[3].store_status(data.can_data); break;
                 case 0x023: dm_.store_status(data.can_data); break;
+                }
+            }
+            if (can == Spec::kCans.kCan1) {
+                switch (data.can_id) {
+                case 0x141: lk_.store_status(data.can_data); break;
                 }
             }
         }
@@ -296,8 +316,9 @@ private:
 
         device::DjiMotor test_motor_[4];
         device::DMMotor dm_;
+        device::LKMotor lk_;
         rmcs_utility::TickTimer motor_watchdog_;
-        controller::pid::PidCalculator pid_controller_[5];
+        controller::pid::PidCalculator pid_controller_[6];
 
         OutputInterface<double> yaw_imu_velocity;
         OutputInterface<double> yaw_imu_angle;
@@ -308,6 +329,7 @@ private:
 
         OutputInterface<double> control_torque_[4];
         OutputInterface<double> control_torque_dm_;
+        OutputInterface<double> control_torque_lk_;
 
         std::unique_ptr<librmcs::board::RmcsBoardLite> board_;
     } chassis_board_;
