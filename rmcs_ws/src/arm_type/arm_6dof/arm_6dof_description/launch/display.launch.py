@@ -12,8 +12,8 @@ import os
 
 def generate_launch_description():
    
-    package_name = 'arm_description'
-    urdf_file = 'urdf/arm_description.urdf'
+    package_name = 'arm_6dof_description'
+    urdf_file = 'urdf/arm_6dof_description.urdf'
     
     # 使用FindPackageShare获取包的路径
     urdf_path = PathJoinSubstitution([

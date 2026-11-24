@@ -1,3 +1,7 @@
+rmcs_bringup:
+  ros__parameters:
+    arm_type: "arm_6dof"
+
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0

@@ -1,3 +1,11 @@
+rmcs_bringup:
+  ros__parameters:
+    arm_type: "arm_6dof"
+    demo_launch_arguments:
+      rviz_scene_topic: "/arm_mtc_preview/planning_scene"
+      # Scene playback includes gripper delays and attach/detach boundaries.
+      rviz_trajectory_topic: "/arm_mtc_preview/disabled_trajectory"
+
 rmcs_executor:
   ros__parameters:
     update_rate: 1000.0

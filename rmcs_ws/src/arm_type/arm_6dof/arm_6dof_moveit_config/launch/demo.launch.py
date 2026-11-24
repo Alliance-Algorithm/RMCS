@@ -14,15 +14,15 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
     moveit_group_node_config = (
-        MoveItConfigsBuilder("arm_description", package_name="arm_moveit_config")
-        .robot_description(file_path="config/arm_description.urdf.xacro")
+        MoveItConfigsBuilder("arm_6dof_description", package_name="arm_6dof_moveit_config")
+        .robot_description(file_path="config/arm_6dof_description.urdf.xacro")
         .robot_description_kinematics(file_path="config/kinematics.yaml")
         .planning_pipelines(
             pipelines=["ompl", "chomp", "pilz_industrial_motion_planner"],
             default_planning_pipeline="ompl",
         )
         .joint_limits(file_path="config/joint_limits.yaml")
-        .robot_description_semantic(file_path="config/arm_description.srdf")
+        .robot_description_semantic(file_path="config/arm_6dof_description.srdf")
         .planning_scene_monitor(
             publish_robot_description=True, publish_robot_description_semantic=True
         )
@@ -37,16 +37,16 @@ def generate_launch_description():
             " ",
             PathJoinSubstitution(
                 [
-                    FindPackageShare("arm_moveit_config"),
+                    FindPackageShare("arm_6dof_moveit_config"),
                     "config",
-                    "arm_description.urdf.xacro",
+                    "arm_6dof_description.urdf.xacro",
                 ]
             ),
             " ",
             "initial_positions_file:=",
             PathJoinSubstitution(
                 [
-                    FindPackageShare("arm_moveit_config"),
+                    FindPackageShare("arm_6dof_moveit_config"),
                     "config",
                     "initial_positions.yaml",
                 ]
@@ -88,7 +88,7 @@ def generate_launch_description():
     )
     rviz_config = PathJoinSubstitution(
         [
-            FindPackageShare("arm_moveit_config"),
+            FindPackageShare("arm_6dof_moveit_config"),
             "config",
             LaunchConfiguration("rviz_config"),
         ]

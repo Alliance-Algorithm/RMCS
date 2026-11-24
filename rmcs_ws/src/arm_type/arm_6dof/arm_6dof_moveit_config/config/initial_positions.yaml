@@ -1,4 +1,4 @@
-# Default initial positions for arm_description's ros2_control fake system
+# Default initial positions for arm_6dof_description's ros2_control fake system
 
 initial_positions:
   joint_1: 0

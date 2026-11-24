@@ -1,9 +1,9 @@
 moveit_setup_assistant_config:
   urdf:
-    package: arm_description
-    relative_path: urdf/arm_description.urdf
+    package: arm_6dof_description
+    relative_path: urdf/arm_6dof_description.urdf
   srdf:
-    relative_path: config/arm_description.srdf
+    relative_path: config/arm_6dof_description.srdf
   package_settings:
     author_name: yqc
     author_email: 1400982623@qq.com

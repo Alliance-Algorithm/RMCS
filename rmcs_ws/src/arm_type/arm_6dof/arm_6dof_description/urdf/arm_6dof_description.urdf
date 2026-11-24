@@ -3,7 +3,7 @@
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
 <robot
-  name="arm_description">
+  name="arm_6dof_description">
   <link
     name="base_link">
     <visual>
@@ -12,7 +12,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/base_link.STL" />
+          filename="package://arm_6dof_description/meshes/base_link.STL" />
       </geometry>
       <material
         name="">
@@ -26,7 +26,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/base_link.STL" />
+          filename="package://arm_6dof_description/meshes/base_link.STL" />
       </geometry>
     </collision> -->
   </link>
@@ -52,7 +52,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_1.STL" />
+          filename="package://arm_6dof_description/meshes/link_1.STL" />
       </geometry>
       <material
         name="">
@@ -66,7 +66,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_1.STL" />
+          filename="package://arm_6dof_description/meshes/link_1.STL" />
       </geometry>
     </collision>
   </link>
@@ -112,7 +112,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_2.STL" />
+          filename="package://arm_6dof_description/meshes/link_2.STL" />
       </geometry>
       <material
         name="">
@@ -126,7 +126,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_2.STL" />
+          filename="package://arm_6dof_description/meshes/link_2.STL" />
       </geometry>
     </collision>  
   </link>
@@ -172,7 +172,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_3.STL" />
+          filename="package://arm_6dof_description/meshes/link_3.STL" />
       </geometry>
       <material
         name="">
@@ -186,7 +186,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_3.STL" />
+          filename="package://arm_6dof_description/meshes/link_3.STL" />
       </geometry>
     </collision>
   </link>
@@ -232,7 +232,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_4.STL" />
+          filename="package://arm_6dof_description/meshes/link_4.STL" />
       </geometry>
       <material
         name="">
@@ -240,15 +240,15 @@
           rgba="0.75294 0.75294 0.75294 1" />
       </material>
     </visual>
-    <collision>
+    <!-- <collision>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_4.STL" />
+          filename="package://arm_6dof_description/meshes/link_4.STL" />
       </geometry>
-    </collision>
+    </collision> -->
   </link>
   <joint
     name="joint_4"
@@ -292,7 +292,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_5.STL" />
+          filename="package://arm_6dof_description/meshes/link_5.STL" />
       </geometry>
       <material
         name="">
@@ -306,7 +306,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_5.STL" />
+          filename="package://arm_6dof_description/meshes/link_5.STL" />
       </geometry>
     </collision>
   </link>
@@ -352,7 +352,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_6.STL" />
+          filename="package://arm_6dof_description/meshes/link_6.STL" />
       </geometry>
       <material
         name="">
@@ -366,7 +366,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://arm_description/meshes/link_6.STL" />
+          filename="package://arm_6dof_description/meshes/link_6.STL" />
       </geometry>
     </collision>
   </link>
