@@ -49,6 +49,7 @@ public:
           } {
         register_input("/remote/switch/right", switch_right_);
         register_input("/remote/switch/left", switch_left_);
+        register_input("/chassis/lift/master_retracting", master_lift_retracting_, false);
 
         static const std::array<std::string, num_leg> master_lift_prefix{
             "/chassis/lift/master_left_front",
@@ -80,6 +81,8 @@ public:
     }
 
     void before_updating() override {
+        if (!master_lift_retracting_.ready())
+            master_lift_retracting_.make_and_bind_directly(std::array<bool, num_leg>{});
         for (auto& target_angle : master_lift_target_angle_)
             if (!target_angle.ready())
                 target_angle.make_and_bind_directly(NAN);
@@ -138,7 +141,8 @@ private:
 
         for (std::size_t i = 0; i < num_leg; ++i) {
             const double angle_error = *master_lift_target_angle_[i] - *master_lift_angle_[i];
-            const double target_vel = master_lift_pos_pid_[i].update(angle_error);
+            const double target_vel = master_lift_pos_pid_[i].update(
+                (*master_lift_retracting_)[i] ? angle_error * 0.3 : angle_error);
             const double vel_error = target_vel - *master_lift_velocity_[i];
 
             tau_pid(static_cast<Eigen::Index>(i)) = master_lift_vel_pid_[i].update(vel_error);
@@ -205,6 +209,7 @@ private:
 
     InputInterface<rmcs_msgs::Switch> switch_right_;
     InputInterface<rmcs_msgs::Switch> switch_left_;
+    InputInterface<std::array<bool, num_leg>> master_lift_retracting_;
 
     std::array<InputInterface<double>, num_leg> master_lift_angle_;
     std::array<InputInterface<double>, num_leg> master_lift_target_angle_;

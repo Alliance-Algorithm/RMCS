@@ -22,7 +22,8 @@ class RemoteControl {
 public:
     RemoteControl(rmcs_executor::Component& component, Dr16& dr16)
         : dr16_(dr16) {
-        component.register_input("/referee/image_transmission/vt13_frame", vt13_frame_input_);
+        component.register_input(
+            "/referee/image_transmission/vt13_frame", vt13_frame_input_, false);
 
         component.register_output(
             "/remote/joystick/right", joystick_right_output_, Eigen::Vector2d::Zero());
@@ -104,7 +105,8 @@ private:
     // ---- Mode-switch logic ----
 
     void publish_remote_outputs() {
-        if (dr16_.valid() || !vt13_.valid() || vt13_.mode_switch() == Vt13::ModeSwitch::kNormal) {
+        const bool dr16_valid = dr16_.valid();
+        if (dr16_valid) {
             *switch_right_output_ = dr16_.switch_right();
             *switch_left_output_ = dr16_.switch_left();
 
@@ -116,7 +118,7 @@ private:
 
             *mouse_output_ = dr16_.mouse();
             *keyboard_output_ = dr16_.keyboard();
-        } else if (vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
+        } else if (vt13_.valid() && vt13_.mode_switch() == Vt13::ModeSwitch::kCine) {
             *switch_right_output_ = rmcs_msgs::Switch::DOWN;
             *switch_left_output_ = rmcs_msgs::Switch::DOWN;
 
@@ -128,7 +130,7 @@ private:
 
             *mouse_output_ = rmcs_msgs::Mouse::zero();
             *keyboard_output_ = rmcs_msgs::Keyboard::zero();
-        } else if (vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
+        } else if (vt13_.valid() && vt13_.mode_switch() == Vt13::ModeSwitch::kSport) {
             // Match the DR16 switch combination that downstream controllers use
             // for keyboard-driven operation.
             *switch_right_output_ = rmcs_msgs::Switch::UP;
@@ -142,10 +144,23 @@ private:
 
             *mouse_output_ = vt13_.mouse();
             *keyboard_output_ = vt13_.keyboard();
+        } else {
+            // Normal mode requires a live DR16. Never replay its last command after a timeout.
+            *switch_right_output_ = rmcs_msgs::Switch::UNKNOWN;
+            *switch_left_output_ = rmcs_msgs::Switch::UNKNOWN;
+
+            *joystick_right_output_ = Eigen::Vector2d::Zero();
+            *joystick_left_output_ = Eigen::Vector2d::Zero();
+            *mouse_velocity_output_ = Eigen::Vector2d::Zero();
+            *mouse_wheel_output_ = 0.0;
+
+            *mouse_output_ = rmcs_msgs::Mouse::zero();
+            *keyboard_output_ = rmcs_msgs::Keyboard::zero();
         }
 
-        *rotary_knob_output_ = dr16_.rotary_knob();
-        *rotary_knob_switch_output_ = dr16_.rotary_knob_switch();
+        *rotary_knob_output_ = dr16_valid ? dr16_.rotary_knob() : 0.0;
+        *rotary_knob_switch_output_ =
+            dr16_valid ? dr16_.rotary_knob_switch() : rmcs_msgs::Switch::UNKNOWN;
     }
 
     static double channel_to_double(int32_t value) {

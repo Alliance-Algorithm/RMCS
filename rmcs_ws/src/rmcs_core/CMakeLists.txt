@@ -44,4 +44,18 @@ pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 install(DIRECTORY src/controller/arm/obstacle/meshes
   DESTINATION share/${PROJECT_NAME})
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_remote_control test/test_remote_control.cpp)
+  target_include_directories(test_remote_control PRIVATE ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)
+  target_link_libraries(test_remote_control ${PROJECT_NAME})
+
+  ament_add_gtest(test_adjustable_chassis test/test_adjustable_chassis.cpp)
+  target_include_directories(test_adjustable_chassis PRIVATE ${PROJECT_SOURCE_DIR}/../rmcs_executor/src)
+  target_link_libraries(test_adjustable_chassis ${PROJECT_NAME})
+  target_compile_definitions(test_adjustable_chassis PRIVATE
+    ADJUSTABLE_CHASSIS_TEST_CONFIG="${PROJECT_SOURCE_DIR}/test/adjustable_chassis_test.yaml"
+    HEAVY_CHASSIS_CONFIG="${PROJECT_SOURCE_DIR}/../rmcs_bringup/config/adjustable_heavy.yaml")
+endif()
+
 ament_auto_package()

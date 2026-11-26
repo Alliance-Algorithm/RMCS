@@ -1,3 +1,9 @@
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+
+#include <rcl_interfaces/msg/integer_range.hpp>
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/parameter_event_handler.hpp>
 #include <rmcs_executor/component.hpp>
@@ -12,6 +18,18 @@ class ValueBroadcaster
 public:
     ValueBroadcaster()
         : Node{get_component_name()} {
+        rcl_interfaces::msg::IntegerRange update_range;
+        update_range.from_value = 1;
+        update_range.to_value = std::numeric_limits<std::int64_t>::max();
+        update_range.step = 1;
+
+        rcl_interfaces::msg::ParameterDescriptor descriptor;
+        descriptor.read_only = true;
+        descriptor.integer_range.push_back(update_range);
+        publish_every_n_updates_ = static_cast<std::uint64_t>(
+            declare_parameter<std::int64_t>("publish_every_n_updates", 1, descriptor));
+        register_input("/predefined/update_count", update_count_);
+
         declare_parameter<std::vector<std::string>>("forward_list", std::vector<std::string>{});
         parameter_subscriber_ = std::make_unique<rclcpp::ParameterEventHandler>(this);
         parameter_callback_ = parameter_subscriber_->add_parameter_callback(
@@ -35,6 +53,9 @@ public:
     }
 
     void update() override {
+        if (*update_count_ % publish_every_n_updates_ != 0)
+            return;
+
         for (auto& [name, unit] : forward_units_)
             unit->update();
     }
@@ -110,6 +131,8 @@ private:
     };
 
     std::map<std::string, std::unique_ptr<BasicForwarderUnit>> forward_units_;
+    std::uint64_t publish_every_n_updates_;
+    InputInterface<std::size_t> update_count_;
 
     std::unique_ptr<rclcpp::ParameterEventHandler> parameter_subscriber_;
     std::shared_ptr<rclcpp::ParameterCallbackHandle> parameter_callback_;

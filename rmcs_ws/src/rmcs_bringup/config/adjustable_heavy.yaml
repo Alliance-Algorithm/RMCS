@@ -4,20 +4,38 @@ rmcs_executor:
     components:
       - rmcs_core::hardware::AdjustableHeavy -> heavy
 
+      - rmcs_core::controller::chassis::AdjustableChassisController -> adjustable_chassis_controller
       - rmcs_core::controller::chassis::SteeringWheelController -> steering_wheel_controller
       - rmcs_core::controller::chassis::HeavyStabilizingController -> heavy_stabilizing_controller
-
-
+      - rmcs_core::broadcaster::ValueBroadcaster -> chassis_feedback_broadcaster
 heavy:
   ros__parameters:
     board_serial_chassis_board: ""
-    steering_left_front_zero_point: 0
-    steering_left_back_zero_point: 0
-    steering_right_back_zero_point: 0
-    steering_right_front_zero_point: 0
+    steering_left_front_zero_point: 3054
+    steering_left_back_zero_point: 428
+    steering_right_back_zero_point: 3739
+    steering_right_front_zero_point: 2387
+
+adjustable_chassis_controller:
+  ros__parameters:
+    # Arm with both switches down and the driving axes centered.
+    # Both middle extends the lifts. Left middle and right up retracts the front lifts.
+    # Both up also retracts the slave lifts. Left up and right middle also retracts the rear lifts.
+    lift:
+      enabled: true
+      # Master LF, LB, RB, RF, then slave L, R. Use 0.0 until the down direction is known.
+      down_directions: [-1.0, 1.0, -1.0, 1.0, 1.0, -1.0]
+      stall_torque: 1.8       # N*m, measured feedback threshold for each lift
+      stall_speed: 0.05       # shaft rad/s
+      stall_time: 0.15        # s of low speed and high torque
+      position_tolerance: 0.3  # shaft rad
+      front_retract_travel: 12.5  # shaft rad from the lower limit for both front and rear lifts
+      slave_retract_travel: 12.50  # shaft rad from the lower limit
 
 steering_wheel_controller:
   ros__parameters:
+    steering_angle_kp: 30.0
+    steering_velocity_kp: 0.15
     mess: 35.0
     moment_of_inertia: 2.0
     vehicle_radius: 0.3238
@@ -34,18 +52,72 @@ heavy_stabilizing_controller:
 
     master_pos_kp: 10.0
     master_pos_ki: 0.0
-    master_pos_kd: 0.0
-    master_pos_output_min: -10.0
-    master_pos_output_max: 10.0
-    master_vel_kp: 0.05
+    master_pos_kd: 0.05
+    master_pos_output_min: -5.0  # shaft rad/s
+    master_pos_output_max: 5.0   # shaft rad/s
+    master_vel_kp: 1.8
     master_vel_ki: 0.0
     master_vel_kd: 0.0
+    # Set both signed torque limits (N*m) before enabling the active-wheel lift.
+    master_vel_output_min: -8.0
+    master_vel_output_max: 8.0
 
-    slave_pos_kp: 10.0
+    slave_pos_kp: 25.0
     slave_pos_ki: 0.0
     slave_pos_kd: 0.0
-    slave_pos_output_min: -10.0
-    slave_pos_output_max: 10.0
-    slave_vel_kp: 0.05
+    slave_pos_output_min: -6.0  # shaft rad/s
+    slave_pos_output_max: 6.0   # shaft rad/s
+    slave_vel_kp: 1.0
     slave_vel_ki: 0.0
     slave_vel_kd: 0.0
+    slave_vel_output_min: -6.0  # N*m
+    slave_vel_output_max: 6.0   # N*m
+
+chassis_feedback_broadcaster:
+  ros__parameters:
+    publish_every_n_updates: 20  # 50 Hz at a 1000 Hz control rate.
+    forward_list:
+      - /chassis/steering/left_front/angle
+      - /chassis/steering/left_front/velocity
+      - /chassis/steering/left_front/torque
+      - /chassis/steering/left_back/angle
+      - /chassis/steering/left_back/velocity
+      - /chassis/steering/left_back/torque
+      - /chassis/steering/right_back/angle
+      - /chassis/steering/right_back/velocity
+      - /chassis/steering/right_back/torque
+      - /chassis/steering/right_front/angle
+      - /chassis/steering/right_front/velocity
+      - /chassis/steering/right_front/torque
+
+      - /chassis/wheel/left_front/angle
+      - /chassis/wheel/left_front/velocity
+      - /chassis/wheel/left_front/torque
+      - /chassis/wheel/left_back/angle
+      - /chassis/wheel/left_back/velocity
+      - /chassis/wheel/left_back/torque
+      - /chassis/wheel/right_back/angle
+      - /chassis/wheel/right_back/velocity
+      - /chassis/wheel/right_back/torque
+      - /chassis/wheel/right_front/angle
+      - /chassis/wheel/right_front/velocity
+      - /chassis/wheel/right_front/torque
+
+      - /chassis/lift/master_left_front/angle
+      - /chassis/lift/master_left_front/velocity
+      - /chassis/lift/master_left_front/torque
+      - /chassis/lift/master_left_back/angle
+      - /chassis/lift/master_left_back/velocity
+      - /chassis/lift/master_left_back/torque
+      - /chassis/lift/master_right_back/angle
+      - /chassis/lift/master_right_back/velocity
+      - /chassis/lift/master_right_back/torque
+      - /chassis/lift/master_right_front/angle
+      - /chassis/lift/master_right_front/velocity
+      - /chassis/lift/master_right_front/torque
+      - /chassis/lift/slave_left/angle
+      - /chassis/lift/slave_left/velocity
+      - /chassis/lift/slave_left/torque
+      - /chassis/lift/slave_right/angle
+      - /chassis/lift/slave_right/velocity
+      - /chassis/lift/slave_right/torque

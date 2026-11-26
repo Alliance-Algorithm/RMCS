@@ -4,6 +4,7 @@ import socket
 import selectors
 import os
 import subprocess
+import sys
 
 from colorama import Fore, Style
 
@@ -34,14 +35,14 @@ def create_process():
         SRC_DIR,
         "-follow",
         "Name *",
+        "-sshargs",
+        "-o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=5 -o ServerAliveCountMax=3",
     ]
-    pipe_r, pipe_w = os.pipe()
-    process = subprocess.Popen(
+    return subprocess.Popen(
         command,
-        stdout=pipe_w,
-        stderr=pipe_w,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
-    return process, pipe_r
 
 
 def create_server():
@@ -59,59 +60,76 @@ def create_server():
 def finish_connection(conn: socket):
     try:
         conn.sendall(b"f")
-    except:
+    except OSError:
         pass
     finally:
         conn.close()
 
 
 def main():
-    selector = selectors.DefaultSelector()
-
-    process, pipe_stdout = create_process()
-    selector.register(pipe_stdout, selectors.EVENT_READ, data=None)
-
-    server = create_server()
-    selector.register(server, selectors.EVENT_READ, data=None)
-
+    process = None
+    server = None
     clients = []
     ready = False
+    pending = b""
 
     try:
-        while True:
-            events = selector.select(timeout=1)
-            for key, _ in events:
-                if key.fileobj == server:
-                    conn, _ = server.accept()
-                    if ready:
-                        finish_connection(conn)
-                    else:
-                        clients.append(conn)
-                else:
-                    stdout = os.read(pipe_stdout, 1024)
-                    if stdout.startswith(SYNC_FLAG):
-                        ready = True
-                        stdout = COLORED_SYNC_FLAG + stdout[len(SYNC_FLAG) :]
+        server = create_server()
+        process = create_process()
+        with selectors.DefaultSelector() as selector, process.stdout as output:
+            selector.register(output, selectors.EVENT_READ)
+            selector.register(server, selectors.EVENT_READ)
+            while True:
+                events = selector.select()
+                # Consume Unison's output before answering concurrent waiters.
+                events.sort(key=lambda event: event[0].fileobj is server)
+                for key, _ in events:
+                    if key.fileobj is server:
+                        conn, _ = server.accept()
+                        if ready and process.poll() is None:
+                            finish_connection(conn)
+                        else:
+                            clients.append(conn)
+                        continue
+
+                    chunk = os.read(output.fileno(), 4096)
+                    if not chunk:
+                        sys.stdout.buffer.write(pending)
+                        sys.stdout.buffer.flush()
+                        status = process.wait()
+                        return status if status >= 0 else 128 - status
+
+                    *lines, pending = (pending + chunk).split(b"\n")
+                    for line in lines:
+                        if line.strip():
+                            ready = line.startswith(SYNC_FLAG)
+                        if line.startswith(SYNC_FLAG):
+                            line = COLORED_SYNC_FLAG + line[len(SYNC_FLAG) :]
+                        sys.stdout.buffer.write(line + b"\n")
+                    sys.stdout.buffer.flush()
+                    if ready and process.poll() is None:
                         for conn in clients:
                             finish_connection(conn)
-                        clients = []
-                    else:
-                        ready = False
-                    os.write(1, stdout)
-            if process.poll() is not None:
-                break
+                        clients.clear()
+    except OSError as error:
+        print(f"sync-remote: {error}", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
-        try:
-            process.wait()
-        except KeyboardInterrupt:
-            print("SIGINT sent twice, force quitting.")
-            process.kill()
+        return 130
     finally:
-        server.close()
-        selector.close()
-        if os.path.exists(SOCKET_PATH):
+        for conn in clients:
+            conn.close()
+        if server is not None:
+            server.close()
             os.unlink(SOCKET_PATH)
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

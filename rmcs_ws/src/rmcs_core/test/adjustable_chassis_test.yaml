@@ -1,0 +1,32 @@
+# Synthetic feedback/geometry for tests only; never used to connect to a board.
+adjustable_chassis_controller:
+  ros__parameters:
+    front_master_retracted_angle: 0.0
+    front_master_extended_angle: 2.0
+    front_master_lead: 0.1
+    back_master_retracted_angle: 0.0
+    back_master_extended_angle: 2.5
+    back_master_lead: 0.2
+    slave_retracted_angle: 0.0
+    slave_extended_angle: 1.5
+    slave_lead: 0.05
+    step_height: 0.05
+    hold_ticks: 3
+
+uncalibrated_chassis_controller:
+  ros__parameters:
+    speed_limit: 0.5
+    climb_speed_limit: 0.15
+    joystick_deadzone: 0.05
+    power_limit: 70.0
+    front_master_retracted_angle: 0.0
+    front_master_extended_angle: 0.0
+    front_master_lead: 0.0
+    back_master_retracted_angle: 0.0
+    back_master_extended_angle: 0.0
+    back_master_lead: 0.0
+    slave_retracted_angle: 0.0
+    slave_extended_angle: 0.0
+    slave_lead: 0.0
+    step_height: 0.0
+    hold_ticks: 3

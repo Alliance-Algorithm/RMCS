@@ -1,6 +1,5 @@
 //  仿照/workspaces/RMCS/rmcs_ws/src/rmcs_core/src/controller/climber/climber_controller.hpp，应当可以被其他组件持有调用
-//  前面两个master_lift_motor为前抬升电机
-//  后面两个masterlift为后抬升电机
+//  master下标0、3为前抬升电机，1、2为后抬升电机（LF、LB、RB、RF）
 //  中间两个slavelift为辅助抬升电机
 //  默认阶段IDLE，清空输出
 //  第一阶段LIFT当进入爬台阶模式，所有电机都伸出，让机体达到最高软件限位
@@ -43,21 +42,21 @@ public:
 
     /// Soft limits of one leg group, output-shaft angle [rad].
     struct Group {
-        double retracted_angle = 0.0; // lower soft limit (leg fully retracted)
-        double extended_angle = 0.0;  // upper soft limit (leg fully extended, body highest)
-        double lead = 0.0;            // leg travel per output-shaft radian [m/rad], > 0
+        double retracted_angle = 0.0;  // lower soft limit (leg fully retracted)
+        double extended_angle = 0.0;   // upper soft limit (leg fully extended, body highest)
+        double lead = 0.0;             // leg travel per output-shaft radian [m/rad], > 0
     };
 
     struct Config {
-        Group front_master; // master [0] LF, [3] RF
-        Group back_master;  // master [1] LB, [2] RB
-        Group slave;        // slave [0] left, [1] right
+        Group front_master;            // master [0] LF, [3] RF
+        Group back_master;             // master [1] LB, [2] RB
+        Group slave;                   // slave [0] left, [1] right
         double step_height = 0.0;      // [m]
         unsigned int hold_ticks = 500; // HOLD duration before IDLE (update ticks)
     };
 
     struct Input {
-        bool advance = false; // manual "next stage" flag, rising-edge triggered
+        bool advance = false;          // manual "next stage" flag, rising-edge triggered
     };
 
     /// NaN = no command. Order matches /chassis/lift/master_{lf,lb,rb,rf} and slave_{left,right}.
@@ -85,13 +84,27 @@ public:
         const bool advance = input.advance && !last_advance_;
         last_advance_ = input.advance;
 
+        // Transition first, then generate targets for the new state in this same update.
+        if (advance) {
+            switch (state_) {
+            case State::LIFT: enter_state(State::APPROACHING); break;
+            case State::APPROACHING: enter_state(State::PRE_CLIMBING); break;
+            case State::PRE_CLIMBING: enter_state(State::SLAVE_COLLAPSE); break;
+            case State::SLAVE_COLLAPSE: enter_state(State::MASTER_COLLAPSE); break;
+            case State::MASTER_COLLAPSE: enter_state(State::HOLD); break;
+            default: break;
+            }
+        }
+
         switch (state_) {
         case State::IDLE: return {};
-        case State::LIFT: return update_lift(advance);
-        case State::APPROACHING: return update_approaching(advance);
-        case State::PRE_CLIMBING: return update_pre_climbing(advance);
-        case State::SLAVE_COLLAPSE: return update_slave_collapse(advance);
-        case State::MASTER_COLLAPSE: return update_master_collapse(advance);
+        case State::LIFT: return make_output(false, false, false);
+        case State::APPROACHING:
+            // TODO: replace manual advance with a step-proximity sensor.
+            return make_output(false, false, false);
+        case State::PRE_CLIMBING: return make_output(true, false, false);
+        case State::SLAVE_COLLAPSE: return make_output(true, true, false);
+        case State::MASTER_COLLAPSE: return make_output(true, true, true);
         case State::HOLD: return update_hold();
         }
         return {};
@@ -146,42 +159,6 @@ private:
         output.master_target_angle = {front, back, back, front}; // LF, LB, RB, RF
         output.slave_target_angle = {slave, slave};
         return output;
-    }
-
-    // Stage 1: extend everything to the upper soft limit.
-    Output update_lift(bool advance) {
-        if (advance)
-            enter_state(State::APPROACHING);
-        return make_output(false, false, false);
-    }
-
-    // Stage 2: drive up to the step at full height.
-    Output update_approaching(bool advance) {
-        // TODO: replace with step-proximity sensor
-        if (advance)
-            enter_state(State::PRE_CLIMBING);
-        return make_output(false, false, false);
-    }
-
-    // Stage 3: lift the front wheels onto the step.
-    Output update_pre_climbing(bool advance) {
-        if (advance)
-            enter_state(State::SLAVE_COLLAPSE);
-        return make_output(true, false, false);
-    }
-
-    // Stage 4: lift the middle (slave) wheels onto the step.
-    Output update_slave_collapse(bool advance) {
-        if (advance)
-            enter_state(State::MASTER_COLLAPSE);
-        return make_output(true, true, false);
-    }
-
-    // Stage 5: lift the rear wheels onto the step.
-    Output update_master_collapse(bool advance) {
-        if (advance)
-            enter_state(State::HOLD);
-        return make_output(true, true, true);
     }
 
     // Hold the final angles for hold_ticks updates, then clear outputs.

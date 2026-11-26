@@ -7,6 +7,9 @@
 #include "hardware/device/lk_motor.hpp"
 #include "hardware/device/remote_control.hpp"
 #include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -42,7 +45,7 @@ public:
         , chassis_board_(
               *this, *heavy_command_, get_parameter("board_serial_chassis_board").as_string()) {
         calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+            "/calibrate", rclcpp::QoS{1}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 calibrate_subscription_callback(std::move(msg));
             });
 
@@ -86,6 +89,12 @@ private:
         , rclcpp::Node {
     public:
         friend class AdjustableHeavy;
+        static constexpr std::array master_lift_prefixes{
+            "/chassis/lift/master_left_front", "/chassis/lift/master_left_back",
+            "/chassis/lift/master_right_back", "/chassis/lift/master_right_front"};
+        static constexpr std::array slave_lift_prefixes{
+            "/chassis/lift/slave_left", "/chassis/lift/slave_right"};
+
         explicit ChassisBoard(
             AdjustableHeavy& heavy, [[maybe_unused]] HeavyCommand& heavy_command,
             const std::string& serial_filter)
@@ -102,13 +111,13 @@ private:
                   {heavy, heavy_command, "/chassis/wheel/right_back"},
                   {heavy, heavy_command, "/chassis/wheel/right_front"})
             , master_lift_motor_(
-                  {heavy, heavy_command, "/chassis/lift/master_left_front"},
-                  {heavy, heavy_command, "/chassis/lift/master_left_back"},
-                  {heavy, heavy_command, "/chassis/lift/master_right_back"},
-                  {heavy, heavy_command, "/chassis/lift/master_right_front"})
+                  {heavy, heavy_command, master_lift_prefixes[0]},
+                  {heavy, heavy_command, master_lift_prefixes[1]},
+                  {heavy, heavy_command, master_lift_prefixes[2]},
+                  {heavy, heavy_command, master_lift_prefixes[3]})
             , slave_lift_motor_(
-                  {heavy, heavy_command, "/chassis/lift/slave_left"},
-                  {heavy, heavy_command, "/chassis/lift/slave_right"}) {
+                  {heavy, heavy_command, slave_lift_prefixes[0]},
+                  {heavy, heavy_command, slave_lift_prefixes[1]}) {
 
             steering_motor_[0].configure(
                 device::DjiMotorConfig{device::DjiMotorType::GM6020}
@@ -179,6 +188,15 @@ private:
                     .reverse()
                     .enable_multi_turn_angle()
                     .set_reduction_ratio(27.));
+
+            for (std::size_t i = 0; i < master_lift_prefixes.size(); ++i)
+                heavy.register_output(
+                    std::string{master_lift_prefixes[i]} + "/feedback_valid",
+                    master_lift_feedback_valid_[i], false);
+            for (std::size_t i = 0; i < slave_lift_prefixes.size(); ++i)
+                heavy.register_output(
+                    std::string{slave_lift_prefixes[i]} + "/feedback_valid",
+                    slave_lift_feedback_valid_[i], false);
 
             heavy.register_output("/chassis/yaw_imu_velocity", yaw_imu_velocity_, NAN);
             heavy.register_output("/chassis/yaw_imu_angle", yaw_imu_angle_, NAN);
@@ -255,10 +273,18 @@ private:
                 motor.update();
             for (auto& motor : wheel_motor_)
                 motor.update();
-            for (auto& motor : master_lift_motor_)
-                motor.update();
-            for (auto& motor : slave_lift_motor_)
-                motor.update();
+            for (std::size_t i = 0; i < master_lift_prefixes.size(); ++i) {
+                const auto received = master_lift_received_at_[i].load(std::memory_order_acquire);
+                master_lift_motor_[i].update();
+                *master_lift_feedback_valid_[i] = received != LiftClock::time_point{}
+                    && LiftClock::now() - received <= std::chrono::milliseconds{100};
+            }
+            for (std::size_t i = 0; i < slave_lift_prefixes.size(); ++i) {
+                const auto received = slave_lift_received_at_[i].load(std::memory_order_acquire);
+                slave_lift_motor_[i].update();
+                *slave_lift_feedback_valid_[i] = received != LiftClock::time_point{}
+                    && LiftClock::now() - received <= std::chrono::milliseconds{100};
+            }
         }
 
     protected:
@@ -277,8 +303,21 @@ private:
                 switch (data.can_id) {
                 case 0x205: steering_motor_[i].store_status(data.can_data); break;
                 case 0x201: wheel_motor_[i].store_status(data.can_data); break;
-                case 0x202: master_lift_motor_[i].store_status(data.can_data); break;
-                case 0x204: slave_lift_motor_[i >> 1].store_status(data.can_data); break;
+                case 0x202:
+                    if (data.can_data.size() == sizeof(device::CanPacket8)) {
+                        master_lift_motor_[i].store_status(data.can_data);
+                        master_lift_received_at_[i].store(
+                            LiftClock::now(), std::memory_order_release);
+                    }
+                    break;
+                case 0x204:
+                    if (data.can_data.size() == sizeof(device::CanPacket8)) {
+                        const auto slave = i >> 1;
+                        slave_lift_motor_[slave].store_status(data.can_data);
+                        slave_lift_received_at_[slave].store(
+                            LiftClock::now(), std::memory_order_release);
+                    }
+                    break;
                 default: break;
                 }
             }
@@ -298,6 +337,14 @@ private:
         }
 
     private:
+        using LiftClock = std::chrono::steady_clock;
+        std::array<std::atomic<LiftClock::time_point>, master_lift_prefixes.size()>
+            master_lift_received_at_{};
+        std::array<OutputInterface<bool>, master_lift_prefixes.size()> master_lift_feedback_valid_;
+        std::array<std::atomic<LiftClock::time_point>, slave_lift_prefixes.size()>
+            slave_lift_received_at_{};
+        std::array<OutputInterface<bool>, slave_lift_prefixes.size()> slave_lift_feedback_valid_;
+
         device::Dr16 dr16_;
 
         device::Bmi088 bmi088_;

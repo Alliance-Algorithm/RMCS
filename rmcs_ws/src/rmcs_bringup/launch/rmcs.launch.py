@@ -7,12 +7,12 @@ from launch import (
     LaunchDescriptionEntity,
 )
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from moveit_configs_utils import MoveItConfigsBuilder
 
 
 class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
@@ -43,6 +43,8 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
             )
         ]
         if robot_name in ("visual_mining_test", "lunar_rover_engineer", "climber_engineer"):
+            from moveit_configs_utils import MoveItConfigsBuilder
+
             moveit_config = (
                 MoveItConfigsBuilder("arm_description", package_name="arm_moveit_config")
                 .robot_description(file_path="config/arm_description.urdf.xacro")
@@ -69,6 +71,29 @@ class MyLaunchDescriptionEntity(LaunchDescriptionEntity):
                 arguments=["--ros-args", "--log-level", "rmcs_executor:=warn"],
             )
         )
+        # The adjustable heavy chassis has no arm or MoveIt runtime.
+        if robot_name == "adjustable_heavy":
+            entities.append(
+                Node(
+                    package="foxglove_bridge",
+                    executable="foxglove_bridge",
+                    condition=IfCondition(LaunchConfiguration("use_foxglove")),
+                    parameters=[
+                        {
+                            "port": 8765,
+                            "address": "0.0.0.0",
+                            "capabilities": ["connectionGraph"],
+                            "sysinfo": False,
+                            "topic_whitelist": [
+                                "^/chassis/(steering|wheel|lift)/[^/]+/(angle|velocity|torque)$"
+                            ],
+                        }
+                    ],
+                    output="screen",
+                )
+            )
+            return entities
+
         demo_launch_path = os.path.join(
             FindPackageShare("arm_moveit_config").perform(context),
             "launch",
@@ -97,6 +122,7 @@ def generate_launch_description():
     ld = LaunchDescription(
         [
             DeclareLaunchArgument("use_rviz", default_value="false"),
+            DeclareLaunchArgument("use_foxglove", default_value="true"),
             MyLaunchDescriptionEntity(),
         ]
     )

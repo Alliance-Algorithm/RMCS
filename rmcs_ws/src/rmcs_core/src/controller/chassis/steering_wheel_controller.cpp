@@ -1,4 +1,5 @@
 #include <cmath>
+#include <stdexcept>
 
 #include <eigen3/Eigen/Dense>
 #include <rclcpp/logging.hpp>
@@ -39,48 +40,52 @@ public:
         , chassis_angular_velocity_pid_(5.0, 0.0, 1.0)
         , cos_varphi_(1, 0, -1, 0) // 0, pi/2, pi, 3pi/2
         , sin_varphi_(0, 1, 0, -1)
-        , steering_velocity_pid_(0.15, 0.0, 0.0)
-        , steering_angle_pid_(30.0, 0.0, 0.0)
+        , steering_velocity_pid_(get_parameter_or("steering_velocity_kp", 0.15), 0.0, 0.0)
+        , steering_angle_pid_(get_parameter_or("steering_angle_kp", 30.0), 0.0, 0.0)
         , wheel_velocity_pid_(0.6, 0.0, 0.0) {
+        if (!std::isfinite(steering_angle_pid_.kp) || steering_angle_pid_.kp < 0.0
+            || !std::isfinite(steering_velocity_pid_.kp) || steering_velocity_pid_.kp < 0.0) {
+            throw std::invalid_argument("Steering Kp values must be finite and nonnegative");
+        }
 
         register_input("/remote/joystick/right", joystick_right_); 
         register_input("/remote/joystick/left", joystick_left_);
 
-        register_input("/steering/steering/lf/angle", left_front_steering_angle_);
-        register_input("/steering/steering/lb/angle", left_back_steering_angle_);
-        register_input("/steering/steering/rb/angle", right_back_steering_angle_);
-        register_input("/steering/steering/rf/angle", right_front_steering_angle_);
+        register_input("/chassis/steering/left_front/angle", left_front_steering_angle_);
+        register_input("/chassis/steering/left_back/angle", left_back_steering_angle_);
+        register_input("/chassis/steering/right_back/angle", right_back_steering_angle_);
+        register_input("/chassis/steering/right_front/angle", right_front_steering_angle_);
 
-        register_input("/steering/steering/lf/velocity", left_front_steering_velocity_);
-        register_input("/steering/steering/lb/velocity", left_back_steering_velocity_);
-        register_input("/steering/steering/rb/velocity", right_back_steering_velocity_);
-        register_input("/steering/steering/rf/velocity", right_front_steering_velocity_);
+        register_input("/chassis/steering/left_front/velocity", left_front_steering_velocity_);
+        register_input("/chassis/steering/left_back/velocity", left_back_steering_velocity_);
+        register_input("/chassis/steering/right_back/velocity", right_back_steering_velocity_);
+        register_input("/chassis/steering/right_front/velocity", right_front_steering_velocity_);
 
-        register_input("/steering/wheel/lf/velocity", left_front_wheel_velocity_);
-        register_input("/steering/wheel/lb/velocity", left_back_wheel_velocity_);
-        register_input("/steering/wheel/rb/velocity", right_back_wheel_velocity_);
-        register_input("/steering/wheel/rf/velocity", right_front_wheel_velocity_);
+        register_input("/chassis/wheel/left_front/velocity", left_front_wheel_velocity_);
+        register_input("/chassis/wheel/left_back/velocity", left_back_wheel_velocity_);
+        register_input("/chassis/wheel/right_back/velocity", right_back_wheel_velocity_);
+        register_input("/chassis/wheel/right_front/velocity", right_front_wheel_velocity_);
 
-        register_input("yaw_imu_velocity", chassis_yaw_velocity_imu_);
+        register_input("/chassis/yaw_imu_velocity", chassis_yaw_velocity_imu_);
         register_input("/chassis/control_velocity", chassis_control_velocity_);
         register_input("/chassis/control_power_limit", power_limit_);
 
         register_output(
-            "/steering/steering/lf/control_torque", left_front_steering_control_torque_);
+            "/chassis/steering/left_front/control_torque", left_front_steering_control_torque_);
         register_output(
-            "/steering/steering/lb/control_torque", left_back_steering_control_torque_);
+            "/chassis/steering/left_back/control_torque", left_back_steering_control_torque_);
         register_output(
-            "/steering/steering/rb/control_torque", right_back_steering_control_torque_);
+            "/chassis/steering/right_back/control_torque", right_back_steering_control_torque_);
         register_output(
-            "/steering/steering/rf/control_torque", right_front_steering_control_torque_);
+            "/chassis/steering/right_front/control_torque", right_front_steering_control_torque_);
 
         register_output(
-            "/steering/wheel/lf/control_torque", left_front_wheel_control_torque_);
-        register_output("/steering/wheel/lb/control_torque", left_back_wheel_control_torque_);
+            "/chassis/wheel/left_front/control_torque", left_front_wheel_control_torque_);
+        register_output("/chassis/wheel/left_back/control_torque", left_back_wheel_control_torque_);
         register_output(
-            "/steering/wheel/rb/control_torque", right_back_wheel_control_torque_);
+            "/chassis/wheel/right_back/control_torque", right_back_wheel_control_torque_);
         register_output(
-            "/steering/wheel/rf/control_torque", right_front_wheel_control_torque_);
+            "/chassis/wheel/right_front/control_torque", right_front_wheel_control_torque_);
     }
 
     void update() override {
