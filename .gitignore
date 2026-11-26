@@ -53,6 +53,9 @@ CATKIN_IGNORE
 # Clangd cache files
 .cache/
 
+# Local librmcs SDK source package
+/librmcs-sdk/
+
 # VSCode configure files
 .vscode/
 

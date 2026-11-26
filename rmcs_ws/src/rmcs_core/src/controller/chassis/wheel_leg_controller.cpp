@@ -37,6 +37,7 @@ public:
         moving_jump_vx_max_ =
             node::param_or("moving_jump_vx_max", wheel_leg::jump_policy::kMovingVxMax);
         jump_vx_rate_ = node::param_or("jump_vx_rate", 2.);
+        jump_requests_enabled_ = node::param_or("jump_requests_enabled", true);
         if (!std::isfinite(jump_vx_rate_) || jump_vx_rate_ <= 0.)
             throw std::invalid_argument("Jump velocity rate must be finite and positive");
         if (!std::isfinite(moving_jump_vx_max_) || moving_jump_vx_max_ < 0.
@@ -116,7 +117,9 @@ public:
         }
         if (!update_state())
             return;
-        update_jump(jump_requested && *state_ == static_cast<int>(State::kRunning));
+        update_jump(
+            jump_requests_enabled_ && jump_requested
+            && *state_ == static_cast<int>(State::kRunning));
         update_command();
         if (fault_)
             return;
@@ -447,7 +450,7 @@ private:
     OutputInterface<int> recovery_reversals_;
     OutputInterface<double> recovery_direction_;
 
-    bool fault_ = false, have_target_ = false;
+    bool fault_ = false, have_target_ = false, jump_requests_enabled_ = true;
     wheel_leg::JointVector accepted_target_{}, pending_history_{};
     std::size_t last_reset_count_ = 0, last_jump_request_count_ = 0, accepted_sequence_ = 0;
     std::size_t ticks_since_action_ = 0, drive_loss_ticks_ = 0;

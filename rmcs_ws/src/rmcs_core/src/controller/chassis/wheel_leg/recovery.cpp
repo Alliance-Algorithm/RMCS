@@ -764,7 +764,7 @@ void JointReferenceRecoveryController::update_transitions_(
     // A moving recovery must continue as soon as the measured fold is reached.
     // Holding an unbalanced body here loses the impulse needed by the next stroke.
     const double fold_min_seconds = config_.dynamic_takeover ? 0.06 : 0.3;
-    if (!plant_capture && folding && remaining < 0.02f && measured_error < 0.5f
+    if (!plant_capture && folding && remaining < 0.02f && measured_error < 0.6f
         && phase_reached_(step, fold_min_seconds)) {
         if (route_ == JointReferenceRecoveryRoute::kOrbitPositive
             || route_ == JointReferenceRecoveryRoute::kOrbitNegative) {

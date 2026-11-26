@@ -15,6 +15,7 @@ rmcs_executor:
       - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
       - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::gimbal::YawFrictionFeedforward -> yaw_friction_ff
       - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
       - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
       - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
@@ -62,11 +63,7 @@ rl_bridge:
     observation_frame_sequence_interface: /wheel_leg/rl/features/frame_sequence
     observation_epoch_interface: /wheel_leg/rl/features/epoch
     expected_metadata:
-      wheelbipe_deployment_contract_sha256: ae38a0b74e8e9515d17fdcd24c21a187b7d0b3e22dfa114c83e579605347e0ab
-      rmcs_observation_contract_sha256: 9e39952a99870a590834c4e7d810d96c25a8bc5d13eb417e93dd836b680330ee
-      rmcs_checkpoint_sha256: 301301b4d945c351d94b3fbfd91c7089c36883c1a71867aa81a08d3cd5e1a98a
       rmcs_history_order: oldest_first
-      pilot: 'true'
       policy_hz: '50'
       rmcs_obs_normalization: none
       rmcs_observation_scales: "1,1,1,5,0.5,0.5,0.5,1,1,1,1,1,1,1,1,1,0.1,0.1,0.1,0.1,0.1,0.1,1,1,1,1,1,1,1,1,1,1,1,5,1"
@@ -105,12 +102,15 @@ gimbal_controller:
   ros__parameters:
     upper_limit: -0.6109
     lower_limit: 0.5236
+    yaw_manual_velocity_ff_scale: 1.0
+    yaw_manual_velocity_ff_limit: 0.5 # rad/s
 
 yaw_angle_pid_controller:
   ros__parameters:
     measurement: /gimbal/yaw/control_angle_error
     control: /gimbal/yaw/control_velocity
-    kp: 5.0
+    feedforward: /gimbal/yaw/manual_reference_velocity_ff
+    kp: 5.25
     ki: 0.0
     kd: 0.0
 
@@ -120,10 +120,22 @@ yaw_velocity_pid_controller:
     output_max: 13.016528925619838
     measurement: /gimbal/yaw/velocity_imu
     setpoint: /gimbal/yaw/control_velocity
-    control: /gimbal/yaw/control_torque
+    control: /gimbal/yaw/pid_control_torque
     kp: 4.338842975206612
     ki: 0.0
     kd: 0.0
+
+yaw_friction_ff:
+  ros__parameters:
+    yaw_coulomb_ff: 1.900073586214
+    yaw_static_friction_ff: 2.154345703125
+    yaw_viscous_ff: 0.268394277055
+    yaw_stribeck_velocity: 0.003113460384
+    yaw_ff_velocity_smoothing: 0.05
+    yaw_friction_ff_scale: 1.2
+    yaw_ff_torque_limit: 2.314049586777 # 0.8 N·m at the bench.
+    yaw_ff_slew_rate: 289.256198347107
+    yaw_total_torque_limit: 8.677685950413 # 3.0 N·m at the bench.
 
 pitch_angle_pid_controller:
   ros__parameters:
@@ -183,8 +195,8 @@ friction_wheel_controller:
       - /gimbal/left_friction
       - /gimbal/right_friction
     friction_velocities:
-      - 660.0
-      - 660.0
+      - 600.0
+      - 600.0
     friction_soft_start_stop_time: 1.0
 
 heat_controller:
@@ -206,34 +218,35 @@ bullet_feeder_controller:
 auto_aim_component:
   ros__parameters:
     dangerous_fallback: ''
-    manual_shoot: true
-    enable_rune: true
+    manual_shoot: false
+    enable_rune: false
+    default_attack_rune: false
     track_ids:
       - FULL
     # From the yaw/pitch-axis intersection, in metres: forward, left, up.
     camera_translation: [0.07595, 0.0, 0.04612]
     fire_control:
-      bullet_speed: 23.0
-      shoot_delay: 0.0 # Command-to-muzzle seconds; pending measurement.
-      offset_yaw: 0.0
-      offset_pitch: 0.0
+      bullet_speed: 22.5
+      shoot_delay: 0.05 # Command-to-muzzle seconds; pending measurement.
+      offset_yaw: -0.3
+      offset_pitch: -1.0
       attack_window: 80.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
-      yaw_tolerance: 0.05 # Metres; tighter than deformable.
-      pitch_tolerance: 0.03 # Metres.
+      yaw_tolerance: 0.14 # Metres.
+      pitch_tolerance: 0.08 # Metres.
       rune_idle_duration: 0.4
       rune_shoot_duration: 0.2
 
 auto_aim_capturer:
   ros__parameters:
     camera_name: ''
-    exposure_us: 4000.0
-    gain: 8.0
+    exposure_us: 1500.0
+    gain: 4.0
     framerate: 120.0
-    invert_image: false
+    invert_image: true
     rls_tau_sec: 10.0
     use_hardware_sync: false
     exposure_signal_topic: /gimbal/auto_aim/exposure_signal
@@ -299,6 +312,7 @@ value_broadcaster:
       - /gimbal/yaw/velocity
       - /gimbal/pitch/angle
       - /gimbal/pitch/velocity
+      - /gimbal/pitch/control_torque
       - /gimbal/left_friction/velocity
       - /gimbal/right_friction/velocity
       - /gimbal/bullet_feeder/velocity
