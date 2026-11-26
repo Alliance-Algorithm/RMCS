@@ -7,4 +7,22 @@ if [ -z "${RMCS_ROBOT_TYPE}" ]; then
     exit 1
 fi
 
-ros2 launch rmcs_bringup rmcs.launch.py robot:=${RMCS_ROBOT_TYPE}
+if [[ "$RMCS_ROBOT_TYPE" == ultra-ethercat ]]; then
+    while read -r key value; do
+        if [[ "$key" == CapEff: ]]; then
+            effective_caps="$value"
+            break
+        fi
+    done < /proc/self/status
+
+    # File capabilities make the dynamic loader ignore ROS's LD_LIBRARY_PATH.
+    # Pass CAP_NET_RAW to this launch instead, keeping the original user.
+    if ! (( (16#${effective_caps:-0} & 0x2000) != 0 )); then
+        exec sudo setpriv --reuid="$(id -u)" --regid="$(id -g)" --init-groups \
+            --inh-caps=-all,+net_raw --ambient-caps=-all,+net_raw \
+            --bounding-set=-all,+net_raw env HOME="$HOME" RMCS_PATH="$RMCS_PATH" \
+            "$(readlink -f "$0")" "$@"
+    fi
+fi
+
+exec ros2 launch rmcs_bringup rmcs.launch.py "robot:=${RMCS_ROBOT_TYPE}" "$@"

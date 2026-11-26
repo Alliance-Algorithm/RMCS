@@ -14,15 +14,29 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
-include(FetchContent)
 set(BUILD_STATIC_LIBRMCS ON CACHE BOOL "Build static librmcs SDK" FORCE)
-FetchContent_Declare(
-    librmcs
-    URL https://github.com/Alliance-Algorithm/librmcs/releases/download/v3.3.0b1/librmcs-sdk-src-3.3.0-beta.1-debug.zip
-    URL_HASH SHA256=446d632b23b652dd309f35075ef90928dee89f42e8ec71417fa2439445e0b4ff
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(librmcs)
+set(RMCS_LIBRMCS_SOURCE_DIR "" CACHE PATH "Local librmcs SDK source directory")
+if(NOT RMCS_LIBRMCS_SOURCE_DIR)
+    set(RMCS_LIBRMCS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../librmcs-sdk")
+endif()
+cmake_path(ABSOLUTE_PATH RMCS_LIBRMCS_SOURCE_DIR NORMALIZE)
+set(librmcs_cmake_source_dir "${RMCS_LIBRMCS_SOURCE_DIR}")
+if(NOT EXISTS "${librmcs_cmake_source_dir}/CMakeLists.txt")
+    string(APPEND librmcs_cmake_source_dir "/host")
+endif()
+if(NOT EXISTS "${librmcs_cmake_source_dir}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "Local librmcs SDK not found at '${RMCS_LIBRMCS_SOURCE_DIR}'. "
+        "Place the SDK in RMCS/librmcs-sdk or set RMCS_LIBRMCS_SOURCE_DIR to its path.")
+endif()
+
+option(RMCS_ENABLE_ULTRA_ETHERCAT "Enable the Ultra EtherCAT transport in librmcs" OFF)
+if(RMCS_ENABLE_ULTRA_ETHERCAT)
+    set(LIBRMCS_ENABLE_ETHERCAT ON)
+endif()
+
+message(STATUS "Using local librmcs SDK from ${RMCS_LIBRMCS_SOURCE_DIR}")
+add_subdirectory("${librmcs_cmake_source_dir}" "${CMAKE_CURRENT_BINARY_DIR}/librmcs-sdk")
 
 file(GLOB_RECURSE PROJECT_SOURCE CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/src/*.cpp

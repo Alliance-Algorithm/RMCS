@@ -1,0 +1,317 @@
+# ros2 launch rmcs_bringup rmcs.launch.py robot:=wheel-leg-infantry-gimbal
+rmcs_executor:
+  ros__parameters:
+    update_rate: 1000.0
+    components:
+      - rmcs_core::hardware::WheelLeg -> wheel_leg
+      - rmcs_core::referee::Status -> referee_status
+      - rmcs_rl::StateMirror -> wheel_leg_mirror
+      - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
+      - rmcs_core::debug::ValueCollector -> value_collector
+      - rmcs_core::controller::gimbal::SimpleGimbalController -> gimbal_controller
+      - rmcs_core::controller::pid::ErrorPidController -> yaw_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> yaw_velocity_pid_controller
+      - rmcs_core::controller::gimbal::YawFrictionFeedforward -> yaw_friction_ff
+      - rmcs_core::controller::pid::ErrorPidController -> pitch_angle_pid_controller
+      - rmcs_core::controller::pid::PidController -> pitch_velocity_pid_controller
+      - rmcs_core::controller::gimbal::PitchGravityFeedforward -> pitch_gravity_ff
+      - rmcs_core::controller::shooting::FrictionWheelController -> friction_wheel_controller
+      - rmcs_core::controller::shooting::HeatController -> heat_controller
+      - rmcs_core::controller::shooting::BulletFeederController17mm -> bullet_feeder_controller
+      - rmcs_core::controller::pid::PidController -> left_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> right_friction_velocity_pid_controller
+      - rmcs_core::controller::pid::PidController -> bullet_feeder_velocity_pid_controller
+      - rmcs::AutoAimComponent -> auto_aim_component
+      - rmcs::AutoAimCapturerComponent -> auto_aim_capturer
+
+wheel_leg:
+  ros__parameters:
+    board_serial_bottom_board: AF-CBB3-7053-32C5-F3B5-B460-A786-DA9A-1FF1
+    board_serial_gimbal_board: AF-46C7-7B12-9364-64F6-D95A-E4F4-9299-1B75
+    yaw_motor_zero_point: 58379
+    pitch_motor_zero_point: 12637
+    imu_diagnostics_csv_path: "/tmp/gimbal_top_imu_native_<timestamp>.csv"
+
+gimbal_controller:
+  ros__parameters:
+    upper_limit: -0.6109
+    lower_limit: 0.5236
+    yaw_manual_velocity_ff_scale: 1.0
+    yaw_manual_velocity_ff_limit: 0.5 # rad/s
+
+yaw_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/yaw/control_angle_error
+    control: /gimbal/yaw/control_velocity
+    feedforward: /gimbal/yaw/manual_reference_velocity_ff
+    kp: 5.25
+    ki: 0.0
+    kd: 0.0
+
+yaw_velocity_pid_controller:
+  ros__parameters:
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
+    measurement: /gimbal/yaw/velocity_imu
+    setpoint: /gimbal/yaw/control_velocity
+    control: /gimbal/yaw/pid_control_torque
+    kp: 4.338842975206612
+    ki: 0.0
+    kd: 0.0
+
+yaw_friction_ff:
+  ros__parameters:
+    yaw_coulomb_ff: 1.900073586214
+    yaw_static_friction_ff: 2.154345703125
+    yaw_viscous_ff: 0.268394277055
+    yaw_stribeck_velocity: 0.003113460384
+    yaw_ff_velocity_smoothing: 0.05
+    yaw_friction_ff_scale: 1.2
+    yaw_ff_torque_limit: 2.314049586777 # 0.8 N·m at the bench.
+    yaw_ff_slew_rate: 289.256198347107
+    yaw_total_torque_limit: 8.677685950413 # 3.0 N·m at the bench.
+
+pitch_angle_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/pitch/control_angle_error
+    control: /gimbal/pitch/control_velocity
+    kp: 6.0
+    ki: 0.0
+    kd: 0.0
+
+pitch_velocity_pid_controller:
+  ros__parameters:
+    output_min: -13.016528925619838
+    output_max: 13.016528925619838
+    measurement: /gimbal/pitch/velocity_imu
+    setpoint: /gimbal/pitch/control_velocity
+    control: /gimbal/pitch/control_torque
+    feedforward: /gimbal/pitch/torque_ff
+    kp: 4.338842975206612
+    ki: 0.0
+    kd: 0.0
+
+pitch_gravity_ff:
+  ros__parameters:
+    pitch_gravity_ff_gain: 2.6033057851239674
+    pitch_gravity_ff_phase: 0.75
+
+friction_wheel_controller:
+  ros__parameters:
+    friction_wheels:
+      - /gimbal/left_friction
+      - /gimbal/right_friction
+    friction_velocities:
+      - 600.0
+      - 600.0
+    friction_soft_start_stop_time: 1.0
+
+heat_controller:
+  ros__parameters:
+    heat_per_shot: 10000
+    reserved_heat: 10000
+
+bullet_feeder_controller:
+  ros__parameters:
+    bullets_per_feeder_turn: 8.0
+    shot_frequency: 20.0
+    safe_shot_frequency: 10.0
+    eject_frequency: 10.0
+    eject_time: 0.05
+    deep_eject_frequency: 5.0
+    deep_eject_time: 0.2
+    single_shot_max_stop_delay: 2.0
+
+left_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/left_friction/velocity
+    setpoint: /gimbal/left_friction/control_velocity
+    control: /gimbal/left_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+right_friction_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/right_friction/velocity
+    setpoint: /gimbal/right_friction/control_velocity
+    control: /gimbal/right_friction/control_torque
+    kp: 0.003436926
+    ki: 0.0
+    kd: 0.009373434
+
+bullet_feeder_velocity_pid_controller:
+  ros__parameters:
+    measurement: /gimbal/bullet_feeder/velocity
+    setpoint: /gimbal/bullet_feeder/control_velocity
+    control: /gimbal/bullet_feeder/control_torque
+    kp: 1.583
+    ki: 0.0
+    kd: 0.0
+
+auto_aim_component:
+  ros__parameters:
+    dangerous_fallback: ''
+    manual_shoot: false
+    enable_rune: false
+    default_attack_rune: false
+    track_ids:
+      - FULL
+    # From the yaw/pitch-axis intersection, in metres: forward, left, up.
+    camera_translation: [0.07595, 0.0, 0.04612]
+    fire_control:
+      bullet_speed: 22.5
+      shoot_delay: 0.05 # Command-to-muzzle seconds; pending measurement.
+      offset_yaw: -0.3
+      offset_pitch: -1.0
+      attack_window: 80.0
+      degraded_angle_speed: 12.0
+      window_redundancy: 0.8
+      window_hysteresis: 0.2
+      attack_preaim: false
+      yaw_tolerance: 0.14 # Metres.
+      pitch_tolerance: 0.08 # Metres.
+      rune_idle_duration: 0.4
+      rune_shoot_duration: 0.2
+
+auto_aim_capturer:
+  ros__parameters:
+    camera_name: ''
+    exposure_us: 1500.0
+    gain: 4.0
+    framerate: 120.0
+    invert_image: true
+    rls_tau_sec: 10.0
+    use_hardware_sync: false
+    exposure_signal_topic: /gimbal/auto_aim/exposure_signal
+    imu_snapshot_topic: /gimbal/auto_aim/imu_snapshot
+    delay_ms: 6.5 # Same as deformable; used only by software fallback.
+
+wheel_leg_mirror:
+  ros__parameters:
+    topic_prefix: /wheel_leg/telemetry
+    frame_id: chassis_body
+    rate: 100.0
+    joints:
+      order: [left_hip_joint, left_knee_joint, right_hip_joint, right_knee_joint,
+              left_wheel, right_wheel, gimbal_yaw_joint, gimbal_pitch_joint]
+      left_hip_joint: {position: /wheel_leg/left_hip_joint/angle, velocity: /wheel_leg/left_hip_joint/velocity,
+        stamp: /wheel_leg/left_hip_joint/feedback_steady_ns}
+      left_knee_joint: {position: /wheel_leg/left_knee_joint/angle, velocity: /wheel_leg/left_knee_joint/velocity,
+        stamp: /wheel_leg/left_knee_joint/feedback_steady_ns}
+      right_hip_joint: {position: /wheel_leg/right_hip_joint/angle, velocity: /wheel_leg/right_hip_joint/velocity,
+        stamp: /wheel_leg/right_hip_joint/feedback_steady_ns}
+      right_knee_joint: {position: /wheel_leg/right_knee_joint/angle, velocity: /wheel_leg/right_knee_joint/velocity,
+        stamp: /wheel_leg/right_knee_joint/feedback_steady_ns}
+      left_wheel: {position: /wheel_leg/left_wheel/angle, velocity: /wheel_leg/left_wheel/velocity,
+        stamp: /wheel_leg/left_wheel/feedback_steady_ns}
+      right_wheel: {position: /wheel_leg/right_wheel/angle, velocity: /wheel_leg/right_wheel/velocity,
+        stamp: /wheel_leg/right_wheel/feedback_steady_ns}
+      gimbal_yaw_joint: {position: /gimbal/yaw/angle, velocity: /gimbal/yaw/velocity}
+      gimbal_pitch_joint: {position: /gimbal/pitch/angle, velocity: /gimbal/pitch/velocity}
+    imu: {orientation: /wheel_leg/imu/quaternion, angular_velocity: /wheel_leg/imu/angular_velocity,
+      stamp: /wheel_leg/imu/last_steady_ns}
+    vectors:
+      order: [rl_projected_gravity, rl_angular_velocity]
+      rl_projected_gravity: /wheel_leg/state/gravity
+      rl_angular_velocity: /wheel_leg/imu/angular_velocity
+    values:
+      state: {position: /wheel_leg/state/position}
+      control: {enabled: /chassis/control_enable, ready: /wheel_leg/control_ready,
+        reset_count: /chassis/reset_count, rl_state: /wheel_leg/rl/state}
+      operator: {velocity: /chassis/control_velocity, height: /chassis/control_height, mode: /chassis/control_mode}
+      remote: {left: /remote/joystick/left, right: /remote/joystick/right,
+        switch_left: /remote/switch/left, switch_right: /remote/switch/right,
+        knob: /remote/rotary_knob, keyboard: /remote/keyboard}
+      gimbal: {left_friction: /gimbal/left_friction/velocity, right_friction: /gimbal/right_friction/velocity,
+        bullet_feeder: /gimbal/bullet_feeder/velocity}
+      shooting: {friction_ready: /gimbal/friction_ready, friction_jammed: /gimbal/friction_jammed,
+        bullet_fired: /gimbal/bullet_fired}
+      power: {supercap_enabled: /chassis/supercap/enabled}
+      drives: {left_hip_joint: /wheel_leg/left_hip_joint/status, left_knee_joint: /wheel_leg/left_knee_joint/status,
+        right_hip_joint: /wheel_leg/right_hip_joint/status, right_knee_joint: /wheel_leg/right_knee_joint/status}
+    constants:
+      coordinate: rmcs_hardware_output_shaft_v1
+      model_offset: {left_hip_joint: "1.6", left_knee_joint: "3.0282761689183353",
+        right_hip_joint: "-1.6", right_knee_joint: "-3.0283102010168"}
+
+value_broadcaster:
+  ros__parameters:
+    forward_list:
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/control_torque
+      - /gimbal/left_friction/velocity
+      - /gimbal/right_friction/velocity
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
+      - /chassis/voltage
+
+value_collector:
+  ros__parameters:
+    csv_path: "/tmp/gimbal_top_imu_ekf_<timestamp>.csv"
+    signals:
+      - /predefined/update_rate
+      - /gimbal/imu/host_time_s
+      - /gimbal/imu/raw/accel_x_counts
+      - /gimbal/imu/raw/accel_y_counts
+      - /gimbal/imu/raw/accel_z_counts
+      - /gimbal/imu/raw/gyro_x_counts
+      - /gimbal/imu/raw/gyro_y_counts
+      - /gimbal/imu/raw/gyro_z_counts
+      - /gimbal/imu/raw/accel_time_s
+      - /gimbal/imu/raw/gyro_time_s
+      - /gimbal/imu/raw/accel_sequence
+      - /gimbal/imu/raw/gyro_sequence
+      - /gimbal/imu/raw/gyro_timestamp_valid
+      - /gimbal/imu/ekf/qw
+      - /gimbal/imu/ekf/qx
+      - /gimbal/imu/ekf/qy
+      - /gimbal/imu/ekf/qz
+      - /gimbal/imu/ekf/time_s
+      - /gimbal/imu/ekf/sequence
+      - /gimbal/imu/ekf/chi_square
+      - /gimbal/imu/ekf/correction_time_s
+      - /gimbal/imu/ekf/correction_attempted
+      - /gimbal/imu/ekf/correction_applied
+      - /gimbal/imu/ekf/correction_attempts
+      - /gimbal/imu/ekf/corrections
+      - /gimbal/imu/ekf/correction_rejections
+      - /gimbal/imu/ekf/gyro_saturations
+      - /gimbal/imu/ekf/time_gap_rejections
+      - /gimbal/imu/ekf/snapshot_updated
+      - /gimbal/imu/queue_dropped
+      - /gimbal/imu/io_failed
+      - /gimbal/yaw/angle
+      - /gimbal/yaw/velocity
+      - /gimbal/yaw/velocity_imu
+      - /gimbal/yaw/control_angle_error
+      - /gimbal/yaw/control_velocity
+      - /gimbal/yaw/control_torque
+      - /gimbal/yaw/torque
+      - /gimbal/pitch/angle
+      - /gimbal/pitch/velocity
+      - /gimbal/pitch/velocity_imu
+      - /gimbal/pitch/control_angle_error
+      - /gimbal/pitch/control_velocity
+      - /gimbal/pitch/control_torque
+      - /gimbal/pitch/torque
+      - /gimbal/pitch/torque_ff
+      - /gimbal/left_friction/velocity
+      - /gimbal/left_friction/control_velocity
+      - /gimbal/left_friction/torque
+      - /gimbal/left_friction/control_torque
+      - /gimbal/right_friction/velocity
+      - /gimbal/right_friction/control_velocity
+      - /gimbal/right_friction/torque
+      - /gimbal/right_friction/control_torque
+      - /gimbal/bullet_feeder/angle
+      - /gimbal/bullet_feeder/velocity
+      - /gimbal/bullet_feeder/control_velocity
+      - /gimbal/bullet_feeder/torque
+      - /gimbal/bullet_feeder/control_torque
+      - /chassis/voltage
+    write_interval: 1
+    flush_interval: 1000

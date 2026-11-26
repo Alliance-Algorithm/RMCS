@@ -5,6 +5,8 @@
   <class type="rmcs_core::hardware::DeformableInfantryOmni" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::DeformableInfantryOmniB" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::hardware::Sentry" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::WheelLeg" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::hardware::Ultra" base_class_type="rmcs_executor::Component" />
   
   <class type="rmcs_core::hardware::Px4VisionBridge" base_class_type="rmcs_executor::Component" />
 
@@ -22,6 +24,10 @@
   <class type="rmcs_core::controller::chassis::DeformableChassis" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableSuspension" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::chassis::DeformableJointController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::WheelLegChassisController" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::WheelLegStateEstimator" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::WheelLegObservation" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::chassis::WheelLegController" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::gimbal::SimpleGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::HeroGimbalController" base_class_type="rmcs_executor::Component" />
@@ -29,6 +35,8 @@
   <class type="rmcs_core::controller::gimbal::DeformableInfantryGimbalController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::EccentricDualYaw" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::gimbal::PlayerViewer" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::PitchGravityFeedforward" base_class_type="rmcs_executor::Component" />
+  <class type="rmcs_core::controller::gimbal::YawFrictionFeedforward" base_class_type="rmcs_executor::Component" />
 
   <class type="rmcs_core::controller::shooting::FrictionWheelController" base_class_type="rmcs_executor::Component" />
   <class type="rmcs_core::controller::shooting::HeroFrictionWheelController" base_class_type="rmcs_executor::Component" />

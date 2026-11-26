@@ -3,12 +3,14 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -18,6 +20,7 @@
 #include <rmcs_executor/component.hpp>
 
 #include "hardware/device/can_packet.hpp"
+#include "hardware/device/lk_motor_drive.hpp"
 
 namespace rmcs_core::hardware::device {
 
@@ -151,14 +154,54 @@ public:
             return;
 
         const CanPacket8 can_packet{can_data};
+        const auto command = std::to_integer<uint8_t>(can_data[0]);
+        if (command == 0x9A || command == 0x9B) {
+            status1_packet_.store(can_packet, std::memory_order_relaxed);
+            const auto received_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                         LkMotorDriveScheduler::Clock::now().time_since_epoch())
+                                         .count();
+            status1_received_ns_.store(received_ns, std::memory_order_release);
+        } else if (command == 0x9C || (command >= 0xA0 && command <= 0xA8)) {
+            // Status 1 has no encoder or velocity fields; keep it out of status 2.
+            can_packet_.store(can_packet, std::memory_order::relaxed);
+        }
+    }
+
+    struct Status1 {
+        uint8_t command = 0;
+        int8_t temperature = 0;
+        int16_t voltage_centivolt = 0;
+        int16_t current_centiamp = 0;
+        uint8_t motor_state = 0x10;
+        uint8_t error_state = 0;
+    };
+
+    static std::optional<Status1> parse_status1(std::span<const std::byte> can_data) {
+        if (can_data.size() != 8) [[unlikely]]
+            return std::nullopt;
+
         const struct [[gnu::packed]] {
             uint8_t command;
-            uint8_t placeholder[7];
-        } feedback alignas(CanPacket8) = std::bit_cast<decltype(feedback)>(can_packet);
+            int8_t temperature;
+            int16_t voltage_centivolt;
+            int16_t current_centiamp;
+            uint8_t motor_state;
+            uint8_t error_state;
+        } feedback alignas(CanPacket8) = std::bit_cast<decltype(feedback)>(CanPacket8{can_data});
+        if (feedback.command != 0x9A && feedback.command != 0x9B)
+            return std::nullopt;
 
-        // Exclude non-motor status messages
-        if ((feedback.command & 0xF0) != 0x80)
-            can_packet_.store(can_packet, std::memory_order::relaxed);
+        return Status1{feedback.command,          feedback.temperature, feedback.voltage_centivolt,
+                       feedback.current_centiamp, feedback.motor_state, feedback.error_state};
+    }
+
+    Status1 status1() const {
+        auto packet = status1_packet_.load(std::memory_order_relaxed);
+        return parse_status1(packet.as_bytes()).value_or(Status1{});
+    }
+
+    LkMotorDriveScheduler::Phase drive_phase() const {
+        return drive_phase_.load(std::memory_order_relaxed);
     }
 
     void update_status() {
@@ -273,6 +316,48 @@ public:
             uint8_t placeholder[7]{};
         } request alignas(CanPacket8){};
         return std::bit_cast<CanPacket8>(request);
+    }
+
+    constexpr static CanPacket8 generate_error_status_request() {
+        const struct [[gnu::packed]] {
+            uint8_t id = 0x9A;
+            uint8_t placeholder[7]{};
+        } request alignas(CanPacket8){};
+        return std::bit_cast<CanPacket8>(request);
+    }
+
+    constexpr static CanPacket8 generate_clear_error_command() {
+        const struct [[gnu::packed]] {
+            uint8_t id = 0x9B;
+            uint8_t placeholder[7]{};
+        } command alignas(CanPacket8){};
+        return std::bit_cast<CanPacket8>(command);
+    }
+
+    // Clear faults and acknowledge startup before streaming torque commands.
+    std::optional<CanPacket8> generate_drive_command(
+        bool requested,
+        LkMotorDriveScheduler::Clock::time_point now = LkMotorDriveScheduler::Clock::now()) {
+        const auto received_ns = status1_received_ns_.load(std::memory_order_acquire);
+        const auto status = status1();
+        const LkMotorDriveScheduler::Feedback feedback{
+            .valid = received_ns > 0,
+            .motor_state = status.motor_state,
+            .error_state = status.error_state,
+            .received_at =
+                LkMotorDriveScheduler::Clock::time_point{std::chrono::nanoseconds{received_ns}}};
+        const auto action = drive_scheduler_.next(requested, feedback, now);
+        drive_phase_.store(drive_scheduler_.phase(), std::memory_order_relaxed);
+        using Action = LkMotorDriveScheduler::Action;
+        switch (action) {
+        case Action::kNone: return std::nullopt;
+        case Action::kClearError: return generate_clear_error_command();
+        case Action::kEnable: return generate_startup_command();
+        case Action::kDisable: return generate_disable_command();
+        case Action::kTorque: return generate_torque_command();
+        case Action::kErrorPoll: return generate_error_status_request();
+        }
+        std::unreachable();
     }
 
     /// @brief The host sends this command to control the motor's torque current output.
@@ -536,7 +621,12 @@ private:
     double torque_to_command_current_coefficient_;
 
     // Status
-    std::atomic<CanPacket8> can_packet_;
+    std::atomic<CanPacket8> can_packet_{CanPacket8{uint64_t{0}}};
+    std::atomic<CanPacket8> status1_packet_{CanPacket8{uint64_t{0}}};
+    std::atomic<int64_t> status1_received_ns_{0};
+
+    LkMotorDriveScheduler drive_scheduler_;
+    std::atomic<LkMotorDriveScheduler::Phase> drive_phase_{LkMotorDriveScheduler::Phase::kDisabled};
 
     int64_t multi_turn_encoder_count_ = 0;
     int last_raw_angle_ = 0;
