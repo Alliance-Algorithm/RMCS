@@ -39,7 +39,7 @@ rmcs_executor:
 rmcs_navigation:
   ros__parameters:
     command_vel_name: "/cmd_vel"
-    endpoint: "tcd-train"
+    endpoint: "rmul"
     enable_goal_topic_forward: true
 
 foldable_sentry:
@@ -83,14 +83,14 @@ auto_aim_component:
       bullet_speed: 21.0
       shoot_delay: 0.05
       offset_yaw: -0.0
-      offset_pitch: -4.0
+      offset_pitch: -1.7
       attack_window: 120.0
       degraded_angle_speed: 12.0
       window_redundancy: 0.8
       window_hysteresis: 0.2
       attack_preaim: false
-      yaw_tolerance: 0.14
-      pitch_tolerance: 0.80
+      yaw_tolerance: 0.18
+      pitch_tolerance: 0.12
       rune_idle_duration: 0.4
       rune_shoot_duration: 0.2
       require_stable_command: false
@@ -139,7 +139,7 @@ gimbal_controller:
     top_yaw_ff_max: 0.0
     top_yaw_ff_jump_threshold: 0.0
 
-    top_yaw_angle_kp: 30.0
+    top_yaw_angle_kp: 32.0
     top_yaw_angle_ki: 0.003
     top_yaw_angle_kd: 0.000
     top_yaw_velocity_kp: 0.22
@@ -153,8 +153,8 @@ gimbal_controller:
     bottom_yaw_velocity_ki: 0.00
     bottom_yaw_velocity_kd: 0.0
 
-    pitch_angle_kp: 15.0
-    pitch_angle_ki: 0.0001
+    pitch_angle_kp: 17.0
+    pitch_angle_ki: 0.002
     pitch_angle_kd: 0.0
     pitch_velocity_kp: 2.8
     pitch_velocity_ki: 0.00
