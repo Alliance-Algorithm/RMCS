@@ -32,7 +32,7 @@ rmcs_executor:
       - rmcs_core::controller::pid::ErrorPidController -> leg_rb_angle_error_pid_controller
       - rmcs_core::controller::pid::PidController -> leg_rb_velocity_pid_controller
 
-      # - rmcs::RealSenseCapturerComponent -> realsense_capturer
+      - rmcs::RealSenseCapturerComponent -> realsense_capturer
       - rmcs::AutoMineComponent -> auto_mine_component
 
       - rmcs_core::broadcaster::ValueBroadcaster -> value_broadcaster
@@ -231,7 +231,7 @@ steering_wheel_controller:
 realsense_capturer:
   ros__parameters:
     serial_number: ""
-    exposure_us: -1.0
+    exposure_us: 16000.0
     gain: 64.0
     framerate: 30
     delay_ms: 0.0

@@ -1,8 +1,10 @@
+#include "axis_transform.hpp"
 #include "controller/arm/arm_MTC/MTC_execution.hpp"
 #include "controller/arm/arm_MTC/MTC_machine.hpp"
 #include "controller/arm/arm_MTC/MTC_parameter_map.hpp"
 #include "controller/arm/obstacle/obstacle_coordinates_map.hpp"
 #include "controller/arm/obstacle/obstacle_course.hpp"
+#include "controller/arm/obstacle/obstacle_types.hpp"
 #include "filter/low_pass_filter.hpp"
 #include <Eigen/Dense>
 #include <algorithm>
@@ -53,7 +55,10 @@ public:
         , mtc_machine_()
         , obstacle_coordinates_map_()
         , obstacle_course_(mtc_machine_.moveit_group_getter().get(), obstacle_coordinates_map_)
-        , custom_joint_filter_(0.2) {
+        , custom_joint_filter_(0.2)
+        , P_({0, -1, 0}, {-0.118 - 0.051, 0, -0.208})
+        , Q_({1, 0, 0}, {-0.118 - 0.051, 0, -0.208 - 0.015})
+        , point_place_({1, 0, 0}, {0.11, 0, 0}) {
         register_input("/remote/joystick/right", joystick_right_);
         register_input("/remote/joystick/left", joystick_left_);
         register_input("/remote/switch/right", switch_right_);
@@ -87,7 +92,7 @@ public:
 
         register_input("/auto_mine/pillar_pose", pillar_pose_);
 
-        log_dog_.reset(1000);
+        // log_dog_.reset(1000);
 
         // Compose every recipe once without runtime targets so unknown blocks and unbound
         // objects fail at load, not in update().
@@ -154,17 +159,7 @@ public:
         arm_control();
         gripper_control();
         image_pitch_control();
-        if (log_dog_.tick()) {
-            if (pillar_pose_.ready()) {
-                const auto& [x, y, z, yaw, pitch, roll] = *pillar_pose_;
-                RCLCPP_INFO(
-                    this->get_logger(), "pillar_pose: %f ,%f ,%f ,%f ,%f ,%f", x, y, z, yaw, pitch,
-                    roll);
-            } else {
-                RCLCPP_WARN(this->get_logger(), "pillar_pose not ready");
-            }
-            log_dog_.reset(1000);
-        }
+
         last_switch_left_ = switch_left;
         last_switch_right_ = switch_right;
         last_rotary_knob_switch_ = knob;
@@ -185,7 +180,7 @@ private:
     using MtcRecipes = std::unordered_map<rmcs_msgs::ArmMode, MtcRecipe>;
 
     // Automatic modes without an entry submit nothing.
-    static MtcRecipes make_mtc_recipes() {
+    MtcRecipes make_mtc_recipes() {
         using rmcs_msgs::ArmMode;
         return {
             {ArmMode::Auto_Extract_LF,
@@ -222,6 +217,51 @@ private:
                  .bindings = {{"unit", "energy_unit_right_back"}}}},
             {ArmMode::Auto_Walk, MtcRecipe{.blocks = {"current_start", "auto_walk"}}},
             {ArmMode::Calibration, MtcRecipe{.blocks = {"current_start", "test"}}},
+
+            {ArmMode::Auto_Mining,
+             MtcRecipe{
+                 .blocks =
+                     {
+                         "current_start",
+                         "extra_right_front",
+                         "extra",
+                         "tech_core_test",
+                         //  "tech_core_place",
+                         //  "push",
+                         // "rotate_P",
+                         // "rotate_Q",
+                         //  "tech_core_exit",
+                         //  "auto_walk",
+                     },
+                 .bindings = {{"unit", "energy_unit_right_front"}},
+                 .targets = [this]() -> MTC::StageTargetOverrides {
+                     return {
+                         {"tech_core_test_pre_place", MTC::makePoseGoal(
+                                                          {.frame_id = "base_link",
+                                                           .x = point_result_.point.x(),
+                                                           .y = point_result_.point.y(),
+                                                           .z = point_result_.point.z(),
+                                                           .roll = tech_core_pose_.roll,
+                                                           .pitch = tech_core_pose_.pitch,
+                                                           .yaw = tech_core_pose_.yaw})},
+                         {"tech_core_rotate_P",
+                          MTC::makeRotationDirection(
+                              {.frame_id = "base_link",
+                               .axis_point =
+                                   {P_result_.point.x(), P_result_.point.y(), P_result_.point.z()},
+                               .axis_direction =
+                                   {P_result_.direction.x(), P_result_.direction.y(),
+                                    P_result_.direction.z()}})},
+                         {"tech_core_rotate_Q",
+                          MTC::makeRotationDirection(
+                              {.frame_id = "base_link",
+                               .axis_point =
+                                   {Q_result_.point.x(), Q_result_.point.y(), Q_result_.point.z()},
+                               .axis_direction =
+                                   {Q_result_.direction.x(), Q_result_.direction.y(),
+                                    Q_result_.direction.z()}})},
+                     };
+                 }}},
             // {ArmMode::Auto_Up_Two_Stairs, MtcRecipe{.blocks = {"current_start",
             // "auto_up_two_stairs"}}}, {ArmMode::Auto_Up_One_Stairs, MtcRecipe{.blocks =
             // {"current_start", "auto_up_one_stairs"}}}, {ArmMode::Auto_Down_Stairs,
@@ -258,7 +298,15 @@ private:
                 set_arm_mode(rmcs_msgs::ArmMode::DT7_Control_Orientation, false);
             }
 
-        } else if (switch_left == Switch::DOWN && switch_right == Switch::MIDDLE) {
+        } else if (
+            switch_left == rmcs_msgs::Switch::UP && switch_right == rmcs_msgs::Switch::DOWN) {
+            if (last_switch_left_ != rmcs_msgs::Switch::UP
+                || last_switch_right_ != rmcs_msgs::Switch::DOWN) {
+                set_arm_mode(rmcs_msgs::ArmMode::Auto_Mining);
+            }
+        }
+
+        else if (switch_left == Switch::DOWN && switch_right == Switch::MIDDLE) {
             if (joystick_right_->y() > 0.8) {
                 if (requested_generation_.load(std::memory_order_acquire) != 0)
                     cancel_execution();
@@ -394,7 +442,9 @@ private:
         if (get_arm_mode() != last_arm_mode_
             && requested_generation_.load(std::memory_order_acquire) != 0)
             cancel_execution();
-
+        if (get_arm_mode() == rmcs_msgs::ArmMode::Auto_Mining)
+            visual_mining_control() == true ? request_trigger_ = last_processed_trigger_ + 1
+                                            : request_trigger_ = last_processed_trigger_;
         if (request_trigger_ != last_processed_trigger_) {
             last_processed_trigger_ = request_trigger_;
             cancel_execution();
@@ -410,6 +460,29 @@ private:
         case ArmMode::Custome: execute_custom(); break;
         default: execute_mtc_step(); break;
         }
+    }
+
+    bool visual_mining_control() {
+        if (!pillar_pose_.ready())
+            return false;
+        if (!std::ranges::all_of(*pillar_pose_, [](double v) { return std::isfinite(v); }))
+            return false;
+        if (last_pillar_pose_ == *pillar_pose_)
+            return false;
+
+        RCLCPP_INFO(this->get_logger(), "pillar_true");
+
+        const auto& p = *pillar_pose_;
+
+        tech_core_pose_ = {p[0], p[1], p[2], p[3], p[4], p[5]};
+        obstacle_course_.set_pose("exchange", tech_core_pose_);
+        obstacle_course_.set_pose("pillar", tech_core_pose_);
+
+        P_result_ = P_.transform(tech_core_pose_);
+        Q_result_ = Q_.transform(tech_core_pose_);
+        point_result_ = point_place_.transform(tech_core_pose_);
+        last_pillar_pose_ = *pillar_pose_;
+        return true;
     }
 
     struct TaskRequest {
@@ -939,7 +1012,17 @@ private:
     filter::LowPassFilter<6> custom_joint_filter_;
 
     InputInterface<std::array<double, 6>> pillar_pose_;
-    rmcs_utility::TickTimer log_dog_;
+    std::array<double, 6> last_pillar_pose_{NAN, NAN, NAN, NAN, NAN, NAN};
+
+    AxisTransform P_;
+    AxisTransform Q_;
+    AxisTransform point_place_;
+
+    AxisTransform::Result P_result_;
+    AxisTransform::Result Q_result_;
+    AxisTransform::Result point_result_;
+    obstacle::Pose tech_core_pose_;
+    // rmcs_utility::TickTimer log_dog_;
 };
 
 } // namespace rmcs_core::controller::arm

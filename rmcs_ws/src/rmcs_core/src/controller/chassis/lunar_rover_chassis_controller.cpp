@@ -103,9 +103,13 @@ public:
 
             break;
         }
+        case rmcs_msgs::ChassisMode::None: set_yaw_mode(YawControlMode::Encoder); break;
         default: break;
         }
         if (chassis_mode_ != rmcs_msgs::ChassisMode::None) {
+            if (last_chassis_mode_ == rmcs_msgs::ChassisMode::None
+                || last_chassis_mode_ == ChassisMode::Yaw_Free)
+                yaw_target_angle_ = *yaw_imu_angle_;
             auto move = *joystick_left_;
 
             Eigen::Rotation2D<double> rotation(*chassis_big_yaw_angle_ + *joint1_theta_);
@@ -141,6 +145,8 @@ private:
         auto switch_right = *switch_right_;
         auto switch_left = *switch_left_;
         auto keyboard = *keyboard_;
+
+        last_chassis_mode_ = chassis_mode_;
         using namespace rmcs_msgs;
         if (switch_left == Switch::MIDDLE
             && (switch_right == Switch::MIDDLE || switch_right == Switch::DOWN)) {
@@ -252,6 +258,7 @@ private:
     InputInterface<rmcs_msgs::ArmMode> arm_mode_;
     rmcs_msgs::ArmMode last_arm_mode_ = rmcs_msgs::ArmMode::None;
     rmcs_msgs::ChassisMode chassis_mode_ = rmcs_msgs::ChassisMode::None;
+    rmcs_msgs::ChassisMode last_chassis_mode_ = rmcs_msgs::ChassisMode::None;
 
     OutputInterface<rmcs_description::BaseLink::DirectionVector> chassis_control_velocity_;
     OutputInterface<rmcs_description::BaseLink::DirectionVector> expected_chassis_control_velocity_;

@@ -46,7 +46,7 @@ realsense_capturer:
     serial_number: ""
     exposure_us: -1.0
     gain: 64.0
-    framerate: 30
+    framerate: 60
     delay_ms: 0.0
     frame_topic: "/visual_mining/rgbd_frame"
     imu_snapshot_topic: ""
